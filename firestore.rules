@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Sessions ──────────────────────────────────────────────────────────────
+    // A session document lives at /sessions/{code}
+    match /sessions/{code} {
+
+      // Any signed-in user can read a session (to join via code lookup)
+      allow read: if request.auth != null;
+
+      // Only a signed-in user can create a session, and they must set
+      // themselves as the host
+      allow create: if request.auth != null
+                    && request.resource.data.hostUid == request.auth.uid;
+
+      // Updates are allowed only if:
+      //   • The caller is signed in
+      //   • The caller is either the host OR is filling their own slot
+      allow update: if request.auth != null
+                    && (
+                      // Host can do anything (start game, advance dealer, etc.)
+                      resource.data.hostUid == request.auth.uid
+                      ||
+                      // Non-host can join: exactly one previously-empty slot
+                      // must now contain their uid, nothing else changes
+                      isJoiningPlayer(resource.data, request.resource.data)
+                      ||
+                      // Any player in the session can append a round
+                      isSessionPlayer(resource.data)
+                        && onlyRoundsChanged(resource.data, request.resource.data)
+                    );
+
+      // No one can delete a session document from the client
+      allow delete: if false;
+    }
+  }
+
+  // ── Helper functions ────────────────────────────────────────────────────────
+
+  // Returns true if the caller's uid appears as a joined player in the session
+  function isSessionPlayer(existingData) {
+    let slots = existingData.playerSlots;
+    return slots.hasAny([{'uid': request.auth.uid, 'joined': true}]);
+  }
+
+  // Returns true when the only field that changed is the `rounds` array
+  // growing by exactly one element (append-only)
+  function onlyRoundsChanged(before, after) {
+    return after.rounds.size() == before.rounds.size() + 1
+        && after.hostUid == before.hostUid
+        && after.status == before.status
+        && after.playerSlots == before.playerSlots;
+  }
+
+  // Returns true when a player is joining: exactly one slot flips from
+  // joined=false to joined=true with the caller's uid, nothing else changes
+  function isJoiningPlayer(before, after) {
+    return after.hostUid == before.hostUid
+        && after.status == before.status
+        && after.rounds == before.rounds
+        && after.playerSlots.size() == before.playerSlots.size()
+        && after.playerSlots.hasAny([{
+             'uid': request.auth.uid,
+             'joined': true
+           }]);
+  }
+}
