@@ -1,0 +1,28 @@
+# Xcode
+*.xcuserstate
+xcuserdata/
+DerivedData/
+*.xcbkptlist
+*.moved-aside
+*.hmap
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Build artifacts
+build/
+*.o
+*.d
+
+# CocoaPods / SPM
+Pods/
+.build/
+.swiftpm/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
