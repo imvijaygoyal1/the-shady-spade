@@ -155,6 +155,13 @@ final class GameViewModel {
         fetchRounds()
     }
 
+    func recordRound(_ round: Round) {
+        guard let context else { return }
+        context.insert(round)
+        try? context.save()
+        fetchRounds()
+    }
+
     // MARK: - Online Mode
 
     func enterOnlineMode(_ sessionVM: OnlineSessionViewModel) {

@@ -27,6 +27,9 @@
 		F1000004 /* OnlineSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000004 /* OnlineSessionView.swift */; };
 		FB100001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = FB000002 /* FirebaseAuth */; };
 		FB100002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = FB000003 /* FirebaseFirestore */; };
+		G1000001 /* ModeSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G2000001 /* ModeSelectionView.swift */; };
+		H1000001 /* ComputerGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = H2000001 /* ComputerGameViewModel.swift */; };
+		I1000001 /* ComputerGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = I2000001 /* ComputerGameView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +52,9 @@
 		F2000002 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		F2000003 /* OnlineSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionViewModel.swift; sourceTree = "<group>"; };
 		F2000004 /* OnlineSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionView.swift; sourceTree = "<group>"; };
+		G2000001 /* ModeSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSelectionView.swift; sourceTree = "<group>"; };
+		H2000001 /* ComputerGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerGameViewModel.swift; sourceTree = "<group>"; };
+		I2000001 /* ComputerGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerGameView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -88,6 +94,9 @@
 				F2000002 /* AuthView.swift */,
 				F2000003 /* OnlineSessionViewModel.swift */,
 				F2000004 /* OnlineSessionView.swift */,
+				G2000001 /* ModeSelectionView.swift */,
+				H2000001 /* ComputerGameViewModel.swift */,
+				I2000001 /* ComputerGameView.swift */,
 				A2000002 /* ContentView.swift */,
 				A2000003 /* Assets.xcassets */,
 				A4000003 /* Preview Content */,
@@ -206,6 +215,9 @@
 				F1000002 /* AuthView.swift in Sources */,
 				F1000003 /* OnlineSessionViewModel.swift in Sources */,
 				F1000004 /* OnlineSessionView.swift in Sources */,
+				G1000001 /* ModeSelectionView.swift in Sources */,
+				H1000001 /* ComputerGameViewModel.swift in Sources */,
+				I1000001 /* ComputerGameView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
