@@ -4,16 +4,18 @@ import SwiftUI
 
 struct ComputerGameView: View {
     var vm: GameViewModel
+    let humanName: String
     @Environment(\.dismiss) private var dismiss
     @State private var game: ComputerGameViewModel
     @State private var runningScores: [Int] = Array(repeating: 0, count: 6)
     @State private var isGameOver = false
     private let targetScore = 500
 
-    init(vm: GameViewModel) {
+    init(vm: GameViewModel, humanName: String) {
         self.vm = vm
+        self.humanName = humanName
         _game = State(initialValue: ComputerGameViewModel(
-            humanName: vm.playerNames[0],
+            humanName: humanName,
             dealerIndex: vm.dealerIndex,
             roundNumber: vm.nextRoundNumber
         ))
@@ -67,7 +69,7 @@ struct ComputerGameView: View {
         if updated.max() ?? 0 >= targetScore { isGameOver = true; return }
         let nextDealer = (game.dealerIndex + 1) % 6
         let newGame = ComputerGameViewModel(
-            humanName: vm.playerNames[0],
+            humanName: humanName,
             dealerIndex: nextDealer,
             roundNumber: vm.nextRoundNumber
         )
@@ -82,7 +84,7 @@ struct ComputerGameView: View {
         runningScores = Array(repeating: 0, count: 6)
         isGameOver = false
         let newGame = ComputerGameViewModel(
-            humanName: vm.playerNames[0],
+            humanName: humanName,
             dealerIndex: vm.dealerIndex,
             roundNumber: vm.nextRoundNumber
         )
@@ -98,6 +100,7 @@ struct ComputerGameView: View {
 
 private struct PlayingCardView: View {
     let card: Card
+    var showPoints: Bool = false
     var isRed: Bool { card.suit == "♥" || card.suit == "♦" }
 
     var body: some View {
@@ -111,6 +114,18 @@ private struct PlayingCardView: View {
         }
         .frame(width: 48, height: 66)
         .glassmorphic(cornerRadius: 10)
+        .overlay(alignment: .bottomTrailing) {
+            if showPoints && card.pointValue > 0 {
+                Text("\(card.pointValue)")
+                    .font(.system(size: 7, weight: .black))
+                    .foregroundStyle(.masterGold)
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 1.5)
+                    .background(Color.masterGold.opacity(0.25))
+                    .clipShape(Capsule())
+                    .padding(3)
+            }
+        }
     }
 }
 
@@ -433,7 +448,7 @@ private struct CallingCardsView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(game.hands[game.humanPlayerIndex]) { card in
-                                PlayingCardView(card: card)
+                                PlayingCardView(card: card, showPoints: true)
                             }
                         }
                         .padding(.horizontal, 4)
@@ -637,7 +652,7 @@ private struct PlayingPhaseView: View {
                                     game.humanPlayCard(card)
                                 }
                             } label: {
-                                PlayingCardView(card: card)
+                                PlayingCardView(card: card, showPoints: true)
                                     .opacity(valid || !isHumanTurn ? 1.0 : 0.35)
                                     .scaleEffect(valid && isHumanTurn ? 1.0 : 0.95)
                             }
