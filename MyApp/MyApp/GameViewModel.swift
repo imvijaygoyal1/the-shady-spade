@@ -147,34 +147,6 @@ final class GameViewModel {
         showingAddRound = false
     }
 
-    func loadSampleData() {
-        guard !isOnlineMode, let context else { return }
-        // Clear existing
-        rounds.forEach { context.delete($0) }
-        try? context.save()
-
-        let samples: [(dealer: Int, bidder: Int, bid: Int, trump: TrumpSuit,
-                        c1: String, c2: String, p1: Int, p2: Int, off: Int, def: Int)] = [
-            (0, 0, 150, .spades,   "A♥", "K♦", 2, 4, 180, 70),
-            (1, 1, 170, .hearts,   "K♠", "Q♥", 3, 5, 160, 90),
-            (2, 2, 140, .diamonds, "A♠", "J♥", 0, 4, 200, 50),
-            (3, 3, 160, .clubs,    "Q♠", "10♥", 1, 5, 155, 95),
-            (4, 4, 130, .spades,   "K♥", "A♦", 1, 3, 145, 105),
-            (5, 0, 180, .hearts,   "A♣", "K♠", 2, 3, 190, 60),
-        ]
-
-        for (i, s) in samples.enumerated() {
-            let r = Round(roundNumber: i + 1, dealerIndex: s.dealer, bidderIndex: s.bidder,
-                          bidAmount: s.bid, trumpSuit: s.trump,
-                          callCard1: s.c1, callCard2: s.c2,
-                          partner1Index: s.p1, partner2Index: s.p2,
-                          offensePointsCaught: s.off, defensePointsCaught: s.def)
-            context.insert(r)
-        }
-        try? context.save()
-        fetchRounds()
-    }
-
     func deleteRound(_ round: Round) {
         guard !isOnlineMode else { return }
         guard let context else { return }

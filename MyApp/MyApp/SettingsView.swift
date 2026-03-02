@@ -18,7 +18,6 @@ struct SettingsView: View {
                         accountCard
                         playersCard
                         resetButton
-                        sampleDataButton
                     }
                     .padding()
                     .padding(.bottom, 20)
@@ -185,24 +184,6 @@ struct SettingsView: View {
         .buttonStyle(BouncyButton())
     }
 
-    private var sampleDataButton: some View {
-        Button {
-            HapticManager.impact(.medium)
-            vm.loadSampleData()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "wand.and.stars")
-                Text("Load Sample Rounds")
-                    .fontWeight(.semibold)
-            }
-            .foregroundStyle(.black)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(Color.masterGold)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-        .buttonStyle(BouncyButton())
-    }
 }
 
 // MARK: - Helpers
