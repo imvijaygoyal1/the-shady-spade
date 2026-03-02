@@ -282,8 +282,8 @@ final class GameViewModel {
     }
 
     func updatePlayerName(_ name: String, at index: Int) {
-        let resolved = name.trimmingCharacters(in: .whitespaces).isEmpty
-            ? "Player \(index + 1)" : name
+        let trimmed = String(name.trimmingCharacters(in: .whitespaces).prefix(30))
+        let resolved = trimmed.isEmpty ? "Player \(index + 1)" : trimmed
         playerNames[index] = resolved
         UserDefaults.standard.set(resolved, forKey: "playerName_\(index)")
     }

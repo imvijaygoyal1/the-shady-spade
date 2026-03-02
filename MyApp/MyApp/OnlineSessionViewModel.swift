@@ -231,6 +231,6 @@ enum SessionStatus: String {
 
     private func generateRoomCode() -> String {
         let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        return String((0..<6).map { _ in chars.randomElement()! })
+        return String((0..<6).compactMap { _ in chars.randomElement() })
     }
 }

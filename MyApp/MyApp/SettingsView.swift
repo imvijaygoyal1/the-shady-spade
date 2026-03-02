@@ -93,7 +93,12 @@ struct SettingsView: View {
 
                 Button {
                     HapticManager.impact(.medium)
-                    if vm.isOnlineMode { vm.exitOnlineMode() }
+                    if vm.isOnlineMode {
+                        Task {
+                            await vm.onlineSessionVM?.leaveSession()
+                            vm.exitOnlineMode()
+                        }
+                    }
                     authVM.signOut()
                 } label: {
                     Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")

@@ -149,7 +149,7 @@ private struct VerifyEmailPage: View {
                 Text("Check Your Inbox")
                     .font(.title2.bold())
                     .foregroundStyle(.white)
-                Text("A verification email was sent to\n\(authVM.user?.email ?? "your email")")
+                Text("A verification email was sent to\n\(maskedEmail(authVM.user?.email))")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -173,9 +173,12 @@ private struct VerifyEmailPage: View {
         }
         .padding()
         .task {
-            while !authVM.isEmailVerified {
+            let maxAttempts = 60 // 3 minutes at 3-second intervals
+            var attempt = 0
+            while !authVM.isEmailVerified && attempt < maxAttempts {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 await authVM.reloadUser()
+                attempt += 1
                 if authVM.isEmailVerified {
                     HapticManager.success()
                     onVerified()
@@ -269,6 +272,15 @@ private func linkButton(prefix: String, link: String, action: @escaping () -> Vo
         (Text(prefix).foregroundStyle(.secondary) + Text(link).foregroundStyle(.masterGold).bold())
             .font(.subheadline)
     }
+}
+
+private func maskedEmail(_ email: String?) -> String {
+    guard let email, let atIndex = email.firstIndex(of: "@") else { return "your email" }
+    let local = String(email[email.startIndex..<atIndex])
+    let domain = String(email[atIndex...])
+    let visible = local.prefix(2)
+    let masked = String(repeating: "*", count: max(0, local.count - 2))
+    return "\(visible)\(masked)\(domain)"
 }
 
 @ViewBuilder
