@@ -556,14 +556,29 @@ private struct PlayingPhaseView: View {
 
                 HStack(spacing: 8) {
                     ForEach(game.currentTrick, id: \.card.id) { entry in
+                        let isWinning = entry.playerIndex == game.currentTrickWinnerIndex
                         VStack(spacing: 4) {
                             PlayingCardView(card: entry.card)
+                                .overlay {
+                                    if isWinning {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .strokeBorder(Color.masterGold, lineWidth: 2.5)
+                                            .shadow(color: .masterGold.opacity(0.5), radius: 6)
+                                    }
+                                }
+                                .scaleEffect(isWinning ? 1.07 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isWinning)
                             Text(String(game.playerName(entry.playerIndex).prefix(5)))
                                 .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(isWinning ? .masterGold : .secondary)
                         }
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.4).combined(with: .opacity),
+                            removal: .opacity
+                        ))
                     }
                 }
+                .animation(.spring(response: 0.38, dampingFraction: 0.72), value: game.currentTrick.count)
                 .frame(minHeight: 80)
             }
             .padding()
@@ -629,8 +644,13 @@ private struct PlayingPhaseView: View {
                             .buttonStyle(BouncyButton())
                             .disabled(!valid || !isHumanTurn)
                             .animation(.easeInOut(duration: 0.2), value: isHumanTurn)
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.5).combined(with: .opacity),
+                                removal: .scale(scale: 0.3).combined(with: .opacity)
+                            ))
                         }
                     }
+                    .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.hands[game.humanPlayerIndex].count)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 4)
                 }

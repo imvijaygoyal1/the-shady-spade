@@ -485,6 +485,12 @@ final class ComputerGameViewModel {
 
     // MARK: - Valid Cards
 
+    /// Index of the player currently winning the in-progress trick, or nil if no trick is active.
+    var currentTrickWinnerIndex: Int? {
+        guard !currentTrick.isEmpty else { return nil }
+        return trickWinner(trick: currentTrick).playerIndex
+    }
+
     func validCardsToPlay() -> Set<String> {
         let hand = hands[humanPlayerIndex]
         if currentTrick.isEmpty { return Set(hand.map(\.id)) }
