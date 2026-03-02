@@ -6,6 +6,9 @@ struct ComputerGameView: View {
     var vm: GameViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var game: ComputerGameViewModel
+    @State private var runningScores: [Int] = Array(repeating: 0, count: 6)
+    @State private var isGameOver = false
+    private let targetScore = 500
 
     init(vm: GameViewModel) {
         self.vm = vm
@@ -20,17 +23,33 @@ struct ComputerGameView: View {
         ZStack {
             Color.darkBG.ignoresSafeArea()
 
-            switch game.phase {
-            case .bidding, .humanBidding:
-                BiddingPhaseView(game: game)
-            case .callingCards:
-                CallingCardsView(game: game)
-            case .aiCalling:
-                AICallingView(game: game)
-            case .playing, .humanPlaying:
-                PlayingPhaseView(game: game)
-            case .roundComplete:
-                RoundCompleteView(game: game, onNextRound: nextRound, onQuit: { dismiss() })
+            if isGameOver {
+                GameOverView(
+                    runningScores: runningScores,
+                    playerNames: (0..<6).map { game.playerName($0) },
+                    targetScore: targetScore,
+                    onPlayAgain: playAgain,
+                    onQuit: { dismiss() }
+                )
+            } else {
+                switch game.phase {
+                case .bidding, .humanBidding:
+                    BiddingPhaseView(game: game)
+                case .callingCards:
+                    CallingCardsView(game: game)
+                case .aiCalling:
+                    AICallingView(game: game)
+                case .playing, .humanPlaying:
+                    PlayingPhaseView(game: game)
+                case .roundComplete:
+                    RoundCompleteView(
+                        game: game,
+                        previousRunningScores: runningScores,
+                        targetScore: targetScore,
+                        onNextRound: nextRound,
+                        onQuit: { dismiss() }
+                    )
+                }
             }
         }
         .task {
@@ -40,12 +59,31 @@ struct ComputerGameView: View {
     }
 
     private func nextRound() {
-        let round = game.buildRound(nextRoundNumber: vm.nextRoundNumber)
-        vm.recordRound(round)
+        let builtRound = game.buildRound(nextRoundNumber: vm.nextRoundNumber)
+        vm.recordRound(builtRound)
+        var updated = runningScores
+        for i in 0..<6 { updated[i] += builtRound.score(for: i) }
+        runningScores = updated
+        if updated.max() ?? 0 >= targetScore { isGameOver = true; return }
         let nextDealer = (game.dealerIndex + 1) % 6
         let newGame = ComputerGameViewModel(
             humanName: vm.playerNames[0],
             dealerIndex: nextDealer,
+            roundNumber: vm.nextRoundNumber
+        )
+        game = newGame
+        Task { [newGame] in
+            newGame.deal()
+            await newGame.startBiddingPhase()
+        }
+    }
+
+    private func playAgain() {
+        runningScores = Array(repeating: 0, count: 6)
+        isGameOver = false
+        let newGame = ComputerGameViewModel(
+            humanName: vm.playerNames[0],
+            dealerIndex: vm.dealerIndex,
             roundNumber: vm.nextRoundNumber
         )
         game = newGame
@@ -650,12 +688,18 @@ private struct AIPlayerBadge: View {
 
 private struct RoundCompleteView: View {
     var game: ComputerGameViewModel
+    let previousRunningScores: [Int]
+    let targetScore: Int
     let onNextRound: () -> Void
     let onQuit: () -> Void
 
     private var isSet: Bool { game.offensePoints < game.highBid }
 
     var body: some View {
+        let builtRound = game.buildRound(nextRoundNumber: 0)
+        let updatedScores = (0..<6).map { previousRunningScores[$0] + builtRound.score(for: $0) }
+        let sortedByScore = (0..<6).sorted { updatedScores[$0] > updatedScores[$1] }
+
         ScrollView {
             VStack(spacing: 24) {
                 // Result banner
@@ -679,8 +723,7 @@ private struct RoundCompleteView: View {
                 }
                 .padding(.horizontal, 20)
 
-                // Per-player breakdown
-                let builtRound = game.buildRound(nextRoundNumber: 0)
+                // Per-player breakdown (this round)
                 VStack(spacing: 0) {
                     ForEach(0..<6) { i in
                         let role = builtRound.role(of: i)
@@ -712,6 +755,79 @@ private struct RoundCompleteView: View {
 
                         if i < 5 { Divider().overlay(Color.white.opacity(0.07)) }
                     }
+                }
+                .glassmorphic(cornerRadius: 18)
+                .padding(.horizontal, 16)
+
+                // Running game score
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("Game Score")
+                            .font(.caption.uppercaseSmallCaps())
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("First to \(targetScore)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 10)
+
+                    ForEach(Array(sortedByScore.enumerated()), id: \.element) { rank, i in
+                        let score = updatedScores[i]
+                        let delta = builtRound.score(for: i)
+                        let progress = min(1.0, max(0.0, Double(max(0, score)) / Double(targetScore)))
+                        let isLeader = rank == 0
+
+                        HStack(spacing: 10) {
+                            Text("\(rank + 1)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 14)
+
+                            Circle()
+                                .fill(isLeader ? Color.masterGold.opacity(0.2) : Color.white.opacity(0.08))
+                                .frame(width: 28, height: 28)
+                                .overlay(
+                                    Text(String(game.playerName(i).prefix(1)))
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(isLeader ? .masterGold : .white)
+                                )
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(game.playerName(i))
+                                    .font(.caption.bold())
+                                    .foregroundStyle(isLeader ? .masterGold : .white)
+
+                                GeometryReader { geo in
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(Color.white.opacity(0.08))
+                                        Capsule()
+                                            .fill(isLeader ? Color.masterGold : Color.offenseBlue.opacity(0.7))
+                                            .frame(width: geo.size.width * progress)
+                                    }
+                                }
+                                .frame(height: 5)
+                            }
+
+                            Spacer()
+
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("\(max(score, 0))")
+                                    .font(.subheadline.bold().monospacedDigit())
+                                    .foregroundStyle(isLeader ? .masterGold : .white)
+                                Text(delta >= 0 ? "+\(delta)" : "\(delta)")
+                                    .font(.system(size: 10).monospacedDigit())
+                                    .foregroundStyle(delta > 0 ? Color.masterGold.opacity(0.7) : .defenseRose)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+
+                        if rank < 5 { Divider().overlay(Color.white.opacity(0.06)) }
+                    }
+                    .padding(.bottom, 14)
                 }
                 .glassmorphic(cornerRadius: 18)
                 .padding(.horizontal, 16)
@@ -893,5 +1009,123 @@ private struct TrickHistoryRow: View {
         }
         .padding(14)
         .glassmorphic(cornerRadius: 16)
+    }
+}
+
+// MARK: - Game Over
+
+private struct GameOverView: View {
+    let runningScores: [Int]
+    let playerNames: [String]
+    let targetScore: Int
+    let onPlayAgain: () -> Void
+    let onQuit: () -> Void
+
+    private var sortedIndices: [Int] {
+        (0..<6).sorted { runningScores[$0] > runningScores[$1] }
+    }
+    private let medals = ["🥇", "🥈", "🥉"]
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Trophy header
+                VStack(spacing: 10) {
+                    Text("🏆")
+                        .font(.system(size: 64))
+                    Text("Game Over!")
+                        .font(.system(size: 38, weight: .black))
+                        .foregroundStyle(.masterGold)
+                    let winner = sortedIndices[0]
+                    Text("\(playerNames[winner]) wins with \(runningScores[winner]) pts!")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 52)
+
+                // Final leaderboard
+                VStack(spacing: 0) {
+                    ForEach(Array(sortedIndices.enumerated()), id: \.element) { rank, i in
+                        let score = runningScores[i]
+                        let progress = min(1.0, max(0.0, Double(max(0, score)) / Double(targetScore)))
+
+                        HStack(spacing: 12) {
+                            Text(rank < 3 ? medals[rank] : "\(rank + 1).")
+                                .font(rank < 3 ? .title3 : .caption.bold())
+                                .frame(width: 30)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(playerNames[i])
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(rank == 0 ? .masterGold : .white)
+
+                                GeometryReader { geo in
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(Color.white.opacity(0.1))
+                                        Capsule()
+                                            .fill(rank == 0 ? Color.masterGold
+                                                  : rank == 1 ? Color.offenseBlue
+                                                  : Color.white.opacity(0.25))
+                                            .frame(width: geo.size.width * progress)
+                                    }
+                                }
+                                .frame(height: 6)
+                            }
+
+                            Spacer()
+
+                            Text("\(score)")
+                                .font(.title3.bold().monospacedDigit())
+                                .foregroundStyle(rank == 0 ? .masterGold : .white)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 13)
+
+                        if rank < 5 { Divider().overlay(Color.white.opacity(0.07)) }
+                    }
+                }
+                .glassmorphic(cornerRadius: 18)
+                .padding(.horizontal, 16)
+
+                // Buttons
+                VStack(spacing: 12) {
+                    Button {
+                        HapticManager.success()
+                        onPlayAgain()
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "arrow.counterclockwise")
+                            Text("Play Again").fontWeight(.bold)
+                        }
+                        .font(.title3)
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                        .background(LinearGradient(
+                            colors: [.masterGold, Color(red: 0.80, green: 0.65, blue: 0.15)],
+                            startPoint: .leading, endPoint: .trailing
+                        ))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    .buttonStyle(BouncyButton())
+
+                    Button {
+                        HapticManager.impact(.light)
+                        onQuit()
+                    } label: {
+                        Text("Quit to Menu")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .glassmorphic(cornerRadius: 14)
+                    }
+                    .buttonStyle(BouncyButton())
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 40)
+            }
+        }
     }
 }
