@@ -20,8 +20,12 @@ struct AuthView: View {
                 VerifyEmailPage(onVerified: { dismiss() })
             }
         }
+        .onAppear {
+            // Already signed in and verified (e.g. returning user)
+            if authVM.isEmailVerified { dismiss() }
+        }
         .onChange(of: authVM.isEmailVerified) { _, verified in
-            if verified && page == .verifyEmail { dismiss() }
+            if verified { dismiss() }   // covers sign-in AND verify-email pages
         }
     }
 }

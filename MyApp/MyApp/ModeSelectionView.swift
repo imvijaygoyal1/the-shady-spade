@@ -93,7 +93,9 @@ struct ModeSelectionView: View {
             MainView()
                 .environment(authVM)
         }
-        .fullScreenCover(isPresented: $showingAuth) {
+        .fullScreenCover(isPresented: $showingAuth, onDismiss: {
+            if authVM.isEmailVerified { showingOnline = true }
+        }) {
             AuthView()
                 .environment(authVM)
         }
