@@ -30,6 +30,8 @@
 		G1000001 /* ModeSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G2000001 /* ModeSelectionView.swift */; };
 		H1000001 /* ComputerGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = H2000001 /* ComputerGameViewModel.swift */; };
 		I1000001 /* ComputerGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = I2000001 /* ComputerGameView.swift */; };
+		J1000001 /* OnlineGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = J2000001 /* OnlineGameViewModel.swift */; };
+		K1000001 /* OnlineGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K2000001 /* OnlineGameView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -55,6 +57,8 @@
 		G2000001 /* ModeSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSelectionView.swift; sourceTree = "<group>"; };
 		H2000001 /* ComputerGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerGameViewModel.swift; sourceTree = "<group>"; };
 		I2000001 /* ComputerGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerGameView.swift; sourceTree = "<group>"; };
+		J2000001 /* OnlineGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGameViewModel.swift; sourceTree = "<group>"; };
+		K2000001 /* OnlineGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGameView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -97,6 +101,8 @@
 				G2000001 /* ModeSelectionView.swift */,
 				H2000001 /* ComputerGameViewModel.swift */,
 				I2000001 /* ComputerGameView.swift */,
+				J2000001 /* OnlineGameViewModel.swift */,
+				K2000001 /* OnlineGameView.swift */,
 				A2000002 /* ContentView.swift */,
 				A2000003 /* Assets.xcassets */,
 				A4000003 /* Preview Content */,
@@ -218,6 +224,8 @@
 				G1000001 /* ModeSelectionView.swift in Sources */,
 				H1000001 /* ComputerGameViewModel.swift in Sources */,
 				I1000001 /* ComputerGameView.swift in Sources */,
+				J1000001 /* OnlineGameViewModel.swift in Sources */,
+				K1000001 /* OnlineGameView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

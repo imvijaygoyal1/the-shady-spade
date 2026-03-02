@@ -7,6 +7,8 @@ struct ModeSelectionView: View {
     @State private var vm = GameViewModel()
     @State private var showingSolo = false
     @State private var showingFriends = false
+    @State private var showingOnline = false
+    @State private var showingAuth = false
     @State private var showingNamePrompt = false
     @State private var pendingName = ""
     @State private var nameConfirmed = false
@@ -53,6 +55,20 @@ struct ModeSelectionView: View {
                         HapticManager.impact(.medium)
                         showingFriends = true
                     }
+
+                    ModeCard(
+                        icon: "person.wave.2.fill",
+                        title: "Play Online",
+                        subtitle: "6 real players over Wi-Fi or internet",
+                        color: .teal
+                    ) {
+                        HapticManager.impact(.medium)
+                        if authVM.isEmailVerified {
+                            showingOnline = true
+                        } else {
+                            showingAuth = true
+                        }
+                    }
                 }
                 .padding(.horizontal, 20)
 
@@ -76,6 +92,40 @@ struct ModeSelectionView: View {
         .fullScreenCover(isPresented: $showingFriends) {
             MainView()
                 .environment(authVM)
+        }
+        .fullScreenCover(isPresented: $showingAuth) {
+            AuthView()
+                .environment(authVM)
+        }
+        .fullScreenCover(isPresented: $showingOnline) {
+            OnlineEntryView(vm: vm)
+                .environment(authVM)
+        }
+    }
+}
+
+// MARK: - Online Entry
+
+private struct OnlineEntryView: View {
+    @Bindable var vm: GameViewModel
+    @Environment(AuthViewModel.self) private var authVM
+    @State private var onlineGame: OnlineGameViewModel? = nil
+
+    var body: some View {
+        if let game = onlineGame {
+            OnlineGameView(game: game)
+        } else {
+            OnlineSessionView(vm: vm, onGameReady: { myIndex, isHostVal, code, names in
+                onlineGame = OnlineGameViewModel(
+                    myPlayerIndex: myIndex,
+                    isHost: isHostVal,
+                    sessionCode: code,
+                    playerNames: names,
+                    dealerIndex: 0,
+                    roundNumber: 1
+                )
+            })
+            .environment(authVM)
         }
     }
 }

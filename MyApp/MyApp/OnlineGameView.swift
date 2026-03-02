@@ -1,0 +1,927 @@
+import SwiftUI
+
+// MARK: - Root
+
+struct OnlineGameView: View {
+    @Bindable var game: OnlineGameViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            Color.darkBG.ignoresSafeArea()
+
+            switch game.phase {
+            case .dealing:
+                OnlineDealingView()
+            case .bidding:
+                OnlineBiddingView(game: game)
+            case .calling:
+                OnlineCallingView(game: game)
+            case .playing:
+                OnlinePlayingView(game: game)
+            case .roundComplete:
+                OnlineRoundCompleteView(game: game) {
+                    guard game.isHost else { return }
+                    Task { await game.startNextRound() }
+                } onQuit: {
+                    game.cleanup()
+                    dismiss()
+                }
+            case .gameOver:
+                OnlineGameOverView(game: game) {
+                    game.cleanup()
+                    dismiss()
+                }
+            }
+
+            // Waiting overlay — shown when it's not the local player's turn (during action phases)
+            if !game.isMyTurn && [.bidding, .playing].contains(game.phase) {
+                let waitName: String = {
+                    if game.currentActionPlayer >= 0 { return game.playerName(game.currentActionPlayer) }
+                    return "..."
+                }()
+                WaitingOverlay(name: waitName)
+            }
+            if game.phase == .calling && game.currentActionPlayer != game.myPlayerIndex {
+                WaitingOverlay(name: game.playerName(game.highBidderIndex) + " (calling)")
+            }
+        }
+        .task {
+            game.attachListener()
+            if game.isHost { await game.startGame() }
+        }
+        .onDisappear { game.cleanup() }
+    }
+}
+
+// MARK: - Dealing
+
+private struct OnlineDealingView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            ProgressView()
+                .scaleEffect(1.8)
+                .tint(.masterGold)
+            Text("Dealing cards…")
+                .font(.title3.bold())
+                .foregroundStyle(.white)
+            Text("Please wait")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(40)
+        .glassmorphic(cornerRadius: 24)
+        .padding(40)
+    }
+}
+
+// MARK: - Bidding
+
+private struct OnlineBiddingView: View {
+    @Bindable var game: OnlineGameViewModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("Bidding — Round \(game.roundNumber)")
+                .font(.title2.bold())
+                .foregroundStyle(.masterGold)
+                .padding(.top, 56)
+                .padding(.bottom, 20)
+
+            // Player chips
+            HStack(spacing: 4) {
+                ForEach(0..<6) { i in
+                    OnlineBidderChip(
+                        name: i == game.myPlayerIndex ? "You" : game.playerName(i),
+                        bid: game.bids[i],
+                        isActive: game.currentActionPlayer == i,
+                        isMe: i == game.myPlayerIndex
+                    )
+                }
+            }
+            .padding(.horizontal, 12)
+
+            // Bid history list
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 8) {
+                        ForEach(Array(game.bidHistoryOrdered.enumerated()), id: \.offset) { idx, entry in
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(entry.playerIndex == game.myPlayerIndex
+                                              ? Color.masterGold.opacity(0.2)
+                                              : Color.white.opacity(0.08))
+                                        .frame(width: 32, height: 32)
+                                    Text(String(game.playerName(entry.playerIndex).prefix(1)).uppercased())
+                                        .font(.caption.bold())
+                                        .foregroundStyle(entry.playerIndex == game.myPlayerIndex ? .masterGold : .white)
+                                }
+                                Text(entry.playerIndex == game.myPlayerIndex ? "You" : game.playerName(entry.playerIndex))
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(entry.playerIndex == game.myPlayerIndex ? .masterGold : .white)
+                                Spacer()
+                                if entry.amount > 0 {
+                                    Text("Bid \(entry.amount)")
+                                        .font(.subheadline.bold().monospacedDigit())
+                                        .foregroundStyle(.masterGold)
+                                        .padding(.horizontal, 10).padding(.vertical, 4)
+                                        .background(Color.masterGold.opacity(0.15))
+                                        .clipShape(Capsule())
+                                } else {
+                                    Text("Pass")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .id(idx)
+                        }
+                        Color.clear.frame(height: 1).id("bottom")
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: game.bids)
+                }
+                .frame(maxHeight: 220)
+                .onChange(of: game.bidHistoryOrdered.count) {
+                    withAnimation(.easeOut(duration: 0.3)) { proxy.scrollTo("bottom", anchor: .bottom) }
+                }
+            }
+
+            Text(game.message)
+                .font(.subheadline).foregroundStyle(.secondary)
+                .padding(.horizontal).multilineTextAlignment(.center)
+
+            Spacer()
+
+            // This player's bidding controls
+            if game.isMyTurn && game.phase == .bidding {
+                VStack(spacing: 16) {
+                    Text(game.humanMustPass ? "You must pass" : "Your turn to bid")
+                        .font(.headline)
+                        .foregroundStyle(game.humanMustPass ? .defenseRose : .white)
+
+                    if !game.humanMustPass {
+                        VStack(spacing: 8) {
+                            HStack {
+                                Text("Bid Amount").foregroundStyle(.secondary).font(.subheadline)
+                                Spacer()
+                                Text("\(Int(game.humanBidAmount))")
+                                    .font(.title2.bold().monospacedDigit())
+                                    .foregroundStyle(.masterGold)
+                                    .contentTransition(.numericText())
+                                    .animation(.spring(response: 0.3), value: game.humanBidAmount)
+                            }
+                            Slider(value: $game.humanBidAmount,
+                                   in: Double(game.humanMinBid)...250, step: 5)
+                                .tint(.masterGold)
+                            HStack {
+                                Text("Min \(game.humanMinBid)").font(.caption2).foregroundStyle(.tertiary)
+                                Spacer()
+                                Text("Max 250").font(.caption2).foregroundStyle(.tertiary)
+                            }
+                        }
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            HapticManager.impact(.light)
+                            Task { await game.pass() }
+                        } label: {
+                            Text("Pass")
+                                .font(.headline).foregroundStyle(.defenseRose)
+                                .frame(maxWidth: .infinity).padding(.vertical, 14)
+                                .glassmorphic(cornerRadius: 14)
+                        }
+                        .buttonStyle(BouncyButton())
+
+                        if !game.humanMustPass {
+                            Button {
+                                HapticManager.impact(.medium)
+                                Task { await game.placeBid(Int(game.humanBidAmount)) }
+                            } label: {
+                                Text("Bid \(Int(game.humanBidAmount))")
+                                    .font(.headline.bold()).foregroundStyle(.black)
+                                    .frame(maxWidth: .infinity).padding(.vertical, 14)
+                                    .background(.masterGold)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            }
+                            .buttonStyle(BouncyButton())
+                        }
+                    }
+                }
+                .padding()
+                .glassmorphic(cornerRadius: 20)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 32)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35), value: game.isMyTurn)
+    }
+}
+
+private struct OnlineBidderChip: View {
+    let name: String
+    let bid: Int
+    let isActive: Bool
+    let isMe: Bool
+
+    var chipColor: Color { isMe ? .masterGold : .offenseBlue }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ZStack {
+                Circle()
+                    .fill(isActive ? chipColor : Color.white.opacity(bid >= 0 ? 0.12 : 0.05))
+                    .frame(width: 42, height: 42)
+                if isActive {
+                    Circle().stroke(chipColor, lineWidth: 1.5).frame(width: 42, height: 42)
+                }
+                Text(String(name.prefix(1)).uppercased())
+                    .font(.caption.bold())
+                    .foregroundStyle(isActive ? .black : .white)
+            }
+            Group {
+                if bid > 0 {
+                    Text("\(bid)").font(.system(size: 9, weight: .bold)).foregroundStyle(.masterGold)
+                } else if bid == 0 {
+                    Text("Pass").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                } else {
+                    Text(String(name.prefix(4))).font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(isActive ? chipColor : .secondary)
+                }
+            }
+            .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .animation(.spring(response: 0.3), value: isActive)
+    }
+}
+
+// MARK: - Calling
+
+private struct OnlineCallingView: View {
+    @Bindable var game: OnlineGameViewModel
+    private var isMyCall: Bool { game.myPlayerIndex == game.highBidderIndex }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 22) {
+                VStack(spacing: 6) {
+                    Text(isMyCall ? "You won the bid!" : "\(game.playerName(game.highBidderIndex)) won the bid")
+                        .font(.title2.bold())
+                        .foregroundStyle(.masterGold)
+                    Text("Bid: \(game.highBid)\(isMyCall ? " — call trump and 2 cards" : " — calling trump and cards…")")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                .padding(.top, 52)
+
+                if isMyCall {
+                    // Trump suit selection
+                    VStack(spacing: 12) {
+                        SectionHeader(title: "Trump Suit")
+                        HStack(spacing: 10) {
+                            ForEach(TrumpSuit.allCases, id: \.rawValue) { suit in
+                                let sel = game.trumpSuitSelection == suit
+                                Button {
+                                    HapticManager.impact(.light)
+                                    game.trumpSuitSelection = suit
+                                } label: {
+                                    VStack(spacing: 6) {
+                                        Text(suit.rawValue).font(.system(size: 26))
+                                            .foregroundStyle(sel ? suit.displayColor : suit.displayColor.opacity(0.35))
+                                        Text(suit.displayName).font(.system(size: 10, weight: .medium))
+                                            .foregroundStyle(sel ? .white : .secondary)
+                                    }
+                                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(sel ? Color.white.opacity(0.12) : Color.white.opacity(0.05))
+                                            .overlay {
+                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    .strokeBorder(sel ? suit.displayColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
+                                            }
+                                    }
+                                }
+                                .buttonStyle(BouncyButton())
+                            }
+                        }
+                    }
+                    .padding().glassmorphic(cornerRadius: 18)
+
+                    // Called cards
+                    VStack(spacing: 14) {
+                        SectionHeader(title: "Call Cards (must not be in your hand)")
+                        callCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit)
+                        Divider().overlay(Color.white.opacity(0.08))
+                        callCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit)
+
+                        if !game.callingValid {
+                            let c1 = game.calledCard1Rank + game.calledCard1Suit
+                            let c2 = game.calledCard2Rank + game.calledCard2Suit
+                            Label(
+                                c1 == c2 ? "Cards must be different" : "Cards must not be in your hand",
+                                systemImage: "exclamationmark.triangle.fill"
+                            )
+                            .font(.caption).foregroundStyle(.defenseRose)
+                        }
+                    }
+                    .padding().glassmorphic(cornerRadius: 18)
+
+                    // Your hand reference
+                    VStack(spacing: 10) {
+                        SectionHeader(title: "Your Hand")
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(game.myHand) { card in
+                                    OnlinePlayingCardView(card: card, showPoints: true)
+                                }
+                            }
+                            .padding(.horizontal, 4)
+                        }
+                    }
+
+                    // Confirm
+                    Button {
+                        HapticManager.success()
+                        Task { await game.confirmCalling() }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "checkmark.seal.fill")
+                            Text("Confirm").fontWeight(.bold)
+                        }
+                        .font(.title3)
+                        .foregroundStyle(game.callingValid ? Color.black : Color.secondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 18)
+                        .background {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(game.callingValid
+                                      ? AnyShapeStyle(LinearGradient(
+                                          colors: [.masterGold, Color(red: 0.80, green: 0.65, blue: 0.15)],
+                                          startPoint: .leading, endPoint: .trailing))
+                                      : AnyShapeStyle(Color.white.opacity(0.09)))
+                        }
+                    }
+                    .disabled(!game.callingValid)
+                    .buttonStyle(BouncyButton())
+                    .padding(.bottom, 32)
+                } else {
+                    // Waiting for bidder to call
+                    VStack(spacing: 16) {
+                        ProgressView().scaleEffect(1.4).tint(.masterGold)
+                        Text("\(game.playerName(game.highBidderIndex)) is choosing trump and cards…")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(32)
+                    .glassmorphic(cornerRadius: 20)
+                    .padding(.horizontal, 32)
+
+                    // Show your hand while waiting
+                    VStack(spacing: 10) {
+                        SectionHeader(title: "Your Hand")
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(game.myHand) { card in
+                                    OnlinePlayingCardView(card: card, showPoints: true)
+                                }
+                            }
+                            .padding(.horizontal, 4)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+
+    private func callCardRow(label: String, rank: Binding<String>, suit: Binding<String>) -> some View {
+        HStack(spacing: 12) {
+            Text(label).font(.subheadline).foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
+
+            Menu {
+                ForEach(cardRanks, id: \.self) { r in Button(r) { rank.wrappedValue = r } }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(rank.wrappedValue.isEmpty ? "Rank" : rank.wrappedValue)
+                        .font(.headline.bold()).foregroundStyle(.white)
+                    Image(systemName: "chevron.down").font(.caption2).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Color.white.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            HStack(spacing: 8) {
+                ForEach(cardSuits, id: \.self) { s in
+                    let isRed = s == "♥" || s == "♦"
+                    let selected = suit.wrappedValue == s
+                    Button {
+                        HapticManager.impact(.light)
+                        suit.wrappedValue = s
+                    } label: {
+                        Text(s).font(.title3)
+                            .foregroundStyle(isRed ? Color.defenseRose : Color.white)
+                            .padding(8)
+                            .background(selected ? Color.white.opacity(0.18) : Color.clear)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(selected ? (isRed ? Color.defenseRose : Color.white).opacity(0.6) : Color.clear, lineWidth: 1.5)
+                            }
+                    }
+                    .buttonStyle(BouncyButton())
+                }
+            }
+
+            Spacer()
+
+            let combined = rank.wrappedValue + suit.wrappedValue
+            if !combined.isEmpty {
+                let isRed = suit.wrappedValue == "♥" || suit.wrappedValue == "♦"
+                Text(combined).font(.headline.bold()).foregroundStyle(isRed ? Color.defenseRose : .white)
+            }
+        }
+    }
+}
+
+// MARK: - Playing
+
+private struct OnlinePlayingView: View {
+    var game: OnlineGameViewModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Other player badges (all 6, skip self)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(0..<6) { i in
+                        if i != game.myPlayerIndex {
+                            OnlinePlayerBadge(
+                                name: game.playerName(i),
+                                cardCount: game.allHandCountFor(i),
+                                isOffense: game.offenseSet.contains(i),
+                                isActive: game.currentActionPlayer == i
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+            }
+            .padding(.top, 52)
+            .padding(.bottom, 12)
+
+            // Current trick
+            VStack(spacing: 8) {
+                Text("Current Trick")
+                    .font(.caption.uppercaseSmallCaps()).foregroundStyle(.secondary)
+
+                HStack(spacing: 8) {
+                    ForEach(game.currentTrick, id: \.card.id) { entry in
+                        let isWinning = entry.playerIndex == game.currentTrickWinnerIndex
+                        VStack(spacing: 4) {
+                            OnlinePlayingCardView(card: entry.card)
+                                .overlay {
+                                    if isWinning {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .strokeBorder(Color.masterGold, lineWidth: 2.5)
+                                            .shadow(color: .masterGold.opacity(0.5), radius: 6)
+                                    }
+                                }
+                                .scaleEffect(isWinning ? 1.07 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isWinning)
+                            Text(entry.playerIndex == game.myPlayerIndex
+                                 ? "You"
+                                 : String(game.playerName(entry.playerIndex).prefix(5)))
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(isWinning ? .masterGold : .secondary)
+                        }
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.4).combined(with: .opacity),
+                            removal: .opacity
+                        ))
+                    }
+                }
+                .animation(.spring(response: 0.38, dampingFraction: 0.72), value: game.currentTrick.count)
+                .frame(minHeight: 80)
+            }
+            .padding().glassmorphic(cornerRadius: 18).padding(.horizontal, 16)
+
+            HStack(spacing: 16) {
+                Label("Trick \(game.trickNumber + 1)/8", systemImage: "square.stack.fill")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Label("Trump: \(game.trumpSuit.rawValue)", systemImage: "sparkle")
+                    .font(.caption).foregroundStyle(game.trumpSuit.displayColor)
+            }
+            .padding(.horizontal, 20).padding(.vertical, 8)
+
+            Text(game.message)
+                .font(.subheadline)
+                .foregroundStyle(game.isMyTurn ? .masterGold : .secondary)
+                .padding(.horizontal).multilineTextAlignment(.center)
+                .animation(.easeInOut, value: game.message)
+
+            Spacer()
+
+            // My hand
+            VStack(spacing: 10) {
+                HStack {
+                    Text("Your Hand")
+                        .font(.caption.uppercaseSmallCaps()).foregroundStyle(.secondary)
+                    Spacer()
+                    if game.isMyTurn {
+                        Text("Your turn!")
+                            .font(.caption.bold()).foregroundStyle(.masterGold)
+                    }
+                }
+                .padding(.horizontal, 16)
+
+                let validCards = game.validCardsToPlay
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(game.myHand) { card in
+                            let valid = validCards.contains(card.id)
+                            Button {
+                                if valid && game.isMyTurn {
+                                    HapticManager.impact(.medium)
+                                    Task { await game.playCard(card) }
+                                }
+                            } label: {
+                                OnlinePlayingCardView(card: card, showPoints: true)
+                                    .opacity(valid || !game.isMyTurn ? 1.0 : 0.35)
+                                    .scaleEffect(valid && game.isMyTurn ? 1.0 : 0.95)
+                            }
+                            .buttonStyle(BouncyButton())
+                            .disabled(!valid || !game.isMyTurn)
+                            .animation(.easeInOut(duration: 0.2), value: game.isMyTurn)
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.5).combined(with: .opacity),
+                                removal: .scale(scale: 0.3).combined(with: .opacity)
+                            ))
+                        }
+                    }
+                    .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.myHand.count)
+                    .padding(.horizontal, 16).padding(.vertical, 4)
+                }
+            }
+            .padding(.bottom, 32)
+        }
+        .overlay(alignment: .top) {
+            if let msg = game.partnerRevealMessage {
+                OnlinePartnerRevealBanner(message: msg)
+                    .padding(.top, 136)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: game.partnerRevealMessage != nil)
+    }
+}
+
+private struct OnlinePlayerBadge: View {
+    let name: String
+    let cardCount: Int
+    let isOffense: Bool
+    let isActive: Bool
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ZStack(alignment: .topTrailing) {
+                Circle()
+                    .fill(isOffense ? Color.offenseBlue.opacity(0.18) : Color.defenseRose.opacity(0.12))
+                    .frame(width: 44, height: 44)
+                    .overlay(Circle().strokeBorder(isActive ? Color.masterGold.opacity(0.8) : (isOffense ? Color.offenseBlue.opacity(0.4) : Color.clear), lineWidth: isActive ? 2 : 1))
+                Text(String(name.prefix(1)))
+                    .font(.subheadline.bold()).foregroundStyle(.white)
+                Text("\(cardCount)")
+                    .font(.system(size: 9, weight: .bold)).foregroundStyle(.black)
+                    .padding(3).background(Circle().fill(isActive ? Color.masterGold : Color.masterGold.opacity(0.7)))
+                    .offset(x: 4, y: -4)
+            }
+            Text(String(name.prefix(6)))
+                .font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .frame(width: 56)
+    }
+}
+
+// MARK: - Round Complete
+
+private struct OnlineRoundCompleteView: View {
+    var game: OnlineGameViewModel
+    let onNext: () -> Void
+    let onQuit: () -> Void
+
+    private var isSet: Bool { game.offensePoints < game.highBid }
+    private let targetScore = 500
+
+    var body: some View {
+        let sortedByScore = (0..<6).sorted { game.runningScores[$0] > game.runningScores[$1] }
+
+        ScrollView {
+            VStack(spacing: 24) {
+                VStack(spacing: 8) {
+                    Text(isSet ? "SET!" : "BID MADE!")
+                        .font(.system(size: 42, weight: .black))
+                        .foregroundStyle(isSet ? .defenseRose : .masterGold)
+                    Text(isSet
+                         ? "\(game.playerName(game.highBidderIndex)) set with \(game.offensePoints) pts (needed \(game.highBid))"
+                         : "\(game.playerName(game.highBidderIndex)) made the bid of \(game.highBid)!")
+                        .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                .padding(.top, 52)
+
+                HStack(spacing: 12) {
+                    OnlineScorePill(label: "Offense", points: game.offensePoints, color: .offenseBlue)
+                    OnlineScorePill(label: "Defense", points: game.defensePoints, color: .defenseRose)
+                }
+                .padding(.horizontal, 20)
+
+                // Per-player this round
+                VStack(spacing: 0) {
+                    ForEach(0..<6, id: \.self) { i in
+                        let isOff = game.offenseSet.contains(i)
+                        let isBidder = i == game.highBidderIndex
+                        let pts: Int = {
+                            if isBidder { return isSet ? -game.highBid : game.offensePoints }
+                            else if isOff { return isSet ? 0 : game.offensePoints }
+                            else { return game.defensePoints }
+                        }()
+                        let role: PlayerRole = isBidder ? .bidder : (isOff ? .partner : .defense)
+                        let isMe = i == game.myPlayerIndex
+
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle().fill(role.color.opacity(0.18)).frame(width: 36, height: 36)
+                                Text(String((isMe ? "You" : game.playerName(i)).prefix(1)).uppercased())
+                                    .font(.caption.bold()).foregroundStyle(role.color)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(isMe ? "You" : game.playerName(i))
+                                    .font(.subheadline.bold()).foregroundStyle(.white)
+                                Text(role.label).font(.caption2).foregroundStyle(role.color)
+                            }
+                            Spacer()
+                            Text(pts >= 0 ? "+\(pts)" : "\(pts)")
+                                .font(.title3.bold().monospacedDigit())
+                                .foregroundStyle(pts > 0 ? Color.masterGold : (pts == 0 ? Color.secondary : Color.defenseRose))
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 12)
+
+                        if i < 5 { Divider().overlay(Color.white.opacity(0.07)) }
+                    }
+                }
+                .glassmorphic(cornerRadius: 18).padding(.horizontal, 16)
+
+                // Running scores leaderboard
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("Game Score").font(.caption.uppercaseSmallCaps()).foregroundStyle(.secondary)
+                        Spacer()
+                        Text("First to \(targetScore)").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
+
+                    ForEach(Array(sortedByScore.enumerated()), id: \.element) { rank, i in
+                        let score = game.runningScores[i]
+                        let progress = min(1.0, max(0.0, Double(max(0, score)) / Double(targetScore)))
+                        let isLeader = rank == 0
+                        let isMe = i == game.myPlayerIndex
+
+                        HStack(spacing: 10) {
+                            Text("\(rank + 1)").font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary).frame(width: 14)
+                            Circle()
+                                .fill(isLeader ? Color.masterGold.opacity(0.2) : Color.white.opacity(0.08))
+                                .frame(width: 28, height: 28)
+                                .overlay(Text(String((isMe ? "You" : game.playerName(i)).prefix(1)))
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(isLeader ? .masterGold : .white))
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(isMe ? "You" : game.playerName(i))
+                                    .font(.caption.bold())
+                                    .foregroundStyle(isLeader ? .masterGold : .white)
+                                GeometryReader { geo in
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(Color.white.opacity(0.08))
+                                        Capsule().fill(isLeader ? Color.masterGold : Color.offenseBlue.opacity(0.7))
+                                            .frame(width: geo.size.width * progress)
+                                    }
+                                }
+                                .frame(height: 5)
+                            }
+                            Spacer()
+                            Text("\(max(score, 0))")
+                                .font(.subheadline.bold().monospacedDigit())
+                                .foregroundStyle(isLeader ? .masterGold : .white)
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 9)
+                        if rank < 5 { Divider().overlay(Color.white.opacity(0.06)) }
+                    }
+                    .padding(.bottom, 14)
+                }
+                .glassmorphic(cornerRadius: 18).padding(.horizontal, 16)
+
+                // Action buttons
+                VStack(spacing: 12) {
+                    Button {
+                        HapticManager.success()
+                        onNext()
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text(game.isHost ? "Next Round" : "Waiting for host…").fontWeight(.bold)
+                            if game.isHost { Image(systemName: "arrow.right") }
+                        }
+                        .font(.title3)
+                        .foregroundStyle(game.isHost ? Color.black : Color.secondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 18)
+                        .background {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(game.isHost
+                                      ? AnyShapeStyle(LinearGradient(
+                                          colors: [.masterGold, Color(red: 0.80, green: 0.65, blue: 0.15)],
+                                          startPoint: .leading, endPoint: .trailing))
+                                      : AnyShapeStyle(Color.white.opacity(0.08)))
+                        }
+                    }
+                    .buttonStyle(BouncyButton())
+                    .disabled(!game.isHost)
+
+                    Button { HapticManager.impact(.light); onQuit() } label: {
+                        Text("Quit to Menu").font(.subheadline).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity).padding(.vertical, 14)
+                            .glassmorphic(cornerRadius: 14)
+                    }
+                    .buttonStyle(BouncyButton())
+                }
+                .padding(.horizontal, 16).padding(.bottom, 40)
+            }
+        }
+    }
+}
+
+private struct OnlineScorePill: View {
+    let label: String
+    let points: Int
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(label).font(.caption.uppercaseSmallCaps()).foregroundStyle(color)
+            Text("\(points)").font(.system(size: 38, weight: .black, design: .rounded))
+                .foregroundStyle(.white).contentTransition(.numericText())
+            Text("pts").font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 18).glassmorphic(cornerRadius: 16)
+    }
+}
+
+// MARK: - Game Over
+
+private struct OnlineGameOverView: View {
+    var game: OnlineGameViewModel
+    let onQuit: () -> Void
+
+    private var sortedIndices: [Int] { (0..<6).sorted { game.runningScores[$0] > game.runningScores[$1] } }
+    private let medals = ["🥇", "🥈", "🥉"]
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                VStack(spacing: 10) {
+                    Text("🏆").font(.system(size: 64))
+                    Text("Game Over!")
+                        .font(.system(size: 38, weight: .black)).foregroundStyle(.masterGold)
+                    let winner = sortedIndices[0]
+                    let isMe = winner == game.myPlayerIndex
+                    Text("\(isMe ? "You win" : "\(game.playerName(winner)) wins") with \(game.runningScores[winner]) pts!")
+                        .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                .padding(.top, 52)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(sortedIndices.enumerated()), id: \.element) { rank, i in
+                        let score = game.runningScores[i]
+                        let isMe = i == game.myPlayerIndex
+                        HStack(spacing: 12) {
+                            Text(rank < 3 ? medals[rank] : "\(rank + 1).")
+                                .font(rank < 3 ? .title3 : .caption.bold())
+                                .frame(width: 30)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(isMe ? "You" : game.playerName(i))
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(rank == 0 ? .masterGold : .white)
+                            }
+                            Spacer()
+                            Text("\(max(score, 0))")
+                                .font(.title3.bold().monospacedDigit())
+                                .foregroundStyle(rank == 0 ? .masterGold : .white)
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 12)
+                        if rank < 5 { Divider().overlay(Color.white.opacity(0.07)) }
+                    }
+                }
+                .glassmorphic(cornerRadius: 18).padding(.horizontal, 16)
+
+                Button { HapticManager.impact(.medium); onQuit() } label: {
+                    Text("Quit to Menu")
+                        .font(.title3.bold()).foregroundStyle(.black)
+                        .frame(maxWidth: .infinity).padding(.vertical, 18)
+                        .background(LinearGradient(
+                            colors: [.masterGold, Color(red: 0.80, green: 0.65, blue: 0.15)],
+                            startPoint: .leading, endPoint: .trailing))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(BouncyButton())
+                .padding(.horizontal, 16).padding(.bottom, 40)
+            }
+        }
+    }
+}
+
+// MARK: - Waiting Overlay
+
+private struct WaitingOverlay: View {
+    let name: String
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+            VStack(spacing: 16) {
+                ProgressView().scaleEffect(1.4).tint(.masterGold)
+                Text("Waiting for \(name)…")
+                    .font(.subheadline.bold()).foregroundStyle(.white)
+                    .padding(.horizontal, 20).padding(.vertical, 12)
+                    .background(Color.white.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+        }
+    }
+}
+
+// MARK: - Partner Reveal Banner
+
+private struct OnlinePartnerRevealBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "person.2.fill").font(.subheadline).foregroundStyle(.masterGold)
+            Text(message).font(.subheadline.bold()).foregroundStyle(.white)
+        }
+        .padding(.horizontal, 18).padding(.vertical, 12)
+        .background {
+            Capsule()
+                .fill(Color.masterGold.opacity(0.22))
+                .overlay { Capsule().strokeBorder(Color.masterGold.opacity(0.55), lineWidth: 1.5) }
+        }
+    }
+}
+
+// MARK: - Shared Card View
+
+private struct OnlinePlayingCardView: View {
+    let card: Card
+    var showPoints: Bool = false
+    var isRed: Bool { card.suit == "♥" || card.suit == "♦" }
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(card.suit).font(.caption2)
+                .foregroundStyle(isRed ? Color.defenseRose : .white)
+            Text(card.rank).font(.headline.bold())
+                .foregroundStyle(isRed ? Color.defenseRose : .white)
+        }
+        .frame(width: 48, height: 66)
+        .glassmorphic(cornerRadius: 10)
+        .overlay(alignment: .bottomTrailing) {
+            if showPoints && card.pointValue > 0 {
+                Text("\(card.pointValue)")
+                    .font(.system(size: 7, weight: .black)).foregroundStyle(.masterGold)
+                    .padding(.horizontal, 3).padding(.vertical, 1.5)
+                    .background(Color.masterGold.opacity(0.25))
+                    .clipShape(Capsule())
+                    .padding(3)
+            }
+        }
+    }
+}
+
+// MARK: - ViewModel extension for card count helper
+
+extension OnlineGameViewModel {
+    /// Approximate card count for other players (derived from trickNumber and known plays).
+    /// Since we don't track other hands locally, we infer from trick progress.
+    func allHandCountFor(_ playerIndex: Int) -> Int {
+        // Each player starts with 8 cards and plays one per trick.
+        // trickNumber = completed tricks. currentTrick has cards being played now.
+        let played = trickNumber + currentTrick.filter { $0.playerIndex == playerIndex }.count
+        return max(0, 8 - played)
+    }
+}

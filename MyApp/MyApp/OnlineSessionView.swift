@@ -6,6 +6,10 @@ struct OnlineSessionView: View {
     @State private var sessionVM = OnlineSessionViewModel()
     @Environment(\.dismiss) private var dismiss
 
+    /// When non-nil: called with (myIndex, isHost, sessionCode, playerNames) to launch the full game engine.
+    /// When nil: falls back to legacy `vm.enterOnlineMode` score-tracker flow.
+    var onGameReady: ((Int, Bool, String, [String]) -> Void)? = nil
+
     var body: some View {
         ZStack {
             Color.darkBG.ignoresSafeArea()
@@ -13,14 +17,14 @@ struct OnlineSessionView: View {
             if sessionVM.sessionCode == nil {
                 CreateOrJoinView(sessionVM: sessionVM, authVM: authVM)
             } else {
-                SessionLobbyView(sessionVM: sessionVM, vm: vm) {
+                SessionLobbyView(sessionVM: sessionVM, vm: vm, onGameReady: onGameReady) {
                     vm.enterOnlineMode(sessionVM)
                     dismiss()
                 }
             }
         }
         .onChange(of: sessionVM.status) { _, newStatus in
-            if newStatus == .playing {
+            if newStatus == .playing && onGameReady == nil {
                 vm.enterOnlineMode(sessionVM)
                 dismiss()
             }
@@ -196,7 +200,9 @@ private struct JoinByCodeView: View {
 private struct SessionLobbyView: View {
     var sessionVM: OnlineSessionViewModel
     var vm: GameViewModel
+    var onGameReady: ((Int, Bool, String, [String]) -> Void)? = nil
     var onGameStart: () -> Void
+    @Environment(AuthViewModel.self) private var authVM
     @Environment(\.dismiss) private var dismiss
     @State private var codeCopied = false
 
@@ -310,6 +316,16 @@ private struct SessionLobbyView: View {
                 }
             }
             .padding()
+        }
+        .onChange(of: sessionVM.status) { _, newStatus in
+            if newStatus == .playing, let onGameReady {
+                let myUID = authVM.user?.uid ?? ""
+                let myIndex = sessionVM.playerSlots.firstIndex(where: { $0.uid == myUID }) ?? 0
+                let names = sessionVM.playerSlots.map { slot in
+                    slot.name.isEmpty ? "Player \(slot.slotIndex + 1)" : slot.name
+                }
+                onGameReady(myIndex, sessionVM.isHost, sessionVM.sessionCode ?? "", names)
+            }
         }
     }
 }
