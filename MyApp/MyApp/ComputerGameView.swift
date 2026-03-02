@@ -492,6 +492,7 @@ private struct CallingCardsView: View {
 
 private struct PlayingPhaseView: View {
     var game: ComputerGameViewModel
+    @State private var showingTrickHistory = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -540,6 +541,16 @@ private struct PlayingPhaseView: View {
                 Label("Trump: \(game.trumpSuit.rawValue)", systemImage: "sparkle")
                     .font(.caption)
                     .foregroundStyle(game.trumpSuit.displayColor)
+                if !game.completedTricks.isEmpty {
+                    Button {
+                        HapticManager.impact(.light)
+                        showingTrickHistory = true
+                    } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.caption.bold())
+                            .foregroundStyle(.offenseBlue)
+                    }
+                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
@@ -587,6 +598,17 @@ private struct PlayingPhaseView: View {
                 }
             }
             .padding(.bottom, 32)
+        }
+        .overlay(alignment: .top) {
+            if let msg = game.partnerRevealMessage {
+                PartnerRevealBanner(message: msg)
+                    .padding(.top, 136)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: game.partnerRevealMessage != nil)
+        .sheet(isPresented: $showingTrickHistory) {
+            TrickHistoryView(game: game)
         }
     }
 }
@@ -756,6 +778,120 @@ private struct ScorePill: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
+        .glassmorphic(cornerRadius: 16)
+    }
+}
+
+// MARK: - Partner Reveal Banner
+
+private struct PartnerRevealBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "person.2.fill")
+                .font(.subheadline)
+                .foregroundStyle(.masterGold)
+            Text(message)
+                .font(.subheadline.bold())
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background {
+            Capsule()
+                .fill(Color.masterGold.opacity(0.22))
+                .overlay { Capsule().strokeBorder(Color.masterGold.opacity(0.55), lineWidth: 1.5) }
+        }
+    }
+}
+
+// MARK: - Trick History
+
+private struct TrickHistoryView: View {
+    var game: ComputerGameViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.darkBG.ignoresSafeArea()
+
+                if game.completedTricks.isEmpty {
+                    Text("No tricks completed yet")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(game.completedTricks.indices.reversed(), id: \.self) { idx in
+                                TrickHistoryRow(
+                                    trickNumber: idx + 1,
+                                    plays: game.completedTricks[idx],
+                                    winnerIndex: game.trickWinners[idx],
+                                    game: game
+                                )
+                            }
+                        }
+                        .padding()
+                    }
+                }
+            }
+            .navigationTitle("Trick History")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(.masterGold)
+                }
+            }
+        }
+    }
+}
+
+private struct TrickHistoryRow: View {
+    let trickNumber: Int
+    let plays: [(playerIndex: Int, card: Card)]
+    let winnerIndex: Int
+    var game: ComputerGameViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Trick \(trickNumber)")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                Spacer()
+                HStack(spacing: 4) {
+                    Image(systemName: "trophy.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.masterGold)
+                    Text(game.playerName(winnerIndex))
+                        .font(.caption.bold())
+                        .foregroundStyle(.masterGold)
+                }
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(plays.enumerated()), id: \.offset) { _, play in
+                        VStack(spacing: 4) {
+                            PlayingCardView(card: play.card)
+                                .overlay {
+                                    if play.playerIndex == winnerIndex {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .strokeBorder(Color.masterGold, lineWidth: 2)
+                                    }
+                                }
+                            Text(String(game.playerName(play.playerIndex).prefix(5)))
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(play.playerIndex == winnerIndex ? .masterGold : .secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(14)
         .glassmorphic(cornerRadius: 16)
     }
 }

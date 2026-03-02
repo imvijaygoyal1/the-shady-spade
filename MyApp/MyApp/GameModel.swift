@@ -1,17 +1,6 @@
 import SwiftData
 import Foundation
 
-// MARK: - Team
-
-enum Team: String, Codable, CaseIterable {
-    case a = "A"
-    case b = "B"
-
-    var displayName: String { "Team \(rawValue)" }
-    var shortName: String { rawValue }
-    var opposing: Team { self == .a ? .b : .a }
-}
-
 // MARK: - Trump Suit
 
 enum TrumpSuit: String, Codable, CaseIterable {
@@ -32,15 +21,31 @@ enum TrumpSuit: String, Codable, CaseIterable {
     var isRed: Bool { self == .hearts || self == .diamonds }
 }
 
+// MARK: - Player Role
+
+enum PlayerRole {
+    case bidder, partner, defense
+
+    var label: String {
+        switch self {
+        case .bidder:  return "Bidder"
+        case .partner: return "Partner"
+        case .defense: return "Defense"
+        }
+    }
+}
+
 // MARK: - Player (value type, not persisted)
 
 struct Player {
-    let index: Int                                          // 0 – 5
-    var name: String  { "Player \(index + 1)" }
-    var initial: String { "P\(index + 1)" }
-    /// Players 1, 3, 5 (index 0, 2, 4) → Team A  |  2, 4, 6 (index 1, 3, 5) → Team B
-    var team: Team    { index % 2 == 0 ? .a : .b }
+    let index: Int
+    var defaultName: String { "Player \(index + 1)" }
 }
+
+// MARK: - Card constants
+
+let cardRanks = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3"]
+let cardSuits = ["♠", "♥", "♦", "♣"]
 
 // MARK: - Round (SwiftData model)
 
@@ -49,66 +54,71 @@ final class Round {
     var id: UUID
     var roundNumber: Int
     var dealerIndex: Int
-
-    // Store enums as their raw String values — fully SwiftData safe
-    var biddingTeamRaw: String
-    var trumpSuitRaw: String
-    var shadySpadeTeamRaw: String?          // nil = nobody (rare edge-case)
-
+    var bidderIndex: Int
     var bidAmount: Int
-    var teamAPointsCaught: Int
-    var teamBPointsCaught: Int
+    var trumpSuitRaw: String
+
+    /// Called card e.g. "A♠"
+    var callCard1: String
+    var callCard2: String
+
+    /// Indices of the two secret partners
+    var partner1Index: Int
+    var partner2Index: Int
+
+    var offensePointsCaught: Int
+    var defensePointsCaught: Int
     var timestamp: Date
 
     init(
         roundNumber: Int,
         dealerIndex: Int,
-        biddingTeam: Team,
+        bidderIndex: Int,
         bidAmount: Int,
-        teamAPointsCaught: Int,
-        teamBPointsCaught: Int,
-        shadySpadeTeam: Team?,
-        trumpSuit: TrumpSuit
+        trumpSuit: TrumpSuit,
+        callCard1: String,
+        callCard2: String,
+        partner1Index: Int,
+        partner2Index: Int,
+        offensePointsCaught: Int,
+        defensePointsCaught: Int
     ) {
-        self.id                 = UUID()
-        self.roundNumber        = roundNumber
-        self.dealerIndex        = dealerIndex
-        self.biddingTeamRaw     = biddingTeam.rawValue
-        self.bidAmount          = bidAmount
-        self.teamAPointsCaught  = teamAPointsCaught
-        self.teamBPointsCaught  = teamBPointsCaught
-        self.shadySpadeTeamRaw  = shadySpadeTeam?.rawValue
-        self.trumpSuitRaw       = trumpSuit.rawValue
-        self.timestamp          = Date()
+        self.id                  = UUID()
+        self.roundNumber         = roundNumber
+        self.dealerIndex         = dealerIndex
+        self.bidderIndex         = bidderIndex
+        self.bidAmount           = bidAmount
+        self.trumpSuitRaw        = trumpSuit.rawValue
+        self.callCard1           = callCard1
+        self.callCard2           = callCard2
+        self.partner1Index       = partner1Index
+        self.partner2Index       = partner2Index
+        self.offensePointsCaught = offensePointsCaught
+        self.defensePointsCaught = defensePointsCaught
+        self.timestamp           = Date()
     }
 
-    // MARK: Computed wrappers
+    // MARK: Computed
 
-    var biddingTeam: Team        { Team(rawValue: biddingTeamRaw)         ?? .a }
-    var trumpSuit: TrumpSuit     { TrumpSuit(rawValue: trumpSuitRaw)      ?? .spades }
-    var shadySpadeTeam: Team?    { shadySpadeTeamRaw.flatMap { Team(rawValue: $0) } }
-    var dealer: Player           { Player(index: dealerIndex) }
+    var trumpSuit: TrumpSuit { TrumpSuit(rawValue: trumpSuitRaw) ?? .spades }
+    var isSet: Bool { offensePointsCaught < bidAmount }
 
-    // MARK: Scoring
+    var offenseIndices: Set<Int> { [bidderIndex, partner1Index, partner2Index] }
+    var defenseIndices: [Int]    { (0..<6).filter { !offenseIndices.contains($0) } }
 
-    private var biddingTeamCaught: Int {
-        biddingTeam == .a ? teamAPointsCaught : teamBPointsCaught
+    func score(for playerIndex: Int) -> Int {
+        if playerIndex == bidderIndex {
+            return isSet ? -bidAmount : offensePointsCaught
+        } else if offenseIndices.contains(playerIndex) {
+            return isSet ? 0 : offensePointsCaught
+        } else {
+            return defensePointsCaught
+        }
     }
 
-    /// True when the bidding team fails to meet their bid
-    var isSet: Bool { biddingTeamCaught < bidAmount }
-
-    /// Points awarded to Team A this round
-    var teamAScore: Int {
-        biddingTeam == .a
-            ? (isSet ? 0 : teamAPointsCaught)
-            : teamAPointsCaught
-    }
-
-    /// Points awarded to Team B this round
-    var teamBScore: Int {
-        biddingTeam == .b
-            ? (isSet ? 0 : teamBPointsCaught)
-            : teamBPointsCaught
+    func role(of playerIndex: Int) -> PlayerRole {
+        if playerIndex == bidderIndex            { return .bidder  }
+        if offenseIndices.contains(playerIndex)  { return .partner }
+        return .defense
     }
 }

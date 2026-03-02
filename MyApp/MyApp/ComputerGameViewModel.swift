@@ -76,9 +76,14 @@ final class ComputerGameViewModel {
     var currentLeaderIndex: Int = 0
     var trickNumber: Int = 0
     var wonTricks: [[Card]] = Array(repeating: [], count: 6)
+    var completedTricks: [[(playerIndex: Int, card: Card)]] = []
+    var trickWinners: [Int] = []
 
     // MARK: UI
     var message: String = ""
+    var partnerRevealMessage: String? = nil
+    private var revealedCard1 = false
+    private var revealedCard2 = false
 
     // MARK: Continuations
     private var bidContinuation: CheckedContinuation<Int, Never>?
@@ -112,6 +117,11 @@ final class ComputerGameViewModel {
         partner1Index = nil
         partner2Index = nil
         message = ""
+        partnerRevealMessage = nil
+        revealedCard1 = false
+        revealedCard2 = false
+        completedTricks = []
+        trickWinners = []
     }
 
     // MARK: - Bidding Phase
@@ -273,6 +283,7 @@ final class ComputerGameViewModel {
                     }
                     hands[humanPlayerIndex].removeAll { $0.id == card.id }
                     currentTrick.append((playerIndex: playerIndex, card: card))
+                    checkPartnerReveal(card: card, playerIndex: playerIndex)
                     phase = .playing
 
                 } else {
@@ -280,6 +291,7 @@ final class ComputerGameViewModel {
                     let card = aiPlayCard(playerIndex: playerIndex)
                     hands[playerIndex].removeAll { $0.id == card.id }
                     currentTrick.append((playerIndex: playerIndex, card: card))
+                    checkPartnerReveal(card: card, playerIndex: playerIndex)
                     message = "\(playerName(playerIndex)) played \(card.rank)\(card.suit)"
                 }
             }
@@ -294,6 +306,26 @@ final class ComputerGameViewModel {
     func humanPlayCard(_ card: Card) {
         cardContinuation?.resume(returning: card)
         cardContinuation = nil
+    }
+
+    private func checkPartnerReveal(card: Card, playerIndex: Int) {
+        guard playerIndex != highBidderIndex else { return }
+        let isSelf = playerIndex == humanPlayerIndex
+        if !revealedCard1 && card.id == calledCard1 {
+            revealedCard1 = true
+            partnerRevealMessage = isSelf ? "You are a partner!" : "\(playerName(playerIndex)) is a partner!"
+            Task {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                partnerRevealMessage = nil
+            }
+        } else if !revealedCard2 && card.id == calledCard2 {
+            revealedCard2 = true
+            partnerRevealMessage = isSelf ? "You are a partner!" : "\(playerName(playerIndex)) is a partner!"
+            Task {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                partnerRevealMessage = nil
+            }
+        }
     }
 
     // MARK: - AI Card Heuristic
@@ -357,6 +389,8 @@ final class ComputerGameViewModel {
 
     private func resolveTrick() {
         let winner = trickWinner(trick: currentTrick)
+        completedTricks.append(currentTrick)
+        trickWinners.append(winner.playerIndex)
         wonTricks[winner.playerIndex].append(contentsOf: currentTrick.map(\.card))
         currentLeaderIndex = winner.playerIndex
         trickNumber += 1
