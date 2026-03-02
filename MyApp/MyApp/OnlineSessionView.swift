@@ -215,6 +215,7 @@ private struct SessionLobbyView: View {
                             .background(Color.white.opacity(0.10))
                             .clipShape(Circle())
                     }
+                    .accessibilityLabel("Leave lobby")
                     Spacer()
                     Text("Game Lobby")
                         .font(.headline.bold())
@@ -245,6 +246,7 @@ private struct SessionLobbyView: View {
                                 .foregroundStyle(codeCopied ? .offenseBlue : .masterGold)
                                 .font(.title3)
                         }
+                        .accessibilityLabel(codeCopied ? "Code copied" : "Copy room code")
                     }
                     Text("Share this code with 5 friends")
                         .font(.caption)

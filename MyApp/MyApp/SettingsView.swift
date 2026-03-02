@@ -141,6 +141,8 @@ struct SettingsView: View {
                         avatarCircle(symbol: vm.playerAvatars[idx],
                                      color: vm.avatarColor(for: idx), size: 40)
                     }
+                    .accessibilityLabel("Avatar for \(vm.playerNames[idx])")
+                    .accessibilityHint("Tap to change avatar")
 
                     TextField("Player \(idx + 1)", text: Binding(
                         get: { vm.playerNames[idx] },

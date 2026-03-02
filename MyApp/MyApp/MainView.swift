@@ -109,12 +109,14 @@ private struct LeaderboardView: View {
                             Image(systemName: vm.isOnlineMode ? "globe.badge.chevron.backward" : "globe")
                                 .foregroundStyle(vm.isOnlineMode ? .offenseBlue : .masterGold)
                         }
+                        .accessibilityLabel(vm.isOnlineMode ? "Exit online mode" : "Play online")
                         Button {
                             vm.showingGameTable = true
                         } label: {
                             Image(systemName: "suit.spade.fill")
                                 .foregroundStyle(.masterGold)
                         }
+                        .accessibilityLabel("Open game table")
                     }
                 }
             }
@@ -169,6 +171,8 @@ private struct LeaderboardView: View {
                     .spring(response: 0.5, dampingFraction: 0.65).delay(Double(i) * 0.09),
                     value: avatarsVisible
                 )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(vm.playerNames[i]), \(score >= 0 ? "plus \(score)" : "minus \(abs(score))") points\(best ? ", leading" : "")")
             }
 
             Text("♠")
@@ -199,6 +203,8 @@ private struct LeaderboardView: View {
             }
         }
         .buttonStyle(BouncyButton())
+        .accessibilityLabel("Add new round")
+        .accessibilityHint("Opens form to record a new round")
     }
 }
 
@@ -266,6 +272,8 @@ private struct PlayerScoreCard: View {
         }
         .padding()
         .glassmorphic(cornerRadius: 18)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Rank \(rank), \(name), \(score >= 0 ? "plus \(score)" : "minus \(abs(score))") points, \(bidsWon) bid wins")
     }
 
     private var rankColor: Color {

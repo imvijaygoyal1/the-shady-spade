@@ -14,10 +14,11 @@ struct AddRoundView: View {
                 ScrollView {
                     VStack(spacing: 22) {
                         dealerSection
-                        trumpSuitSection
-                        biddingSection
+                        bidderSection
+                        bidSection
+                        callCardsSection
+                        partnersSection
                         pointsSection
-                        shadySpadeSection
                         submitButton
                     }
                     .padding(.horizontal)
@@ -39,40 +40,31 @@ struct AddRoundView: View {
     // MARK: - Dealer
 
     private var dealerSection: some View {
-        VStack(spacing: 12) {
-            SectionHeader(title: "🎴  Select Dealer")
+        playerPickerSection(
+            title: "🎴  Dealer",
+            selectedIndex: $vm.dealerIndex
+        )
+    }
 
+    // MARK: - Bidder
+
+    private var bidderSection: some View {
+        VStack(spacing: 12) {
+            SectionHeader(title: "🏆  Bidder")
             HStack(spacing: 0) {
                 ForEach(0..<6) { idx in
-                    let player  = Player(index: idx)
-                    let selected = vm.dealerIndex == idx
-
+                    let selected = vm.bidderIndex == idx
                     Button {
                         HapticManager.impact(.light)
-                        vm.dealerIndex = idx
+                        vm.bidderIndex = idx
+                        // Reset partners when bidder changes
+                        if vm.partner1Index == idx { vm.partner1Index = nil }
+                        if vm.partner2Index == idx { vm.partner2Index = nil }
                     } label: {
-                        VStack(spacing: 5) {
-                            ZStack {
-                                // Solid team color — ensures black text always meets 4.5:1+ on both teams
-                                Circle()
-                                    .fill(selected
-                                          ? AnyShapeStyle(player.team.color)
-                                          : AnyShapeStyle(Color.white.opacity(0.09)))
-                                    .frame(width: 46, height: 46)
-                                    .neonGlow(color: selected ? player.team.color : .clear, intensity: 0.7)
-
-                                Text(player.initial)
-                                    .font(.caption.bold())
-                                    .foregroundStyle(selected ? Color.black : Color.white)
-                            }
-
-                            Text(player.team.shortName)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(player.team.color)
-                        }
-                        .frame(maxWidth: .infinity)
+                        playerCell(idx: idx, selected: selected, color: .offenseBlue)
                     }
                     .buttonStyle(BouncyButton())
+                    .accessibilityLabel(vm.playerNames[idx] + (selected ? ", selected" : ""))
                 }
             }
             .padding()
@@ -80,114 +72,219 @@ struct AddRoundView: View {
         }
     }
 
-    // MARK: - Trump Suit
+    // MARK: - Bid Amount + Trump Suit
 
-    private var trumpSuitSection: some View {
+    private var bidSection: some View {
         VStack(spacing: 12) {
-            SectionHeader(title: "🂡  Trump Suit")
-
-            HStack(spacing: 10) {
-                ForEach(TrumpSuit.allCases, id: \.rawValue) { suit in
-                    let selected = vm.trumpSuit == suit
-
-                    Button {
-                        HapticManager.impact(.light)
-                        vm.trumpSuit = suit
-                    } label: {
-                        VStack(spacing: 6) {
-                            Text(suit.rawValue)
-                                .font(.system(size: 28))
-                                .foregroundStyle(selected ? suit.displayColor : suit.displayColor.opacity(0.35))
-                            Text(suit.displayName)
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(selected ? .white : .secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(selected ? Color.white.opacity(0.14) : Color.white.opacity(0.05))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .strokeBorder(selected ? suit.displayColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
-                                }
-                        }
-                        .neonGlow(color: selected ? suit.displayColor : .clear, intensity: 0.35)
-                    }
-                    .buttonStyle(BouncyButton())
-                }
-            }
-            .padding()
-            .glassmorphic(cornerRadius: 18)
-        }
-    }
-
-    // MARK: - Bidding
-
-    private var biddingSection: some View {
-        VStack(spacing: 12) {
-            SectionHeader(title: "🏷️  Bidding Team & Amount")
+            SectionHeader(title: "🏷️  Bid & Trump")
 
             VStack(spacing: 16) {
-                // Team toggle
-                HStack(spacing: 4) {
-                    ForEach(Team.allCases, id: \.rawValue) { team in
-                        let selected = vm.biddingTeam == team
-                        Button {
-                            HapticManager.impact(.light)
-                            vm.biddingTeam = team
-                        } label: {
-                            Text(team.displayName)
-                                .font(.subheadline.bold())
-                                // Selected: black on solid team color (6.5:1 A, 9.4:1 B) ✓
-                                // Unselected: full-opacity team color on darkBG (5.9:1 A, 8.4:1 B) ✓
-                                .foregroundStyle(selected ? Color.black : team.color)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 11)
-                                .background {
-                                    if selected {
-                                        RoundedRectangle(cornerRadius: 11, style: .continuous)
-                                            .fill(team.color)
-                                            .neonGlow(color: team.color, intensity: 0.5)
-                                    }
-                                }
-                        }
-                        .buttonStyle(BouncyButton())
-                    }
-                }
-                .padding(4)
-                .background {
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .fill(Color.white.opacity(0.07))
-                }
-
                 // Bid slider
                 VStack(spacing: 8) {
                     HStack {
-                        Text("Bid Amount")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        Text("Bid Amount").font(.subheadline).foregroundStyle(.secondary)
                         Spacer()
                         Text("\(Int(vm.bidAmount))")
                             .font(.title2.bold().monospacedDigit())
-                            .foregroundStyle(vm.biddingTeam.color)
-                            .neonGlow(color: vm.biddingTeam.color, intensity: 0.5)
+                            .foregroundStyle(.offenseBlue)
                             .contentTransition(.numericText())
                             .animation(.spring(response: 0.3), value: vm.bidAmount)
                     }
-
                     Slider(value: $vm.bidAmount, in: 130...250, step: 5)
-                        .tint(vm.biddingTeam.color)
-
+                        .tint(.offenseBlue)
                     HStack {
                         Text("Min 130").font(.caption2).foregroundStyle(.tertiary)
                         Spacer()
                         Text("Max 250").font(.caption2).foregroundStyle(.tertiary)
                     }
                 }
+
+                Divider().overlay(Color.white.opacity(0.08))
+
+                // Trump suit
+                HStack(spacing: 10) {
+                    ForEach(TrumpSuit.allCases, id: \.rawValue) { suit in
+                        let sel = vm.trumpSuit == suit
+                        Button {
+                            HapticManager.impact(.light)
+                            vm.trumpSuit = suit
+                        } label: {
+                            VStack(spacing: 6) {
+                                Text(suit.rawValue)
+                                    .font(.system(size: 26))
+                                    .foregroundStyle(sel ? suit.displayColor : suit.displayColor.opacity(0.35))
+                                Text(suit.displayName)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(sel ? .white : .secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(sel ? Color.white.opacity(0.12) : Color.white.opacity(0.05))
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .strokeBorder(sel ? suit.displayColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
+                                    }
+                            }
+                        }
+                        .buttonStyle(BouncyButton())
+                        .accessibilityLabel(suit.displayName + (sel ? ", selected" : ""))
+                    }
+                }
             }
             .padding()
             .glassmorphic(cornerRadius: 18)
+        }
+    }
+
+    // MARK: - Call Cards
+
+    private var callCardsSection: some View {
+        VStack(spacing: 12) {
+            SectionHeader(title: "📣  Call Cards (Bidder calls 2 cards)")
+
+            VStack(spacing: 14) {
+                callCardRow(label: "Card 1",
+                            rank: $vm.callCard1Rank,
+                            suit: $vm.callCard1Suit)
+                Divider().overlay(Color.white.opacity(0.08))
+                callCardRow(label: "Card 2",
+                            rank: $vm.callCard2Rank,
+                            suit: $vm.callCard2Suit)
+
+                if vm.callCard1 == vm.callCard2 && !vm.callCard1Rank.isEmpty {
+                    Label("Cards must be different", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.defenseRose)
+                }
+            }
+            .padding()
+            .glassmorphic(cornerRadius: 18)
+        }
+    }
+
+    private func callCardRow(label: String, rank: Binding<String>, suit: Binding<String>) -> some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(width: 52, alignment: .leading)
+
+            // Rank picker
+            Menu {
+                ForEach(cardRanks, id: \.self) { r in
+                    Button(r) { rank.wrappedValue = r }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(rank.wrappedValue.isEmpty ? "Rank" : rank.wrappedValue)
+                        .font(.headline.bold())
+                        .foregroundStyle(.white)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            // Suit buttons
+            HStack(spacing: 8) {
+                ForEach(cardSuits, id: \.self) { s in
+                    let isRed = s == "♥" || s == "♦"
+                    let selected = suit.wrappedValue == s
+                    Button {
+                        HapticManager.impact(.light)
+                        suit.wrappedValue = s
+                    } label: {
+                        Text(s)
+                            .font(.title3)
+                            .foregroundStyle(isRed ? Color.defenseRose : Color.white)
+                            .padding(8)
+                            .background(selected ? Color.white.opacity(0.18) : Color.clear)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(selected ? (isRed ? Color.defenseRose : Color.white).opacity(0.6) : Color.clear, lineWidth: 1.5)
+                            }
+                    }
+                    .buttonStyle(BouncyButton())
+                    .accessibilityLabel((s == "♠" ? "Spades" : s == "♥" ? "Hearts" : s == "♦" ? "Diamonds" : "Clubs") + (selected ? ", selected" : ""))
+                }
+            }
+
+            Spacer()
+
+            // Preview
+            if !rank.wrappedValue.isEmpty && !suit.wrappedValue.isEmpty {
+                Text(rank.wrappedValue + suit.wrappedValue)
+                    .font(.headline.bold())
+                    .foregroundStyle(["♥","♦"].contains(suit.wrappedValue) ? Color.defenseRose : .white)
+            }
+        }
+    }
+
+    // MARK: - Partners Reveal
+
+    private var partnersSection: some View {
+        VStack(spacing: 12) {
+            SectionHeader(title: "🤝  Reveal Partners (select 2)")
+
+            let selected = [vm.partner1Index, vm.partner2Index].compactMap { $0 }
+
+            VStack(spacing: 0) {
+                ForEach(0..<6) { idx in
+                    if idx != vm.bidderIndex {
+                        Button {
+                            HapticManager.impact(.light)
+                            vm.togglePartner(idx)
+                        } label: {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(vm.isPartner(idx) ? Color.offenseBlue.opacity(0.2) : Color.white.opacity(0.06))
+                                        .frame(width: 36, height: 36)
+                                    Text(String(vm.playerNames[idx].prefix(1)).uppercased())
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(vm.isPartner(idx) ? .offenseBlue : .white)
+                                }
+                                Text(vm.playerNames[idx])
+                                    .foregroundStyle(.white)
+                                Spacer()
+                                if vm.isPartner(idx) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.offenseBlue)
+                                        .font(.title3)
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(BouncyButton())
+                        .accessibilityLabel(vm.playerNames[idx] + (vm.isPartner(idx) ? ", selected as partner" : ""))
+                        .accessibilityHint("Toggle as partner")
+
+                        if idx < 5 { Divider().overlay(Color.white.opacity(0.07)) }
+                    }
+                }
+            }
+            .glassmorphic(cornerRadius: 18)
+
+            if selected.count == 2 {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.offenseBlue)
+                    Text("Partners: \(vm.playerNames[selected[0]]) & \(vm.playerNames[selected[1]])")
+                        .font(.caption)
+                        .foregroundStyle(.offenseBlue)
+                }
+            } else {
+                Text("Select exactly 2 partners")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -198,46 +295,37 @@ struct AddRoundView: View {
             SectionHeader(title: "📊  Points Caught")
 
             HStack(spacing: 12) {
-                teamPointCounter(team: .a)
-                teamPointCounter(team: .b)
+                pointCounter(label: "Offense", points: vm.offensePoints, color: .offenseBlue, isOffense: true)
+                pointCounter(label: "Defense", points: vm.defensePoints, color: .defenseRose, isOffense: false)
             }
 
-            // Running total indicator
             let total = vm.totalPointsEntered
             HStack(spacing: 6) {
                 Image(systemName: total > 250 ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                Text("Total entered: \(total) / 250")
+                Text("Total: \(total) / 250")
                     .font(.caption)
             }
-            .foregroundStyle(total > 250 ? Color.red : Color.green.opacity(0.85))
-            .padding(.horizontal, 2)
+            .foregroundStyle(total > 250 ? Color.defenseRose : Color.offenseBlue)
             .animation(.easeInOut, value: total)
         }
     }
 
-    @ViewBuilder
-    private func teamPointCounter(team: Team) -> some View {
-        let points = team == .a ? vm.teamAPoints : vm.teamBPoints
-
+    private func pointCounter(label: String, points: Int, color: Color, isOffense: Bool) -> some View {
         VStack(spacing: 10) {
-            Text(team.displayName)
-                .font(.headline)
-                .foregroundStyle(team.color)
-
+            Text(label).font(.headline).foregroundStyle(color)
             Text("\(points)")
-                .font(.system(size: 52, weight: .black, design: .rounded))
+                .font(.system(size: 50, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .contentTransition(.numericText())
                 .animation(.spring(response: 0.3), value: points)
-
             VStack(spacing: 6) {
                 HStack(spacing: 6) {
-                    pointBtn("+10", team: team, delta:  10)
-                    pointBtn("+5",  team: team, delta:   5)
+                    pointBtn("+10", color: color, isOffense: isOffense, delta:  10)
+                    pointBtn("+5",  color: color, isOffense: isOffense, delta:   5)
                 }
                 HStack(spacing: 6) {
-                    pointBtn("−5",  team: team, delta:  -5)
-                    pointBtn("−10", team: team, delta: -10)
+                    pointBtn("−5",  color: color, isOffense: isOffense, delta:  -5)
+                    pointBtn("−10", color: color, isOffense: isOffense, delta: -10)
                 }
             }
         }
@@ -246,76 +334,22 @@ struct AddRoundView: View {
         .glassmorphic(cornerRadius: 18)
     }
 
-    private func pointBtn(_ label: String, team: Team, delta: Int) -> some View {
-        Button { vm.adjustPoints(team: team, delta: delta) } label: {
+    private func pointBtn(_ label: String, color: Color, isOffense: Bool, delta: Int) -> some View {
+        Button { vm.adjustPoints(offense: isOffense, delta: delta) } label: {
             Text(label)
                 .font(.subheadline.bold())
-                .foregroundStyle(team.color)
+                .foregroundStyle(color)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 7)
-                .background(team.color.opacity(0.14))
+                .background(color.opacity(0.14))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(team.color.opacity(0.3), lineWidth: 1)
+                        .strokeBorder(color.opacity(0.3), lineWidth: 1)
                 }
         }
         .buttonStyle(BouncyButton())
-    }
-
-    // MARK: - Shady Spade
-
-    private var shadySpadeSection: some View {
-        VStack(spacing: 12) {
-            SectionHeader(title: "♠  The Shady Spade  ·  30 pts")
-
-            VStack(spacing: 14) {
-                Text("3♠")
-                    .font(.system(size: 56, weight: .black))
-                    .foregroundStyle(.shadyGold)
-                    .neonGlow(color: .shadyGold)
-
-                HStack(spacing: 10) {
-                    shadyOption(label: "None", isSelected: vm.shadySpadeTeam == nil, team: nil) {
-                        vm.shadySpadeTeam = nil
-                    }
-                    ForEach(Team.allCases, id: \.rawValue) { team in
-                        shadyOption(label: team.displayName, isSelected: vm.shadySpadeTeam == team, team: team) {
-                            vm.shadySpadeTeam = team
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .glassmorphic(cornerRadius: 18)
-        }
-    }
-
-    private func shadyOption(
-        label: String,
-        isSelected: Bool,
-        team: Team?,
-        action: @escaping () -> Void
-    ) -> some View {
-        let accentColor: Color = team?.color ?? .shadyGold
-
-        return Button {
-            HapticManager.impact(.medium)
-            action()
-        } label: {
-            Text(label)
-                .font(.caption.bold())
-                .foregroundStyle(isSelected ? Color.black : Color.secondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(isSelected ? accentColor : Color.white.opacity(0.08))
-                )
-                .neonGlow(color: isSelected ? accentColor : .clear, intensity: 0.6)
-        }
-        .buttonStyle(BouncyButton())
+        .accessibilityLabel("\(delta > 0 ? "Add" : "Subtract") \(abs(delta)) \(isOffense ? "offense" : "defense") points")
     }
 
     // MARK: - Submit
@@ -324,8 +358,7 @@ struct AddRoundView: View {
         Button { vm.addRound() } label: {
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.seal.fill")
-                Text("Record Round")
-                    .fontWeight(.bold)
+                Text("Record Round").fontWeight(.bold)
             }
             .font(.title3)
             .foregroundStyle(vm.isFormValid ? Color.black : Color.secondary)
@@ -335,14 +368,58 @@ struct AddRoundView: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(vm.isFormValid
                           ? AnyShapeStyle(LinearGradient(
-                                colors: [.shadyGold, Color(red: 1, green: 0.65, blue: 0)],
+                                colors: [.masterGold, Color(red: 0.80, green: 0.65, blue: 0.15)],
                                 startPoint: .leading, endPoint: .trailing))
                           : AnyShapeStyle(Color.white.opacity(0.09)))
             }
-            .neonGlow(color: .shadyGold, intensity: vm.isFormValid ? 0.9 : 0)
         }
         .disabled(!vm.isFormValid)
         .buttonStyle(BouncyButton())
         .padding(.top, 4)
+        .accessibilityLabel("Record round")
+        .accessibilityHint(vm.isFormValid ? "" : "Complete all required fields first")
+    }
+
+    // MARK: - Reusable player cell
+
+    private func playerPickerSection(title: String, selectedIndex: Binding<Int>) -> some View {
+        VStack(spacing: 12) {
+            SectionHeader(title: title)
+            HStack(spacing: 0) {
+                ForEach(0..<6) { idx in
+                    let selected = selectedIndex.wrappedValue == idx
+                    Button {
+                        HapticManager.impact(.light)
+                        selectedIndex.wrappedValue = idx
+                    } label: {
+                        playerCell(idx: idx, selected: selected, color: .masterGold)
+                    }
+                    .buttonStyle(BouncyButton())
+                    .accessibilityLabel(vm.playerNames[idx] + (selected ? ", selected" : ""))
+                }
+            }
+            .padding()
+            .glassmorphic(cornerRadius: 18)
+        }
+    }
+
+    private func playerCell(idx: Int, selected: Bool, color: Color) -> some View {
+        VStack(spacing: 5) {
+            ZStack {
+                Circle()
+                    .fill(selected
+                          ? AnyShapeStyle(color)
+                          : AnyShapeStyle(Color.white.opacity(0.09)))
+                    .frame(width: 44, height: 44)
+                Text(String(vm.playerNames[idx].prefix(1)).uppercased())
+                    .font(.caption.bold())
+                    .foregroundStyle(selected ? Color.black : Color.white)
+            }
+            Text(String(vm.playerNames[idx].prefix(4)))
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(selected ? color : .secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
     }
 }

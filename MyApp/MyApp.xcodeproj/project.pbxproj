@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9FCB9B032F54A07E005C3E4B /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 9FCB9B022F54A07D005C3E4B /* GoogleService-Info.plist */; };
+		P1000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = P2000001 /* PrivacyInfo.xcprivacy */; };
 		A1000001 /* MyAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* MyAppApp.swift */; };
 		A1000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* ContentView.swift */; };
 		A1000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000003 /* Assets.xcassets */; };
@@ -16,9 +18,20 @@
 		B1000003 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* MainView.swift */; };
 		B1000004 /* AddRoundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004 /* AddRoundView.swift */; };
 		B1000005 /* Styles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000005 /* Styles.swift */; };
+		C1000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* SettingsView.swift */; };
+		D1000001 /* GameTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000001 /* GameTableView.swift */; };
+		E1000001 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001 /* SplashView.swift */; };
+		F1000001 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000001 /* AuthViewModel.swift */; };
+		F1000002 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000002 /* AuthView.swift */; };
+		F1000003 /* OnlineSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000003 /* OnlineSessionViewModel.swift */; };
+		F1000004 /* OnlineSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000004 /* OnlineSessionView.swift */; };
+		FB100001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = FB000002 /* FirebaseAuth */; };
+		FB100002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = FB000003 /* FirebaseFirestore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9FCB9B022F54A07D005C3E4B /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		P2000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A2000000 /* MyApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2000001 /* MyAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyAppApp.swift; sourceTree = "<group>"; };
 		A2000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -29,6 +42,13 @@
 		B2000003 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		B2000004 /* AddRoundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddRoundView.swift; sourceTree = "<group>"; };
 		B2000005 /* Styles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Styles.swift; sourceTree = "<group>"; };
+		C2000001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		D2000001 /* GameTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTableView.swift; sourceTree = "<group>"; };
+		E2000001 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
+		F2000001 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		F2000002 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		F2000003 /* OnlineSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionViewModel.swift; sourceTree = "<group>"; };
+		F2000004 /* OnlineSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -36,13 +56,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FB100001 /* FirebaseAuth in Frameworks */,
+				FB100002 /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A4000000 /* Root */ = {
+		A4000000 = {
 			isa = PBXGroup;
 			children = (
 				A4000001 /* MyApp */,
@@ -56,12 +78,21 @@
 				A2000001 /* MyAppApp.swift */,
 				B2000003 /* MainView.swift */,
 				B2000004 /* AddRoundView.swift */,
+				C2000001 /* SettingsView.swift */,
+				D2000001 /* GameTableView.swift */,
+				E2000001 /* SplashView.swift */,
 				B2000001 /* GameModel.swift */,
 				B2000002 /* GameViewModel.swift */,
 				B2000005 /* Styles.swift */,
+				F2000001 /* AuthViewModel.swift */,
+				F2000002 /* AuthView.swift */,
+				F2000003 /* OnlineSessionViewModel.swift */,
+				F2000004 /* OnlineSessionView.swift */,
 				A2000002 /* ContentView.swift */,
 				A2000003 /* Assets.xcassets */,
 				A4000003 /* Preview Content */,
+				9FCB9B022F54A07D005C3E4B /* GoogleService-Info.plist */,
+				P2000001 /* PrivacyInfo.xcprivacy */,
 			);
 			path = MyApp;
 			sourceTree = "<group>";
@@ -98,6 +129,10 @@
 			dependencies = (
 			);
 			name = MyApp;
+			packageProductDependencies = (
+				FB000002 /* FirebaseAuth */,
+				FB000003 /* FirebaseFirestore */,
+			);
 			productName = MyApp;
 			productReference = A2000000 /* MyApp.app */;
 			productType = "com.apple.product-type.application";
@@ -126,6 +161,9 @@
 				Base,
 			);
 			mainGroup = A4000000;
+			packageReferences = (
+				FB000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			productRefGroup = A4000002 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -142,6 +180,8 @@
 			files = (
 				A1000004 /* Preview Assets.xcassets in Resources */,
 				A1000003 /* Assets.xcassets in Resources */,
+				9FCB9B032F54A07E005C3E4B /* GoogleService-Info.plist in Resources */,
+				P1000001 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -159,6 +199,13 @@
 				B1000003 /* MainView.swift in Sources */,
 				B1000004 /* AddRoundView.swift in Sources */,
 				B1000005 /* Styles.swift in Sources */,
+				C1000001 /* SettingsView.swift in Sources */,
+				D1000001 /* GameTableView.swift in Sources */,
+				E1000001 /* SplashView.swift in Sources */,
+				F1000001 /* AuthViewModel.swift in Sources */,
+				F1000002 /* AuthView.swift in Sources */,
+				F1000003 /* OnlineSessionViewModel.swift in Sources */,
+				F1000004 /* OnlineSessionView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -366,6 +413,29 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		FB000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FB000002 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FB000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		FB000003 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FB000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A7000001 /* Project object */;
 }
