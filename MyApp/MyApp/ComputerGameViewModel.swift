@@ -176,6 +176,7 @@ final class ComputerGameViewModel {
         }
 
         if highBidderIndex == humanPlayerIndex {
+            setSmartCallingDefaults()
             phase = .callingCards
         } else {
             phase = .aiCalling
@@ -191,6 +192,34 @@ final class ComputerGameViewModel {
     func humanPass() {
         bidContinuation?.resume(returning: 0)
         bidContinuation = nil
+    }
+
+    // MARK: - Smart Calling Defaults
+
+    private func setSmartCallingDefaults() {
+        let hand = hands[humanPlayerIndex]
+
+        // Trump: suit with highest point value in hand
+        let suitScores = TrumpSuit.allCases.map { suit -> (TrumpSuit, Int) in
+            let pts = hand.filter { $0.suit == suit.rawValue }.map(\.pointValue).reduce(0, +)
+            return (suit, pts)
+        }
+        trumpSuit = suitScores.max(by: { $0.1 < $1.1 })?.0 ?? .spades
+
+        // Called cards: 2 highest-value cards not in hand
+        let humanIds = Set(hand.map(\.id))
+        let candidates = Self.freshDeck()
+            .filter { !humanIds.contains($0.id) }
+            .sorted { lhs, rhs in
+                if lhs.pointValue != rhs.pointValue { return lhs.pointValue > rhs.pointValue }
+                return (Card.rankOrder[lhs.rank] ?? 0) > (Card.rankOrder[rhs.rank] ?? 0)
+            }
+        if candidates.count >= 2 {
+            calledCard1Rank = candidates[0].rank
+            calledCard1Suit = candidates[0].suit
+            calledCard2Rank = candidates[1].rank
+            calledCard2Suit = candidates[1].suit
+        }
     }
 
     // MARK: - AI Bid Heuristic
@@ -328,51 +357,68 @@ final class ComputerGameViewModel {
         }
     }
 
-    // MARK: - AI Card Heuristic
+    // MARK: - AI Card Heuristic (partner-aware)
 
     private func aiPlayCard(playerIndex: Int) -> Card {
         let hand = hands[playerIndex]
         guard !hand.isEmpty else { return Card(rank: "A", suit: "♠") }
 
+        let isOffense = offenseSet.contains(playerIndex)
+        let isBidder  = playerIndex == highBidderIndex
+
+        func rankScore(_ c: Card) -> Int  { Card.rankOrder[c.rank] ?? 0 }
+        func valueScore(_ c: Card) -> Int { c.pointValue * 100 + rankScore(c) }
+
+        // ── LEADING ──────────────────────────────────────────────────────
         if currentTrick.isEmpty {
-            // Leading: highest non-trump
-            let nonTrump = hand.filter { $0.suit != trumpSuit.rawValue }
-            if let best = nonTrump.max(by: { (Card.rankOrder[$0.rank] ?? 0) < (Card.rankOrder[$1.rank] ?? 0) }) {
-                return best
+            if isBidder {
+                // Bidder leads high trump (Q+) to pull opponents' trump
+                let trumpCards = hand.filter { $0.suit == trumpSuit.rawValue }
+                if let highTrump = trumpCards.max(by: { rankScore($0) < rankScore($1) }),
+                   rankScore(highTrump) >= (Card.rankOrder["Q"] ?? 0) {
+                    return highTrump
+                }
             }
-            // Only trump left — lowest trump
-            return hand.min(by: { (Card.rankOrder[$0.rank] ?? 0) < (Card.rankOrder[$1.rank] ?? 0) }) ?? hand[0]
+            // Everyone else: highest non-trump; if only trump left, lowest trump
+            let nonTrump = hand.filter { $0.suit != trumpSuit.rawValue }
+            if let best = nonTrump.max(by: { rankScore($0) < rankScore($1) }) { return best }
+            return hand.min(by: { rankScore($0) < rankScore($1) }) ?? hand[0]
         }
 
-        let ledSuit = currentTrick[0].card.suit
+        // ── FOLLOWING ────────────────────────────────────────────────────
+        let ledSuit  = currentTrick[0].card.suit
         let samesuit = hand.filter { $0.suit == ledSuit }
+        let winner   = trickWinner(trick: currentTrick)
+        // True when current trick winner is on the same team as this player
+        let winnerIsOffense  = offenseSet.contains(winner.playerIndex)
+        let teammateWinning  = isOffense ? winnerIsOffense : !winnerIsOffense
 
         if !samesuit.isEmpty {
-            // Must follow suit — try to beat current winner if possible
-            let winner = trickWinner(trick: currentTrick)
-            if winner.card.suit == ledSuit {
-                let canBeat = samesuit.filter {
-                    (Card.rankOrder[$0.rank] ?? 0) > (Card.rankOrder[winner.card.rank] ?? 0)
-                }
-                if let best = canBeat.max(by: { (Card.rankOrder[$0.rank] ?? 0) < (Card.rankOrder[$1.rank] ?? 0) }) {
-                    return best
-                }
+            if teammateWinning {
+                // Dump highest-point card of led suit onto teammate's winning trick
+                return samesuit.max(by: { valueScore($0) < valueScore($1) }) ?? samesuit[0]
             }
-            return samesuit.min(by: { (Card.rankOrder[$0.rank] ?? 0) < (Card.rankOrder[$1.rank] ?? 0) }) ?? samesuit[0]
+            // Opponent winning — try to beat with lowest winning card
+            if winner.card.suit == ledSuit {
+                let canBeat = samesuit.filter { rankScore($0) > rankScore(winner.card) }
+                if let best = canBeat.max(by: { rankScore($0) < rankScore($1) }) { return best }
+            }
+            // Can't beat — play lowest-value card of suit
+            return samesuit.min(by: { valueScore($0) < valueScore($1) }) ?? samesuit[0]
         }
 
-        // Can't follow — play lowest trump
-        let trumpCards = hand.filter { $0.suit == trumpSuit.rawValue }
-        if let lowest = trumpCards.min(by: { (Card.rankOrder[$0.rank] ?? 0) < (Card.rankOrder[$1.rank] ?? 0) }) {
-            return lowest
+        // ── CAN'T FOLLOW ─────────────────────────────────────────────────
+        if teammateWinning {
+            // Don't waste trump — dump highest-point non-trump card instead
+            let nonTrump = hand.filter { $0.suit != trumpSuit.rawValue }
+            if let best = nonTrump.max(by: { valueScore($0) < valueScore($1) }) { return best }
         }
+        // Opponent winning — play lowest trump to take the trick cheaply
+        let trumpCards = hand.filter { $0.suit == trumpSuit.rawValue }
+        if let lowest = trumpCards.min(by: { rankScore($0) < rankScore($1) }) { return lowest }
 
         // No trump — discard lowest-value card
-        return hand.min(by: {
-            let v0 = $0.pointValue * 100 + (Card.rankOrder[$0.rank] ?? 0)
-            let v1 = $1.pointValue * 100 + (Card.rankOrder[$1.rank] ?? 0)
-            return v0 < v1
-        }) ?? hand[0]
+        return hand.min(by: { valueScore($0) < valueScore($1) }) ?? hand[0]
     }
 
     // MARK: - Trick Resolution
