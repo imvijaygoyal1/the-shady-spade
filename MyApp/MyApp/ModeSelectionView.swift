@@ -11,8 +11,10 @@ struct ModeSelectionView: View {
     @State private var showingSettings = false
     @State private var showingNamePrompt = false
     @State private var pendingName = ""
+    @State private var pendingAvatar = "🦁"
     @State private var nameConfirmed = false
     @AppStorage("soloPlayerName") private var soloPlayerName = ""
+    @AppStorage("soloPlayerAvatar") private var soloPlayerAvatar = "🦁"
 
     var body: some View {
         ZStack {
@@ -64,6 +66,7 @@ struct ModeSelectionView: View {
                     ) {
                         HapticManager.impact(.medium)
                         pendingName = soloPlayerName
+                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
                         showingNamePrompt = true
                     }
 
@@ -95,9 +98,10 @@ struct ModeSelectionView: View {
         .sheet(isPresented: $showingNamePrompt, onDismiss: {
             if nameConfirmed { nameConfirmed = false; showingSolo = true }
         }) {
-            NamePromptSheet(pendingName: $pendingName) {
+            NamePromptSheet(pendingName: $pendingName, pendingAvatar: $pendingAvatar) {
                 let trimmed = pendingName.trimmingCharacters(in: .whitespaces)
                 soloPlayerName = trimmed.isEmpty ? "Player" : trimmed
+                soloPlayerAvatar = pendingAvatar
                 nameConfirmed = true
                 showingNamePrompt = false
             }
@@ -150,59 +154,148 @@ private struct OnlineEntryView: View {
 
 private struct NamePromptSheet: View {
     @Binding var pendingName: String
+    @Binding var pendingAvatar: String
     let onStart: () -> Void
 
+    private let avatarOptions = [
+        "🦁", "🐯", "🦊", "🐺", "🦅", "🐻", "🦈", "🐉",
+        "🧙", "🥷", "🤴", "👸", "🦸", "🎩"
+    ]
     private var trimmed: String { pendingName.trimmingCharacters(in: .whitespaces) }
 
     var body: some View {
         ZStack {
             Color.darkBG.ignoresSafeArea()
 
-            VStack(spacing: 28) {
-                VStack(spacing: 10) {
-                    Image(systemName: "person.circle.fill")
-                        .font(.system(size: 56))
-                        .foregroundStyle(.masterGold)
-                    Text("Solo Game")
-                        .font(.title2.bold())
-                        .foregroundStyle(.white)
-                    Text("What should we call you?")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 8)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 24) {
 
-                TextField("Your name", text: $pendingName)
-                    .textFieldStyle(.plain)
-                    .font(.title3.bold())
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .padding(.vertical, 14)
-                    .background(Color.white.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .submitLabel(.go)
-                    .onSubmit(onStart)
+                    // Large avatar preview with gold edit badge
+                    ZStack(alignment: .bottomTrailing) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.masterGold.opacity(0.12))
+                                .frame(width: 104, height: 104)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.masterGold.opacity(0.35), lineWidth: 2)
+                                )
+                                .shadow(color: Color.masterGold.opacity(0.25), radius: 14)
+                            Text(pendingAvatar)
+                                .font(.system(size: 58))
+                                .animation(.spring(response: 0.3, dampingFraction: 0.65), value: pendingAvatar)
+                        }
+                        // Edit badge
+                        ZStack {
+                            Circle()
+                                .fill(Color.masterGold)
+                                .frame(width: 28, height: 28)
+                                .shadow(color: Color.masterGold.opacity(0.5), radius: 6)
+                            Image(systemName: "pencil")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.black)
+                        }
+                        .offset(x: 2, y: 2)
+                    }
+                    .padding(.top, 28)
 
-                Button(action: onStart) {
-                    Text("Start Game")
-                        .font(.headline.bold())
-                        .foregroundStyle(trimmed.isEmpty ? Color.secondary : Color.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            trimmed.isEmpty
-                                ? AnyShapeStyle(Color.white.opacity(0.12))
-                                : AnyShapeStyle(Color.masterGold)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    // Title & subtitle
+                    VStack(spacing: 6) {
+                        Text("Solo Game")
+                            .font(.title2.bold())
+                            .foregroundStyle(.white)
+                        Text("Pick a name for your avatar")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Name input
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Your Avatar Name")
+                            .font(.caption.bold())
+                            .foregroundStyle(.masterGold)
+                            .padding(.leading, 4)
+                        TextField("Enter avatar name...", text: $pendingName)
+                            .textFieldStyle(.plain)
+                            .font(.title3.bold())
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(.vertical, 14)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .submitLabel(.go)
+                            .onSubmit(onStart)
+                    }
+                    .padding(.horizontal, 28)
+
+                    // Avatar picker
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Choose Your Avatar")
+                            .font(.caption.bold())
+                            .foregroundStyle(.masterGold)
+                            .padding(.leading, 28)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(avatarOptions, id: \.self) { emoji in
+                                    let isSelected = pendingAvatar == emoji
+                                    Button {
+                                        HapticManager.impact(.light)
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.65)) {
+                                            pendingAvatar = emoji
+                                        }
+                                    } label: {
+                                        ZStack {
+                                            Circle()
+                                                .fill(isSelected
+                                                      ? Color.masterGold.opacity(0.18)
+                                                      : Color.white.opacity(0.07))
+                                                .frame(width: 64, height: 64)
+                                                .overlay(
+                                                    Circle()
+                                                        .stroke(
+                                                            isSelected ? Color.masterGold : Color.white.opacity(0.12),
+                                                            lineWidth: isSelected ? 2.5 : 1
+                                                        )
+                                                )
+                                                .shadow(
+                                                    color: isSelected ? Color.masterGold.opacity(0.45) : .clear,
+                                                    radius: 10
+                                                )
+                                            Text(emoji)
+                                                .font(.system(size: 34))
+                                        }
+                                    }
+                                    .buttonStyle(BouncyButton())
+                                }
+                            }
+                            .padding(.horizontal, 28)
+                            .padding(.vertical, 6)
+                        }
+                    }
+
+                    // Start Game button
+                    Button(action: onStart) {
+                        Text("Start Game")
+                            .font(.headline.bold())
+                            .foregroundStyle(trimmed.isEmpty ? Color.secondary : Color.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                trimmed.isEmpty
+                                    ? AnyShapeStyle(Color.white.opacity(0.12))
+                                    : AnyShapeStyle(Color.masterGold)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(BouncyButton())
+                    .disabled(trimmed.isEmpty)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 36)
                 }
-                .buttonStyle(BouncyButton())
-                .disabled(trimmed.isEmpty)
             }
-            .padding(.horizontal, 28)
-            .padding(.bottom, 16)
         }
-        .presentationDetents([.height(380)])
+        .presentationDetents([.large])
         .presentationBackground(Color.darkBG)
     }
 }
