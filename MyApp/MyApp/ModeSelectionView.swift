@@ -6,7 +6,6 @@ struct ModeSelectionView: View {
     @Environment(AuthViewModel.self) private var authVM
     @State private var vm = GameViewModel()
     @State private var showingSolo = false
-    @State private var showingFriends = false
     @State private var showingOnline = false
     @State private var showingAuth = false
     @State private var showingSettings = false
@@ -69,16 +68,6 @@ struct ModeSelectionView: View {
                     }
 
                     ModeCard(
-                        icon: "person.3.fill",
-                        title: "Play with Friends",
-                        subtitle: "6-player manual score tracker",
-                        color: .offenseBlue
-                    ) {
-                        HapticManager.impact(.medium)
-                        showingFriends = true
-                    }
-
-                    ModeCard(
                         icon: "person.wave.2.fill",
                         title: "Play Online",
                         subtitle: "6 real players over Wi-Fi or internet",
@@ -115,10 +104,6 @@ struct ModeSelectionView: View {
         }
         .fullScreenCover(isPresented: $showingSolo) {
             ComputerGameView(vm: vm, humanName: soloPlayerName.isEmpty ? "Player" : soloPlayerName)
-        }
-        .fullScreenCover(isPresented: $showingFriends) {
-            MainView()
-                .environment(authVM)
         }
         .fullScreenCover(isPresented: $showingAuth, onDismiss: {
             if authVM.isEmailVerified { showingOnline = true }

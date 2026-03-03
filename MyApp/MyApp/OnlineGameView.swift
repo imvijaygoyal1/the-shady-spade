@@ -16,13 +16,13 @@ struct OnlineGameView: View {
             case .dealing:
                 OnlineDealingView()
             case .lookingAtCards:
-                OnlineLookingAtCardsView(game: game, onQuit: { showQuitConfirm = true })
+                OnlineLookingAtCardsView(game: game)
             case .bidding:
-                OnlineBiddingView(game: game, onQuit: { showQuitConfirm = true })
+                OnlineBiddingView(game: game)
             case .calling:
-                OnlineCallingView(game: game, onQuit: { showQuitConfirm = true })
+                OnlineCallingView(game: game)
             case .playing:
-                OnlinePlayingView(game: game, onQuit: { showQuitConfirm = true })
+                OnlinePlayingView(game: game)
             case .roundComplete:
                 OnlineRoundCompleteView(game: game) {
                     guard game.isHost else { return }
@@ -88,26 +88,28 @@ struct OnlineGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showRoundResultBanner)
-        .onDisappear { game.cleanup() }
-    }
-}
-
-// MARK: - Quit Button
-
-private struct OnlineQuitButton: View {
-    let action: () -> Void
-    var body: some View {
-        Button {
-            HapticManager.impact(.light)
-            action()
-        } label: {
-            Image(systemName: "xmark")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white.opacity(0.6))
-                .frame(width: 30, height: 30)
-                .background(Color.white.opacity(0.10))
-                .clipShape(Circle())
+        // Quit button — top-right safe area, above all content
+        .overlay(alignment: .topTrailing) {
+            let activePhase = ![.roundComplete, .gameOver].contains(game.phase)
+            if activePhase {
+                Button {
+                    HapticManager.impact(.light)
+                    showQuitConfirm = true
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .frame(width: 32, height: 32)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                }
+                .padding(.top, 8)
+                .padding(.trailing, 16)
+                .transition(.opacity)
+            }
         }
+        .onDisappear { game.cleanup() }
     }
 }
 
@@ -136,7 +138,6 @@ private struct OnlineDealingView: View {
 
 private struct OnlineLookingAtCardsView: View {
     @Bindable var game: OnlineGameViewModel
-    let onQuit: () -> Void
     @State private var appeared = false
 
     private var handPoints: Int { game.myHand.map(\.pointValue).reduce(0, +) }
@@ -144,21 +145,16 @@ private struct OnlineLookingAtCardsView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            ZStack(alignment: .trailing) {
-                VStack(spacing: 6) {
-                    Text("Round \(game.roundNumber)")
-                        .font(.caption.uppercaseSmallCaps())
-                        .foregroundStyle(.secondary)
-                    Text("Your Hand")
-                        .font(.title2.bold())
-                        .foregroundStyle(.masterGold)
-                    Text("Dealer: \(game.playerName(game.dealerIndex))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                OnlineQuitButton(action: onQuit)
-                    .padding(.trailing, 16)
+            VStack(spacing: 6) {
+                Text("Round \(game.roundNumber)")
+                    .font(.caption.uppercaseSmallCaps())
+                    .foregroundStyle(.secondary)
+                Text("Your Hand")
+                    .font(.title2.bold())
+                    .foregroundStyle(.masterGold)
+                Text("Dealer: \(game.playerName(game.dealerIndex))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             .padding(.top, 56)
             .padding(.bottom, 24)
@@ -243,20 +239,14 @@ private struct OnlineLookingAtCardsView: View {
 
 private struct OnlineBiddingView: View {
     @Bindable var game: OnlineGameViewModel
-    let onQuit: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Bidding — Round \(game.roundNumber)")
-                    .font(.title2.bold())
-                    .foregroundStyle(.masterGold)
-                Spacer()
-                OnlineQuitButton(action: onQuit)
-            }
-            .padding(.top, 56)
-            .padding(.bottom, 20)
-            .padding(.horizontal, 20)
+            Text("Bidding — Round \(game.roundNumber)")
+                .font(.title2.bold())
+                .foregroundStyle(.masterGold)
+                .padding(.top, 56)
+                .padding(.bottom, 20)
 
             // Player chips
             HStack(spacing: 4) {
@@ -435,23 +425,17 @@ private struct OnlineBidderChip: View {
 
 private struct OnlineCallingView: View {
     @Bindable var game: OnlineGameViewModel
-    let onQuit: () -> Void
     private var isMyCall: Bool { game.myPlayerIndex == game.highBidderIndex }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                ZStack(alignment: .trailing) {
-                    VStack(spacing: 6) {
-                        Text(isMyCall ? "You won the bid!" : "\(game.playerName(game.highBidderIndex)) won the bid")
-                            .font(.title2.bold())
-                            .foregroundStyle(.masterGold)
-                        Text("Bid: \(game.highBid)\(isMyCall ? " — call trump and 2 cards" : " — calling trump and cards…")")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    OnlineQuitButton(action: onQuit)
-                        .padding(.trailing, 16)
+                VStack(spacing: 6) {
+                    Text(isMyCall ? "You won the bid!" : "\(game.playerName(game.highBidderIndex)) won the bid")
+                        .font(.title2.bold())
+                        .foregroundStyle(.masterGold)
+                    Text("Bid: \(game.highBid)\(isMyCall ? " — call trump and 2 cards" : " — calling trump and cards…")")
+                        .font(.subheadline).foregroundStyle(.secondary)
                 }
                 .padding(.top, 52)
 
@@ -645,7 +629,7 @@ private struct OnlineOffenseTeamStrip: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Text("Offense:")
+            Text("Bidding Team:")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.secondary)
 
@@ -656,11 +640,11 @@ private struct OnlineOffenseTeamStrip: View {
                 isBidder: true
             )
 
-            let p1Name: String? = game.partner1Index >= 0
-                ? (game.partner1Index == game.myPlayerIndex ? "You" : game.playerName(game.partner1Index))
+            let p1Name: String? = game.revealedPartner1Index >= 0
+                ? (game.revealedPartner1Index == game.myPlayerIndex ? "You" : game.playerName(game.revealedPartner1Index))
                 : nil
-            let p2Name: String? = game.partner2Index >= 0
-                ? (game.partner2Index == game.myPlayerIndex ? "You" : game.playerName(game.partner2Index))
+            let p2Name: String? = game.revealedPartner2Index >= 0
+                ? (game.revealedPartner2Index == game.myPlayerIndex ? "You" : game.playerName(game.revealedPartner2Index))
                 : nil
 
             OnlineOffenseChip(name: p1Name)
@@ -668,8 +652,8 @@ private struct OnlineOffenseTeamStrip: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.partner1Index)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.partner2Index)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
     }
 }
 
@@ -712,29 +696,24 @@ private struct OnlineOffenseChip: View {
 
 private struct OnlinePlayingView: View {
     var game: OnlineGameViewModel
-    let onQuit: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            // Other player badges + quit button in one row
-            HStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(0..<6) { i in
-                            if i != game.myPlayerIndex {
-                                OnlinePlayerBadge(
-                                    name: game.playerName(i),
-                                    cardCount: game.allHandCountFor(i),
-                                    isOffense: game.offenseSet.contains(i),
-                                    isActive: game.currentActionPlayer == i
-                                )
-                            }
+            // Other player badges
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(0..<6) { i in
+                        if i != game.myPlayerIndex {
+                            OnlinePlayerBadge(
+                                name: game.playerName(i),
+                                cardCount: game.allHandCountFor(i),
+                                isOffense: game.offenseSet.contains(i),
+                                isActive: game.currentActionPlayer == i
+                            )
                         }
                     }
-                    .padding(.leading, 12)
                 }
-                OnlineQuitButton(action: onQuit)
-                    .padding(.horizontal, 10)
+                .padding(.horizontal, 12)
             }
             .padding(.top, 52)
             .padding(.bottom, 12)
@@ -779,28 +758,30 @@ private struct OnlinePlayingView: View {
                 Label("Hand \(game.trickNumber + 1)/8", systemImage: "square.stack.fill")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Label("Trump: \(game.trumpSuit.rawValue)", systemImage: "sparkle")
-                    .font(.caption).foregroundStyle(game.trumpSuit.displayColor)
+                TrumpBadge(suit: game.trumpSuit)
             }
             .padding(.horizontal, 20).padding(.vertical, 8)
 
             // Offense team strip
             OnlineOffenseTeamStrip(game: game)
 
-            Text(game.message)
-                .font(.subheadline)
-                .foregroundStyle(game.isMyTurn ? .masterGold : .secondary)
-                .padding(.horizontal).multilineTextAlignment(.center)
-                .animation(.easeInOut, value: game.message)
-
-            // Bid progress countdown
-            PointsToWinStrip(
+            // Bid progress banner
+            BidProgressBanner(
                 bidderName: game.playerName(game.highBidderIndex),
                 offenseCaught: game.offensePoints,
                 bid: game.highBid
             )
+            .padding(.top, 4)
 
-            Spacer()
+            Text(game.message)
+                .font(.subheadline)
+                .foregroundStyle(game.isMyTurn ? .masterGold : .secondary)
+                .padding(.horizontal)
+                .padding(.vertical, 6)
+                .multilineTextAlignment(.center)
+                .animation(.easeInOut, value: game.message)
+
+            Spacer(minLength: 0)
 
             // My hand
             VStack(spacing: 10) {
@@ -934,7 +915,7 @@ private struct OnlineRoundResultBanner: View {
 
                 // Offense team reveal
                 VStack(spacing: 14) {
-                    Text(isSet ? "Offense Team — SET" : "Winning Team")
+                    Text(isSet ? "Bidding Team — SET" : "Winning Team")
                         .font(.caption.uppercaseSmallCaps())
                         .foregroundStyle(.secondary)
 
@@ -1035,7 +1016,7 @@ private struct OnlineRoundCompleteView: View {
                 // Points caught + award breakdown
                 VStack(spacing: 10) {
                     HStack(spacing: 12) {
-                        OnlineScorePill(label: "Offense caught", points: game.offensePoints, color: .offenseBlue)
+                        OnlineScorePill(label: "Bidding Team caught", points: game.offensePoints, color: .offenseBlue)
                         OnlineScorePill(label: "Defense caught", points: game.defensePoints, color: .defenseRose)
                     }
                     if !isSet {

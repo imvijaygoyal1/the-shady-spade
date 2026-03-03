@@ -404,7 +404,7 @@ private struct HistoryRoundCard: View {
             // Points
             HStack {
                 VStack(spacing: 2) {
-                    Text("Offense Caught")
+                    Text("Bidding Team Caught")
                         .font(.caption2).foregroundStyle(.secondary)
                     Text("\(round.offensePointsCaught)")
                         .font(.title2.bold()).foregroundStyle(.offenseBlue)

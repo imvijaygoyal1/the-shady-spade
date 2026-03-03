@@ -193,6 +193,17 @@ struct SettingsView: View {
 
             Divider().overlay(Color.white.opacity(0.08))
 
+            Link(destination: URL(string: "https://example.com/privacy-policy")!) {
+                HStack(spacing: 6) {
+                    Text("Privacy Policy")
+                        .font(.caption)
+                        .foregroundStyle(.offenseBlue)
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.offenseBlue)
+                }
+            }
+
             Text("© 2026 Vijay Goyal. All rights reserved.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

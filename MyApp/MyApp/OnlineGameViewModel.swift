@@ -64,6 +64,9 @@ final class OnlineGameViewModel {
     private var hasRevealedPartner1 = false
     private var hasRevealedPartner2 = false
     private var hasInitializedCalling = false
+    // Revealed in play order (slot 2 = first reveal, slot 3 = second reveal)
+    var revealedPartner1Index: Int = -1
+    var revealedPartner2Index: Int = -1
 
     // MARK: - Init
 
@@ -263,10 +266,12 @@ final class OnlineGameViewModel {
         let newP1 = iDef("partner1Index", -1)
         let newP2 = iDef("partner2Index", -1)
 
-        // Partner reveal detection (before updating)
+        // Partner reveal detection (before updating) — fill display slots in play order
         if newPhase == .playing || newPhase == .roundComplete || newPhase == .gameOver {
             if !hasRevealedPartner1 && newP1 >= 0 {
                 hasRevealedPartner1 = true
+                if revealedPartner1Index == -1 { revealedPartner1Index = newP1 }
+                else { revealedPartner2Index = newP1 }
                 let name = playerName(newP1)
                 let isSelf = newP1 == myPlayerIndex
                 partnerRevealMessage = isSelf ? "You are a partner!" : "\(name) is a partner!"
@@ -277,10 +282,11 @@ final class OnlineGameViewModel {
             }
             if !hasRevealedPartner2 && newP2 >= 0 {
                 hasRevealedPartner2 = true
+                if revealedPartner1Index == -1 { revealedPartner1Index = newP2 }
+                else { revealedPartner2Index = newP2 }
                 let name = playerName(newP2)
                 let isSelf = newP2 == myPlayerIndex
                 let msg = isSelf ? "You are a partner!" : "\(name) is a partner!"
-                // Only show if different from current message
                 if msg != partnerRevealMessage {
                     Task {
                         try? await Task.sleep(nanoseconds: 500_000_000)
@@ -292,9 +298,9 @@ final class OnlineGameViewModel {
             }
         }
 
-        // Reset reveal flags on new round
-        if newP1 == -1 { hasRevealedPartner1 = false }
-        if newP2 == -1 { hasRevealedPartner2 = false }
+        // Reset reveal flags and play-order slots on new round
+        if newP1 == -1 { hasRevealedPartner1 = false; revealedPartner1Index = -1 }
+        if newP2 == -1 { hasRevealedPartner2 = false; revealedPartner2Index = -1 }
 
         // Update published props
         phase = newPhase

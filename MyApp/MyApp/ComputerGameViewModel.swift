@@ -100,6 +100,9 @@ final class ComputerGameViewModel {
     var partnerRevealMessage: String? = nil
     var partner1Revealed = false
     var partner2Revealed = false
+    // Revealed in play order (slot 2 = first reveal, slot 3 = second reveal)
+    var revealedPartner1Index: Int? = nil
+    var revealedPartner2Index: Int? = nil
 
     // MARK: Continuations
     private var viewCardsContinuation: CheckedContinuation<Void, Never>?
@@ -137,6 +140,8 @@ final class ComputerGameViewModel {
         partnerRevealMessage = nil
         partner1Revealed = false
         partner2Revealed = false
+        revealedPartner1Index = nil
+        revealedPartner2Index = nil
         completedTricks = []
         trickWinners = []
         phase = .viewingCards
@@ -390,21 +395,26 @@ final class ComputerGameViewModel {
 
     private func checkPartnerReveal(card: Card, playerIndex: Int) {
         guard playerIndex != highBidderIndex else { return }
+        let isCard1 = card.id == calledCard1
+        let isCard2 = card.id == calledCard2
+        guard isCard1 || isCard2 else { return }
+
+        if isCard1 && !partner1Revealed { partner1Revealed = true }
+        else if isCard2 && !partner2Revealed { partner2Revealed = true }
+        else { return }
+
+        // Fill display slots in play order regardless of which card was called
+        if revealedPartner1Index == nil {
+            revealedPartner1Index = playerIndex
+        } else {
+            revealedPartner2Index = playerIndex
+        }
+
         let isSelf = playerIndex == humanPlayerIndex
-        if !partner1Revealed && card.id == calledCard1 {
-            partner1Revealed = true
-            partnerRevealMessage = isSelf ? "You are a partner!" : "\(playerName(playerIndex)) is a partner!"
-            Task {
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
-                partnerRevealMessage = nil
-            }
-        } else if !partner2Revealed && card.id == calledCard2 {
-            partner2Revealed = true
-            partnerRevealMessage = isSelf ? "You are a partner!" : "\(playerName(playerIndex)) is a partner!"
-            Task {
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
-                partnerRevealMessage = nil
-            }
+        partnerRevealMessage = isSelf ? "You are a partner!" : "\(playerName(playerIndex)) is a partner!"
+        Task {
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            partnerRevealMessage = nil
         }
     }
 

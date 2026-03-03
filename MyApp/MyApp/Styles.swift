@@ -243,70 +243,86 @@ struct PlayingCardView: View {
     }
 }
 
-// MARK: - Points-to-Win Countdown Strip
+// MARK: - Bid Progress Banner
 
-struct PointsToWinStrip: View {
-    /// Name of the high bidder
+struct BidProgressBanner: View {
     let bidderName: String
-    /// Points the offense team has caught so far this round
     let offenseCaught: Int
-    /// The winning bid amount for this round
     let bid: Int
 
     private var remaining: Int { max(0, bid - offenseCaught) }
-    private var progress: Double {
-        guard bid > 0 else { return 0 }
-        return min(1.0, Double(offenseCaught) / Double(bid))
-    }
+    private var progress: Double { bid > 0 ? min(1.0, Double(offenseCaught) / Double(bid)) : 0 }
     private var bidMade: Bool { offenseCaught >= bid }
 
+    private var accentColor: Color {
+        if bidMade         { return Color(red: 0.20, green: 0.78, blue: 0.45) }
+        if progress >= 0.75 { return Color.masterGold }
+        return Color.offenseBlue
+    }
+
     var body: some View {
-        VStack(spacing: 5) {
-            // Row 1: bidder name + caught / bid
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("🎯")
-                    .font(.caption)
-                Text(bidderName)
-                    .font(.caption.bold())
-                    .foregroundStyle(.offenseBlue)
-                    .lineLimit(1)
-                Spacer()
-                Text("\(offenseCaught)")
-                    .font(.caption.bold().monospacedDigit())
-                    .foregroundStyle(bidMade ? .masterGold : .white.opacity(0.9))
-                + Text(" / \(bid) pts")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.55))
+        HStack(spacing: 14) {
+            // Circular progress ring
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.10), lineWidth: 5)
+                    .frame(width: 56, height: 56)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(accentColor, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .frame(width: 56, height: 56)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeInOut(duration: 0.5), value: progress)
+                    .shadow(color: accentColor.opacity(0.5), radius: 4)
+                Text("\(Int(progress * 100))%")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(accentColor)
+                    .contentTransition(.numericText())
             }
-            // Row 2: progress bar + remaining label
-            HStack(spacing: 8) {
+
+            // Score + bar
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text("\(offenseCaught)")
+                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .foregroundStyle(accentColor)
+                        .contentTransition(.numericText())
+                    Text("/ \(bid) pts")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.55))
+                    Spacer()
+                    Text(bidMade ? "✓ Bid made!" : "\(remaining) to go")
+                        .font(.caption.bold())
+                        .foregroundStyle(bidMade ? accentColor : .secondary)
+                }
+
+                // Thick gradient bar
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(.white.opacity(0.10))
-                            .frame(height: 5)
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(bidMade ? Color.masterGold : Color.offenseBlue)
-                            .frame(width: geo.size.width * progress, height: 5)
-                            .animation(.easeInOut(duration: 0.4), value: progress)
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(Color.white.opacity(0.08))
+                            .frame(height: 10)
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(LinearGradient(
+                                colors: [accentColor.opacity(0.70), accentColor],
+                                startPoint: .leading, endPoint: .trailing
+                            ))
+                            .frame(width: max(0, geo.size.width * progress), height: 10)
+                            .animation(.easeInOut(duration: 0.5), value: progress)
                     }
                 }
-                .frame(height: 5)
-                if bidMade {
-                    Text("Bid made!")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.masterGold)
-                        .fixedSize()
-                } else {
-                    Text("\(remaining) to make bid")
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(remaining <= 30 ? .defenseRose : .white.opacity(0.55))
-                        .fixedSize()
-                }
+                .frame(height: 10)
+
+                Text("🎯 \(bidderName)'s bid")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.38))
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .glassmorphic(cornerRadius: 16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 4)
     }
 }
 
@@ -319,5 +335,62 @@ struct SectionHeader: View {
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.white.opacity(0.70))
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Trump Badge
+
+struct TrumpBadge: View {
+    let suit: TrumpSuit
+    @State private var pulse = false
+
+    private var suitColor: Color {
+        suit.isRed
+            ? Color(red: 0.95, green: 0.18, blue: 0.18)
+            : Color(red: 0.88, green: 0.93, blue: 1.00)
+    }
+    private var glowColor: Color {
+        suit.isRed
+            ? Color(red: 0.95, green: 0.10, blue: 0.10)
+            : Color(red: 0.55, green: 0.75, blue: 1.00)
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("TRUMP")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.white.opacity(0.50))
+                .kerning(1.2)
+
+            HStack(spacing: 4) {
+                Text(suit.rawValue)
+                    .font(.system(size: 22, weight: .black))
+                    .foregroundStyle(suitColor)
+                    .shadow(color: glowColor.opacity(pulse ? 0.9 : 0.4), radius: pulse ? 10 : 5)
+                    .scaleEffect(pulse ? 1.08 : 1.0)
+
+                Text(suit.displayName.uppercased())
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(suitColor)
+                    .kerning(0.5)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background {
+            Capsule()
+                .fill(glowColor.opacity(0.15))
+                .overlay {
+                    Capsule()
+                        .strokeBorder(glowColor.opacity(pulse ? 0.6 : 0.35), lineWidth: 1.5)
+                }
+                .shadow(color: glowColor.opacity(pulse ? 0.45 : 0.20), radius: pulse ? 10 : 5)
+        }
+        .animation(
+            .easeInOut(duration: 1.6).repeatForever(autoreverses: true),
+            value: pulse
+        )
+        .onAppear { pulse = true }
+        .onChange(of: suit) { pulse = false; Task { pulse = true } }
     }
 }

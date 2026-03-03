@@ -295,7 +295,7 @@ struct AddRoundView: View {
             SectionHeader(title: "📊  Points Caught")
 
             HStack(spacing: 12) {
-                pointCounter(label: "Offense", points: vm.offensePoints, color: .offenseBlue, isOffense: true)
+                pointCounter(label: "Bidding Team", points: vm.offensePoints, color: .offenseBlue, isOffense: true)
                 pointCounter(label: "Defense", points: vm.defensePoints, color: .defenseRose, isOffense: false)
             }
 
