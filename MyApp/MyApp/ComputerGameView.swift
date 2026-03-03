@@ -756,7 +756,7 @@ private struct PlayingPhaseView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // AI player strip
+            // AI player strip — compact top row
             HStack(spacing: 6) {
                 ForEach(1..<6) { i in
                     AIPlayerBadge(
@@ -769,109 +769,137 @@ private struct PlayingPhaseView: View {
             }
             .padding(.horizontal, 12)
             .padding(.top, 52)
-            .padding(.bottom, 12)
+            .padding(.bottom, 8)
 
-            // Current trick
-            VStack(spacing: 10) {
-                // Header
-                HStack(spacing: 8) {
-                    LiveDot()
-                    Text("Current Hand")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.white)
-                    Spacer()
-                }
+            // Scrollable middle content — no fixed heights, no dead space
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 10) {
 
-                // Glowing divider
-                Rectangle()
-                    .fill(LinearGradient(
-                        colors: [.clear, Color.offenseBlue.opacity(0.5), .clear],
-                        startPoint: .leading, endPoint: .trailing))
-                    .frame(height: 1)
+                    // Current Hand
+                    VStack(spacing: 10) {
+                        HStack(spacing: 8) {
+                            LiveDot()
+                            Text("Current Hand")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.white)
+                            Spacer()
+                        }
+                        Rectangle()
+                            .fill(LinearGradient(
+                                colors: [.clear, Color.offenseBlue.opacity(0.5), .clear],
+                                startPoint: .leading, endPoint: .trailing))
+                            .frame(height: 1)
 
-                HStack(spacing: 10) {
-                    ForEach(game.currentTrick, id: \.card.id) { entry in
-                        let isWinning = entry.playerIndex == game.currentTrickWinnerIndex
-                        VStack(spacing: 5) {
-                            PlayingCardView(card: entry.card)
-                                .overlay {
-                                    if isWinning {
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .strokeBorder(Color.masterGold, lineWidth: 2.5)
-                                            .shadow(color: .masterGold.opacity(0.7), radius: 8)
+                        if game.currentTrick.isEmpty {
+                            Text("Waiting for first card…")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.35))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        } else {
+                            GeometryReader { geo in
+                                let gap: CGFloat = 6
+                                let cardWidth = (geo.size.width - 5 * gap) / 6
+                                let cardHeight = cardWidth * (78.0 / 56.0)
+                                let corner = cardWidth * (12.0 / 56.0)
+                                HStack(spacing: gap) {
+                                    ForEach(game.currentTrick, id: \.card.id) { entry in
+                                        let isWinning = entry.playerIndex == game.currentTrickWinnerIndex
+                                        VStack(spacing: 4) {
+                                            PlayingCardView(card: entry.card, width: cardWidth)
+                                                .overlay {
+                                                    if isWinning {
+                                                        RoundedRectangle(cornerRadius: corner, style: .continuous)
+                                                            .strokeBorder(Color.masterGold, lineWidth: 2)
+                                                            .shadow(color: .masterGold.opacity(0.7), radius: 8)
+                                                    }
+                                                }
+                                                .scaleEffect(isWinning ? 1.06 : 1.0)
+                                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isWinning)
+                                            Text(String(game.playerName(entry.playerIndex).prefix(5)))
+                                                .font(.system(size: 8, weight: .semibold))
+                                                .foregroundStyle(isWinning ? .masterGold : .white.opacity(0.55))
+                                                .lineLimit(1)
+                                        }
+                                        .frame(width: cardWidth)
+                                        .transition(.asymmetric(
+                                            insertion: .scale(scale: 0.4).combined(with: .opacity),
+                                            removal: .opacity
+                                        ))
                                     }
                                 }
-                                .scaleEffect(isWinning ? 1.07 : 1.0)
-                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isWinning)
-                            Text(String(game.playerName(entry.playerIndex).prefix(5)))
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(isWinning ? .masterGold : .white.opacity(0.55))
+                                .frame(width: geo.size.width, height: cardHeight + 18, alignment: .leading)
+                                .animation(.spring(response: 0.38, dampingFraction: 0.72), value: game.currentTrick.count)
+                            }
+                            .frame(height: 108)
                         }
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.4).combined(with: .opacity),
-                            removal: .opacity
-                        ))
+                    }
+                    .currentHandStage()
+                    .padding(.horizontal, 16)
+
+                    // Hand info row
+                    HStack(spacing: 16) {
+                        Label("Hand \(game.trickNumber + 1)/8", systemImage: "square.stack.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        TrumpBadge(suit: game.trumpSuit)
+                        if !game.completedTricks.isEmpty {
+                            Button {
+                                HapticManager.impact(.light)
+                                showingTrickHistory = true
+                            } label: {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.offenseBlue)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 4)
+
+                    // Bidding team strip
+                    OffenseTeamStrip(game: game)
+
+                    // Score banner
+                    BidProgressBanner(
+                        bidderName: game.playerName(game.highBidderIndex),
+                        offenseCaught: game.offensePoints,
+                        bid: game.highBid
+                    )
+
+                    // Message
+                    if !game.message.isEmpty {
+                        Text(game.message)
+                            .font(.subheadline)
+                            .foregroundStyle(game.phase == .humanPlaying ? .masterGold : .secondary)
+                            .padding(.horizontal)
+                            .multilineTextAlignment(.center)
+                            .animation(.easeInOut, value: game.message)
                     }
                 }
-                .animation(.spring(response: 0.38, dampingFraction: 0.72), value: game.currentTrick.count)
-                .frame(minHeight: 90)
+                .padding(.vertical, 8)
             }
-            .currentHandStage()
-            .padding(.horizontal, 16)
 
-            // Trick score line
-            HStack(spacing: 16) {
-                Label("Hand \(game.trickNumber + 1)/8", systemImage: "square.stack.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                TrumpBadge(suit: game.trumpSuit)
-                if !game.completedTricks.isEmpty {
-                    Button {
-                        HapticManager.impact(.light)
-                        showingTrickHistory = true
-                    } label: {
-                        Image(systemName: "clock.arrow.circlepath")
+            // Your Hand — always pinned at bottom
+            let validCards = game.validCardsToPlay()
+            let isHumanTurn = game.phase == .humanPlaying
+            let cards = game.hands[game.humanPlayerIndex].sortedBySuit()
+
+            VStack(spacing: 8) {
+                HStack {
+                    Text("Your Hand")
+                        .font(.caption.uppercaseSmallCaps())
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if isHumanTurn {
+                        Text("Tap a card to play")
                             .font(.caption.bold())
-                            .foregroundStyle(.offenseBlue)
+                            .foregroundStyle(.masterGold)
                     }
                 }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
+                .padding(.horizontal, 16)
 
-            // Offense team strip
-            OffenseTeamStrip(game: game)
-
-            // Bid progress banner
-            BidProgressBanner(
-                bidderName: game.playerName(game.highBidderIndex),
-                offenseCaught: game.offensePoints,
-                bid: game.highBid
-            )
-            .padding(.top, 4)
-
-            // Message
-            Text(game.message)
-                .font(.subheadline)
-                .foregroundStyle(game.phase == .humanPlaying ? .masterGold : .secondary)
-                .padding(.horizontal)
-                .padding(.vertical, 6)
-                .multilineTextAlignment(.center)
-                .animation(.easeInOut, value: game.message)
-
-            Spacer(minLength: 0)
-
-            // Human's hand
-            VStack(spacing: 10) {
-                Text("Your Hand")
-                    .font(.caption.uppercaseSmallCaps())
-                    .foregroundStyle(.secondary)
-
-                let validCards = game.validCardsToPlay()
-                let isHumanTurn = game.phase == .humanPlaying
-
-                let cards = game.hands[game.humanPlayerIndex].sortedBySuit()
                 GeometryReader { geo in
                     let sp = cards.count > 1
                         ? (geo.size.width - 32 - CGFloat(cards.count) * 74) / CGFloat(cards.count - 1)
@@ -902,7 +930,7 @@ private struct PlayingPhaseView: View {
                 }
                 .frame(height: 106)
             }
-            .padding(.bottom, 32)
+            .padding(.bottom, 24)
         }
         .overlay(alignment: .top) {
             if let msg = game.partnerRevealMessage {

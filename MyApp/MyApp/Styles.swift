@@ -173,10 +173,20 @@ struct HandCardView: View {
     }
 }
 
-// MARK: - Playing Card View (trick / history display, 56×78)
+// MARK: - Playing Card View (trick / history display, default 56×78, scales with width param)
 
 struct PlayingCardView: View {
     let card: Card
+    var width: CGFloat = 56
+
+    private var height: CGFloat    { width * (78.0 / 56.0) }
+    private var corner: CGFloat    { width * (12.0 / 56.0) }
+    private var rankSize: CGFloat  { width * (15.0 / 56.0) }
+    private var suitSmall: CGFloat { width * (10.0 / 56.0) }
+    private var suitBig: CGFloat   { width * (26.0 / 56.0) }
+    private var padLead: CGFloat   { width * (6.0  / 56.0) }
+    private var padTop: CGFloat    { width * (5.0  / 56.0) }
+    private var badgeFont: CGFloat { width * (8.0  / 56.0) }
 
     private var isShadySpade: Bool { card.rank == "3" && card.suit == "♠" }
     private var suitColor: Color { cardSuitColor(rank: card.rank, suit: card.suit) }
@@ -184,12 +194,12 @@ struct PlayingCardView: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
                 .fill(bgColor)
                 .shadow(color: .black.opacity(0.40), radius: 8, y: 4)
 
             if isShadySpade {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
                     .strokeBorder(Color.masterGold.opacity(0.85), lineWidth: 1.5)
                     .shadow(color: Color.masterGold.opacity(0.5), radius: 6)
             }
@@ -197,49 +207,49 @@ struct PlayingCardView: View {
             // Top-left pip
             VStack(alignment: .leading, spacing: 0) {
                 Text(card.rank)
-                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .font(.system(size: rankSize, weight: .black, design: .rounded))
                     .foregroundStyle(suitColor)
                 Text(card.suit)
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: suitSmall, weight: .heavy))
                     .foregroundStyle(suitColor)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.leading, 6).padding(.top, 5)
+            .padding(.leading, padLead).padding(.top, padTop)
 
             // Center suit
             Text(card.suit)
-                .font(.system(size: 26, weight: .bold))
+                .font(.system(size: suitBig, weight: .bold))
                 .foregroundStyle(suitColor.opacity(0.85))
                 .shadow(color: isShadySpade ? Color.masterGold.opacity(0.7) : .clear, radius: 6)
 
             // Bottom-right pip (rotated 180°)
             VStack(alignment: .leading, spacing: 0) {
                 Text(card.rank)
-                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .font(.system(size: rankSize, weight: .black, design: .rounded))
                     .foregroundStyle(suitColor)
                 Text(card.suit)
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: suitSmall, weight: .heavy))
                     .foregroundStyle(suitColor)
             }
             .rotationEffect(.degrees(180))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            .padding(.trailing, 6).padding(.bottom, 5)
+            .padding(.trailing, padLead).padding(.bottom, padTop)
 
             // Point value badge
             if card.pointValue > 0 {
                 VStack {
                     Spacer()
                     Text("\(card.pointValue)pt")
-                        .font(.system(size: 8, weight: .black))
+                        .font(.system(size: badgeFont, weight: .black))
                         .foregroundStyle(.black)
-                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .padding(.horizontal, badgeFont * 0.6).padding(.vertical, badgeFont * 0.25)
                         .background(Color.masterGold)
                         .clipShape(Capsule())
-                        .padding(.bottom, 4)
+                        .padding(.bottom, padTop)
                 }
             }
         }
-        .frame(width: 56, height: 78)
+        .frame(width: width, height: height)
     }
 }
 
@@ -309,34 +319,34 @@ struct BidProgressBanner: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             // Circular progress ring
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.10), lineWidth: 5)
-                    .frame(width: 56, height: 56)
+                    .stroke(Color.white.opacity(0.10), lineWidth: 4)
+                    .frame(width: 46, height: 46)
                 Circle()
                     .trim(from: 0, to: progress)
-                    .stroke(accentColor, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                    .frame(width: 56, height: 56)
+                    .stroke(accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .frame(width: 46, height: 46)
                     .rotationEffect(.degrees(-90))
                     .animation(.easeInOut(duration: 0.5), value: progress)
                     .shadow(color: accentColor.opacity(0.5), radius: 4)
                 Text("\(Int(progress * 100))%")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
                     .foregroundStyle(accentColor)
                     .contentTransition(.numericText())
             }
 
             // Score + bar
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text("\(offenseCaught)")
-                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .font(.system(size: 22, weight: .black, design: .rounded))
                         .foregroundStyle(accentColor)
                         .contentTransition(.numericText())
                     Text("/ \(bid) pts")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.55))
                     Spacer()
                     Text(bidMade ? "✓ Bid made!" : "\(remaining) to go")
@@ -344,33 +354,32 @@ struct BidProgressBanner: View {
                         .foregroundStyle(bidMade ? accentColor : .secondary)
                 }
 
-                // Thick gradient bar
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 5)
+                        RoundedRectangle(cornerRadius: 4)
                             .fill(Color.white.opacity(0.08))
-                            .frame(height: 10)
-                        RoundedRectangle(cornerRadius: 5)
+                            .frame(height: 7)
+                        RoundedRectangle(cornerRadius: 4)
                             .fill(LinearGradient(
                                 colors: [accentColor.opacity(0.70), accentColor],
                                 startPoint: .leading, endPoint: .trailing
                             ))
-                            .frame(width: max(0, geo.size.width * progress), height: 10)
+                            .frame(width: max(0, geo.size.width * progress), height: 7)
                             .animation(.easeInOut(duration: 0.5), value: progress)
                     }
                 }
-                .frame(height: 10)
+                .frame(height: 7)
 
                 Text("🎯 \(bidderName)'s bid")
                     .font(.caption2)
                     .foregroundStyle(.white.opacity(0.38))
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .glassmorphic(cornerRadius: 16)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .glassmorphic(cornerRadius: 14)
         .padding(.horizontal, 16)
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }
 
