@@ -23,9 +23,25 @@ struct Card: Identifiable, Hashable {
     ]
 }
 
+// MARK: - Card sorting
+
+extension Array where Element == Card {
+    /// Groups cards by suit (♠ ♥ ♦ ♣), then sorts each group highest rank first.
+    func sortedBySuit() -> [Card] {
+        let suitOrder = ["♠": 0, "♥": 1, "♦": 2, "♣": 3]
+        return sorted { lhs, rhs in
+            let ls = suitOrder[lhs.suit] ?? 4
+            let rs = suitOrder[rhs.suit] ?? 4
+            if ls != rs { return ls < rs }
+            return (Card.rankOrder[lhs.rank] ?? 0) > (Card.rankOrder[rhs.rank] ?? 0)
+        }
+    }
+}
+
 // MARK: - Phase
 
 enum ComputerGamePhase: Equatable {
+    case viewingCards
     case bidding
     case humanBidding
     case callingCards
@@ -82,10 +98,11 @@ final class ComputerGameViewModel {
     // MARK: UI
     var message: String = ""
     var partnerRevealMessage: String? = nil
-    private var revealedCard1 = false
-    private var revealedCard2 = false
+    var partner1Revealed = false
+    var partner2Revealed = false
 
     // MARK: Continuations
+    private var viewCardsContinuation: CheckedContinuation<Void, Never>?
     private var bidContinuation: CheckedContinuation<Int, Never>?
     private var cardContinuation: CheckedContinuation<Card, Never>?
 
@@ -118,10 +135,22 @@ final class ComputerGameViewModel {
         partner2Index = nil
         message = ""
         partnerRevealMessage = nil
-        revealedCard1 = false
-        revealedCard2 = false
+        partner1Revealed = false
+        partner2Revealed = false
         completedTricks = []
         trickWinners = []
+        phase = .viewingCards
+    }
+
+    func waitForCardViewing() async {
+        await withCheckedContinuation { cont in
+            viewCardsContinuation = cont
+        }
+    }
+
+    func humanReadyToBid() {
+        viewCardsContinuation?.resume()
+        viewCardsContinuation = nil
     }
 
     // MARK: - Bidding Phase
@@ -225,10 +254,32 @@ final class ComputerGameViewModel {
     // MARK: - AI Bid Heuristic
 
     private func aiBidAmount(for playerIndex: Int) -> Int {
-        let handPoints = hands[playerIndex].map(\.pointValue).reduce(0, +)
+        let hand = hands[playerIndex]
+        let myPoints = hand.map(\.pointValue).reduce(0, +)
+
+        // Best 2 callable cards outside this hand — whoever holds them becomes partner(s)
+        let myIds = Set(hand.map(\.id))
+        let topExternal = Self.freshDeck()
+            .filter { !myIds.contains($0.id) }
+            .sorted { lhs, rhs in
+                lhs.pointValue != rhs.pointValue
+                    ? lhs.pointValue > rhs.pointValue
+                    : (Card.rankOrder[lhs.rank] ?? 0) > (Card.rankOrder[rhs.rank] ?? 0)
+            }
+        let call1Pts = topExternal.first?.pointValue ?? 0
+        let call2Pts = topExternal.dropFirst().first?.pointValue ?? 0
+
+        // Conservative 30% of remaining points — partner contributions beyond called cards
+        let remaining = max(0, 250 - myPoints - call1Pts - call2Pts)
+        let partnerBonus = Int(Double(remaining) * 0.30)
+
+        let estimated = myPoints + call1Pts + call2Pts + partnerBonus
         let minBid = max(130, highBid + 5)
-        guard handPoints >= minBid else { return 0 }
-        return min(handPoints, 250)
+        guard estimated >= minBid else { return 0 }
+
+        // Round down to nearest 5, clamp to [minBid, 250]
+        let rounded = (estimated / 5) * 5
+        return min(max(rounded, minBid), 250)
     }
 
     // MARK: - AI Calling
@@ -296,7 +347,7 @@ final class ComputerGameViewModel {
 
     func startPlayingPhase() async {
         phase = .playing
-        currentLeaderIndex = (dealerIndex + 1) % 6
+        currentLeaderIndex = highBidderIndex
 
         for _ in 0..<8 {
             currentTrick = []
@@ -340,15 +391,15 @@ final class ComputerGameViewModel {
     private func checkPartnerReveal(card: Card, playerIndex: Int) {
         guard playerIndex != highBidderIndex else { return }
         let isSelf = playerIndex == humanPlayerIndex
-        if !revealedCard1 && card.id == calledCard1 {
-            revealedCard1 = true
+        if !partner1Revealed && card.id == calledCard1 {
+            partner1Revealed = true
             partnerRevealMessage = isSelf ? "You are a partner!" : "\(playerName(playerIndex)) is a partner!"
             Task {
                 try? await Task.sleep(nanoseconds: 2_500_000_000)
                 partnerRevealMessage = nil
             }
-        } else if !revealedCard2 && card.id == calledCard2 {
-            revealedCard2 = true
+        } else if !partner2Revealed && card.id == calledCard2 {
+            partner2Revealed = true
             partnerRevealMessage = isSelf ? "You are a partner!" : "\(playerName(playerIndex)) is a partner!"
             Task {
                 try? await Task.sleep(nanoseconds: 2_500_000_000)
@@ -440,7 +491,7 @@ final class ComputerGameViewModel {
         wonTricks[winner.playerIndex].append(contentsOf: currentTrick.map(\.card))
         currentLeaderIndex = winner.playerIndex
         trickNumber += 1
-        message = "\(playerName(winner.playerIndex)) wins the trick!"
+        message = "\(playerName(winner.playerIndex)) wins the hand!"
     }
 
     // MARK: - Scoring

@@ -107,13 +107,14 @@ final class Round {
     var defenseIndices: [Int]    { (0..<6).filter { !offenseIndices.contains($0) } }
 
     func score(for playerIndex: Int) -> Int {
-        if playerIndex == bidderIndex {
-            return isSet ? -bidAmount : offensePointsCaught
-        } else if offenseIndices.contains(playerIndex) {
-            return isSet ? 0 : offensePointsCaught
-        } else {
-            return defensePointsCaught
+        if isSet {
+            // SET: bidder penalised, partners and defense receive nothing
+            return playerIndex == bidderIndex ? -bidAmount : 0
         }
+        // Bid made: bidder earns bid amount, each partner earns half (rounded up), defense earns 0
+        if playerIndex == bidderIndex { return bidAmount }
+        if offenseIndices.contains(playerIndex) { return (bidAmount + 1) / 2 }
+        return 0
     }
 
     func role(of playerIndex: Int) -> PlayerRole {

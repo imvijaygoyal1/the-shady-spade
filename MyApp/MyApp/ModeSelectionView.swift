@@ -9,6 +9,7 @@ struct ModeSelectionView: View {
     @State private var showingFriends = false
     @State private var showingOnline = false
     @State private var showingAuth = false
+    @State private var showingSettings = false
     @State private var showingNamePrompt = false
     @State private var pendingName = ""
     @State private var nameConfirmed = false
@@ -17,6 +18,27 @@ struct ModeSelectionView: View {
     var body: some View {
         ZStack {
             Color.darkBG.ignoresSafeArea()
+
+            // Settings button — top right
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        HapticManager.impact(.light)
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .frame(width: 40, height: 40)
+                            .background(Color.white.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    .padding(.top, 56)
+                    .padding(.trailing, 20)
+                }
+                Spacer()
+            }
 
             VStack(spacing: 0) {
                 Spacer()
@@ -73,6 +95,11 @@ struct ModeSelectionView: View {
                 .padding(.horizontal, 20)
 
                 Spacer()
+
+                Text("© 2026 Vijay Goyal. All rights reserved.")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.25))
+                    .padding(.bottom, 20)
             }
         }
         .onAppear { vm.setup(with: modelContext) }
@@ -101,6 +128,10 @@ struct ModeSelectionView: View {
         }
         .fullScreenCover(isPresented: $showingOnline) {
             OnlineEntryView(vm: vm)
+                .environment(authVM)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(vm: vm)
                 .environment(authVM)
         }
     }

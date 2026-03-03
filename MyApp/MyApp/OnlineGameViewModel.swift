@@ -5,7 +5,7 @@ import FirebaseFirestore
 // MARK: - Phase
 
 enum OnlineGamePhase: String {
-    case dealing, bidding, calling, playing, roundComplete, gameOver
+    case dealing, lookingAtCards, bidding, calling, playing, roundComplete, gameOver
 }
 
 // MARK: - ViewModel
@@ -39,6 +39,7 @@ final class OnlineGameViewModel {
     var runningScores: [Int] = Array(repeating: 0, count: 6)
     var message: String = ""
     var myHand: [Card] = []
+    var myHandSorted: [Card] { myHand.sortedBySuit() }
 
     // MARK: UI state (local only — not synced from Firestore)
     var trumpSuitSelection: TrumpSuit = .spades
@@ -175,7 +176,7 @@ final class OnlineGameViewModel {
 
         let firstBidder = (dealerIndex + 1) % 6
         let gs: [String: Any] = [
-            "phase": OnlineGamePhase.bidding.rawValue,
+            "phase": OnlineGamePhase.lookingAtCards.rawValue,
             "roundNumber": roundNumber,
             "dealerIndex": dealerIndex,
             "currentActionPlayer": firstBidder,
@@ -192,7 +193,7 @@ final class OnlineGameViewModel {
             "trickNumber": 0,
             "wonPointsPerPlayer": Array(repeating: 0, count: 6),
             "runningScores": runningScores,
-            "message": "Bidding has started!"
+            "message": "Study your cards, then the host will start bidding."
         ]
         try? await ref.updateData([
             "gameState": gs,
@@ -205,6 +206,18 @@ final class OnlineGameViewModel {
         dealerIndex = (dealerIndex + 1) % 6
         roundNumber += 1
         await startGame()
+    }
+
+    func startBidding() async {
+        guard isHost else { return }
+        let db = Firestore.firestore()
+        let ref = db.collection("sessions").document(sessionCode)
+        let firstBidder = (dealerIndex + 1) % 6
+        try? await ref.updateData([
+            "gameState.phase": OnlineGamePhase.bidding.rawValue,
+            "gameState.currentActionPlayer": firstBidder,
+            "gameState.message": "Bidding has started!"
+        ])
     }
 
     // MARK: - Listener
@@ -454,7 +467,7 @@ final class OnlineGameViewModel {
             hostPartner1 = p1; hostPartner2 = p2
             hostCalledCard1 = c1; hostCalledCard2 = c2
 
-            let leader = (dealerIndex + 1) % 6
+            let leader = highBidderIndex
             var gs = buildGS(phase: .playing, currentActionPlayer: leader,
                 bids: bids, highBid: highBid, highBidderIndex: highBidderIndex,
                 message: "\(playerName(highBidderIndex)) called — play begins!")
@@ -504,14 +517,14 @@ final class OnlineGameViewModel {
                     let bidMade = offPts >= highBid
 
                     var newRS = runningScores
+                    let partnerPts = (highBid + 1) / 2   // ceil(bid / 2)
                     for i in 0..<6 {
                         if i == highBidderIndex {
-                            newRS[i] += bidMade ? offPts : -highBid
+                            newRS[i] += bidMade ? highBid : -highBid
                         } else if offSet.contains(i) {
-                            newRS[i] += bidMade ? offPts : 0
-                        } else {
-                            newRS[i] += defPts
+                            newRS[i] += bidMade ? partnerPts : 0
                         }
+                        // defense always receives 0
                     }
 
                     let nextPhase: OnlineGamePhase = (newRS.max() ?? 0) >= 500 ? .gameOver : .roundComplete
@@ -529,7 +542,7 @@ final class OnlineGameViewModel {
                 } else {
                     var gs = buildGS(phase: .playing, currentActionPlayer: winner,
                         bids: bids, highBid: highBid, highBidderIndex: highBidderIndex,
-                        message: "\(playerName(winner)) wins the trick!")
+                        message: "\(playerName(winner)) wins the hand!")
                     gs["currentTrick"] = [] as [[String: Any]]
                     gs["trickNumber"] = newTrickNum
                     gs["wonPointsPerPlayer"] = newWon

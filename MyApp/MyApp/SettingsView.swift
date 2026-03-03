@@ -18,6 +18,7 @@ struct SettingsView: View {
                         accountCard
                         playersCard
                         resetButton
+                        aboutCard
                     }
                     .padding()
                     .padding(.bottom, 20)
@@ -161,6 +162,40 @@ struct SettingsView: View {
                     Divider().overlay(Color.white.opacity(0.08))
                 }
             }
+        }
+        .padding()
+        .glassmorphic(cornerRadius: 20)
+    }
+
+    private var aboutCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("About")
+                .font(.headline)
+                .foregroundStyle(.masterGold)
+
+            HStack(spacing: 14) {
+                Text("♠")
+                    .font(.system(size: 36))
+                    .foregroundStyle(.masterGold)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("The Shady Spade")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                    if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+                       let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
+                        Text("Version \(version) (\(build))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+            }
+
+            Divider().overlay(Color.white.opacity(0.08))
+
+            Text("© 2026 Vijay Goyal. All rights reserved.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding()
         .glassmorphic(cornerRadius: 20)
