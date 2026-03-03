@@ -772,28 +772,40 @@ private struct PlayingPhaseView: View {
             .padding(.bottom, 12)
 
             // Current trick
-            VStack(spacing: 8) {
-                Text("Current Hand")
-                    .font(.caption.uppercaseSmallCaps())
-                    .foregroundStyle(.secondary)
-
+            VStack(spacing: 10) {
+                // Header
                 HStack(spacing: 8) {
+                    LiveDot()
+                    Text("Current Hand")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                }
+
+                // Glowing divider
+                Rectangle()
+                    .fill(LinearGradient(
+                        colors: [.clear, Color.offenseBlue.opacity(0.5), .clear],
+                        startPoint: .leading, endPoint: .trailing))
+                    .frame(height: 1)
+
+                HStack(spacing: 10) {
                     ForEach(game.currentTrick, id: \.card.id) { entry in
                         let isWinning = entry.playerIndex == game.currentTrickWinnerIndex
-                        VStack(spacing: 4) {
+                        VStack(spacing: 5) {
                             PlayingCardView(card: entry.card)
                                 .overlay {
                                     if isWinning {
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                                             .strokeBorder(Color.masterGold, lineWidth: 2.5)
-                                            .shadow(color: .masterGold.opacity(0.5), radius: 6)
+                                            .shadow(color: .masterGold.opacity(0.7), radius: 8)
                                     }
                                 }
                                 .scaleEffect(isWinning ? 1.07 : 1.0)
                                 .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isWinning)
                             Text(String(game.playerName(entry.playerIndex).prefix(5)))
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(isWinning ? .masterGold : .secondary)
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(isWinning ? .masterGold : .white.opacity(0.55))
                         }
                         .transition(.asymmetric(
                             insertion: .scale(scale: 0.4).combined(with: .opacity),
@@ -802,10 +814,9 @@ private struct PlayingPhaseView: View {
                     }
                 }
                 .animation(.spring(response: 0.38, dampingFraction: 0.72), value: game.currentTrick.count)
-                .frame(minHeight: 80)
+                .frame(minHeight: 90)
             }
-            .padding()
-            .glassmorphic(cornerRadius: 18)
+            .currentHandStage()
             .padding(.horizontal, 16)
 
             // Trick score line

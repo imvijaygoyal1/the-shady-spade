@@ -173,7 +173,7 @@ struct HandCardView: View {
     }
 }
 
-// MARK: - Playing Card View (trick / history display, 48×66)
+// MARK: - Playing Card View (trick / history display, 56×78)
 
 struct PlayingCardView: View {
     let card: Card
@@ -184,12 +184,12 @@ struct PlayingCardView: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(bgColor)
-                .shadow(color: .black.opacity(0.28), radius: 4, y: 2)
+                .shadow(color: .black.opacity(0.40), radius: 8, y: 4)
 
             if isShadySpade {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(Color.masterGold.opacity(0.85), lineWidth: 1.5)
                     .shadow(color: Color.masterGold.opacity(0.5), radius: 6)
             }
@@ -197,49 +197,97 @@ struct PlayingCardView: View {
             // Top-left pip
             VStack(alignment: .leading, spacing: 0) {
                 Text(card.rank)
-                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .font(.system(size: 15, weight: .black, design: .rounded))
                     .foregroundStyle(suitColor)
                 Text(card.suit)
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 10, weight: .heavy))
                     .foregroundStyle(suitColor)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.leading, 5).padding(.top, 4)
+            .padding(.leading, 6).padding(.top, 5)
 
             // Center suit
             Text(card.suit)
-                .font(.system(size: 22, weight: .bold))
+                .font(.system(size: 26, weight: .bold))
                 .foregroundStyle(suitColor.opacity(0.85))
                 .shadow(color: isShadySpade ? Color.masterGold.opacity(0.7) : .clear, radius: 6)
 
             // Bottom-right pip (rotated 180°)
             VStack(alignment: .leading, spacing: 0) {
                 Text(card.rank)
-                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .font(.system(size: 15, weight: .black, design: .rounded))
                     .foregroundStyle(suitColor)
                 Text(card.suit)
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 10, weight: .heavy))
                     .foregroundStyle(suitColor)
             }
             .rotationEffect(.degrees(180))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            .padding(.trailing, 5).padding(.bottom, 4)
+            .padding(.trailing, 6).padding(.bottom, 5)
 
             // Point value badge
             if card.pointValue > 0 {
                 VStack {
                     Spacer()
                     Text("\(card.pointValue)pt")
-                        .font(.system(size: 7, weight: .black))
+                        .font(.system(size: 8, weight: .black))
                         .foregroundStyle(.black)
-                        .padding(.horizontal, 4).padding(.vertical, 1.5)
+                        .padding(.horizontal, 5).padding(.vertical, 2)
                         .background(Color.masterGold)
                         .clipShape(Capsule())
-                        .padding(.bottom, 3)
+                        .padding(.bottom, 4)
                 }
             }
         }
-        .frame(width: 48, height: 66)
+        .frame(width: 56, height: 78)
+    }
+}
+
+// MARK: - Live Dot (pulsing indicator for active trick area)
+
+struct LiveDot: View {
+    @State private var pulse = false
+    private let green = Color(red: 0.20, green: 0.82, blue: 0.48)
+
+    var body: some View {
+        Circle()
+            .fill(green)
+            .frame(width: 7, height: 7)
+            .shadow(color: green.opacity(pulse ? 0.85 : 0.25), radius: pulse ? 6 : 2)
+            .scaleEffect(pulse ? 1.4 : 1.0)
+            .animation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true), value: pulse)
+            .onAppear { pulse = true }
+    }
+}
+
+// MARK: - Current Hand Stage container
+
+extension View {
+    func currentHandStage() -> some View {
+        self
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .background {
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .fill(Color(red: 0.04, green: 0.07, blue: 0.17))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 26, style: .continuous)
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [
+                                        Color.offenseBlue.opacity(0.70),
+                                        Color.offenseBlue.opacity(0.20),
+                                        Color.offenseBlue.opacity(0.50)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.5
+                            )
+                    }
+                    .shadow(color: Color.offenseBlue.opacity(0.30), radius: 18, y: 4)
+                    .shadow(color: .black.opacity(0.50), radius: 8, y: 2)
+            }
     }
 }
 
