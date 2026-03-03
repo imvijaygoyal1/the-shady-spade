@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - Root
 
@@ -6,11 +7,14 @@ struct ComputerGameView: View {
     var vm: GameViewModel
     let humanName: String
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @State private var game: ComputerGameViewModel
     @State private var runningScores: [Int] = Array(repeating: 0, count: 6)
     @State private var isGameOver = false
     @State private var showRoundResultBanner = false
     @State private var showQuitConfirm = false
+    @State private var showGameHistory = false
+    @State private var savedHistoryRounds: [HistoryRound] = []
     private let targetScore = 500
 
     init(vm: GameViewModel, humanName: String) {
@@ -33,6 +37,7 @@ struct ComputerGameView: View {
                     playerNames: (0..<6).map { game.playerName($0) },
                     targetScore: targetScore,
                     onPlayAgain: playAgain,
+                    onHistory: { showGameHistory = true },
                     onQuit: { dismiss() }
                 )
             } else {
@@ -57,6 +62,9 @@ struct ComputerGameView: View {
                     )
                 }
             }
+        }
+        .sheet(isPresented: $showGameHistory) {
+            GameHistoryView()
         }
         .confirmationDialog("Quit Game?", isPresented: $showQuitConfirm, titleVisibility: .visible) {
             Button("Quit", role: .destructive) { dismiss() }
@@ -117,7 +125,29 @@ struct ComputerGameView: View {
         var updated = runningScores
         for i in 0..<6 { updated[i] += builtRound.score(for: i) }
         runningScores = updated
-        if updated.max() ?? 0 >= targetScore { isGameOver = true; return }
+
+        // Track history round
+        let hr = HistoryRound(
+            roundNumber: builtRound.roundNumber,
+            dealerIndex: builtRound.dealerIndex,
+            bidderIndex: builtRound.bidderIndex,
+            bidAmount: builtRound.bidAmount,
+            trumpSuit: builtRound.trumpSuit,
+            callCard1: builtRound.callCard1,
+            callCard2: builtRound.callCard2,
+            partner1Index: builtRound.partner1Index,
+            partner2Index: builtRound.partner2Index,
+            offensePointsCaught: builtRound.offensePointsCaught,
+            defensePointsCaught: builtRound.defensePointsCaught,
+            runningScores: updated
+        )
+        savedHistoryRounds.append(hr)
+
+        if updated.max() ?? 0 >= targetScore {
+            saveGameHistory(finalScores: updated)
+            isGameOver = true
+            return
+        }
         let nextDealer = (game.dealerIndex + 1) % 6
         let newGame = ComputerGameViewModel(
             humanName: humanName,
@@ -132,8 +162,30 @@ struct ComputerGameView: View {
         }
     }
 
+    private func saveGameHistory(finalScores: [Int]) {
+        let names = (0..<6).map { game.playerName($0) }
+        let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
+        let history = GameHistory(
+            date: Date(),
+            playerNames: names,
+            finalScores: finalScores,
+            winnerIndex: winnerIndex
+        )
+        for hr in savedHistoryRounds { modelContext.insert(hr) }
+        history.historyRounds = savedHistoryRounds
+        modelContext.insert(history)
+
+        // Prune: keep only last 10 games
+        let descriptor = FetchDescriptor<GameHistory>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+        if let all = try? modelContext.fetch(descriptor), all.count > 10 {
+            for old in all.dropFirst(10) { modelContext.delete(old) }
+        }
+        try? modelContext.save()
+    }
+
     private func playAgain() {
         runningScores = Array(repeating: 0, count: 6)
+        savedHistoryRounds = []
         isGameOver = false
         let newGame = ComputerGameViewModel(
             humanName: humanName,
@@ -1129,14 +1181,8 @@ private struct RoundCompleteView: View {
                 }
                 .padding(.top, 52)
 
-                // Points caught (for context) + award breakdown
+                // Award breakdown
                 VStack(spacing: 10) {
-                    // Caught summary
-                    HStack(spacing: 12) {
-                        ScorePill(label: "Bidding Team caught", points: game.offensePoints, color: .offenseBlue)
-                        ScorePill(label: "Defense caught", points: game.defensePoints, color: .defenseRose)
-                    }
-
                     // Award breakdown
                     if !isSet {
                         let partnerPts = (game.highBid + 1) / 2
@@ -1476,6 +1522,7 @@ private struct GameOverView: View {
     let playerNames: [String]
     let targetScore: Int
     let onPlayAgain: () -> Void
+    let onHistory: () -> Void
     let onQuit: () -> Void
 
     private var sortedIndices: [Int] {
@@ -1564,6 +1611,22 @@ private struct GameOverView: View {
                             startPoint: .leading, endPoint: .trailing
                         ))
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    .buttonStyle(BouncyButton())
+
+                    Button {
+                        HapticManager.impact(.light)
+                        onHistory()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "clock.fill")
+                            Text("Game History")
+                        }
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.offenseBlue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .glassmorphic(cornerRadius: 14)
                     }
                     .buttonStyle(BouncyButton())
 

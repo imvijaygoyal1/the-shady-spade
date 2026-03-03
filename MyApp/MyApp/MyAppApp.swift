@@ -35,7 +35,7 @@ struct MyAppApp: App {
                 .preferredColorScheme(.dark)
             }
         }
-        .modelContainer(for: Round.self)
+        .modelContainer(for: [Round.self, GameHistory.self, HistoryRound.self])
         .environment(authVM)
     }
 }

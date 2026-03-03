@@ -1049,12 +1049,8 @@ private struct OnlineRoundCompleteView: View {
                 }
                 .padding(.top, 52)
 
-                // Points caught + award breakdown
+                // Award breakdown
                 VStack(spacing: 10) {
-                    HStack(spacing: 12) {
-                        OnlineScorePill(label: "Bidding Team caught", points: game.offensePoints, color: .offenseBlue)
-                        OnlineScorePill(label: "Defense caught", points: game.defensePoints, color: .defenseRose)
-                    }
                     if !isSet {
                         let partnerPts = (game.highBid + 1) / 2
                         HStack(spacing: 8) {

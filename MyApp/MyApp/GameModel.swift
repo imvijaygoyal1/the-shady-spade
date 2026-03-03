@@ -1,5 +1,6 @@
 import SwiftData
 import Foundation
+import SwiftUI
 
 // MARK: - Trump Suit
 
@@ -121,5 +122,91 @@ final class Round {
         if playerIndex == bidderIndex            { return .bidder  }
         if offenseIndices.contains(playerIndex)  { return .partner }
         return .defense
+    }
+}
+
+// MARK: - Game History (SwiftData)
+
+@Model
+final class HistoryRound {
+    var id: UUID
+    var roundNumber: Int
+    var dealerIndex: Int
+    var bidderIndex: Int
+    var bidAmount: Int
+    var trumpSuitRaw: String
+    var callCard1: String
+    var callCard2: String
+    var partner1Index: Int
+    var partner2Index: Int
+    var offensePointsCaught: Int
+    var defensePointsCaught: Int
+    /// Running cumulative scores after this round (6 players)
+    var runningScores: [Int]
+
+    init(
+        roundNumber: Int,
+        dealerIndex: Int,
+        bidderIndex: Int,
+        bidAmount: Int,
+        trumpSuit: TrumpSuit,
+        callCard1: String,
+        callCard2: String,
+        partner1Index: Int,
+        partner2Index: Int,
+        offensePointsCaught: Int,
+        defensePointsCaught: Int,
+        runningScores: [Int]
+    ) {
+        self.id                  = UUID()
+        self.roundNumber         = roundNumber
+        self.dealerIndex         = dealerIndex
+        self.bidderIndex         = bidderIndex
+        self.bidAmount           = bidAmount
+        self.trumpSuitRaw        = trumpSuit.rawValue
+        self.callCard1           = callCard1
+        self.callCard2           = callCard2
+        self.partner1Index       = partner1Index
+        self.partner2Index       = partner2Index
+        self.offensePointsCaught = offensePointsCaught
+        self.defensePointsCaught = defensePointsCaught
+        self.runningScores       = runningScores
+    }
+
+    var trumpSuit: TrumpSuit { TrumpSuit(rawValue: trumpSuitRaw) ?? .spades }
+    var isSet: Bool { offensePointsCaught < bidAmount }
+    var offenseIndices: Set<Int> { [bidderIndex, partner1Index, partner2Index] }
+
+    func scoreDelta(for playerIndex: Int) -> Int {
+        if isSet {
+            return playerIndex == bidderIndex ? -bidAmount : 0
+        }
+        if playerIndex == bidderIndex { return bidAmount }
+        if offenseIndices.contains(playerIndex) { return (bidAmount + 1) / 2 }
+        return 0
+    }
+
+    func role(of playerIndex: Int) -> PlayerRole {
+        if playerIndex == bidderIndex           { return .bidder  }
+        if offenseIndices.contains(playerIndex) { return .partner }
+        return .defense
+    }
+}
+
+@Model
+final class GameHistory {
+    var id: UUID
+    var date: Date
+    var playerNames: [String]   // 6 names at time of game
+    var finalScores: [Int]      // 6 final cumulative scores
+    var winnerIndex: Int        // player index with highest final score
+    @Relationship(deleteRule: .cascade) var historyRounds: [HistoryRound] = []
+
+    init(date: Date, playerNames: [String], finalScores: [Int], winnerIndex: Int) {
+        self.id           = UUID()
+        self.date         = date
+        self.playerNames  = playerNames
+        self.finalScores  = finalScores
+        self.winnerIndex  = winnerIndex
     }
 }

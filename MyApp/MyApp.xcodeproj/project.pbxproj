@@ -32,6 +32,7 @@
 		I1000001 /* ComputerGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = I2000001 /* ComputerGameView.swift */; };
 		J1000001 /* OnlineGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = J2000001 /* OnlineGameViewModel.swift */; };
 		K1000001 /* OnlineGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K2000001 /* OnlineGameView.swift */; };
+		L1000001 /* GameHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L2000001 /* GameHistoryView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +60,7 @@
 		I2000001 /* ComputerGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerGameView.swift; sourceTree = "<group>"; };
 		J2000001 /* OnlineGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGameViewModel.swift; sourceTree = "<group>"; };
 		K2000001 /* OnlineGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGameView.swift; sourceTree = "<group>"; };
+		L2000001 /* GameHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameHistoryView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -103,6 +105,7 @@
 				I2000001 /* ComputerGameView.swift */,
 				J2000001 /* OnlineGameViewModel.swift */,
 				K2000001 /* OnlineGameView.swift */,
+				L2000001 /* GameHistoryView.swift */,
 				A2000002 /* ContentView.swift */,
 				A2000003 /* Assets.xcassets */,
 				A4000003 /* Preview Content */,
@@ -226,6 +229,7 @@
 				I1000001 /* ComputerGameView.swift in Sources */,
 				J1000001 /* OnlineGameViewModel.swift in Sources */,
 				K1000001 /* OnlineGameView.swift in Sources */,
+				L1000001 /* GameHistoryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
