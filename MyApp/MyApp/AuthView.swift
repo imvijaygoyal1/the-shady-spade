@@ -60,6 +60,7 @@ private struct SignInPage: View {
                 linkButton(prefix: "Don't have an account? ", link: "Create one",
                            action: onCreateAccount)
             }
+            .adaptiveContentFrame(maxWidth: 520)
             .padding()
         }
     }
@@ -126,6 +127,7 @@ private struct SignUpPage: View {
                 linkButton(prefix: "Already have an account? ", link: "Sign in",
                            action: onSignIn)
                 }
+                .adaptiveContentFrame(maxWidth: 520)
                 .padding()
             } // ScrollView
         } // VStack
@@ -175,6 +177,7 @@ private struct VerifyEmailPage: View {
 
             Spacer()
         }
+        .adaptiveContentFrame(maxWidth: 520)
         .padding()
         .task {
             let maxAttempts = 60 // 3 minutes at 3-second intervals

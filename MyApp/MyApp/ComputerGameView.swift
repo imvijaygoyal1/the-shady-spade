@@ -36,7 +36,7 @@ struct ComputerGameView: View {
                     runningScores: runningScores,
                     playerNames: (0..<6).map { game.playerName($0) },
                     targetScore: targetScore,
-                    onPlayAgain: playAgain,
+                    onPlayAgain: { Task { playAgain() } },
                     onHistory: { showGameHistory = true },
                     onQuit: { dismiss() }
                 )
@@ -57,7 +57,7 @@ struct ComputerGameView: View {
                         game: game,
                         previousRunningScores: runningScores,
                         targetScore: targetScore,
-                        onNextRound: nextRound,
+                        onNextRound: { Task { nextRound() } },
                         onQuit: { dismiss() }
                     )
                 }
@@ -201,14 +201,33 @@ struct ComputerGameView: View {
     }
 }
 
+// MARK: - Adaptive sizing helpers
+
+/// Computes a card width so N hand cards always fit in `available` points (min 44pt).
+private func adaptiveCardWidth(available: CGFloat, count: Int) -> CGFloat {
+    guard count > 0 else { return 74 }
+    let minGap: CGFloat = 3
+    let ideal: CGFloat = 74
+    let needed = ideal * CGFloat(count) + minGap * CGFloat(count - 1)
+    if needed <= available { return ideal }
+    return max(44, (available - minGap * CGFloat(count - 1)) / CGFloat(count))
+}
+
+/// Height for the hand-card row based on the adaptive width (uses 74→106 ratio).
+private func adaptiveHandHeight(cardW: CGFloat = 74) -> CGFloat {
+    cardW * (106.0 / 74.0)
+}
+
 // MARK: - ViewingCardsView
 
 private struct ViewingCardsView: View {
     @Bindable var game: ComputerGameViewModel
     @State private var appeared = false
+    @Environment(\.verticalSizeClass) private var vSizeClass
 
     private var hand: [Card] { game.hands[game.humanPlayerIndex].sortedBySuit() }
     private var handPoints: Int { hand.map(\.pointValue).reduce(0, +) }
+    private var topPad: CGFloat { vSizeClass == .compact ? 16 : 48 }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -224,27 +243,29 @@ private struct ViewingCardsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(.top, 56)
-            .padding(.bottom, 24)
+            .padding(.top, topPad)
+            .padding(.bottom, vSizeClass == .compact ? 12 : 24)
             .opacity(appeared ? 1 : 0)
             .offset(y: appeared ? 0 : -12)
+            .adaptiveContentFrame()
 
             Spacer()
 
             // Cards
             VStack(spacing: 12) {
                 GeometryReader { geo in
+                    let cardW = adaptiveCardWidth(available: geo.size.width - 32, count: hand.count)
                     let sp = hand.count > 1
-                        ? (geo.size.width - 32 - CGFloat(hand.count) * 74) / CGFloat(hand.count - 1)
+                        ? (geo.size.width - 32 - CGFloat(hand.count) * cardW) / CGFloat(hand.count - 1)
                         : 0
                     HStack(spacing: sp) {
                         ForEach(hand) { card in
-                            HandCardView(card: card)
+                            HandCardView(card: card, width: cardW)
                         }
                     }
                     .padding(.horizontal, 16)
                 }
-                .frame(height: 106)
+                .frame(height: adaptiveHandHeight())
 
                 // Points summary
                 HStack(spacing: 8) {
@@ -277,13 +298,14 @@ private struct ViewingCardsView: View {
                 .font(.title3)
                 .foregroundStyle(.black)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 18)
+                .padding(.vertical, vSizeClass == .compact ? 14 : 18)
                 .background(Color.masterGold)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(BouncyButton())
+            .adaptiveContentFrame(maxWidth: 480)
             .padding(.horizontal, 32)
-            .padding(.bottom, 54)
+            .padding(.bottom, vSizeClass == .compact ? 24 : 40)
             .opacity(appeared ? 1 : 0)
         }
         .onAppear {
@@ -298,14 +320,15 @@ private struct ViewingCardsView: View {
 
 private struct BiddingPhaseView: View {
     @Bindable var game: ComputerGameViewModel
+    @Environment(\.verticalSizeClass) private var vSizeClass
 
     var body: some View {
         VStack(spacing: 0) {
             Text("Bidding")
                 .font(.title2.bold())
                 .foregroundStyle(.masterGold)
-                .padding(.top, 56)
-                .padding(.bottom, 20)
+                .padding(.top, vSizeClass == .compact ? 12 : 48)
+                .padding(.bottom, vSizeClass == .compact ? 10 : 20)
 
             // Six player chips
             HStack(spacing: 4) {
@@ -399,23 +422,24 @@ private struct BiddingPhaseView: View {
 
                 let cards = game.hands[game.humanPlayerIndex].sortedBySuit()
                 GeometryReader { geo in
+                    let cardW = adaptiveCardWidth(available: geo.size.width - 32, count: cards.count)
                     let sp = cards.count > 1
-                        ? (geo.size.width - 32 - CGFloat(cards.count) * 74) / CGFloat(cards.count - 1)
+                        ? (geo.size.width - 32 - CGFloat(cards.count) * cardW) / CGFloat(cards.count - 1)
                         : 0
                     HStack(spacing: sp) {
                         ForEach(cards) { card in
-                            HandCardView(card: card)
+                            HandCardView(card: card, width: cardW)
                         }
                     }
                     .padding(.horizontal, 16)
                 }
-                .frame(height: 106)
+                .frame(height: adaptiveHandHeight())
             }
             .padding(.bottom, 12)
 
             // Human bidding controls
             if game.phase == .humanBidding {
-                VStack(spacing: 16) {
+                VStack(spacing: vSizeClass == .compact ? 10 : 16) {
                     Text(game.humanMustPass ? "You must pass (max bid reached)" : "Your turn to bid")
                         .font(.headline)
                         .foregroundStyle(game.humanMustPass ? .defenseRose : .white)
@@ -478,8 +502,9 @@ private struct BiddingPhaseView: View {
                 }
                 .padding()
                 .glassmorphic(cornerRadius: 20)
+                .adaptiveContentFrame(maxWidth: 560)
                 .padding(.horizontal, 16)
-                .padding(.bottom, 32)
+                .padding(.bottom, vSizeClass == .compact ? 12 : 24)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -561,10 +586,11 @@ private struct AICallingView: View {
 
 private struct CallingCardsView: View {
     @Bindable var game: ComputerGameViewModel
+    @Environment(\.verticalSizeClass) private var vSizeClass
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 22) {
+            VStack(spacing: vSizeClass == .compact ? 14 : 22) {
                 // Header
                 VStack(spacing: 6) {
                     Text("You won the bid!")
@@ -574,7 +600,7 @@ private struct CallingCardsView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.top, 52)
+                .padding(.top, vSizeClass == .compact ? 16 : 44)
 
                 // Trump suit
                 VStack(spacing: 12) {
@@ -636,16 +662,17 @@ private struct CallingCardsView: View {
                     SectionHeader(title: "Your Hand")
                     let cards = game.hands[game.humanPlayerIndex].sortedBySuit()
                     GeometryReader { geo in
+                        let cardW = adaptiveCardWidth(available: geo.size.width, count: cards.count)
                         let sp = cards.count > 1
-                            ? (geo.size.width - CGFloat(cards.count) * 74) / CGFloat(cards.count - 1)
+                            ? (geo.size.width - CGFloat(cards.count) * cardW) / CGFloat(cards.count - 1)
                             : 0
                         HStack(spacing: sp) {
                             ForEach(cards) { card in
-                                HandCardView(card: card)
+                                HandCardView(card: card, width: cardW)
                             }
                         }
                     }
-                    .frame(height: 106)
+                    .frame(height: adaptiveHandHeight())
                 }
 
                 // Confirm
@@ -672,9 +699,10 @@ private struct CallingCardsView: View {
                 }
                 .disabled(!game.callingValid)
                 .buttonStyle(BouncyButton())
-                .padding(.bottom, 32)
+                .padding(.bottom, vSizeClass == .compact ? 16 : 32)
             }
             .padding(.horizontal, 20)
+            .adaptiveContentFrame()
         }
     }
 
@@ -805,6 +833,8 @@ private struct OffenseChip: View {
 private struct PlayingPhaseView: View {
     var game: ComputerGameViewModel
     @State private var showingTrickHistory = false
+    @Environment(\.verticalSizeClass) private var vSizeClass
+    @Environment(\.horizontalSizeClass) private var hSizeClass
 
     var body: some View {
         VStack(spacing: 0) {
@@ -814,14 +844,15 @@ private struct PlayingPhaseView: View {
                     AIPlayerBadge(
                         name: game.aiNames[i - 1],
                         cardCount: game.hands[i].count,
-                        isOffense: game.offenseSet.contains(i)
+                        isOffense: game.offenseSet.contains(i),
+                        compact: vSizeClass == .compact
                     )
                     .frame(maxWidth: .infinity)
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.top, 52)
-            .padding(.bottom, 8)
+            .padding(.top, vSizeClass == .compact ? 8 : 44)
+            .padding(.bottom, vSizeClass == .compact ? 4 : 8)
 
             // Scrollable middle content — no fixed heights, no dead space
             ScrollView(showsIndicators: false) {
@@ -953,8 +984,9 @@ private struct PlayingPhaseView: View {
                 .padding(.horizontal, 16)
 
                 GeometryReader { geo in
+                    let cardW = adaptiveCardWidth(available: geo.size.width - 32, count: cards.count)
                     let sp = cards.count > 1
-                        ? (geo.size.width - 32 - CGFloat(cards.count) * 74) / CGFloat(cards.count - 1)
+                        ? (geo.size.width - 32 - CGFloat(cards.count) * cardW) / CGFloat(cards.count - 1)
                         : 0
                     HStack(spacing: sp) {
                         ForEach(cards) { card in
@@ -965,7 +997,7 @@ private struct PlayingPhaseView: View {
                                     game.humanPlayCard(card)
                                 }
                             } label: {
-                                HandCardView(card: card, isValid: !isHumanTurn || valid)
+                                HandCardView(card: card, width: cardW, isValid: !isHumanTurn || valid)
                                     .scaleEffect(valid && isHumanTurn ? 1.0 : 0.96)
                             }
                             .buttonStyle(BouncyButton())
@@ -980,9 +1012,9 @@ private struct PlayingPhaseView: View {
                     .animation(.spring(response: 0.4, dampingFraction: 0.75), value: cards.count)
                     .padding(.horizontal, 16)
                 }
-                .frame(height: 106)
+                .frame(height: adaptiveHandHeight())
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, vSizeClass == .compact ? 8 : 20)
         }
         .overlay(alignment: .top) {
             if let msg = game.partnerRevealMessage {
@@ -1002,28 +1034,31 @@ private struct AIPlayerBadge: View {
     let name: String
     let cardCount: Int
     let isOffense: Bool
+    var compact: Bool = false
+
+    private var circleSize: CGFloat { compact ? 32 : 44 }
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: compact ? 2 : 4) {
             ZStack(alignment: .topTrailing) {
                 Circle()
                     .fill(isOffense ? Color.offenseBlue.opacity(0.18) : Color.defenseRose.opacity(0.12))
-                    .frame(width: 44, height: 44)
+                    .frame(width: circleSize, height: circleSize)
                     .overlay(Circle().strokeBorder(isOffense ? Color.offenseBlue.opacity(0.4) : Color.clear, lineWidth: 1))
                 Text(String(name.prefix(1)))
-                    .font(.subheadline.bold())
+                    .font(.system(size: compact ? 12 : 15, weight: .bold))
                     .foregroundStyle(.white)
 
                 // Card count badge
                 Text("\(cardCount)")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: compact ? 7 : 9, weight: .bold))
                     .foregroundStyle(.black)
-                    .padding(3)
+                    .padding(compact ? 2 : 3)
                     .background(Circle().fill(Color.masterGold))
-                    .offset(x: 4, y: -4)
+                    .offset(x: compact ? 2 : 4, y: compact ? -2 : -4)
             }
             Text(name)
-                .font(.system(size: 9, weight: .medium))
+                .font(.system(size: compact ? 7 : 9, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
@@ -1178,6 +1213,7 @@ private struct RoundCompleteView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                        .adaptiveContentFrame(maxWidth: 500)
                 }
                 .padding(.top, 52)
 
@@ -1307,6 +1343,7 @@ private struct RoundCompleteView: View {
                     .padding(.bottom, 14)
                 }
                 .glassmorphic(cornerRadius: 18)
+                .adaptiveContentFrame()
                 .padding(.horizontal, 16)
 
                 // Action buttons
@@ -1344,6 +1381,7 @@ private struct RoundCompleteView: View {
                     }
                     .buttonStyle(BouncyButton())
                 }
+                .adaptiveContentFrame(maxWidth: 480)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 40)
             }
@@ -1590,6 +1628,7 @@ private struct GameOverView: View {
                     }
                 }
                 .glassmorphic(cornerRadius: 18)
+                .adaptiveContentFrame()
                 .padding(.horizontal, 16)
 
                 // Buttons
@@ -1643,6 +1682,7 @@ private struct GameOverView: View {
                     }
                     .buttonStyle(BouncyButton())
                 }
+                .adaptiveContentFrame(maxWidth: 480)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 40)
             }

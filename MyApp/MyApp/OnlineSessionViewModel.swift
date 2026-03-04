@@ -9,10 +9,11 @@ struct SessionPlayer: Identifiable {
     var slotIndex: Int
     var uid: String
     var name: String
+    var avatar: String
     var joined: Bool
 
     static func empty(at index: Int) -> SessionPlayer {
-        SessionPlayer(slotIndex: index, uid: "", name: "", joined: false)
+        SessionPlayer(slotIndex: index, uid: "", name: "", avatar: "", joined: false)
     }
 }
 
@@ -119,10 +120,10 @@ enum SessionStatus: String {
     // MARK: - Session CRUD
 
     @discardableResult
-    func createSession(uid: String, name: String) async -> String {
+    func createSession(uid: String, name: String, avatar: String = "") async -> String {
         let code = generateRoomCode()
-        var slots: [[String: Any]] = (0..<6).map { _ in ["uid": "", "name": "", "joined": false] }
-        slots[0] = ["uid": uid, "name": name, "joined": true]
+        var slots: [[String: Any]] = (0..<6).map { _ in ["uid": "", "name": "", "avatar": "", "joined": false] }
+        slots[0] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
 
         let data: [String: Any] = [
             "hostUid": uid,
@@ -144,7 +145,7 @@ enum SessionStatus: String {
         return code
     }
 
-    func joinSession(code: String, uid: String, name: String) async throws {
+    func joinSession(code: String, uid: String, name: String, avatar: String = "") async throws {
         let ref = db.collection("sessions").document(code)
         let snapshot = try await ref.getDocument()
 
@@ -157,7 +158,7 @@ enum SessionStatus: String {
         }
 
         var updated = slotsData
-        updated[emptyIndex] = ["uid": uid, "name": name, "joined": true]
+        updated[emptyIndex] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
         try await ref.updateData(["playerSlots": updated])
 
         sessionCode = code
@@ -209,6 +210,7 @@ enum SessionStatus: String {
                         SessionPlayer(slotIndex: i,
                                       uid: slot["uid"] as? String ?? "",
                                       name: slot["name"] as? String ?? "",
+                                      avatar: slot["avatar"] as? String ?? "",
                                       joined: slot["joined"] as? Bool ?? false)
                     }
                     while slots.count < 6 { slots.append(SessionPlayer.empty(at: slots.count)) }

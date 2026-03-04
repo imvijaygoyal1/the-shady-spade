@@ -20,6 +20,7 @@ struct SettingsView: View {
                         resetButton
                         aboutCard
                     }
+                    .adaptiveContentFrame()
                     .padding()
                     .padding(.bottom, 20)
                 }

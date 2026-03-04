@@ -306,7 +306,7 @@ private struct HistoryView: View {
                                     HistoryRoundCard(round: round, playerNames: vm.playerNames)
                                         .contextMenu {
                                             Button(role: .destructive) {
-                                                vm.deleteRound(round)
+                                                Task { vm.deleteRound(round) }
                                             } label: {
                                                 Label("Delete Round", systemImage: "trash")
                                             }

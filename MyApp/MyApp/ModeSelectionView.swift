@@ -7,12 +7,13 @@ struct ModeSelectionView: View {
     @State private var vm = GameViewModel()
     @State private var showingSolo = false
     @State private var showingOnline = false
-    @State private var showingAuth = false
     @State private var showingSettings = false
+    @State private var showingHistory = false
     @State private var showingNamePrompt = false
     @State private var pendingName = ""
     @State private var pendingAvatar = "🦁"
     @State private var nameConfirmed = false
+    @State private var isOnlineNamePrompt = false
     @AppStorage("soloPlayerName") private var soloPlayerName = ""
     @AppStorage("soloPlayerAvatar") private var soloPlayerAvatar = "🦁"
 
@@ -20,10 +21,25 @@ struct ModeSelectionView: View {
         ZStack {
             Color.darkBG.ignoresSafeArea()
 
-            // Settings button — top right
+            // Top bar — history (left) + settings (right)
             VStack {
                 HStack {
+                    Button {
+                        HapticManager.impact(.light)
+                        showingHistory = true
+                    } label: {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .frame(width: 40, height: 40)
+                            .background(Color.white.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    .padding(.top, 56)
+                    .padding(.leading, 20)
+
                     Spacer()
+
                     Button {
                         HapticManager.impact(.light)
                         showingSettings = true
@@ -65,6 +81,7 @@ struct ModeSelectionView: View {
                         color: .masterGold
                     ) {
                         HapticManager.impact(.medium)
+                        isOnlineNamePrompt = false
                         pendingName = soloPlayerName
                         pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
                         showingNamePrompt = true
@@ -77,13 +94,13 @@ struct ModeSelectionView: View {
                         color: .teal
                     ) {
                         HapticManager.impact(.medium)
-                        if authVM.isEmailVerified {
-                            showingOnline = true
-                        } else {
-                            showingAuth = true
-                        }
+                        isOnlineNamePrompt = true
+                        pendingName = soloPlayerName
+                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                        showingNamePrompt = true
                     }
                 }
+                .adaptiveContentFrame()
                 .padding(.horizontal, 20)
 
                 Spacer()
@@ -96,9 +113,19 @@ struct ModeSelectionView: View {
         }
         .onAppear { vm.setup(with: modelContext) }
         .sheet(isPresented: $showingNamePrompt, onDismiss: {
-            if nameConfirmed { nameConfirmed = false; showingSolo = true }
+            if nameConfirmed {
+                nameConfirmed = false
+                if isOnlineNamePrompt { isOnlineNamePrompt = false; showingOnline = true }
+                else { showingSolo = true }
+            } else {
+                isOnlineNamePrompt = false
+            }
         }) {
-            NamePromptSheet(pendingName: $pendingName, pendingAvatar: $pendingAvatar) {
+            NamePromptSheet(
+                pendingName: $pendingName,
+                pendingAvatar: $pendingAvatar,
+                mode: isOnlineNamePrompt ? "Online Game" : "Solo Game"
+            ) {
                 let trimmed = pendingName.trimmingCharacters(in: .whitespaces)
                 soloPlayerName = trimmed.isEmpty ? "Player" : trimmed
                 soloPlayerAvatar = pendingAvatar
@@ -109,15 +136,15 @@ struct ModeSelectionView: View {
         .fullScreenCover(isPresented: $showingSolo) {
             ComputerGameView(vm: vm, humanName: soloPlayerName.isEmpty ? "Player" : soloPlayerName)
         }
-        .fullScreenCover(isPresented: $showingAuth, onDismiss: {
-            if authVM.isEmailVerified { showingOnline = true }
-        }) {
-            AuthView()
-                .environment(authVM)
-        }
         .fullScreenCover(isPresented: $showingOnline) {
-            OnlineEntryView(vm: vm)
-                .environment(authVM)
+            OnlineEntryView(
+                vm: vm,
+                playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
+                playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+            )
+        }
+        .sheet(isPresented: $showingHistory) {
+            GameHistoryView()
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView(vm: vm)
@@ -130,24 +157,29 @@ struct ModeSelectionView: View {
 
 private struct OnlineEntryView: View {
     @Bindable var vm: GameViewModel
-    @Environment(AuthViewModel.self) private var authVM
+    let playerName: String
+    let playerAvatar: String
     @State private var onlineGame: OnlineGameViewModel? = nil
 
     var body: some View {
         if let game = onlineGame {
             OnlineGameView(game: game)
         } else {
-            OnlineSessionView(vm: vm, onGameReady: { myIndex, isHostVal, code, names in
-                onlineGame = OnlineGameViewModel(
-                    myPlayerIndex: myIndex,
-                    isHost: isHostVal,
-                    sessionCode: code,
-                    playerNames: names,
-                    dealerIndex: 0,
-                    roundNumber: 1
-                )
-            })
-            .environment(authVM)
+            OnlineSessionView(
+                vm: vm,
+                playerName: playerName,
+                playerAvatar: playerAvatar,
+                onGameReady: { myIndex, isHostVal, code, names in
+                    onlineGame = OnlineGameViewModel(
+                        myPlayerIndex: myIndex,
+                        isHost: isHostVal,
+                        sessionCode: code,
+                        playerNames: names,
+                        dealerIndex: 0,
+                        roundNumber: 1
+                    )
+                }
+            )
         }
     }
 }
@@ -155,6 +187,7 @@ private struct OnlineEntryView: View {
 private struct NamePromptSheet: View {
     @Binding var pendingName: String
     @Binding var pendingAvatar: String
+    var mode: String = "Solo Game"
     let onStart: () -> Void
 
     private let avatarOptions = [
@@ -201,7 +234,7 @@ private struct NamePromptSheet: View {
 
                     // Title & subtitle
                     VStack(spacing: 6) {
-                        Text("Solo Game")
+                        Text(mode)
                             .font(.title2.bold())
                             .foregroundStyle(.white)
                         Text("Pick a name for your avatar")

@@ -155,15 +155,20 @@ private struct SplashPage: View {
                     Text("The Shady Spade")
                         .font(.system(size: 34, weight: .heavy, design: .default))
                         .foregroundStyle(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .white,      location: max(0, shimmer - 0.25)),
-                                    .init(color: .masterGold, location: shimmer),
-                                    .init(color: .white,      location: min(1, shimmer + 0.25)),
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
+                            // Guard: shimmer outside (0,1) means the highlight is fully
+                            // off-screen — stops would collapse or invert, causing the
+                            // "Gradient stop locations must be ordered" runtime warning.
+                            shimmer > 0.0 && shimmer < 1.0
+                                ? AnyShapeStyle(LinearGradient(
+                                    stops: [
+                                        .init(color: .white,      location: max(0.0, shimmer - 0.25)),
+                                        .init(color: .masterGold, location: shimmer),
+                                        .init(color: .white,      location: min(1.0, shimmer + 0.25)),
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ))
+                                : AnyShapeStyle(Color.white)
                         )
                         .shadow(color: Color.masterGold.opacity(0.3), radius: 8)
 

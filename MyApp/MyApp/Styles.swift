@@ -102,11 +102,21 @@ private func cardBGColor(rank: String, suit: String) -> Color {
         : Color.white
 }
 
-// MARK: - Hand Card View (player's own cards — prominent display, 74×106)
+// MARK: - Hand Card View (player's own cards — scales with width, default 74×106)
 
 struct HandCardView: View {
     let card: Card
+    var width: CGFloat = 74
     var isValid: Bool = true
+
+    private var height: CGFloat    { width * (106.0 / 74.0) }
+    private var corner: CGFloat    { width * (12.0  / 74.0) }
+    private var rankSize: CGFloat  { width * (20.0  / 74.0) }
+    private var suitSmall: CGFloat { width * (14.0  / 74.0) }
+    private var suitBig: CGFloat   { width * (38.0  / 74.0) }
+    private var padLead: CGFloat   { width * (8.0   / 74.0) }
+    private var padTop: CGFloat    { width * (7.0   / 74.0) }
+    private var badgeFont: CGFloat { width * (8.0   / 74.0) }
 
     private var isShadySpade: Bool { card.rank == "3" && card.suit == "♠" }
     private var suitColor: Color { cardSuitColor(rank: card.rank, suit: card.suit) }
@@ -114,62 +124,72 @@ struct HandCardView: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
                 .fill(bgColor)
                 .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
 
             if isShadySpade {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
                     .strokeBorder(Color.masterGold.opacity(0.85), lineWidth: 2)
             }
 
             // Top-left pip
             VStack(alignment: .leading, spacing: 1) {
                 Text(card.rank)
-                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .font(.system(size: rankSize, weight: .black, design: .rounded))
                     .foregroundStyle(suitColor)
                 Text(card.suit)
-                    .font(.system(size: 14, weight: .heavy))
+                    .font(.system(size: suitSmall, weight: .heavy))
                     .foregroundStyle(suitColor)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.leading, 8).padding(.top, 7)
+            .padding(.leading, padLead).padding(.top, padTop)
 
             // Center suit
             Text(card.suit)
-                .font(.system(size: 38, weight: .bold))
+                .font(.system(size: suitBig, weight: .bold))
                 .foregroundStyle(suitColor.opacity(0.85))
                 .shadow(color: isShadySpade ? Color.masterGold.opacity(0.7) : .clear, radius: 8)
 
             // Bottom-right pip (rotated 180°)
             VStack(alignment: .leading, spacing: 1) {
                 Text(card.rank)
-                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .font(.system(size: rankSize, weight: .black, design: .rounded))
                     .foregroundStyle(suitColor)
                 Text(card.suit)
-                    .font(.system(size: 14, weight: .heavy))
+                    .font(.system(size: suitSmall, weight: .heavy))
                     .foregroundStyle(suitColor)
             }
             .rotationEffect(.degrees(180))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            .padding(.trailing, 8).padding(.bottom, 7)
+            .padding(.trailing, padLead).padding(.bottom, padTop)
 
             // Point value badge
             if card.pointValue > 0 {
                 VStack {
                     Spacer()
                     Text("\(card.pointValue)pt")
-                        .font(.system(size: 8, weight: .black))
+                        .font(.system(size: badgeFont, weight: .black))
                         .foregroundStyle(.black)
-                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .padding(.horizontal, badgeFont * 0.6).padding(.vertical, badgeFont * 0.25)
                         .background(Color.masterGold)
                         .clipShape(Capsule())
-                        .padding(.bottom, 5)
+                        .padding(.bottom, padTop)
                 }
             }
         }
-        .frame(width: 74, height: 106)
+        .frame(width: width, height: height)
         .opacity(isValid ? 1.0 : 0.45)
+    }
+}
+
+// MARK: - Adaptive layout helpers
+
+extension View {
+    /// Centers content with a max width — prevents full-bleed layouts on iPad.
+    func adaptiveContentFrame(maxWidth: CGFloat = 680) -> some View {
+        frame(maxWidth: maxWidth)
+            .frame(maxWidth: .infinity)
     }
 }
 

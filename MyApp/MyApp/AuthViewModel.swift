@@ -11,6 +11,12 @@ import Observation
     private var authStateHandle: AuthStateDidChangeListenerHandle?
 
     init() {
+        // Firebase is not yet configured at init time (SwiftUI lifecycle).
+        // Call start() after FirebaseApp.configure() via .task in the root view.
+    }
+
+    func start() {
+        guard authStateHandle == nil else { return }
         authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             guard let self else { return }
             self.user = user

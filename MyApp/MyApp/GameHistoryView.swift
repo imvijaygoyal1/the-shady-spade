@@ -24,6 +24,7 @@ struct GameHistoryView: View {
                                 .buttonStyle(BouncyButton())
                             }
                         }
+                        .adaptiveContentFrame()
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
                         .padding(.bottom, 24)

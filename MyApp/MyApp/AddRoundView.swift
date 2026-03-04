@@ -355,7 +355,7 @@ struct AddRoundView: View {
     // MARK: - Submit
 
     private var submitButton: some View {
-        Button { vm.addRound() } label: {
+        Button { Task { vm.addRound() } } label: {
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.seal.fill")
                 Text("Record Round").fontWeight(.bold)

@@ -1,23 +1,45 @@
 import SwiftUI
 
-struct OnlineSessionView: View {
-    @Environment(AuthViewModel.self) private var authVM
-    @Bindable var vm: GameViewModel
-    @State private var sessionVM = OnlineSessionViewModel()
-    @Environment(\.dismiss) private var dismiss
+// MARK: - Share Sheet
 
-    /// When non-nil: called with (myIndex, isHost, sessionCode, playerNames) to launch the full game engine.
-    /// When nil: falls back to legacy `vm.enterOnlineMode` score-tracker flow.
+private struct ShareSheetView: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    func updateUIViewController(_ uvc: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Online Session View
+
+struct OnlineSessionView: View {
+    @Bindable var vm: GameViewModel
+    var playerName: String = "Player"
+    var playerAvatar: String = "🦁"
     var onGameReady: ((Int, Bool, String, [String]) -> Void)? = nil
+
+    @State private var sessionVM = OnlineSessionViewModel()
+    @State private var playerUID = UUID().uuidString
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack {
             Color.darkBG.ignoresSafeArea()
 
             if sessionVM.sessionCode == nil {
-                CreateOrJoinView(sessionVM: sessionVM, authVM: authVM)
+                CreateOrJoinView(
+                    sessionVM: sessionVM,
+                    playerName: playerName,
+                    playerAvatar: playerAvatar,
+                    playerUID: playerUID
+                )
             } else {
-                SessionLobbyView(sessionVM: sessionVM, vm: vm, onGameReady: onGameReady) {
+                SessionLobbyView(
+                    sessionVM: sessionVM,
+                    vm: vm,
+                    playerUID: playerUID,
+                    onGameReady: onGameReady
+                ) {
                     vm.enterOnlineMode(sessionVM)
                     dismiss()
                 }
@@ -36,58 +58,85 @@ struct OnlineSessionView: View {
 
 private struct CreateOrJoinView: View {
     var sessionVM: OnlineSessionViewModel
-    var authVM: AuthViewModel
+    let playerName: String
+    let playerAvatar: String
+    let playerUID: String
+
     @State private var showingJoin = false
 
     var body: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: 36) {
             Spacer()
 
-            VStack(spacing: 12) {
-                Image(systemName: "globe")
-                    .font(.system(size: 56))
-                    .foregroundStyle(.masterGold)
-                Text("Online Game")
-                    .font(.title.bold())
-                    .foregroundStyle(.white)
-                Text("Create a new game or join friends with a code")
-                    .font(.subheadline)
+            // Player identity
+            VStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.masterGold.opacity(0.12))
+                        .frame(width: 88, height: 88)
+                        .overlay(Circle().stroke(Color.masterGold.opacity(0.4), lineWidth: 1.5))
+                    Text(playerAvatar)
+                        .font(.system(size: 48))
+                }
+                Text("Playing as")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                Text(playerName)
+                    .font(.title3.bold())
+                    .foregroundStyle(.white)
             }
 
             VStack(spacing: 14) {
+                // Host a Game
                 Button {
                     HapticManager.impact(.medium)
-                    let uid = authVM.user?.uid ?? ""
-                    let name = authVM.user?.displayName ?? authVM.user?.email ?? "Player"
-                    Task { await sessionVM.createSession(uid: uid, name: String(name.prefix(20))) }
+                    Task {
+                        await sessionVM.createSession(uid: playerUID, name: playerName, avatar: playerAvatar)
+                    }
                 } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Create Game").fontWeight(.bold)
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle().fill(Color.black.opacity(0.15)).frame(width: 44, height: 44)
+                            Image(systemName: "plus.circle.fill").font(.title3)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Host a Game").font(.headline.bold())
+                            Text("Create a room and share the code")
+                                .font(.caption).opacity(0.75)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption.bold())
                     }
                     .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(18)
                     .background(Color.masterGold)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(BouncyButton())
 
+                // Join a Game
                 Button {
                     HapticManager.impact(.medium)
                     showingJoin = true
                 } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "person.badge.key.fill")
-                        Text("Join Game").fontWeight(.semibold)
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle().fill(Color.white.opacity(0.08)).frame(width: 44, height: 44)
+                            Image(systemName: "arrow.right.circle.fill")
+                                .font(.title3).foregroundStyle(.masterGold)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Join a Game").font(.headline.bold()).foregroundStyle(.white)
+                            Text("Enter the 6-letter room code")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold()).foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(Color.white.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(18)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(BouncyButton())
             }
@@ -101,23 +150,33 @@ private struct CreateOrJoinView: View {
 
             Spacer()
         }
+        .adaptiveContentFrame()
         .padding()
         .sheet(isPresented: $showingJoin) {
-            JoinByCodeView(sessionVM: sessionVM, authVM: authVM)
-                .presentationDetents([.medium])
+            JoinByCodeView(
+                sessionVM: sessionVM,
+                playerUID: playerUID,
+                playerName: playerName,
+                playerAvatar: playerAvatar
+            )
+            .presentationDetents([.medium])
         }
     }
 }
 
-// MARK: - Join By Code
+// MARK: - Join By Code (OTP-style)
 
 private struct JoinByCodeView: View {
     var sessionVM: OnlineSessionViewModel
-    var authVM: AuthViewModel
+    let playerUID: String
+    let playerName: String
+    let playerAvatar: String
+
     @Environment(\.dismiss) private var dismiss
     @State private var code = ""
     @State private var isJoining = false
     @State private var joinError: String? = nil
+    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         ZStack {
@@ -130,16 +189,49 @@ private struct JoinByCodeView: View {
                     .padding(.top, 8)
 
                 VStack(spacing: 12) {
-                    TextField("e.g. SPADE4", text: $code)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                        .font(.system(size: 32, weight: .black, design: .monospaced))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.masterGold)
-                        .padding(.vertical, 16)
-                        .padding(.horizontal, 12)
-                        .background(Color.white.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    // OTP-style 6-box code entry
+                    ZStack {
+                        // Visual character boxes (non-interactive overlay)
+                        HStack(spacing: 10) {
+                            ForEach(0..<6, id: \.self) { i in
+                                let c: String = code.count > i
+                                    ? String(code[code.index(code.startIndex, offsetBy: i)])
+                                    : ""
+                                let filled = i < code.count
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color.white.opacity(filled ? 0.12 : 0.06))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .strokeBorder(
+                                                    filled ? Color.masterGold : Color.white.opacity(0.20),
+                                                    lineWidth: filled ? 2 : 1
+                                                )
+                                        )
+                                    Text(c)
+                                        .font(.system(size: 26, weight: .black, design: .monospaced))
+                                        .foregroundStyle(.masterGold)
+                                }
+                                .frame(width: 46, height: 60)
+                            }
+                        }
+                        .allowsHitTesting(false)
+
+                        // Invisible TextField captures all keyboard input
+                        TextField("", text: $code)
+                            .opacity(0.01)
+                            .keyboardType(.asciiCapable)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .focused($fieldFocused)
+                            .onChange(of: code) { _, new in
+                                code = String(new.prefix(6).uppercased())
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .frame(height: 64)
+                    .contentShape(Rectangle())
+                    .onTapGesture { fieldFocused = true }
 
                     if let error = joinError {
                         Text(error)
@@ -164,7 +256,7 @@ private struct JoinByCodeView: View {
                     .foregroundStyle(.black)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(code.count == 6 ? Color.masterGold : Color.masterGold.opacity(0.4))
+                    .background(code.count == 6 ? Color.masterGold : Color.masterGold.opacity(0.35))
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(BouncyButton())
@@ -172,19 +264,19 @@ private struct JoinByCodeView: View {
             }
             .padding()
         }
+        .onAppear { fieldFocused = true }
     }
 
     private func joinSession() {
-        let uid = authVM.user?.uid ?? ""
-        let name = authVM.user?.displayName ?? authVM.user?.email ?? "Player"
         isJoining = true
         joinError = nil
         Task {
             do {
                 try await sessionVM.joinSession(
                     code: code.uppercased(),
-                    uid: uid,
-                    name: String(name.prefix(20))
+                    uid: playerUID,
+                    name: playerName,
+                    avatar: playerAvatar
                 )
                 dismiss()
             } catch {
@@ -200,16 +292,24 @@ private struct JoinByCodeView: View {
 private struct SessionLobbyView: View {
     var sessionVM: OnlineSessionViewModel
     var vm: GameViewModel
+    let playerUID: String
     var onGameReady: ((Int, Bool, String, [String]) -> Void)? = nil
     var onGameStart: () -> Void
-    @Environment(AuthViewModel.self) private var authVM
+
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var hSizeClass
     @State private var codeCopied = false
+    @State private var showingShare = false
+
+    private var gridColumns: [GridItem] {
+        let count = hSizeClass == .regular ? 3 : 2
+        return Array(repeating: GridItem(.flexible()), count: count)
+    }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Header row
+                // Header
                 HStack {
                     Button {
                         Task { await sessionVM.leaveSession() }
@@ -232,31 +332,70 @@ private struct SessionLobbyView: View {
                 .padding(.top, 8)
 
                 // Room code card
-                VStack(spacing: 8) {
-                    Text("Room Code")
+                VStack(spacing: 12) {
+                    Text("ROOM CODE")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    HStack(spacing: 12) {
-                        Text(sessionVM.sessionCode ?? "------")
-                            .font(.system(size: 36, weight: .black, design: .monospaced))
-                            .foregroundStyle(.masterGold)
+                        .tracking(2)
+
+                    // Individual character boxes
+                    HStack(spacing: 6) {
+                        ForEach(Array((sessionVM.sessionCode ?? "------").enumerated()), id: \.offset) { _, ch in
+                            Text(String(ch))
+                                .font(.system(size: 36, weight: .black, design: .monospaced))
+                                .foregroundStyle(.masterGold)
+                                .frame(minWidth: 30)
+                        }
+                    }
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 20)
+                    .background(Color.masterGold.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(Color.masterGold.opacity(0.45), lineWidth: 1.5)
+                    )
+
+                    Text("Share this code with 5 friends")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 10) {
+                        // Share button → native share sheet
+                        Button {
+                            HapticManager.impact(.medium)
+                            showingShare = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "square.and.arrow.up").font(.subheadline.bold())
+                                Text("Share Code").font(.subheadline.bold())
+                            }
+                            .foregroundStyle(.black)
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.masterGold)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+
+                        // Copy button with toast
                         Button {
                             UIPasteboard.general.string = sessionVM.sessionCode
                             HapticManager.success()
                             codeCopied = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                codeCopied = false
-                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { codeCopied = false }
                         } label: {
-                            Image(systemName: codeCopied ? "checkmark" : "doc.on.doc")
-                                .foregroundStyle(codeCopied ? .offenseBlue : .masterGold)
-                                .font(.title3)
+                            HStack(spacing: 6) {
+                                Image(systemName: codeCopied ? "checkmark" : "doc.on.doc")
+                                Text(codeCopied ? "Copied!" : "Copy").font(.subheadline.bold())
+                            }
+                            .foregroundStyle(codeCopied ? .masterGold : .white)
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.white.opacity(0.10))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
                         .accessibilityLabel(codeCopied ? "Code copied" : "Copy room code")
                     }
-                    Text("Share this code with 5 friends")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
                 .padding()
                 .glassmorphic(cornerRadius: 20)
@@ -267,10 +406,9 @@ private struct SessionLobbyView: View {
                         .font(.headline)
                         .foregroundStyle(.masterGold)
 
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),
-                              spacing: 12) {
+                    LazyVGrid(columns: gridColumns, spacing: 12) {
                         ForEach(0..<6, id: \.self) { i in
-                            PlayerSlotCard(index: i, slot: sessionVM.playerSlots[i], vm: vm)
+                            PlayerSlotCard(index: i, slot: sessionVM.playerSlots[i])
                         }
                     }
                 }
@@ -315,16 +453,23 @@ private struct SessionLobbyView: View {
                     .padding(.vertical, 8)
                 }
             }
+            .adaptiveContentFrame()
             .padding()
         }
         .onChange(of: sessionVM.status) { _, newStatus in
             if newStatus == .playing, let onGameReady {
-                let myUID = authVM.user?.uid ?? ""
-                let myIndex = sessionVM.playerSlots.firstIndex(where: { $0.uid == myUID }) ?? 0
+                let myIndex = sessionVM.playerSlots.firstIndex(where: { $0.uid == playerUID }) ?? 0
                 let names = sessionVM.playerSlots.map { slot in
                     slot.name.isEmpty ? "Player \(slot.slotIndex + 1)" : slot.name
                 }
                 onGameReady(myIndex, sessionVM.isHost, sessionVM.sessionCode ?? "", names)
+            }
+        }
+        .sheet(isPresented: $showingShare) {
+            if let code = sessionVM.sessionCode {
+                let text = "Join my Shady Spade game! Use code: \(code) in the app. shadyspade://join/\(code)"
+                ShareSheetView(items: [text])
+                    .ignoresSafeArea()
             }
         }
     }
@@ -335,7 +480,6 @@ private struct SessionLobbyView: View {
 private struct PlayerSlotCard: View {
     let index: Int
     let slot: SessionPlayer
-    let vm: GameViewModel
 
     var body: some View {
         HStack(spacing: 10) {
@@ -346,9 +490,13 @@ private struct PlayerSlotCard: View {
                           : Color.white.opacity(0.06))
                     .frame(width: 36, height: 36)
                 if slot.joined {
-                    Image(systemName: vm.playerAvatars[index])
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.offenseBlue)
+                    if !slot.avatar.isEmpty {
+                        Text(slot.avatar).font(.system(size: 20))
+                    } else {
+                        Text(String(slot.name.prefix(1)).uppercased())
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.offenseBlue)
+                    }
                 } else {
                     Image(systemName: "person.fill")
                         .font(.subheadline)
