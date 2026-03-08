@@ -795,8 +795,14 @@ private struct CallingCardsView: View {
                     }
                     .frame(height: adaptiveHandHeight())
                 }
-
-                // Confirm
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 80)
+            .adaptiveContentFrame()
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                Divider()
                 Button {
                     HapticManager.success()
                     game.humanConfirmCalling()
@@ -808,7 +814,7 @@ private struct CallingCardsView: View {
                     .font(.title3)
                     .foregroundStyle(game.callingValid ? Color.black : Color.secondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
+                    .frame(height: 56)
                     .background {
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(game.callingValid
@@ -820,10 +826,10 @@ private struct CallingCardsView: View {
                 }
                 .disabled(!game.callingValid)
                 .buttonStyle(BouncyButton())
-                .padding(.bottom, vSizeClass == .compact ? 16 : 32)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
             }
-            .padding(.horizontal, 20)
-            .adaptiveContentFrame()
+            .background(Color.darkBG)
         }
     }
 
@@ -1540,7 +1546,7 @@ private struct RoundCompleteView: View {
 
         // Award pill values
         let partnerPts = (game.highBid + 1) / 2
-        let defensePts = 250 - game.highBid - 2 * partnerPts
+        let defensePts = game.defensePoints / 3
         let partnerPenalty = -(game.highBid / 2)
 
         ScrollView {
@@ -1564,14 +1570,15 @@ private struct RoundCompleteView: View {
                 if !isSet {
                     HStack(spacing: 8) {
                         AwardPill(label: "Bidder", points: game.highBid, color: .masterGold)
-                        AwardPill(label: "Each Bidding Partner", points: partnerPts, color: .offenseBlue)
-                        AwardPill(label: "Defense", points: defensePts, color: defensePts >= 0 ? Color.secondary : Color.defenseRose)
+                        AwardPill(label: "Each Partner", points: partnerPts, color: .offenseBlue)
+                        AwardPill(label: "Each Defense", points: defensePts, color: .secondary)
                     }
                     .padding(.horizontal, 20)
                 } else {
                     HStack(spacing: 8) {
                         AwardPill(label: "Bidder", points: -game.highBid, color: .defenseRose)
-                        AwardPill(label: "Each Bidding Partner", points: partnerPenalty, color: .defenseRose)
+                        AwardPill(label: "Each Partner", points: partnerPenalty, color: .defenseRose)
+                        AwardPill(label: "Each Defense", points: defensePts, color: .secondary)
                     }
                     .padding(.horizontal, 20)
                 }
@@ -1613,6 +1620,15 @@ private struct RoundCompleteView: View {
                 .padding(.horizontal, 16)
 
                 // Game Score Table
+                let scoreTableHeaderBg = Color(UIColor { $0.userInterfaceStyle == .dark
+                    ? UIColor(white: 0.16, alpha: 1) : UIColor(white: 0.13, alpha: 1) })
+                let scoreTableEvenRowBg = Color(UIColor { $0.userInterfaceStyle == .dark
+                    ? UIColor(white: 0.14, alpha: 1) : UIColor(white: 0.96, alpha: 1) })
+                let scoreTableTotalBg = Color(UIColor { $0.userInterfaceStyle == .dark
+                    ? UIColor(white: 0.14, alpha: 1) : UIColor(white: 0.94, alpha: 1) })
+                let scoreGreen = Color(red: 21/255, green: 128/255, blue: 61/255)
+                let scoreRed   = Color(red: 185/255, green: 28/255, blue: 28/255)
+                let scoreGrey  = Color(red: 154/255, green: 152/255, blue: 168/255)
                 VStack(spacing: 0) {
                     // Header label
                     HStack {
@@ -1625,90 +1641,97 @@ private struct RoundCompleteView: View {
                     .padding(.top, 14)
                     .padding(.bottom, 8)
 
-                    // Column headers (player names)
+                    // Table (single GeometryReader for column widths)
                     GeometryReader { geo in
-                        let roundColW: CGFloat = 28
-                        let playerColW = (geo.size.width - roundColW) / 6
-                        HStack(spacing: 0) {
-                            Text("#")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: roundColW)
-                            ForEach(0..<6) { i in
-                                Text(String(game.playerName(i).prefix(4)))
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(i == leaderIdx ? .masterGold : .adaptiveSecondary)
-                                    .frame(width: playerColW)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.6)
-                            }
-                        }
-                        .frame(width: geo.size.width)
-                    }
-                    .frame(height: 24)
-                    .padding(.horizontal, 10)
-                    .background(Color.adaptiveDivider)
-
-                    // Round rows
-                    GeometryReader { geo in
-                        let roundColW: CGFloat = 28
+                        let roundColW: CGFloat = 30
                         let playerColW = (geo.size.width - roundColW) / 6
                         VStack(spacing: 0) {
+                            // Column header row
+                            HStack(spacing: 0) {
+                                Text("#")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: roundColW)
+                                ForEach(0..<6) { i in
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.25))
+                                        .frame(width: 0.5)
+                                    Text(String(game.playerName(i).prefix(4)))
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(i == leaderIdx ? Color.masterGold : .white)
+                                        .frame(width: playerColW - 0.5)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.6)
+                                }
+                            }
+                            .frame(height: 26)
+                            .background(scoreTableHeaderBg)
+
+                            // Round rows
                             ForEach(Array(allDeltas.enumerated()), id: \.offset) { rowIdx, deltas in
                                 let isCurrent = rowIdx == allDeltas.count - 1
                                 HStack(spacing: 0) {
                                     Text("R\(rowIdx + 1)")
                                         .font(.system(size: 8, weight: isCurrent ? .bold : .regular))
-                                        .foregroundStyle(isCurrent ? .masterGold : .secondary)
+                                        .foregroundStyle(isCurrent ? Color.masterGold : scoreGrey)
                                         .frame(width: roundColW)
                                     ForEach(0..<6) { i in
+                                        Rectangle()
+                                            .fill(scoreGrey.opacity(0.25))
+                                            .frame(width: 0.5)
                                         let pts = deltas[i]
                                         Text(pts == 0 ? "0" : (pts > 0 ? "+\(pts)" : "\(pts)"))
                                             .font(.system(size: 9, weight: isCurrent ? .bold : .regular, design: .monospaced))
-                                            .foregroundStyle(pts > 0 ? Color.masterGold : pts < 0 ? Color.defenseRose : Color.secondary)
-                                            .frame(width: playerColW)
+                                            .foregroundStyle(pts > 0 ? scoreGreen : pts < 0 ? scoreRed : scoreGrey)
+                                            .frame(width: playerColW - 0.5)
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.6)
                                     }
                                 }
                                 .frame(height: 26)
-                                .background(rowIdx % 2 == 0 ? Color.adaptiveDivider : Color.clear)
+                                .background(rowIdx % 2 == 0 ? scoreTableEvenRowBg : Color.clear)
                             }
+
+                            // Separator
+                            Color.adaptiveSubtle.frame(height: 0.5)
+
+                            // Total row
+                            HStack(spacing: 0) {
+                                Text("TOT")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(scoreGrey)
+                                    .frame(width: roundColW)
+                                ForEach(0..<6) { i in
+                                    Rectangle()
+                                        .fill(scoreGrey.opacity(0.25))
+                                        .frame(width: 0.5)
+                                    Text("\(updatedScores[i])")
+                                        .font(.system(size: 11, weight: .black, design: .monospaced))
+                                        .foregroundStyle(i == leaderIdx ? Color.masterGold : scoreGreen)
+                                        .frame(width: playerColW - 0.5)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.6)
+                                }
+                            }
+                            .frame(height: 32)
+                            .background(scoreTableTotalBg)
                         }
                         .frame(width: geo.size.width)
                     }
-                    .frame(height: CGFloat(allDeltas.count) * 26)
+                    .frame(height: 26 + CGFloat(allDeltas.count) * 26 + 0.5 + 32)
                     .padding(.horizontal, 10)
-
-                    // Divider
-                    Divider().overlay(Color.adaptiveSubtle).padding(.horizontal, 6)
-
-                    // Total row
-                    GeometryReader { geo in
-                        let roundColW: CGFloat = 28
-                        let playerColW = (geo.size.width - roundColW) / 6
-                        HStack(spacing: 0) {
-                            Text("TOT")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: roundColW)
-                            ForEach(0..<6) { i in
-                                Text("\(updatedScores[i])")
-                                    .font(.system(size: 11, weight: .black, design: .monospaced))
-                                    .foregroundStyle(i == leaderIdx ? .masterGold : .adaptivePrimary)
-                                    .frame(width: playerColW)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.6)
-                            }
-                        }
-                        .frame(width: geo.size.width)
-                    }
-                    .frame(height: 30)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.masterGold.opacity(0.06))
+                    .padding(.bottom, 10)
                 }
-                .glassmorphic(cornerRadius: 18)
+                .background {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color(UIColor { $0.userInterfaceStyle == .dark
+                            ? UIColor(white: 0.10, alpha: 1) : .white }))
+                        .shadow(color: .black.opacity(0.10), radius: 8, y: 2)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.adaptiveDivider, lineWidth: 0.5)
+                }
                 .adaptiveContentFrame()
                 .padding(.horizontal, 16)
 

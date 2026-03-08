@@ -51,6 +51,9 @@ final class OnlineGameViewModel {
     var partnerRevealMessage: String? = nil
     var errorMessage: String? = nil
 
+    // MARK: AI seats (custom game)
+    var aiSeats: [Int] = []
+
     // MARK: Host-only private state
     private var allHands: [[Card]] = Array(repeating: [], count: 6)
     private var hostPartner1: Int = -1
@@ -76,7 +79,8 @@ final class OnlineGameViewModel {
         sessionCode: String,
         playerNames: [String],
         dealerIndex: Int,
-        roundNumber: Int
+        roundNumber: Int,
+        aiSeats: [Int] = []
     ) {
         self.myPlayerIndex = myPlayerIndex
         self.isHost = isHost
@@ -84,6 +88,7 @@ final class OnlineGameViewModel {
         self.playerNames = playerNames
         self.dealerIndex = dealerIndex
         self.roundNumber = roundNumber
+        self.aiSeats = aiSeats
     }
 
     func cleanup() {
@@ -242,17 +247,29 @@ final class OnlineGameViewModel {
             parseGameState(gs)
         }
 
-        // Parse my hand
-        if let handsData = data["hands"] as? [String: Any],
-           let myCards = handsData["\(myPlayerIndex)"] as? [String] {
-            myHand = myCards.compactMap { parseCard($0) }
+        // Parse hands
+        if let handsData = data["hands"] as? [String: Any] {
+            // Parse my hand
+            if let myCards = handsData["\(myPlayerIndex)"] as? [String] {
+                myHand = myCards.compactMap { parseCard($0) }
+            }
+            // Host: sync allHands for AI use
+            if isHost {
+                for i in 0..<6 {
+                    if let cards = handsData["\(i)"] as? [String] {
+                        allHands[i] = cards.compactMap { parseCard($0) }
+                    }
+                }
+            }
         }
 
-        // Host: process pending action
+        // Host: process pending action or trigger AI
         if isHost, let actionData = data["pendingAction"] as? [String: Any],
            let nonce = actionData["nonce"] as? String,
            !nonce.isEmpty, nonce != lastProcessedNonce {
             await processPendingAction(actionData)
+        } else if isHost {
+            await processAITurnIfNeeded()
         }
     }
 
@@ -524,13 +541,15 @@ final class OnlineGameViewModel {
 
                     var newRS = runningScores
                     let partnerPts = (highBid + 1) / 2   // ceil(bid / 2)
+                    let defensePerPlayer = defPts / 3
                     for i in 0..<6 {
                         if i == highBidderIndex {
                             newRS[i] += bidMade ? highBid : -highBid
                         } else if offSet.contains(i) {
                             newRS[i] += bidMade ? partnerPts : 0
+                        } else {
+                            newRS[i] += defensePerPlayer
                         }
-                        // defense always receives 0
                     }
 
                     let nextPhase: OnlineGamePhase = (newRS.max() ?? 0) >= 500 ? .gameOver : .roundComplete
@@ -659,6 +678,155 @@ final class OnlineGameViewModel {
             if hand.contains(where: { $0.id == c2 }) { p2 = i }
         }
         return (p1, p2)
+    }
+
+    // MARK: - AI Auto-play (custom game, host only)
+
+    private var hostOffenseSet: Set<Int> {
+        Set([highBidderIndex, hostPartner1, hostPartner2].filter { $0 >= 0 })
+    }
+
+    private func processAITurnIfNeeded() async {
+        guard isHost, !aiSeats.isEmpty, aiSeats.contains(currentActionPlayer) else { return }
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        let seat = currentActionPlayer
+        switch phase {
+        case .bidding:
+            let canPass = highBid > 0
+            let amount = aiComputeBid(seat: seat, canPass: canPass)
+            let actionData: [String: Any] = [
+                "nonce": UUID().uuidString,
+                "playerIndex": seat,
+                "type": amount == 0 ? "pass" : "bid",
+                "bidAmount": amount
+            ]
+            await processPendingAction(actionData)
+        case .calling:
+            let result = aiComputeCalling(seat: seat)
+            let actionData: [String: Any] = [
+                "nonce": UUID().uuidString,
+                "playerIndex": seat,
+                "type": "callCards",
+                "trump": result.trump.rawValue,
+                "calledCard1": result.c1,
+                "calledCard2": result.c2
+            ]
+            await processPendingAction(actionData)
+        case .playing:
+            let cardId = aiComputeCard(seat: seat)
+            let actionData: [String: Any] = [
+                "nonce": UUID().uuidString,
+                "playerIndex": seat,
+                "type": "playCard",
+                "cardId": cardId
+            ]
+            await processPendingAction(actionData)
+        default:
+            break
+        }
+    }
+
+    private func aiComputeBid(seat: Int, canPass: Bool) -> Int {
+        let hand = allHands[seat]
+        let myPoints = hand.map(\.pointValue).reduce(0, +)
+        let myIds = Set(hand.map(\.id))
+        let topExternal = ComputerGameViewModel.freshDeck()
+            .filter { !myIds.contains($0.id) }
+            .sorted { lhs, rhs in
+                lhs.pointValue != rhs.pointValue
+                    ? lhs.pointValue > rhs.pointValue
+                    : (Card.rankOrder[lhs.rank] ?? 0) > (Card.rankOrder[rhs.rank] ?? 0)
+            }
+        let call1Pts = topExternal.first?.pointValue ?? 0
+        let call2Pts = topExternal.dropFirst().first?.pointValue ?? 0
+        let partnerBonus = Int(Double(max(0, 250 - myPoints - call1Pts - call2Pts)) * 0.30)
+        let estimated = myPoints + call1Pts + call2Pts + partnerBonus
+        let minBid = max(130, highBid + 5)
+        if !canPass {
+            let rounded = (max(estimated, minBid) / 5) * 5
+            return min(max(rounded, minBid), 250)
+        }
+        guard estimated >= minBid else { return 0 }
+        let rounded = (estimated / 5) * 5
+        return min(max(rounded, minBid), 250)
+    }
+
+    private func aiComputeCalling(seat: Int) -> (trump: TrumpSuit, c1: String, c2: String) {
+        let hand = allHands[seat]
+        let suitScores = TrumpSuit.allCases.map { suit -> (TrumpSuit, Int) in
+            let pts = hand.filter { $0.suit == suit.rawValue }.map(\.pointValue).reduce(0, +)
+            return (suit, pts)
+        }
+        let trump = suitScores.max(by: { $0.1 < $1.1 })?.0 ?? .spades
+        let handIds = Set(hand.map(\.id))
+        let candidates = ComputerGameViewModel.freshDeck()
+            .filter { !handIds.contains($0.id) }
+            .sorted { lhs, rhs in
+                lhs.pointValue != rhs.pointValue
+                    ? lhs.pointValue > rhs.pointValue
+                    : (Card.rankOrder[lhs.rank] ?? 0) > (Card.rankOrder[rhs.rank] ?? 0)
+            }
+        let c1 = candidates.count > 0 ? candidates[0].id : "A♥"
+        let c2 = candidates.count > 1 ? candidates[1].id : "K♥"
+        return (trump: trump, c1: c1, c2: c2)
+    }
+
+    private func aiComputeCard(seat: Int) -> String {
+        let hand = allHands[seat]
+        guard !hand.isEmpty else { return "A♠" }
+        let isOffense = hostOffenseSet.contains(seat)
+        let isBidder  = seat == highBidderIndex
+
+        func rankScore(_ c: Card) -> Int  { Card.rankOrder[c.rank] ?? 0 }
+        func valueScore(_ c: Card) -> Int { c.pointValue * 100 + rankScore(c) }
+        let trumpRaw = trumpSuit.rawValue
+
+        if currentTrick.isEmpty {
+            if isBidder {
+                let trumpCards = hand.filter { $0.suit == trumpRaw }
+                if let highTrump = trumpCards.max(by: { rankScore($0) < rankScore($1) }),
+                   rankScore(highTrump) >= (Card.rankOrder["Q"] ?? 0) {
+                    return highTrump.id
+                }
+            }
+            let nonTrump = hand.filter { $0.suit != trumpRaw }
+            if let best = nonTrump.max(by: { rankScore($0) < rankScore($1) }) { return best.id }
+            return (hand.min(by: { rankScore($0) < rankScore($1) }) ?? hand[0]).id
+        }
+
+        let ledSuit  = currentTrick[0].card.suit
+        let sameSuit = hand.filter { $0.suit == ledSuit }
+
+        guard let winnerEntry = currentTrick.max(by: { (a, b) in
+            let aTrump = a.card.suit == trumpRaw
+            let bTrump = b.card.suit == trumpRaw
+            if aTrump != bTrump { return bTrump }
+            if a.card.suit == b.card.suit { return rankScore(a.card) < rankScore(b.card) }
+            return true
+        }) else { return hand[0].id }
+
+        let winner = winnerEntry
+        let winnerIsOffense = hostOffenseSet.contains(winner.playerIndex)
+        let teammateWinning = isOffense ? winnerIsOffense : !winnerIsOffense
+
+        if !sameSuit.isEmpty {
+            if teammateWinning {
+                return (sameSuit.max(by: { valueScore($0) < valueScore($1) }) ?? sameSuit[0]).id
+            }
+            if winner.card.suit == ledSuit {
+                let canBeat = sameSuit.filter { rankScore($0) > rankScore(winner.card) }
+                if let best = canBeat.max(by: { rankScore($0) < rankScore($1) }) { return best.id }
+            }
+            return (sameSuit.min(by: { valueScore($0) < valueScore($1) }) ?? sameSuit[0]).id
+        }
+
+        if teammateWinning {
+            let nonTrump = hand.filter { $0.suit != trumpRaw }
+            if let best = nonTrump.max(by: { valueScore($0) < valueScore($1) }) { return best.id }
+        }
+        let trumpCards = hand.filter { $0.suit == trumpRaw }
+        if let lowest = trumpCards.min(by: { rankScore($0) < rankScore($1) }) { return lowest.id }
+        return (hand.min(by: { valueScore($0) < valueScore($1) }) ?? hand[0]).id
     }
 
     private func setSmartCallingDefaults() {

@@ -104,7 +104,7 @@ struct ModeSelectionView: View {
                     ModeCard(
                         icon: "person.3.fill",
                         title: "Custom Game",
-                        subtitle: "2–5 humans hot-seat on one device",
+                        subtitle: "2–5 humans online + AI fills empty seats",
                         color: Color(red: 0.55, green: 0.35, blue: 0.85)
                     ) {
                         HapticManager.impact(.medium)
@@ -379,24 +379,28 @@ private struct ModeCard: View {
     }
 }
 
-// MARK: - Custom Game Setup
+// MARK: - Custom Game Setup (Firestore multi-device with AI auto-play)
 
 private struct CustomGameSetupView: View {
     @Bindable var vm: GameViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var humanCount = 2
-    @State private var humanPlayers: [(name: String, avatar: String)] = []
-    @State private var showingGame = false
-    @State private var builtVM: ComputerGameViewModel?
+    @State private var playerName = ""
+    @State private var playerAvatar = "🦁"
+    @State private var playerUID = UUID().uuidString
+    @State private var sessionVM = OnlineSessionViewModel()
+    @State private var showingLobby = false
 
     private static let seatsByCount: [[Int]] = [
         [0], [0, 3], [0, 2, 4], [0, 1, 3, 4], [0, 1, 2, 3, 4]
     ]
     private var humanSeats: [Int] { Self.seatsByCount[humanCount - 1] }
+    private var aiSeats: [Int] { (0..<6).filter { !humanSeats.contains($0) } }
 
     private let avatarOptions = [
         "🦁", "🐯", "🦊", "🐺", "🦅", "🐻", "🦈", "🐉", "🧙", "🥷", "🤴", "👸", "🦸", "🎩"
     ]
+    private var trimmed: String { playerName.trimmingCharacters(in: .whitespaces) }
 
     var body: some View {
         NavigationStack {
@@ -405,10 +409,8 @@ private struct CustomGameSetupView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         humanCountSection
-                        ForEach(0..<humanCount, id: \.self) { i in
-                            humanEntryCard(index: i)
-                        }
-                        playButton
+                        hostIdentitySection
+                        startButton
                     }
                     .padding()
                 }
@@ -422,10 +424,14 @@ private struct CustomGameSetupView: View {
                 }
             }
         }
-        .onAppear { resetPlayers() }
-        .onChange(of: humanCount) { _, _ in resetPlayers() }
-        .fullScreenCover(isPresented: $showingGame) {
-            if let builtVM { ComputerGameView(vm: builtVM) }
+        .fullScreenCover(isPresented: $showingLobby) {
+            CustomOnlineEntryView(
+                vm: vm,
+                playerName: trimmed.isEmpty ? "Player" : trimmed,
+                playerAvatar: playerAvatar,
+                playerUID: playerUID,
+                sessionVM: sessionVM
+            )
         }
     }
 
@@ -434,6 +440,9 @@ private struct CustomGameSetupView: View {
             Text("Number of Human Players")
                 .font(.headline)
                 .foregroundStyle(.masterGold)
+            Text("Remaining seats are filled by AI opponents")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             HStack(spacing: 16) {
                 ForEach(2...5, id: \.self) { n in
                     Button {
@@ -456,17 +465,13 @@ private struct CustomGameSetupView: View {
         .glassmorphic(cornerRadius: 20)
     }
 
-    private func humanEntryCard(index i: Int) -> some View {
+    private var hostIdentitySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Player \(i + 1) — Seat \(humanSeats.indices.contains(i) ? humanSeats[i] + 1 : i + 1)")
+            Text("Your Name & Avatar")
                 .font(.headline)
                 .foregroundStyle(.masterGold)
 
-            let binding = Binding<String>(
-                get: { humanPlayers.indices.contains(i) ? humanPlayers[i].name : "" },
-                set: { if humanPlayers.indices.contains(i) { humanPlayers[i].name = $0 } }
-            )
-            TextField("Enter name...", text: binding)
+            TextField("Enter your name...", text: $playerName)
                 .textFieldStyle(.plain)
                 .font(.title3.bold())
                 .foregroundStyle(.adaptivePrimary)
@@ -478,11 +483,10 @@ private struct CustomGameSetupView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(avatarOptions, id: \.self) { emoji in
-                        let current = humanPlayers.indices.contains(i) ? humanPlayers[i].avatar : "🦁"
-                        let isSelected = current == emoji
+                        let isSelected = playerAvatar == emoji
                         Button {
                             HapticManager.impact(.light)
-                            if humanPlayers.indices.contains(i) { humanPlayers[i].avatar = emoji }
+                            playerAvatar = emoji
                         } label: {
                             Text(emoji)
                                 .font(.system(size: 28))
@@ -501,52 +505,69 @@ private struct CustomGameSetupView: View {
         .glassmorphic(cornerRadius: 20)
     }
 
-    private var playButton: some View {
+    private var startButton: some View {
         Button {
             HapticManager.impact(.medium)
-            buildAndPlay()
+            Task { await createAndShowLobby() }
         } label: {
-            Text("Start Game")
+            Text("Create Lobby")
                 .font(.title3.bold())
-                .foregroundStyle(.black)
+                .foregroundStyle(trimmed.isEmpty ? Color.secondary : Color.black)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 18)
-                .background(Color.masterGold)
+                .background(trimmed.isEmpty ? Color.masterGold.opacity(0.35) : Color.masterGold)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(BouncyButton())
+        .disabled(trimmed.isEmpty)
     }
 
-    private func resetPlayers() {
-        humanPlayers = Array(repeating: ("", "🦁"), count: humanCount)
-    }
-
-    private func buildAndPlay() {
-        let aiNames = ComputerGameViewModel.namePool.shuffled()
-        let aiAvatars = ComputerGameViewModel.avatarPool.shuffled()
-        var allNames: [String] = []
-        var allAvatars: [String] = []
-        var aiIdx = 0
-        for seat in 0..<6 {
-            if let humanIdx = humanSeats.firstIndex(of: seat) {
-                let n = humanPlayers.indices.contains(humanIdx)
-                    ? humanPlayers[humanIdx].name.trimmingCharacters(in: .whitespaces)
-                    : ""
-                allNames.append(n.isEmpty ? "Player \(seat + 1)" : n)
-                allAvatars.append(humanPlayers.indices.contains(humanIdx) ? humanPlayers[humanIdx].avatar : "🦁")
-            } else {
-                allNames.append(aiNames[aiIdx % aiNames.count])
-                allAvatars.append(aiAvatars[aiIdx % aiAvatars.count])
-                aiIdx += 1
-            }
-        }
-        builtVM = ComputerGameViewModel(
-            humanSeats: humanSeats,
-            allNames: allNames,
-            allAvatars: allAvatars,
-            dealerIndex: 0,
-            roundNumber: 1
+    private func createAndShowLobby() async {
+        playerUID = UUID().uuidString
+        sessionVM = OnlineSessionViewModel()
+        await sessionVM.createSession(
+            uid: playerUID,
+            name: trimmed.isEmpty ? "Player" : trimmed,
+            avatar: playerAvatar,
+            aiSeats: aiSeats,
+            sessionType: "custom"
         )
-        showingGame = true
+        showingLobby = true
+    }
+}
+
+// MARK: - Custom Online Entry (host-driven Firestore game with AI seats)
+
+private struct CustomOnlineEntryView: View {
+    @Bindable var vm: GameViewModel
+    let playerName: String
+    let playerAvatar: String
+    let playerUID: String
+    var sessionVM: OnlineSessionViewModel
+    @State private var onlineGame: OnlineGameViewModel? = nil
+
+    var body: some View {
+        if let game = onlineGame {
+            OnlineGameView(game: game)
+        } else {
+            OnlineSessionView(
+                vm: vm,
+                playerName: playerName,
+                playerAvatar: playerAvatar,
+                prebuiltSessionVM: sessionVM,
+                prebuiltPlayerUID: playerUID,
+                onGameReady: { myIndex, isHostVal, code, names in
+                    onlineGame = OnlineGameViewModel(
+                        myPlayerIndex: myIndex,
+                        isHost: isHostVal,
+                        sessionCode: code,
+                        playerNames: names,
+                        dealerIndex: 0,
+                        roundNumber: 1,
+                        aiSeats: sessionVM.aiSeats
+                    )
+                }
+            )
+        }
     }
 }

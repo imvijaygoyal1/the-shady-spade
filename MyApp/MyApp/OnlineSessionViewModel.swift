@@ -106,6 +106,8 @@ enum SessionStatus: String {
     var isHost: Bool = false
     var rounds: [OnlineRound] = []
     var errorMessage: String? = nil
+    var aiSeats: [Int] = []
+    var sessionType: String = "online"
 
     /// Called by GameViewModel to propagate round updates
     var onSessionUpdated: (() -> Void)? = nil
@@ -117,13 +119,24 @@ enum SessionStatus: String {
 
     var allSlotsJoined: Bool { playerSlots.allSatisfy(\.joined) }
 
+    var humanSlotsFull: Bool {
+        (0..<6).filter { !aiSeats.contains($0) }.allSatisfy { playerSlots[$0].joined }
+    }
+
     // MARK: - Session CRUD
 
     @discardableResult
-    func createSession(uid: String, name: String, avatar: String = "") async -> String {
+    func createSession(uid: String, name: String, avatar: String = "",
+                       aiSeats newAISeats: [Int] = [], sessionType newSessionType: String = "online") async -> String {
         let code = generateRoomCode()
         var slots: [[String: Any]] = (0..<6).map { _ in ["uid": "", "name": "", "avatar": "", "joined": false] }
         slots[0] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
+
+        // Pre-fill AI slots
+        let aiNamePool = ["Alex", "Jordan", "Sam", "Riley", "Morgan", "Casey"]
+        for (n, i) in newAISeats.enumerated() {
+            slots[i] = ["uid": "AI-\(i)", "name": aiNamePool[n % aiNamePool.count], "avatar": "🤖", "joined": true]
+        }
 
         let data: [String: Any] = [
             "hostUid": uid,
@@ -131,13 +144,17 @@ enum SessionStatus: String {
             "createdAt": Timestamp(),
             "currentDealerIndex": 0,
             "playerSlots": slots,
-            "rounds": []
+            "rounds": [],
+            "aiSeats": newAISeats,
+            "sessionType": newSessionType
         ]
 
         do {
             try await db.collection("sessions").document(code).setData(data)
             sessionCode = code
             isHost = true
+            self.aiSeats = newAISeats
+            self.sessionType = newSessionType
             attachListener(code: code)
         } catch {
             errorMessage = "Failed to create session. Please try again."
@@ -223,6 +240,13 @@ enum SessionStatus: String {
 
                 if let roundsData = data["rounds"] as? [[String: Any]] {
                     self.rounds = roundsData.compactMap { OnlineRound(from: $0) }
+                }
+
+                if let aiSeatsData = data["aiSeats"] as? [Any] {
+                    self.aiSeats = aiSeatsData.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
+                }
+                if let type = data["sessionType"] as? String {
+                    self.sessionType = type
                 }
 
                 self.onSessionUpdated?()

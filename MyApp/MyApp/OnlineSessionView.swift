@@ -16,11 +16,17 @@ struct OnlineSessionView: View {
     @Bindable var vm: GameViewModel
     var playerName: String = "Player"
     var playerAvatar: String = "🦁"
+    /// When provided, skip CreateOrJoinView and go straight to lobby with this pre-created session
+    var prebuiltSessionVM: OnlineSessionViewModel? = nil
+    var prebuiltPlayerUID: String? = nil
     var onGameReady: ((Int, Bool, String, [String]) -> Void)? = nil
 
-    @State private var sessionVM = OnlineSessionViewModel()
-    @State private var playerUID = UUID().uuidString
+    @State private var ownedSessionVM = OnlineSessionViewModel()
+    @State private var ownedPlayerUID = UUID().uuidString
     @Environment(\.dismiss) private var dismiss
+
+    private var sessionVM: OnlineSessionViewModel { prebuiltSessionVM ?? ownedSessionVM }
+    private var playerUID: String { prebuiltPlayerUID ?? ownedPlayerUID }
 
     var body: some View {
         ZStack {
@@ -83,7 +89,7 @@ private struct CreateOrJoinView: View {
                     .foregroundStyle(.secondary)
                 Text(playerName)
                     .font(.title3.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.adaptivePrimary)
             }
 
             VStack(spacing: 14) {
@@ -121,12 +127,12 @@ private struct CreateOrJoinView: View {
                 } label: {
                     HStack(spacing: 14) {
                         ZStack {
-                            Circle().fill(Color.white.opacity(0.08)).frame(width: 44, height: 44)
+                            Circle().fill(Color.adaptiveSubtle).frame(width: 44, height: 44)
                             Image(systemName: "arrow.right.circle.fill")
                                 .font(.title3).foregroundStyle(.masterGold)
                         }
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Join a Game").font(.headline.bold()).foregroundStyle(.white)
+                            Text("Join a Game").font(.headline.bold()).foregroundStyle(.adaptivePrimary)
                             Text("Enter the 6-letter room code")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
@@ -135,7 +141,7 @@ private struct CreateOrJoinView: View {
                             .font(.caption.bold()).foregroundStyle(.secondary)
                     }
                     .padding(18)
-                    .background(Color.white.opacity(0.08))
+                    .background(Color.adaptiveSubtle)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(BouncyButton())
@@ -185,7 +191,7 @@ private struct JoinByCodeView: View {
             VStack(spacing: 28) {
                 Text("Enter Room Code")
                     .font(.title2.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.adaptivePrimary)
                     .padding(.top, 8)
 
                 VStack(spacing: 12) {
@@ -200,11 +206,11 @@ private struct JoinByCodeView: View {
                                 let filled = i < code.count
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(Color.white.opacity(filled ? 0.12 : 0.06))
+                                        .fill(filled ? Color.adaptiveSubtle : Color.adaptiveDivider)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                                 .strokeBorder(
-                                                    filled ? Color.masterGold : Color.white.opacity(0.20),
+                                                    filled ? Color.masterGold : Color.adaptiveDivider,
                                                     lineWidth: filled ? 2 : 1
                                                 )
                                         )
@@ -318,14 +324,14 @@ private struct SessionLobbyView: View {
                         Image(systemName: "xmark")
                             .foregroundStyle(.secondary)
                             .padding(8)
-                            .background(Color.white.opacity(0.10))
+                            .background(Color.adaptiveSubtle)
                             .clipShape(Circle())
                     }
                     .accessibilityLabel("Leave lobby")
                     Spacer()
                     Text("Game Lobby")
                         .font(.headline.bold())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.adaptivePrimary)
                     Spacer()
                     Color.clear.frame(width: 36, height: 36)
                 }
@@ -388,10 +394,10 @@ private struct SessionLobbyView: View {
                                 Image(systemName: codeCopied ? "checkmark" : "doc.on.doc")
                                 Text(codeCopied ? "Copied!" : "Copy").font(.subheadline.bold())
                             }
-                            .foregroundStyle(codeCopied ? .masterGold : .white)
+                            .foregroundStyle(codeCopied ? .masterGold : Color.adaptivePrimary)
                             .padding(.vertical, 10)
                             .frame(maxWidth: .infinity)
-                            .background(Color.white.opacity(0.10))
+                            .background(Color.adaptiveSubtle)
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
                         .accessibilityLabel(codeCopied ? "Code copied" : "Copy room code")
@@ -401,14 +407,19 @@ private struct SessionLobbyView: View {
                 .glassmorphic(cornerRadius: 20)
 
                 // Player slots
+                let humanSlots = (0..<6).filter { !sessionVM.aiSeats.contains($0) }
+                let humanJoined = humanSlots.filter { sessionVM.playerSlots[$0].joined }.count
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Players (\(sessionVM.playerSlots.filter(\.joined).count)/6)")
+                    Text(sessionVM.aiSeats.isEmpty
+                         ? "Players (\(sessionVM.playerSlots.filter(\.joined).count)/6)"
+                         : "Players (\(humanJoined)/\(humanSlots.count) humans + \(sessionVM.aiSeats.count) AI)")
                         .font(.headline)
                         .foregroundStyle(.masterGold)
 
                     LazyVGrid(columns: gridColumns, spacing: 12) {
                         ForEach(0..<6, id: \.self) { i in
-                            PlayerSlotCard(index: i, slot: sessionVM.playerSlots[i])
+                            PlayerSlotCard(index: i, slot: sessionVM.playerSlots[i],
+                                           isAI: sessionVM.aiSeats.contains(i))
                         }
                     }
                 }
@@ -416,6 +427,7 @@ private struct SessionLobbyView: View {
                 .glassmorphic(cornerRadius: 20)
 
                 // Start / waiting
+                let canStart = sessionVM.aiSeats.isEmpty ? sessionVM.allSlotsJoined : sessionVM.humanSlotsFull
                 if sessionVM.isHost {
                     VStack(spacing: 8) {
                         Button {
@@ -429,16 +441,15 @@ private struct SessionLobbyView: View {
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(sessionVM.allSlotsJoined
-                                        ? Color.masterGold
-                                        : Color.masterGold.opacity(0.35))
+                            .background(canStart ? Color.masterGold : Color.masterGold.opacity(0.35))
                             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
                         .buttonStyle(BouncyButton())
-                        .disabled(!sessionVM.allSlotsJoined)
+                        .disabled(!canStart)
 
-                        if !sessionVM.allSlotsJoined {
-                            Text("Waiting for all 6 players to join…")
+                        if !canStart {
+                            let needed = humanSlots.count - humanJoined
+                            Text("Waiting for \(needed) more player\(needed == 1 ? "" : "s") to join…")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -467,7 +478,10 @@ private struct SessionLobbyView: View {
         }
         .sheet(isPresented: $showingShare) {
             if let code = sessionVM.sessionCode {
-                let text = "Join my Shady Spade game! Use code: \(code) in the app. shadyspade://join/\(code)"
+                let isCustom = sessionVM.sessionType == "custom"
+                let text = isCustom
+                    ? "Join my Shady Spade Custom Game! Code: \(code) in the app. shadyspade://join/\(code)"
+                    : "Join my Shady Spade game! Use code: \(code) in the app. shadyspade://join/\(code)"
                 ShareSheetView(items: [text])
                     .ignoresSafeArea()
             }
@@ -480,16 +494,21 @@ private struct SessionLobbyView: View {
 private struct PlayerSlotCard: View {
     let index: Int
     let slot: SessionPlayer
+    var isAI: Bool = false
 
     var body: some View {
         HStack(spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(slot.joined
-                          ? Color.offenseBlue.opacity(0.18)
-                          : Color.white.opacity(0.06))
+                    .fill(isAI
+                          ? Color.adaptiveSubtle
+                          : slot.joined
+                              ? Color.offenseBlue.opacity(0.18)
+                              : Color.adaptiveDivider)
                     .frame(width: 36, height: 36)
-                if slot.joined {
+                if isAI {
+                    Text("🤖").font(.system(size: 20))
+                } else if slot.joined {
                     if !slot.avatar.isEmpty {
                         Text(slot.avatar).font(.system(size: 20))
                     } else {
@@ -505,18 +524,22 @@ private struct PlayerSlotCard: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(slot.joined ? slot.name : "Empty")
-                    .font(.subheadline.weight(slot.joined ? .semibold : .regular))
-                    .foregroundStyle(slot.joined ? .white : .secondary)
+                Text(isAI ? slot.name : (slot.joined ? slot.name : "Empty"))
+                    .font(.subheadline.weight((slot.joined || isAI) ? .semibold : .regular))
+                    .foregroundStyle(isAI ? Color.adaptiveSecondary : (slot.joined ? Color.adaptivePrimary : .secondary))
                     .lineLimit(1)
-                Text("Slot \(index + 1)")
+                Text(isAI ? "AI Player" : "Slot \(index + 1)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
 
-            if slot.joined {
+            if isAI {
+                Image(systemName: "cpu.fill")
+                    .foregroundStyle(Color.adaptiveSecondary)
+                    .font(.caption)
+            } else if slot.joined {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.offenseBlue)
                     .font(.caption)
@@ -524,13 +547,15 @@ private struct PlayerSlotCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(slot.joined ? Color.offenseBlue.opacity(0.06) : Color.white.opacity(0.03))
+        .background(isAI
+                    ? Color.adaptiveDivider
+                    : slot.joined ? Color.offenseBlue.opacity(0.06) : Color.adaptiveDivider)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(slot.joined
-                              ? Color.offenseBlue.opacity(0.30)
-                              : Color.white.opacity(0.08),
+                .strokeBorder(isAI
+                              ? Color.adaptiveSubtle
+                              : slot.joined ? Color.offenseBlue.opacity(0.30) : Color.adaptiveSubtle,
                               lineWidth: 1)
         }
     }

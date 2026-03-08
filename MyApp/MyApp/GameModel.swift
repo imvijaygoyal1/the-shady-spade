@@ -109,13 +109,13 @@ final class Round {
 
     func score(for playerIndex: Int) -> Int {
         if isSet {
-            // SET: bidder penalised, partners and defense receive nothing
-            return playerIndex == bidderIndex ? -bidAmount : 0
+            if playerIndex == bidderIndex { return -bidAmount }
+            if offenseIndices.contains(playerIndex) { return -(bidAmount / 2) }
+            return defensePointsCaught / 3
         }
-        // Bid made: bidder earns bid amount, each partner earns half (rounded up), defense earns 0
         if playerIndex == bidderIndex { return bidAmount }
         if offenseIndices.contains(playerIndex) { return (bidAmount + 1) / 2 }
-        return 0
+        return defensePointsCaught / 3
     }
 
     func role(of playerIndex: Int) -> PlayerRole {
@@ -179,11 +179,13 @@ final class HistoryRound {
 
     func scoreDelta(for playerIndex: Int) -> Int {
         if isSet {
-            return playerIndex == bidderIndex ? -bidAmount : 0
+            if playerIndex == bidderIndex { return -bidAmount }
+            if offenseIndices.contains(playerIndex) { return -(bidAmount / 2) }
+            return defensePointsCaught / 3
         }
         if playerIndex == bidderIndex { return bidAmount }
         if offenseIndices.contains(playerIndex) { return (bidAmount + 1) / 2 }
-        return 0
+        return defensePointsCaught / 3
     }
 
     func role(of playerIndex: Int) -> PlayerRole {
