@@ -3,10 +3,7 @@ import SwiftUI
 // MARK: - Settings View
 
 struct SettingsView: View {
-    @Bindable var vm: GameViewModel
-    @Environment(AuthViewModel.self) private var authVM
-    @State private var showingAuth = false
-    @State private var pickerTarget: PlayerPickerTarget? = nil
+    @AppStorage("isDarkMode") private var isDarkMode = true
 
     var body: some View {
         NavigationStack {
@@ -15,9 +12,8 @@ struct SettingsView: View {
 
                 ScrollView {
                     VStack(spacing: 20) {
-                        accountCard
-                        playersCard
-                        resetButton
+                        appearanceCard
+                        howToPlayCard
                         aboutCard
                     }
                     .adaptiveContentFrame()
@@ -27,146 +23,63 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
-            .toolbarColorScheme(.dark, for: .navigationBar)
         }
-        .sheet(isPresented: $showingAuth) {
-            AuthView()
-        }
-        .sheet(item: $pickerTarget) { target in
-            AvatarPickerSheet(current: vm.playerAvatars[target.id]) { symbol in
-                vm.updatePlayerAvatar(symbol, at: target.id)
-            }
-            .presentationDetents([.medium])
-        }
+        .preferredColorScheme(isDarkMode ? .dark : .light)
     }
 
-    // MARK: - Account Card
+    // MARK: - Appearance Card
 
-    @ViewBuilder
-    private var accountCard: some View {
+    private var appearanceCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Account")
+            Text("Appearance")
                 .font(.headline)
                 .foregroundStyle(.masterGold)
 
-            if let user = authVM.user {
-                // Signed in
-                HStack(spacing: 14) {
-                    avatarCircle(symbol: "person.fill", color: .offenseBlue, size: 46)
-                    VStack(alignment: .leading, spacing: 3) {
-                        if let name = user.displayName, !name.isEmpty {
-                            Text(name)
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.white)
-                        }
-                        Text(user.email ?? "")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if authVM.isEmailVerified {
-                        Image(systemName: "checkmark.seal.fill")
-                            .foregroundStyle(.offenseBlue)
-                            .font(.title3)
-                    } else {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.masterGold)
-                            .font(.title3)
-                    }
-                }
-
-                if !authVM.isEmailVerified {
-                    HStack(spacing: 8) {
-                        Text("Email not verified")
-                            .font(.caption)
-                            .foregroundStyle(.masterGold)
-                        Spacer()
-                        Button("Resend") {
-                            Task { await authVM.sendVerificationEmail() }
-                        }
-                        .font(.caption.bold())
-                        .foregroundStyle(.masterGold)
-                    }
-                    .padding(.horizontal, 4)
-                }
-
-                Divider().overlay(Color.white.opacity(0.08))
-
-                Button {
-                    HapticManager.impact(.medium)
-                    if vm.isOnlineMode {
-                        Task {
-                            await vm.onlineSessionVM?.leaveSession()
-                            vm.exitOnlineMode()
-                        }
-                    }
-                    authVM.signOut()
-                } label: {
-                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.defenseRose)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else {
-                // Signed out
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Not signed in")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.white)
-                        Text("Sign in to play online with friends")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Sign In") {
-                        HapticManager.impact(.medium)
-                        showingAuth = true
-                    }
-                    .font(.subheadline.bold())
+            HStack(spacing: 14) {
+                Image(systemName: "moon.fill")
+                    .font(.system(size: 18))
                     .foregroundStyle(.masterGold)
-                }
+                    .frame(width: 32)
+                Text("Dark Mode")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.primary)
+                Spacer()
+                Toggle("", isOn: $isDarkMode)
+                    .tint(.masterGold)
+                    .labelsHidden()
             }
         }
         .padding()
         .glassmorphic(cornerRadius: 20)
     }
 
-    private var playersCard: some View {
+    // MARK: - How To Play Card
+
+    private var howToPlayCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Player Names")
-                .font(.headline)
-                .foregroundStyle(.masterGold)
+            HStack(spacing: 8) {
+                Text("♠")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.masterGold)
+                Text("How to Play")
+                    .font(.headline)
+                    .foregroundStyle(.masterGold)
+            }
 
-            ForEach(0..<6, id: \.self) { idx in
-                HStack(spacing: 12) {
-                    Button {
-                        HapticManager.impact(.light)
-                        pickerTarget = PlayerPickerTarget(id: idx)
-                    } label: {
-                        avatarCircle(symbol: vm.playerAvatars[idx],
-                                     color: vm.avatarColor(for: idx), size: 40)
+            VStack(spacing: 0) {
+                ForEach(HowToPlayTopic.allTopics) { topic in
+                    HowToPlayRow(topic: topic)
+                    if topic.id != HowToPlayTopic.allTopics.last?.id {
+                        Divider().overlay(Color.adaptiveDivider)
                     }
-                    .accessibilityLabel("Avatar for \(vm.playerNames[idx])")
-                    .accessibilityHint("Tap to change avatar")
-
-                    TextField("Player \(idx + 1)", text: Binding(
-                        get: { vm.playerNames[idx] },
-                        set: { vm.updatePlayerName($0, at: idx) }
-                    ))
-                    .tint(.offenseBlue)
-                    .foregroundStyle(.white)
-                    .font(.body)
-                }
-
-                if idx < 5 {
-                    Divider().overlay(Color.white.opacity(0.08))
                 }
             }
         }
         .padding()
         .glassmorphic(cornerRadius: 20)
     }
+
+    // MARK: - About Card
 
     private var aboutCard: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -181,7 +94,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("The Shady Spade")
                         .font(.subheadline.bold())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                     if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
                        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
                         Text("Version \(version) (\(build))")
@@ -192,9 +105,9 @@ struct SettingsView: View {
                 Spacer()
             }
 
-            Divider().overlay(Color.white.opacity(0.08))
+            Divider().overlay(Color.adaptiveDivider)
 
-            Link(destination: URL(string: "https://example.com/privacy-policy")!) {
+            Link(destination: URL(string: "https://imvijaygoyal1.github.io/shadyspade-privacy/")!) {
                 HStack(spacing: 6) {
                     Text("Privacy Policy")
                         .font(.caption)
@@ -212,72 +125,208 @@ struct SettingsView: View {
         .padding()
         .glassmorphic(cornerRadius: 20)
     }
-
-    private var resetButton: some View {
-        Button {
-            HapticManager.impact(.medium)
-            for i in 0..<6 {
-                vm.updatePlayerName("Player \(i + 1)", at: i)
-            }
-        } label: {
-            Text("Reset Names to Defaults")
-                .font(.subheadline.bold())
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Color.white.opacity(0.07))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-        .buttonStyle(BouncyButton())
-    }
-
 }
 
-// MARK: - Helpers
+// MARK: - How To Play Topic Model
 
-private struct PlayerPickerTarget: Identifiable {
+private struct HowToPlayTopic: Identifiable {
     let id: Int
-}
+    let title: String
+    let content: AnyView
 
-private func avatarCircle(symbol: String, color: Color, size: CGFloat) -> some View {
-    ZStack {
-        Circle().fill(color.opacity(0.15)).frame(width: size, height: size)
-        Image(systemName: symbol)
-            .font(.system(size: size * 0.42, weight: .semibold))
-            .foregroundStyle(color)
+    static let allTopics: [HowToPlayTopic] = [
+        HowToPlayTopic(id: 0, title: "Game Overview") {
+            AnyView(TopicText("""
+            The Shady Spade is a 6-player trick-taking card game played in two teams of 3. The deck has 48 cards (all 2s removed). Total points per round = 250. The legendary 3♠ — the Shady Spade — is worth 30 points alone.
+            """))
+        },
+        HowToPlayTopic(id: 1, title: "Teams & Players") {
+            AnyView(TopicText("""
+            6 players split into Team A (Players 1, 3, 5) and Team B (Players 2, 4, 6). Players sit alternately so each player is flanked by opponents. Partners are revealed dynamically each round through calling cards.
+            """))
+        },
+        HowToPlayTopic(id: 2, title: "Card Point Values") {
+            AnyView(CardPointsContent())
+        },
+        HowToPlayTopic(id: 3, title: "How Bidding Works") {
+            AnyView(TopicText("""
+            A random player opens bidding (minimum 130, maximum 250). Each player bids higher or passes. Once passed, a player cannot bid again. A bid is only won when ALL remaining active players have passed on it. Last player standing wins the bid.
+            """))
+        },
+        HowToPlayTopic(id: 4, title: "Trump & Calling Cards") {
+            AnyView(TopicText("""
+            The winning bidder declares a Trump suit and two Calling Cards. Players holding the calling cards are secretly the bidder's partners. Partners reveal themselves when they play their called card. Trump cards beat all non-trump cards.
+            """))
+        },
+        HowToPlayTopic(id: 5, title: "Scoring") {
+            AnyView(ScoringContent())
+        },
+        HowToPlayTopic(id: 6, title: "Game Modes") {
+            AnyView(TopicText("""
+            Solo Mode — play against 5 AI opponents with human-like names and avatars.\n\nOnline Mode — host generates a 6-character session code, share it via Apple Share Sheet. No accounts or emails needed.
+            """))
+        },
+        HowToPlayTopic(id: 7, title: "Strategy Tips") {
+            AnyView(StrategyContent())
+        },
+    ]
+
+    init(id: Int, title: String, @ViewBuilder content: () -> AnyView) {
+        self.id = id
+        self.title = title
+        self.content = content()
     }
 }
 
-private struct AvatarPickerSheet: View {
-    let current: String
-    let onSelect: (String) -> Void
-    @Environment(\.dismiss) private var dismiss
-    let columns = Array(repeating: GridItem(.flexible()), count: 4)
+// MARK: - How To Play Row (accordion item)
+
+private struct HowToPlayRow: View {
+    let topic: HowToPlayTopic
+    @State private var expanded = false
 
     var body: some View {
-        ZStack {
-            Color.darkBG.ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text("Choose Avatar")
-                    .font(.headline).foregroundStyle(.white).padding(.top, 20)
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(GameViewModel.avatarCatalog, id: \.symbol) { entry in
-                        Button {
-                            HapticManager.impact(.light)
-                            onSelect(entry.symbol)
-                            dismiss()
-                        } label: {
-                            avatarCircle(symbol: entry.symbol, color: entry.color, size: 56)
-                                .overlay(
-                                    current == entry.symbol
-                                        ? Circle().stroke(Color.masterGold, lineWidth: 2.5)
-                                        : nil
-                                )
-                        }
-                    }
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                HapticManager.impact(.light)
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    expanded.toggle()
                 }
-                .padding(.horizontal)
-                Spacer()
+            } label: {
+                HStack(spacing: 10) {
+                    Text(topic.title)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.masterGold)
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: expanded)
+                }
+                .padding(.vertical, 14)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                topic.content
+                    .padding(.bottom, 14)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+}
+
+// MARK: - Topic Content Views
+
+private struct TopicText: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text)
+            .font(.subheadline)
+            .foregroundStyle(.primary.opacity(0.70))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct CardPointsContent: View {
+    private let rows: [(String, String, Color)] = [
+        ("A K Q J 10", "10 pts each  (200 pts total)", .masterGold),
+        ("All 5s", "5 pts each  (20 pts total)", Color(red: 0.55, green: 0.85, blue: 0.55)),
+        ("3♠  Shady Spade", "30 pts", Color(red: 0.95, green: 0.35, blue: 0.35)),
+        ("All other cards", "0 pts", .secondary),
+        ("Total", "250 pts", .masterGold),
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(rows.indices, id: \.self) { i in
+                let row = rows[i]
+                HStack(spacing: 8) {
+                    Text(row.0)
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(row.2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(row.1)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.65))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .multilineTextAlignment(.trailing)
+                }
+                .padding(.vertical, 7)
+                .padding(.horizontal, 8)
+                .background(i % 2 == 0 ? Color.adaptiveDivider.opacity(0.4) : Color.clear)
+
+                if i < rows.count - 1 {
+                    Divider().overlay(Color.adaptiveDivider)
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .strokeBorder(Color.adaptiveDivider, lineWidth: 1))
+    }
+}
+
+private struct ScoringContent: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Text("✓")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color(red: 0.20, green: 0.78, blue: 0.45))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Bid Made")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.primary)
+                    Text("Bidder scores the bid amount. Each partner scores half. Defense scores 0.")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary.opacity(0.65))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            HStack(alignment: .top, spacing: 10) {
+                Text("✕")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.defenseRose)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Bid Failed (Set)")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.primary)
+                    Text("Bidder loses the bid amount. Each bidding partner loses half the bid. Defense scores 0.")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary.opacity(0.65))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+}
+
+private struct StrategyContent: View {
+    private let tips = [
+        "Count your high-value cards before bidding",
+        "Choose calling cards held by strong players",
+        "Watch for the Shady Spade (3♠) — 30 pts can change the game",
+        "Save trump cards for critical tricks",
+        "As defense, identify the bidder's partners early",
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(tips.indices, id: \.self) { i in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("›")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.masterGold)
+                    Text(tips[i])
+                        .font(.subheadline)
+                        .foregroundStyle(.primary.opacity(0.70))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }

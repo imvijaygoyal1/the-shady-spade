@@ -4,8 +4,9 @@ import SwiftData
 // MARK: - Root
 
 struct ComputerGameView: View {
-    var vm: GameViewModel
+    var vm: GameViewModel?
     let humanName: String
+    let humanAvatar: String
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @State private var game: ComputerGameViewModel
@@ -17,14 +18,24 @@ struct ComputerGameView: View {
     @State private var savedHistoryRounds: [HistoryRound] = []
     private let targetScore = 500
 
-    init(vm: GameViewModel, humanName: String) {
+    init(vm: GameViewModel, humanName: String, humanAvatar: String = "🦁") {
         self.vm = vm
         self.humanName = humanName
+        self.humanAvatar = humanAvatar
         _game = State(initialValue: ComputerGameViewModel(
             humanName: humanName,
+            humanAvatar: humanAvatar,
             dealerIndex: vm.dealerIndex,
             roundNumber: vm.nextRoundNumber
         ))
+    }
+
+    /// Custom game init — pre-built ViewModel passed in directly.
+    init(vm: ComputerGameViewModel) {
+        self.vm = nil
+        self.humanName = vm.humanName
+        self.humanAvatar = vm.humanAvatar
+        _game = State(initialValue: vm)
     }
 
     var body: some View {
@@ -52,11 +63,18 @@ struct ComputerGameView: View {
                     AICallingView(game: game)
                 case .playing, .humanPlaying:
                     PlayingPhaseView(game: game)
+                        .overlay {
+                            if game.waitingForNextHand {
+                                NextHandConfirmationOverlay(game: game)
+                                    .transition(.opacity)
+                            }
+                        }
+                        .animation(.easeInOut(duration: 0.22), value: game.waitingForNextHand)
                 case .roundComplete:
                     RoundCompleteView(
                         game: game,
                         previousRunningScores: runningScores,
-                        targetScore: targetScore,
+                        previousRounds: savedHistoryRounds,
                         onNextRound: { Task { nextRound() } },
                         onQuit: { dismiss() }
                     )
@@ -96,6 +114,19 @@ struct ComputerGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showRoundResultBanner)
+        .overlay {
+            if game.isPassingDevice {
+                PassDeviceView(
+                    playerName: game.playerName(game.passingDeviceToIndex),
+                    avatar: game.playerAvatar(game.passingDeviceToIndex)
+                ) {
+                    game.confirmDevicePass()
+                }
+                .transition(.opacity)
+                .zIndex(100)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: game.isPassingDevice)
         // Quit button — top-right safe area, above all content
         .overlay(alignment: .topTrailing) {
             let activePhase = !isGameOver && game.phase != .roundComplete
@@ -106,7 +137,7 @@ struct ComputerGameView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(.adaptivePrimary)
                         .frame(width: 32, height: 32)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
@@ -120,8 +151,9 @@ struct ComputerGameView: View {
     }
 
     private func nextRound() {
-        let builtRound = game.buildRound(nextRoundNumber: vm.nextRoundNumber)
-        vm.recordRound(builtRound)
+        let nextRoundNum = vm?.nextRoundNumber ?? (game.roundNumber + 1)
+        let builtRound = game.buildRound(nextRoundNumber: nextRoundNum)
+        vm?.recordRound(builtRound)
         var updated = runningScores
         for i in 0..<6 { updated[i] += builtRound.score(for: i) }
         runningScores = updated
@@ -149,11 +181,24 @@ struct ComputerGameView: View {
             return
         }
         let nextDealer = (game.dealerIndex + 1) % 6
-        let newGame = ComputerGameViewModel(
-            humanName: humanName,
-            dealerIndex: nextDealer,
-            roundNumber: vm.nextRoundNumber
-        )
+        let newGame: ComputerGameViewModel
+        if !game.humanPlayerIndices.isEmpty && game.humanPlayerIndices != [0] || !game._allPlayerNames.isEmpty {
+            // Custom game — preserve human config
+            newGame = ComputerGameViewModel(
+                humanSeats: game.humanPlayerIndices,
+                allNames: game._allPlayerNames,
+                allAvatars: game._allPlayerAvatars,
+                dealerIndex: nextDealer,
+                roundNumber: nextRoundNum
+            )
+        } else {
+            newGame = ComputerGameViewModel(
+                humanName: humanName,
+                humanAvatar: humanAvatar,
+                dealerIndex: nextDealer,
+                roundNumber: vm?.nextRoundNumber ?? nextRoundNum
+            )
+        }
         game = newGame
         Task { [newGame] in
             newGame.deal()
@@ -187,11 +232,23 @@ struct ComputerGameView: View {
         runningScores = Array(repeating: 0, count: 6)
         savedHistoryRounds = []
         isGameOver = false
-        let newGame = ComputerGameViewModel(
-            humanName: humanName,
-            dealerIndex: vm.dealerIndex,
-            roundNumber: vm.nextRoundNumber
-        )
+        let newGame: ComputerGameViewModel
+        if !game._allPlayerNames.isEmpty {
+            newGame = ComputerGameViewModel(
+                humanSeats: game.humanPlayerIndices,
+                allNames: game._allPlayerNames,
+                allAvatars: game._allPlayerAvatars,
+                dealerIndex: vm?.dealerIndex ?? 0,
+                roundNumber: vm?.nextRoundNumber ?? 1
+            )
+        } else {
+            newGame = ComputerGameViewModel(
+                humanName: humanName,
+                humanAvatar: humanAvatar,
+                dealerIndex: vm?.dealerIndex ?? 0,
+                roundNumber: vm?.nextRoundNumber ?? 1
+            )
+        }
         game = newGame
         Task { [newGame] in
             newGame.deal()
@@ -225,7 +282,7 @@ private struct ViewingCardsView: View {
     @State private var appeared = false
     @Environment(\.verticalSizeClass) private var vSizeClass
 
-    private var hand: [Card] { game.hands[game.humanPlayerIndex].sortedBySuit() }
+    private var hand: [Card] { game.hands[game.currentHumanPlayerIndex].sortedBySuit() }
     private var handPoints: Int { hand.map(\.pointValue).reduce(0, +) }
     private var topPad: CGFloat { vSizeClass == .compact ? 16 : 48 }
 
@@ -323,21 +380,34 @@ private struct BiddingPhaseView: View {
     @Environment(\.verticalSizeClass) private var vSizeClass
 
     var body: some View {
+        ZStack(alignment: .top) {
         VStack(spacing: 0) {
-            Text("Bidding")
-                .font(.title2.bold())
-                .foregroundStyle(.masterGold)
-                .padding(.top, vSizeClass == .compact ? 12 : 48)
-                .padding(.bottom, vSizeClass == .compact ? 10 : 20)
+            VStack(spacing: 4) {
+                Text("Bidding")
+                    .font(.title2.bold())
+                    .foregroundStyle(.masterGold)
+                if game.highBid > 0 {
+                    Text("High Bid: \(game.highBid) — \(game.playerName(game.highBidderIndex))")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                        .animation(.spring(response: 0.3), value: game.highBid)
+                }
+            }
+            .padding(.top, vSizeClass == .compact ? 12 : 48)
+            .padding(.bottom, vSizeClass == .compact ? 10 : 20)
 
             // Six player chips
             HStack(spacing: 4) {
                 ForEach(0..<6) { i in
                     BidderChip(
                         name: game.playerName(i),
+                        avatar: game.playerAvatar(i),
                         bid: game.bids[i],
-                        isActive: game.currentBidTurn == i,
-                        isHuman: i == game.humanPlayerIndex
+                        isActive: game.currentBidTurn == i && !game.playerHasPassed[i],
+                        isHuman: game.humanPlayerIndices.contains(i),
+                        isPassed: game.playerHasPassed[i],
+                        isHighBidder: i == game.highBidderIndex
                     )
                 }
             }
@@ -348,21 +418,22 @@ private struct BiddingPhaseView: View {
                 ScrollView {
                     VStack(spacing: 8) {
                         ForEach(Array(game.bidHistory.enumerated()), id: \.offset) { idx, entry in
+                            let isHumanEntry = game.humanPlayerIndices.contains(entry.playerIndex)
                             HStack(spacing: 12) {
                                 // Avatar
                                 ZStack {
                                     Circle()
-                                        .fill(entry.playerIndex == game.humanPlayerIndex
+                                        .fill(isHumanEntry
                                               ? Color.masterGold.opacity(0.2)
-                                              : Color.white.opacity(0.08))
+                                              : Color.adaptiveDivider)
                                         .frame(width: 32, height: 32)
                                     Text(String(game.playerName(entry.playerIndex).prefix(1)).uppercased())
                                         .font(.caption.bold())
-                                        .foregroundStyle(entry.playerIndex == game.humanPlayerIndex ? .masterGold : .white)
+                                        .foregroundStyle(isHumanEntry ? .masterGold : .adaptivePrimary)
                                 }
                                 Text(game.playerName(entry.playerIndex))
                                     .font(.subheadline.bold())
-                                    .foregroundStyle(entry.playerIndex == game.humanPlayerIndex ? .masterGold : .white)
+                                    .foregroundStyle(isHumanEntry ? .masterGold : .adaptivePrimary)
                                 Spacer()
                                 if entry.amount > 0 {
                                     Text("Bid \(entry.amount)")
@@ -380,7 +451,7 @@ private struct BiddingPhaseView: View {
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
-                            .background(Color.white.opacity(0.05))
+                            .background(Color.adaptiveDivider)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .transition(.asymmetric(
                                 insertion: .push(from: .bottom).combined(with: .opacity),
@@ -416,11 +487,11 @@ private struct BiddingPhaseView: View {
             VStack(spacing: 8) {
                 Text("Your Hand")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.50))
+                    .foregroundStyle(.adaptiveSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
 
-                let cards = game.hands[game.humanPlayerIndex].sortedBySuit()
+                let cards = game.hands[game.currentHumanPlayerIndex].sortedBySuit()
                 GeometryReader { geo in
                     let cardW = adaptiveCardWidth(available: geo.size.width - 32, count: cards.count)
                     let sp = cards.count > 1
@@ -442,7 +513,7 @@ private struct BiddingPhaseView: View {
                 VStack(spacing: vSizeClass == .compact ? 10 : 16) {
                     Text(game.humanMustPass ? "You must pass (max bid reached)" : "Your turn to bid")
                         .font(.headline)
-                        .foregroundStyle(game.humanMustPass ? .defenseRose : .white)
+                        .foregroundStyle(game.humanMustPass ? .defenseRose : .adaptivePrimary)
 
                     if !game.humanMustPass {
                         VStack(spacing: 8) {
@@ -470,18 +541,20 @@ private struct BiddingPhaseView: View {
                     }
 
                     HStack(spacing: 12) {
-                        Button {
-                            HapticManager.impact(.light)
-                            game.humanPass()
-                        } label: {
-                            Text("Pass")
-                                .font(.headline)
-                                .foregroundStyle(.defenseRose)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .glassmorphic(cornerRadius: 14)
+                        if game.humanCanPass || game.humanMustPass {
+                            Button {
+                                HapticManager.impact(.light)
+                                game.humanPass()
+                            } label: {
+                                Text("Pass")
+                                    .font(.headline)
+                                    .foregroundStyle(.defenseRose)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .glassmorphic(cornerRadius: 14)
+                            }
+                            .buttonStyle(BouncyButton())
                         }
-                        .buttonStyle(BouncyButton())
 
                         if !game.humanMustPass {
                             Button {
@@ -509,41 +582,80 @@ private struct BiddingPhaseView: View {
             }
         }
         .animation(.spring(response: 0.35), value: game.phase)
+
+        // Toast: "X starts the bid!" — slides in from top
+        if let toast = game.biddingToastMessage {
+            VStack {
+                HStack(spacing: 10) {
+                    Image(systemName: "bell.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(.masterGold)
+                    Text(toast)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.adaptivePrimary)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background {
+                    Capsule()
+                        .fill(Color.masterGold.opacity(0.20))
+                        .overlay { Capsule().strokeBorder(Color.masterGold.opacity(0.55), lineWidth: 1.5) }
+                        .shadow(color: Color.masterGold.opacity(0.35), radius: 10)
+                }
+            }
+            .padding(.top, vSizeClass == .compact ? 56 : 80)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+        }
+        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: game.biddingToastMessage != nil)
     }
 }
 
 private struct BidderChip: View {
     let name: String
-    let bid: Int      // -1=pending, 0=pass, >0=bid amount
+    let avatar: String
+    let bid: Int          // -1=pending, 0=pass, >0=bid amount
     let isActive: Bool
     let isHuman: Bool
+    let isPassed: Bool
+    let isHighBidder: Bool
 
-    private var chipColor: Color {
-        isHuman ? .masterGold : .offenseBlue
-    }
+    private var chipColor: Color { isHuman ? .masterGold : .offenseBlue }
 
     var body: some View {
         VStack(spacing: 4) {
             ZStack {
                 Circle()
-                    .fill(isActive ? chipColor : Color.white.opacity(bid >= 0 ? 0.12 : 0.05))
-                    .frame(width: 42, height: 42)
-                if isActive {
-                    Circle().stroke(chipColor, lineWidth: 1.5).frame(width: 42, height: 42)
+                    .fill(circleBackground)
+                    .frame(width: 44, height: 44)
+                    .overlay {
+                        if isActive {
+                            Circle()
+                                .stroke(chipColor, lineWidth: 2)
+                                .shadow(color: chipColor.opacity(0.7), radius: 6)
+                        } else if isHighBidder && !isPassed {
+                            Circle()
+                                .stroke(Color.masterGold.opacity(0.5), lineWidth: 1.5)
+                        }
+                    }
+                if isPassed {
+                    Text("✕")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(avatar)
+                        .font(.system(size: 26))
                 }
-                Text(String(name.prefix(1)).uppercased())
-                    .font(.caption.bold())
-                    .foregroundStyle(isActive ? .black : .white)
             }
             Group {
-                if bid > 0 {
-                    Text("\(bid)")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.masterGold)
-                } else if bid == 0 {
+                if isPassed {
                     Text("Pass")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(.secondary)
+                } else if bid > 0 {
+                    Text("\(bid)")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(isHighBidder ? .masterGold : .adaptivePrimary)
                 } else {
                     Text(String(name.prefix(4)))
                         .font(.system(size: 9, weight: .medium))
@@ -553,7 +665,16 @@ private struct BidderChip: View {
             .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
+        .opacity(isPassed ? 0.45 : 1.0)
         .animation(.spring(response: 0.3), value: isActive)
+        .animation(.spring(response: 0.3), value: isPassed)
+    }
+
+    private var circleBackground: Color {
+        if isPassed { return Color.adaptiveDivider }
+        if isActive { return chipColor.opacity(0.25) }
+        if isHighBidder { return Color.masterGold.opacity(0.12) }
+        return Color.adaptiveDivider
     }
 }
 
@@ -570,7 +691,7 @@ private struct AICallingView: View {
                 .padding(.bottom, 4)
             Text("\(game.playerName(game.highBidderIndex)) is calling trump and cards…")
                 .font(.title3.bold())
-                .foregroundStyle(.white)
+                .foregroundStyle(.adaptivePrimary)
                 .multilineTextAlignment(.center)
             Text("Bid: \(game.highBid)")
                 .font(.subheadline)
@@ -616,13 +737,13 @@ private struct CallingCardsView: View {
                                     Text(suit.rawValue).font(.system(size: 26))
                                         .foregroundStyle(sel ? suit.displayColor : suit.displayColor.opacity(0.35))
                                     Text(suit.displayName).font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(sel ? .white : .secondary)
+                                        .foregroundStyle(sel ? .adaptivePrimary : .secondary)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
                                 .background {
                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(sel ? Color.white.opacity(0.12) : Color.white.opacity(0.05))
+                                        .fill(sel ? Color.adaptiveSubtle : Color.adaptiveDivider)
                                         .overlay {
                                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                                 .strokeBorder(sel ? suit.displayColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
@@ -640,7 +761,7 @@ private struct CallingCardsView: View {
                 VStack(spacing: 14) {
                     SectionHeader(title: "Call Cards (must not be in your hand)")
                     callCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit)
-                    Divider().overlay(Color.white.opacity(0.08))
+                    Divider().overlay(Color.adaptiveDivider)
                     callCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit)
 
                     if !game.callingValid {
@@ -660,7 +781,7 @@ private struct CallingCardsView: View {
                 // Human's hand for reference — all cards on screen, no scroll
                 VStack(spacing: 10) {
                     SectionHeader(title: "Your Hand")
-                    let cards = game.hands[game.humanPlayerIndex].sortedBySuit()
+                    let cards = game.hands[game.currentHumanPlayerIndex].sortedBySuit()
                     GeometryReader { geo in
                         let cardW = adaptiveCardWidth(available: geo.size.width, count: cards.count)
                         let sp = cards.count > 1
@@ -694,7 +815,7 @@ private struct CallingCardsView: View {
                                   ? AnyShapeStyle(LinearGradient(
                                         colors: [.masterGold, Color(red: 0.80, green: 0.65, blue: 0.15)],
                                         startPoint: .leading, endPoint: .trailing))
-                                  : AnyShapeStyle(Color.white.opacity(0.09)))
+                                  : AnyShapeStyle(Color.adaptiveDivider))
                     }
                 }
                 .disabled(!game.callingValid)
@@ -707,26 +828,43 @@ private struct CallingCardsView: View {
     }
 
     private func callCardRow(label: String, rank: Binding<String>, suit: Binding<String>) -> some View {
-        HStack(spacing: 12) {
-            Text(label)
-                .font(.subheadline).foregroundStyle(.secondary)
-                .frame(width: 52, alignment: .leading)
+        VStack(alignment: .leading, spacing: 10) {
+            // Top row: label + rank menu + combined preview
+            HStack(spacing: 12) {
+                Text(label)
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .frame(width: 52, alignment: .leading)
 
-            Menu {
-                ForEach(cardRanks, id: \.self) { r in
-                    Button(r) { rank.wrappedValue = r }
+                Menu {
+                    ForEach(cardRanks, id: \.self) { r in
+                        Button(r) { rank.wrappedValue = r }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(rank.wrappedValue.isEmpty ? "Rank" : rank.wrappedValue)
+                            .font(.headline.bold()).foregroundStyle(.adaptivePrimary)
+                        Image(systemName: "chevron.down").font(.caption2).foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Color.adaptiveDivider)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-            } label: {
-                HStack(spacing: 4) {
-                    Text(rank.wrappedValue.isEmpty ? "Rank" : rank.wrappedValue)
-                        .font(.headline.bold()).foregroundStyle(.white)
-                    Image(systemName: "chevron.down").font(.caption2).foregroundStyle(.secondary)
+
+                Spacer()
+
+                let combined = rank.wrappedValue + suit.wrappedValue
+                if !combined.isEmpty {
+                    let isRed = suit.wrappedValue == "♥" || suit.wrappedValue == "♦"
+                    Text(combined)
+                        .font(.title3.bold())
+                        .foregroundStyle(isRed ? Color.defenseRose : .adaptivePrimary)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(Color.adaptiveDivider)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Color.white.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
+            // Suit row — full width so suits are never cropped
             HStack(spacing: 8) {
                 ForEach(cardSuits, id: \.self) { s in
                     let isRed = s == "♥" || s == "♦"
@@ -735,28 +873,23 @@ private struct CallingCardsView: View {
                         HapticManager.impact(.light)
                         suit.wrappedValue = s
                     } label: {
-                        Text(s).font(.title3)
-                            .foregroundStyle(isRed ? Color.defenseRose : Color.white)
-                            .padding(8)
-                            .background(selected ? Color.white.opacity(0.18) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .strokeBorder(selected ? (isRed ? Color.defenseRose : Color.white).opacity(0.6) : Color.clear, lineWidth: 1.5)
-                            }
+                        VStack(spacing: 3) {
+                            Text(s)
+                                .font(.system(size: 28))
+                                .foregroundStyle(isRed ? Color.defenseRose : Color.adaptivePrimary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(selected ? Color.adaptiveSubtle : Color.adaptiveDivider)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(selected ? (isRed ? Color.defenseRose : Color.adaptivePrimary).opacity(0.65) : Color.clear, lineWidth: 1.5)
+                        }
+                        .scaleEffect(selected ? 1.04 : 1.0)
                     }
                     .buttonStyle(BouncyButton())
                 }
-            }
-
-            Spacer()
-
-            let combined = rank.wrappedValue + suit.wrappedValue
-            if !combined.isEmpty {
-                let isRed = suit.wrappedValue == "♥" || suit.wrappedValue == "♦"
-                Text(combined)
-                    .font(.headline.bold())
-                    .foregroundStyle(isRed ? Color.defenseRose : .white)
             }
         }
     }
@@ -801,7 +934,7 @@ private struct OffenseChip: View {
         HStack(spacing: 5) {
             ZStack {
                 Circle()
-                    .fill(revealed ? Color.masterGold.opacity(0.2) : Color.white.opacity(0.07))
+                    .fill(revealed ? Color.masterGold.opacity(0.2) : Color.adaptiveDivider)
                     .frame(width: 20, height: 20)
                 Text(revealed ? String((name ?? "").prefix(1)).uppercased() : "?")
                     .font(.system(size: 8, weight: .bold))
@@ -809,7 +942,7 @@ private struct OffenseChip: View {
             }
             Text(name ?? "Partner?")
                 .font(.system(size: 10, weight: revealed ? .semibold : .regular))
-                .foregroundStyle(revealed ? .white : .secondary)
+                .foregroundStyle(revealed ? .adaptivePrimary : .secondary)
                 .lineLimit(1)
             if isBidder {
                 Image(systemName: "crown.fill")
@@ -819,12 +952,217 @@ private struct OffenseChip: View {
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 4)
-        .background(revealed ? Color.masterGold.opacity(0.08) : Color.white.opacity(0.04))
+        .background(revealed ? Color.masterGold.opacity(0.08) : Color.adaptiveDivider)
         .clipShape(Capsule())
         .overlay(Capsule().strokeBorder(
-            revealed ? Color.masterGold.opacity(0.3) : Color.white.opacity(0.08),
+            revealed ? Color.masterGold.opacity(0.5) : Color.adaptiveDivider,
             lineWidth: 0.8))
         .transition(.scale.combined(with: .opacity))
+    }
+}
+
+// MARK: - TeamsBanner (UPDATE 8: bidding + defense)
+
+private struct TeamsBanner: View {
+    var game: ComputerGameViewModel
+
+    private var defenseIndices: [Int] {
+        (0..<6).filter { !game.offenseSet.contains($0) }
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            // Bidding team — gold glowing border
+            HStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.masterGold)
+                    Text("Bid:")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.masterGold)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+
+                OffenseChip(name: game.playerName(game.highBidderIndex), isBidder: true)
+
+                let p1Name: String? = game.revealedPartner1Index.map { game.playerName($0) }
+                let p2Name: String? = game.revealedPartner2Index.map { game.playerName($0) }
+                OffenseChip(name: p1Name)
+                OffenseChip(name: p2Name)
+
+                Spacer()
+            }
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.masterGold.opacity(0.07))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.masterGold.opacity(0.40), lineWidth: 1.5)
+                    }
+                    .shadow(color: Color.masterGold.opacity(0.18), radius: 8)
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index != nil)
+            .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index != nil)
+
+            // Defense team — rose border
+            HStack(spacing: 6) {
+                Text("Defense:")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.defenseRose)
+                    .lineLimit(1)
+                    .fixedSize()
+
+                ForEach(defenseIndices, id: \.self) { i in
+                    DefenseChip(name: game.playerName(i))
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.defenseRose.opacity(0.07))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.defenseRose.opacity(0.35), lineWidth: 1.5)
+                    }
+                    .shadow(color: Color.defenseRose.opacity(0.12), radius: 6)
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+}
+
+private struct DefenseChip: View {
+    let name: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ZStack {
+                Circle()
+                    .fill(Color.defenseRose.opacity(0.18))
+                    .frame(width: 20, height: 20)
+                Text(String(name.prefix(1)).uppercased())
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.defenseRose)
+            }
+            Text(name)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.adaptivePrimary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 7).padding(.vertical, 4)
+        .background(Color.defenseRose.opacity(0.08))
+        .clipShape(Capsule())
+        .overlay(Capsule().strokeBorder(Color.defenseRose.opacity(0.5), lineWidth: 0.8))
+        .transition(.scale.combined(with: .opacity))
+    }
+}
+
+// MARK: - TrumpAndCalledCardsPanel (UPDATE 2)
+
+private struct TrumpAndCalledCardsPanel: View {
+    var game: ComputerGameViewModel
+
+    var body: some View {
+        HStack(spacing: 10) {
+            // Called cards
+            HStack(spacing: 6) {
+                Text("Called:")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.adaptiveSecondary)
+                let cards = [game.calledCard1, game.calledCard2]
+                ForEach(cards, id: \.self) { cardId in
+                    let isRed = cardId.hasSuffix("♥") || cardId.hasSuffix("♦")
+                    Text(cardId)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(isRed ? Color.defenseRose : .adaptivePrimary)
+                        .padding(.horizontal, 7).padding(.vertical, 4)
+                        .background(Color.adaptiveDivider)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+            }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(Color.adaptiveDivider)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.adaptiveDivider, lineWidth: 1))
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+    }
+}
+
+// MARK: - NextHandConfirmationOverlay (UPDATE 6)
+
+private struct NextHandConfirmationOverlay: View {
+    var game: ComputerGameViewModel
+
+    private var winnerName: String {
+        game.lastTrickWinnerIndex >= 0 ? game.playerName(game.lastTrickWinnerIndex) : "Unknown"
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.72).ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                Text(game.offenseSet.contains(game.lastTrickWinnerIndex) ? "⚔️" : "🛡️")
+                    .font(.system(size: 44))
+
+                VStack(spacing: 6) {
+                    Text("\(winnerName) wins the hand!")
+                        .font(.title3.bold())
+                        .foregroundStyle(.adaptivePrimary)
+                        .multilineTextAlignment(.center)
+
+                    if game.lastTrickPoints > 0 {
+                        Text("\(game.lastTrickPoints) pts captured")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.masterGold)
+                    } else {
+                        Text("No points in this hand")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("Hand \(game.trickNumber) of 8 complete")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Button {
+                    HapticManager.impact(.medium)
+                    game.humanReadyForNextHand()
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("Next Hand")
+                            .fontWeight(.bold)
+                        Image(systemName: "arrow.right")
+                    }
+                    .font(.headline)
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color.masterGold)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(BouncyButton())
+            }
+            .padding(28)
+            .background {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color(UIColor { $0.userInterfaceStyle == .dark
+                        ? UIColor(white: 0.12, alpha: 0.95)
+                        : UIColor.white }))
+                    .shadow(color: .black.opacity(0.18), radius: 16, y: 4)
+            }
+            .padding(.horizontal, 32)
+        }
     }
 }
 
@@ -842,8 +1180,8 @@ private struct PlayingPhaseView: View {
             HStack(spacing: 6) {
                 ForEach(1..<6) { i in
                     AIPlayerBadge(
-                        name: game.aiNames[i - 1],
-                        cardCount: game.hands[i].count,
+                        name: game.playerName(i),
+                        avatar: game.playerAvatar(i),
                         isOffense: game.offenseSet.contains(i),
                         compact: vSizeClass == .compact
                     )
@@ -864,7 +1202,7 @@ private struct PlayingPhaseView: View {
                             LiveDot()
                             Text("Current Hand")
                                 .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.adaptivePrimary)
                             Spacer()
                         }
                         Rectangle()
@@ -876,7 +1214,7 @@ private struct PlayingPhaseView: View {
                         if game.currentTrick.isEmpty {
                             Text("Waiting for first card…")
                                 .font(.caption)
-                                .foregroundStyle(.white.opacity(0.35))
+                                .foregroundStyle(.adaptiveSecondary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
                         } else {
@@ -901,7 +1239,7 @@ private struct PlayingPhaseView: View {
                                                 .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isWinning)
                                             Text(String(game.playerName(entry.playerIndex).prefix(5)))
                                                 .font(.system(size: 8, weight: .semibold))
-                                                .foregroundStyle(isWinning ? .masterGold : .white.opacity(0.55))
+                                                .foregroundStyle(isWinning ? .masterGold : .adaptiveSecondary)
                                                 .lineLimit(1)
                                         }
                                         .frame(width: cardWidth)
@@ -920,13 +1258,12 @@ private struct PlayingPhaseView: View {
                     .currentHandStage()
                     .padding(.horizontal, 16)
 
-                    // Hand info row
-                    HStack(spacing: 16) {
-                        Label("Hand \(game.trickNumber + 1)/8", systemImage: "square.stack.fill")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
+                    // Info row — trump badge + called cards badge + trick history
+                    HStack(spacing: 8) {
                         TrumpBadge(suit: game.trumpSuit)
+                        CalledCardsBadge(card1: game.calledCard1, card2: game.calledCard2)
+
+                        Spacer()
                         if !game.completedTricks.isEmpty {
                             Button {
                                 HapticManager.impact(.light)
@@ -941,10 +1278,10 @@ private struct PlayingPhaseView: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 4)
 
-                    // Bidding team strip
-                    OffenseTeamStrip(game: game)
+                    // Teams banner — bidding + defense (UPDATE 8)
+                    TeamsBanner(game: game)
 
-                    // Score banner
+                    // Score banner (UPDATE 7 — circular only)
                     BidProgressBanner(
                         bidderName: game.playerName(game.highBidderIndex),
                         offenseCaught: game.offensePoints,
@@ -955,7 +1292,7 @@ private struct PlayingPhaseView: View {
                     if !game.message.isEmpty {
                         Text(game.message)
                             .font(.subheadline)
-                            .foregroundStyle(game.phase == .humanPlaying ? .masterGold : .secondary)
+                            .foregroundStyle(game.phase == .humanPlaying ? Color.adaptivePrimary : Color.adaptiveSecondary)
                             .padding(.horizontal)
                             .multilineTextAlignment(.center)
                             .animation(.easeInOut, value: game.message)
@@ -967,7 +1304,7 @@ private struct PlayingPhaseView: View {
             // Your Hand — always pinned at bottom
             let validCards = game.validCardsToPlay()
             let isHumanTurn = game.phase == .humanPlaying
-            let cards = game.hands[game.humanPlayerIndex].sortedBySuit()
+            let cards = game.hands[game.currentHumanPlayerIndex].sortedBySuit()
 
             VStack(spacing: 8) {
                 HStack {
@@ -1032,34 +1369,25 @@ private struct PlayingPhaseView: View {
 
 private struct AIPlayerBadge: View {
     let name: String
-    let cardCount: Int
+    let avatar: String
     let isOffense: Bool
     var compact: Bool = false
 
-    private var circleSize: CGFloat { compact ? 32 : 44 }
+    private var circleSize: CGFloat { compact ? 34 : 46 }
 
     var body: some View {
         VStack(spacing: compact ? 2 : 4) {
-            ZStack(alignment: .topTrailing) {
+            ZStack {
                 Circle()
                     .fill(isOffense ? Color.offenseBlue.opacity(0.18) : Color.defenseRose.opacity(0.12))
                     .frame(width: circleSize, height: circleSize)
-                    .overlay(Circle().strokeBorder(isOffense ? Color.offenseBlue.opacity(0.4) : Color.clear, lineWidth: 1))
-                Text(String(name.prefix(1)))
-                    .font(.system(size: compact ? 12 : 15, weight: .bold))
-                    .foregroundStyle(.white)
-
-                // Card count badge
-                Text("\(cardCount)")
-                    .font(.system(size: compact ? 7 : 9, weight: .bold))
-                    .foregroundStyle(.black)
-                    .padding(compact ? 2 : 3)
-                    .background(Circle().fill(Color.masterGold))
-                    .offset(x: compact ? 2 : 4, y: compact ? -2 : -4)
+                    .overlay(Circle().strokeBorder(isOffense ? Color.offenseBlue.opacity(0.4) : Color.defenseRose.opacity(0.2), lineWidth: 1))
+                Text(avatar)
+                    .font(.system(size: compact ? 20 : 28))
             }
             Text(name)
                 .font(.system(size: compact ? 7 : 9, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.adaptivePrimary)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
@@ -1132,7 +1460,7 @@ private struct RoundResultBanner: View {
                                 }
                                 Text(game.playerName(i))
                                     .font(.caption.bold())
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(.adaptivePrimary)
                                     .lineLimit(1)
                                 Text(i == game.highBidderIndex ? "Bidder" : "Partner")
                                     .font(.system(size: 9, weight: .semibold))
@@ -1189,7 +1517,7 @@ private struct RoundResultBanner: View {
 private struct RoundCompleteView: View {
     var game: ComputerGameViewModel
     let previousRunningScores: [Int]
-    let targetScore: Int
+    let previousRounds: [HistoryRound]
     let onNextRound: () -> Void
     let onQuit: () -> Void
 
@@ -1198,7 +1526,22 @@ private struct RoundCompleteView: View {
     var body: some View {
         let builtRound = game.buildRound(nextRoundNumber: 0)
         let updatedScores = (0..<6).map { previousRunningScores[$0] + builtRound.score(for: $0) }
-        let sortedByScore = (0..<6).sorted { updatedScores[$0] > updatedScores[$1] }
+        let leaderIdx = (0..<6).max(by: { updatedScores[$0] < updatedScores[$1] }) ?? 0
+
+        // All round deltas for history table: previous rounds + current
+        let allDeltas: [[Int]] = {
+            var rows: [[Int]] = previousRounds.enumerated().map { idx, hr in
+                let prev = idx > 0 ? previousRounds[idx - 1].runningScores : Array(repeating: 0, count: 6)
+                return (0..<6).map { hr.runningScores[$0] - prev[$0] }
+            }
+            rows.append((0..<6).map { builtRound.score(for: $0) })
+            return rows
+        }()
+
+        // Award pill values
+        let partnerPts = (game.highBid + 1) / 2
+        let defensePts = 250 - game.highBid - 2 * partnerPts
+        let partnerPenalty = -(game.highBid / 2)
 
         ScrollView {
             VStack(spacing: 24) {
@@ -1218,23 +1561,20 @@ private struct RoundCompleteView: View {
                 .padding(.top, 52)
 
                 // Award breakdown
-                VStack(spacing: 10) {
-                    // Award breakdown
-                    if !isSet {
-                        let partnerPts = (game.highBid + 1) / 2
-                        HStack(spacing: 8) {
-                            AwardPill(label: "Bidder", points: game.highBid, color: .masterGold)
-                            AwardPill(label: "Each Partner", points: partnerPts, color: .offenseBlue)
-                            AwardPill(label: "Defense", points: 0, color: .secondary)
-                        }
-                    } else {
-                        HStack(spacing: 8) {
-                            AwardPill(label: "Bidder", points: -game.highBid, color: .defenseRose)
-                            AwardPill(label: "Others", points: 0, color: .secondary)
-                        }
+                if !isSet {
+                    HStack(spacing: 8) {
+                        AwardPill(label: "Bidder", points: game.highBid, color: .masterGold)
+                        AwardPill(label: "Each Bidding Partner", points: partnerPts, color: .offenseBlue)
+                        AwardPill(label: "Defense", points: defensePts, color: defensePts >= 0 ? Color.secondary : Color.defenseRose)
                     }
+                    .padding(.horizontal, 20)
+                } else {
+                    HStack(spacing: 8) {
+                        AwardPill(label: "Bidder", points: -game.highBid, color: .defenseRose)
+                        AwardPill(label: "Each Bidding Partner", points: partnerPenalty, color: .defenseRose)
+                    }
+                    .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, 20)
 
                 // Per-player breakdown (this round)
                 VStack(spacing: 0) {
@@ -1253,7 +1593,7 @@ private struct RoundCompleteView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(game.playerName(i))
                                     .font(.subheadline.bold())
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(.adaptivePrimary)
                                 Text(role.label)
                                     .font(.caption2)
                                     .foregroundStyle(role.color)
@@ -1266,81 +1606,107 @@ private struct RoundCompleteView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        if i < 5 { Divider().overlay(Color.white.opacity(0.07)) }
+                        if i < 5 { Divider().overlay(Color.adaptiveDivider) }
                     }
                 }
                 .glassmorphic(cornerRadius: 18)
                 .padding(.horizontal, 16)
 
-                // Running game score
+                // Game Score Table
                 VStack(spacing: 0) {
+                    // Header label
                     HStack {
                         Text("Game Score")
                             .font(.caption.uppercaseSmallCaps())
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Text("First to \(targetScore)")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 14)
-                    .padding(.bottom, 10)
+                    .padding(.bottom, 8)
 
-                    ForEach(Array(sortedByScore.enumerated()), id: \.element) { rank, i in
-                        let score = updatedScores[i]
-                        let delta = builtRound.score(for: i)
-                        let progress = min(1.0, max(0.0, Double(max(0, score)) / Double(targetScore)))
-                        let isLeader = rank == 0
-
-                        HStack(spacing: 10) {
-                            Text("\(rank + 1)")
-                                .font(.system(size: 10, weight: .bold))
+                    // Column headers (player names)
+                    GeometryReader { geo in
+                        let roundColW: CGFloat = 28
+                        let playerColW = (geo.size.width - roundColW) / 6
+                        HStack(spacing: 0) {
+                            Text("#")
+                                .font(.system(size: 8, weight: .bold))
                                 .foregroundStyle(.secondary)
-                                .frame(width: 14)
-
-                            Circle()
-                                .fill(isLeader ? Color.masterGold.opacity(0.2) : Color.white.opacity(0.08))
-                                .frame(width: 28, height: 28)
-                                .overlay(
-                                    Text(String(game.playerName(i).prefix(1)))
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(isLeader ? .masterGold : .white)
-                                )
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(game.playerName(i))
-                                    .font(.caption.bold())
-                                    .foregroundStyle(isLeader ? .masterGold : .white)
-
-                                GeometryReader { geo in
-                                    ZStack(alignment: .leading) {
-                                        Capsule().fill(Color.white.opacity(0.08))
-                                        Capsule()
-                                            .fill(isLeader ? Color.masterGold : Color.offenseBlue.opacity(0.7))
-                                            .frame(width: geo.size.width * progress)
-                                    }
-                                }
-                                .frame(height: 5)
-                            }
-
-                            Spacer()
-
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(max(score, 0))")
-                                    .font(.subheadline.bold().monospacedDigit())
-                                    .foregroundStyle(isLeader ? .masterGold : .white)
-                                Text(delta >= 0 ? "+\(delta)" : "\(delta)")
-                                    .font(.system(size: 10).monospacedDigit())
-                                    .foregroundStyle(delta > 0 ? Color.masterGold.opacity(0.7) : .defenseRose)
+                                .frame(width: roundColW)
+                            ForEach(0..<6) { i in
+                                Text(String(game.playerName(i).prefix(4)))
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(i == leaderIdx ? .masterGold : .adaptiveSecondary)
+                                    .frame(width: playerColW)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.6)
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
-
-                        if rank < 5 { Divider().overlay(Color.white.opacity(0.06)) }
+                        .frame(width: geo.size.width)
                     }
-                    .padding(.bottom, 14)
+                    .frame(height: 24)
+                    .padding(.horizontal, 10)
+                    .background(Color.adaptiveDivider)
+
+                    // Round rows
+                    GeometryReader { geo in
+                        let roundColW: CGFloat = 28
+                        let playerColW = (geo.size.width - roundColW) / 6
+                        VStack(spacing: 0) {
+                            ForEach(Array(allDeltas.enumerated()), id: \.offset) { rowIdx, deltas in
+                                let isCurrent = rowIdx == allDeltas.count - 1
+                                HStack(spacing: 0) {
+                                    Text("R\(rowIdx + 1)")
+                                        .font(.system(size: 8, weight: isCurrent ? .bold : .regular))
+                                        .foregroundStyle(isCurrent ? .masterGold : .secondary)
+                                        .frame(width: roundColW)
+                                    ForEach(0..<6) { i in
+                                        let pts = deltas[i]
+                                        Text(pts == 0 ? "0" : (pts > 0 ? "+\(pts)" : "\(pts)"))
+                                            .font(.system(size: 9, weight: isCurrent ? .bold : .regular, design: .monospaced))
+                                            .foregroundStyle(pts > 0 ? Color.masterGold : pts < 0 ? Color.defenseRose : Color.secondary)
+                                            .frame(width: playerColW)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.6)
+                                    }
+                                }
+                                .frame(height: 26)
+                                .background(rowIdx % 2 == 0 ? Color.adaptiveDivider : Color.clear)
+                            }
+                        }
+                        .frame(width: geo.size.width)
+                    }
+                    .frame(height: CGFloat(allDeltas.count) * 26)
+                    .padding(.horizontal, 10)
+
+                    // Divider
+                    Divider().overlay(Color.adaptiveSubtle).padding(.horizontal, 6)
+
+                    // Total row
+                    GeometryReader { geo in
+                        let roundColW: CGFloat = 28
+                        let playerColW = (geo.size.width - roundColW) / 6
+                        HStack(spacing: 0) {
+                            Text("TOT")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: roundColW)
+                            ForEach(0..<6) { i in
+                                Text("\(updatedScores[i])")
+                                    .font(.system(size: 11, weight: .black, design: .monospaced))
+                                    .foregroundStyle(i == leaderIdx ? .masterGold : .adaptivePrimary)
+                                    .frame(width: playerColW)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.6)
+                            }
+                        }
+                        .frame(width: geo.size.width)
+                    }
+                    .frame(height: 30)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.masterGold.opacity(0.06))
                 }
                 .glassmorphic(cornerRadius: 18)
                 .adaptiveContentFrame()
@@ -1401,7 +1767,7 @@ private struct ScorePill: View {
                 .foregroundStyle(color)
             Text("\(points)")
                 .font(.system(size: 38, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(.adaptivePrimary)
                 .contentTransition(.numericText())
             Text("pts")
                 .font(.caption2)
@@ -1451,7 +1817,7 @@ private struct PartnerRevealBanner: View {
                 .foregroundStyle(.masterGold)
             Text(message)
                 .font(.subheadline.bold())
-                .foregroundStyle(.white)
+                .foregroundStyle(.adaptivePrimary)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 12)
@@ -1493,9 +1859,8 @@ private struct TrickHistoryView: View {
                     }
                 }
             }
-            .navigationTitle("Trick History")
+            .navigationTitle("Current Game Play History")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -1517,7 +1882,7 @@ private struct TrickHistoryRow: View {
             HStack {
                 Text("Hand \(trickNumber)")
                     .font(.subheadline.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.adaptivePrimary)
                 Spacer()
                 HStack(spacing: 4) {
                     Image(systemName: "trophy.fill")
@@ -1529,24 +1894,32 @@ private struct TrickHistoryRow: View {
                 }
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+            GeometryReader { geo in
+                let gap: CGFloat = 5
+                let cardW = (geo.size.width - gap * CGFloat(plays.count - 1)) / CGFloat(plays.count)
+                let cardH = cardW * (78.0 / 56.0)
+                HStack(spacing: gap) {
                     ForEach(Array(plays.enumerated()), id: \.offset) { _, play in
-                        VStack(spacing: 4) {
-                            PlayingCardView(card: play.card)
+                        VStack(spacing: 3) {
+                            PlayingCardView(card: play.card, width: cardW)
                                 .overlay {
                                     if play.playerIndex == winnerIndex {
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        RoundedRectangle(cornerRadius: cardW * 0.18, style: .continuous)
                                             .strokeBorder(Color.masterGold, lineWidth: 2)
                                     }
                                 }
-                            Text(String(game.playerName(play.playerIndex).prefix(5)))
-                                .font(.system(size: 9, weight: .medium))
+                            Text(String(game.playerName(play.playerIndex).prefix(9)))
+                                .font(.system(size: 8, weight: .medium))
                                 .foregroundStyle(play.playerIndex == winnerIndex ? .masterGold : .secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                                .frame(width: cardW)
                         }
                     }
                 }
+                .frame(width: geo.size.width, height: cardH + 16)
             }
+            .frame(height: 90)
         }
         .padding(14)
         .glassmorphic(cornerRadius: 16)
@@ -1600,15 +1973,15 @@ private struct GameOverView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(playerNames[i])
                                     .font(.subheadline.bold())
-                                    .foregroundStyle(rank == 0 ? .masterGold : .white)
+                                    .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
 
                                 GeometryReader { geo in
                                     ZStack(alignment: .leading) {
-                                        Capsule().fill(Color.white.opacity(0.1))
+                                        Capsule().fill(Color.adaptiveDivider)
                                         Capsule()
                                             .fill(rank == 0 ? Color.masterGold
                                                   : rank == 1 ? Color.offenseBlue
-                                                  : Color.white.opacity(0.25))
+                                                  : Color.adaptiveDivider)
                                             .frame(width: geo.size.width * progress)
                                     }
                                 }
@@ -1619,12 +1992,12 @@ private struct GameOverView: View {
 
                             Text("\(score)")
                                 .font(.title3.bold().monospacedDigit())
-                                .foregroundStyle(rank == 0 ? .masterGold : .white)
+                                .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 13)
 
-                        if rank < 5 { Divider().overlay(Color.white.opacity(0.07)) }
+                        if rank < 5 { Divider().overlay(Color.adaptiveDivider) }
                     }
                 }
                 .glassmorphic(cornerRadius: 18)
@@ -1685,6 +2058,48 @@ private struct GameOverView: View {
                 .adaptiveContentFrame(maxWidth: 480)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 40)
+            }
+        }
+    }
+}
+
+// MARK: - PassDeviceView
+
+private struct PassDeviceView: View {
+    let playerName: String
+    let avatar: String
+    let onReady: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 28) {
+                Text(avatar).font(.system(size: 72))
+                VStack(spacing: 10) {
+                    Text("Pass to")
+                        .font(.title3)
+                        .foregroundStyle(.adaptiveSecondary)
+                    Text(playerName)
+                        .font(.largeTitle.bold())
+                        .foregroundStyle(.adaptivePrimary)
+                }
+                Text("It's your turn!")
+                    .font(.subheadline)
+                    .foregroundStyle(.masterGold)
+                Button {
+                    HapticManager.impact(.medium)
+                    onReady()
+                } label: {
+                    Text("I'm Ready")
+                        .font(.title3.bold())
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                        .background(Color.masterGold)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(BouncyButton())
+                .padding(.horizontal, 40)
             }
         }
     }

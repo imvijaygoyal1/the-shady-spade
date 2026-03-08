@@ -58,9 +58,27 @@ enum ComputerGamePhase: Equatable {
 final class ComputerGameViewModel {
 
     // MARK: Players
-    let humanPlayerIndex = 0
+    var humanPlayerIndex: Int { humanPlayerIndices.first ?? 0 }
     var humanName: String
-    let aiNames = ["CPU 1", "CPU 2", "CPU 3", "CPU 4", "CPU 5"]
+    var humanAvatar: String
+    let aiNames: [String]
+    let aiAvatars: [String]
+
+    // Multi-human support
+    var humanPlayerIndices: [Int] = [0]
+    var currentHumanPlayerIndex: Int = 0
+    var isPassingDevice: Bool = false
+    var passingDeviceToIndex: Int = -1
+    private var confirmDeviceContinuation: CheckedContinuation<Void, Never>?
+
+    // All-player names/avatars (used when set, e.g. custom game)
+    var _allPlayerNames: [String] = []
+    var _allPlayerAvatars: [String] = []
+
+    static let namePool  = ["Alex", "Jordan", "Sam", "Riley", "Morgan",
+                             "Casey", "Taylor", "Jamie", "Drew", "Avery"]
+    static let avatarPool = ["🦁", "🐯", "🦊", "🐺", "🦅",
+                              "🐻", "🦈", "🐉", "🧙", "🥷"]
 
     // MARK: Hands & Phase
     var hands: [[Card]] = Array(repeating: [], count: 6)
@@ -77,6 +95,16 @@ final class ComputerGameViewModel {
     var humanMinBid: Int = 130
     var humanBidAmount: Double = 130
     var humanMustPass: Bool { humanMinBid > 250 }
+    var biddingStartPlayerIndex: Int = 0
+    var biddingToastMessage: String? = nil
+    var playerHasPassed: [Bool] = Array(repeating: false, count: 6)
+    var humanCanPass: Bool = true
+
+    // MARK: Next-hand confirmation
+    var waitingForNextHand: Bool = false
+    var lastTrickWinnerIndex: Int = -1
+    var lastTrickPoints: Int = 0
+    private var nextHandContinuation: CheckedContinuation<Void, Never>?
 
     // MARK: Post-bid
     var trumpSuit: TrumpSuit = .spades
@@ -111,10 +139,36 @@ final class ComputerGameViewModel {
 
     // MARK: - Init
 
-    init(humanName: String, dealerIndex: Int, roundNumber: Int) {
+    init(humanName: String, humanAvatar: String = "🦁", dealerIndex: Int, roundNumber: Int) {
         self.humanName = humanName
+        self.humanAvatar = humanAvatar
         self.dealerIndex = dealerIndex
         self.roundNumber = roundNumber
+        // Random unique names & avatars for AI opponents
+        let names   = Self.namePool.shuffled().prefix(5)
+        let avatars = Self.avatarPool.shuffled().prefix(5)
+        self.aiNames   = Array(names)
+        self.aiAvatars = Array(avatars)
+    }
+
+    /// Custom game init — 1–5 human seats share one device; AI auto-fills remaining.
+    init(humanSeats: [Int], allNames: [String], allAvatars: [String], dealerIndex: Int, roundNumber: Int) {
+        self.humanPlayerIndices = humanSeats
+        self.currentHumanPlayerIndex = humanSeats.first ?? 0
+        self._allPlayerNames = allNames
+        self._allPlayerAvatars = allAvatars
+        self.dealerIndex = dealerIndex
+        self.roundNumber = roundNumber
+        let firstHuman = humanSeats.first ?? 0
+        self.humanName   = allNames.indices.contains(firstHuman) ? allNames[firstHuman] : "Player"
+        self.humanAvatar = allAvatars.indices.contains(firstHuman) ? allAvatars[firstHuman] : "🦁"
+        self.aiNames   = []
+        self.aiAvatars = []
+    }
+
+    func playerAvatar(_ index: Int) -> String {
+        if !_allPlayerAvatars.isEmpty { return _allPlayerAvatars.indices.contains(index) ? _allPlayerAvatars[index] : "🦁" }
+        return index == humanPlayerIndex ? humanAvatar : aiAvatars[index - 1]
     }
 
     // MARK: - Deck
@@ -144,6 +198,13 @@ final class ComputerGameViewModel {
         revealedPartner2Index = nil
         completedTricks = []
         trickWinners = []
+        biddingStartPlayerIndex = 0
+        biddingToastMessage = nil
+        playerHasPassed = Array(repeating: false, count: 6)
+        humanCanPass = true
+        waitingForNextHand = false
+        lastTrickWinnerIndex = -1
+        lastTrickPoints = 0
         phase = .viewingCards
     }
 
@@ -162,12 +223,39 @@ final class ComputerGameViewModel {
 
     func startBiddingPhase() async {
         phase = .bidding
-        let order = (1...6).map { (dealerIndex + $0) % 6 }
+        playerHasPassed = Array(repeating: false, count: 6)
 
-        for playerIndex in order {
-            currentBidTurn = playerIndex
+        let startPlayer = Int.random(in: 0..<6)
+        biddingStartPlayerIndex = startPlayer
 
-            if playerIndex == humanPlayerIndex {
+        biddingToastMessage = "\(playerName(startPlayer)) starts the bid!"
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        biddingToastMessage = nil
+
+        var currentPlayer = startPlayer
+        var isVeryFirstBid = true
+
+        // Cycle through active players until only one hasn't passed
+        while playerHasPassed.filter({ !$0 }).count > 1 {
+            if playerHasPassed[currentPlayer] {
+                currentPlayer = (currentPlayer + 1) % 6
+                continue
+            }
+
+            currentBidTurn = currentPlayer
+            // Starting player must bid on their very first turn
+            let canPassThisTurn = !isVeryFirstBid
+            humanCanPass = canPassThisTurn
+
+            if humanPlayerIndices.contains(currentPlayer) {
+                // Pass device if this isn't the currently active human
+                if currentPlayer != currentHumanPlayerIndex {
+                    passingDeviceToIndex = currentPlayer
+                    isPassingDevice = true
+                    await withCheckedContinuation { cont in confirmDeviceContinuation = cont }
+                    currentHumanPlayerIndex = currentPlayer
+                    isPassingDevice = false
+                }
                 humanMinBid = max(130, highBid + 5)
                 humanBidAmount = Double(humanMinBid)
                 phase = .humanBidding
@@ -175,31 +263,35 @@ final class ComputerGameViewModel {
                 let amount = await withCheckedContinuation { cont in
                     bidContinuation = cont
                 }
-                bids[playerIndex] = amount
-                bidHistory.append((playerIndex: playerIndex, amount: amount))
+                bids[currentPlayer] = amount
+                bidHistory.append((playerIndex: currentPlayer, amount: amount))
                 if amount > 0 {
-                    if amount > highBid { highBid = amount; highBidderIndex = playerIndex }
-                    message = "\(humanName) bid \(amount)"
+                    if amount > highBid { highBid = amount; highBidderIndex = currentPlayer }
+                    message = "\(playerName(currentPlayer)) bid \(amount)"
                 } else {
-                    message = "\(humanName) passed"
+                    playerHasPassed[currentPlayer] = true
+                    message = "\(playerName(currentPlayer)) passed"
                 }
                 phase = .bidding
-
             } else {
                 try? await Task.sleep(nanoseconds: 700_000_000)
-                let amount = aiBidAmount(for: playerIndex)
-                bids[playerIndex] = amount
-                bidHistory.append((playerIndex: playerIndex, amount: amount))
+                let amount = aiBidAmount(for: currentPlayer, canPass: canPassThisTurn)
+                bids[currentPlayer] = amount
+                bidHistory.append((playerIndex: currentPlayer, amount: amount))
                 if amount > 0 {
-                    if amount > highBid { highBid = amount; highBidderIndex = playerIndex }
-                    message = "\(playerName(playerIndex)) bid \(amount)"
+                    if amount > highBid { highBid = amount; highBidderIndex = currentPlayer }
+                    message = "\(playerName(currentPlayer)) bid \(amount)"
                 } else {
-                    message = "\(playerName(playerIndex)) passed"
+                    playerHasPassed[currentPlayer] = true
+                    message = "\(playerName(currentPlayer)) passed"
                 }
             }
+
+            isVeryFirstBid = false
+            currentPlayer = (currentPlayer + 1) % 6
         }
 
-        // All passed → dealer forced to 130
+        // Fallback: all passed somehow — dealer forced to 130
         if highBidderIndex == -1 {
             highBidderIndex = dealerIndex
             highBid = 130
@@ -207,9 +299,14 @@ final class ComputerGameViewModel {
             bidHistory.append((playerIndex: dealerIndex, amount: 130))
             message = "\(playerName(dealerIndex)) is forced to bid 130"
             try? await Task.sleep(nanoseconds: 500_000_000)
+        } else {
+            biddingToastMessage = "🎉 \(playerName(highBidderIndex)) wins the bid at \(highBid)!"
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            biddingToastMessage = nil
         }
 
-        if highBidderIndex == humanPlayerIndex {
+        if humanPlayerIndices.contains(highBidderIndex) {
+            currentHumanPlayerIndex = highBidderIndex
             setSmartCallingDefaults()
             phase = .callingCards
         } else {
@@ -231,7 +328,7 @@ final class ComputerGameViewModel {
     // MARK: - Smart Calling Defaults
 
     private func setSmartCallingDefaults() {
-        let hand = hands[humanPlayerIndex]
+        let hand = hands[highBidderIndex]
 
         // Trump: suit with highest point value in hand
         let suitScores = TrumpSuit.allCases.map { suit -> (TrumpSuit, Int) in
@@ -258,7 +355,7 @@ final class ComputerGameViewModel {
 
     // MARK: - AI Bid Heuristic
 
-    private func aiBidAmount(for playerIndex: Int) -> Int {
+    private func aiBidAmount(for playerIndex: Int, canPass: Bool = true) -> Int {
         let hand = hands[playerIndex]
         let myPoints = hand.map(\.pointValue).reduce(0, +)
 
@@ -280,6 +377,13 @@ final class ComputerGameViewModel {
 
         let estimated = myPoints + call1Pts + call2Pts + partnerBonus
         let minBid = max(130, highBid + 5)
+
+        if !canPass {
+            // Must bid — use estimated or force minimum
+            let rounded = (max(estimated, minBid) / 5) * 5
+            return min(max(rounded, minBid), 250)
+        }
+
         guard estimated >= minBid else { return 0 }
 
         // Round down to nearest 5, clamp to [minBid, 250]
@@ -328,8 +432,8 @@ final class ComputerGameViewModel {
 
     var callingValid: Bool {
         guard calledCard1 != calledCard2 else { return false }
-        let humanIds = Set(hands[humanPlayerIndex].map(\.id))
-        return !humanIds.contains(calledCard1) && !humanIds.contains(calledCard2)
+        let bidderIds = Set(hands[highBidderIndex].map(\.id))
+        return !bidderIds.contains(calledCard1) && !bidderIds.contains(calledCard2)
     }
 
     func humanConfirmCalling() {
@@ -359,14 +463,22 @@ final class ComputerGameViewModel {
             let order = (0..<6).map { (currentLeaderIndex + $0) % 6 }
 
             for playerIndex in order {
-                if playerIndex == humanPlayerIndex {
+                if humanPlayerIndices.contains(playerIndex) {
+                    // Pass device if this isn't the currently active human
+                    if playerIndex != currentHumanPlayerIndex {
+                        passingDeviceToIndex = playerIndex
+                        isPassingDevice = true
+                        await withCheckedContinuation { cont in confirmDeviceContinuation = cont }
+                        currentHumanPlayerIndex = playerIndex
+                        isPassingDevice = false
+                    }
                     phase = .humanPlaying
                     message = "Your turn — tap a card to play"
 
                     let card = await withCheckedContinuation { cont in
                         cardContinuation = cont
                     }
-                    hands[humanPlayerIndex].removeAll { $0.id == card.id }
+                    hands[playerIndex].removeAll { $0.id == card.id }
                     currentTrick.append((playerIndex: playerIndex, card: card))
                     checkPartnerReveal(card: card, playerIndex: playerIndex)
                     phase = .playing
@@ -382,15 +494,40 @@ final class ComputerGameViewModel {
             }
 
             resolveTrick()
-            try? await Task.sleep(nanoseconds: 400_000_000)
+            if trickNumber < 8 {
+                // Pause and wait for human to confirm next hand
+                await waitForNextHand()
+            } else {
+                try? await Task.sleep(nanoseconds: 400_000_000)
+            }
         }
 
         phase = .roundComplete
     }
 
+    private func waitForNextHand() async {
+        lastTrickWinnerIndex = trickWinners.last ?? -1
+        lastTrickPoints = completedTricks.last?.map(\.card.pointValue).reduce(0, +) ?? 0
+        waitingForNextHand = true
+        await withCheckedContinuation { cont in
+            nextHandContinuation = cont
+        }
+        waitingForNextHand = false
+    }
+
+    func humanReadyForNextHand() {
+        nextHandContinuation?.resume()
+        nextHandContinuation = nil
+    }
+
     func humanPlayCard(_ card: Card) {
         cardContinuation?.resume(returning: card)
         cardContinuation = nil
+    }
+
+    func confirmDevicePass() {
+        confirmDeviceContinuation?.resume()
+        confirmDeviceContinuation = nil
     }
 
     private func checkPartnerReveal(card: Card, playerIndex: Int) {
@@ -552,8 +689,10 @@ final class ComputerGameViewModel {
         return trickWinner(trick: currentTrick).playerIndex
     }
 
+    var humanHand: [Card] { hands[currentHumanPlayerIndex] }
+
     func validCardsToPlay() -> Set<String> {
-        let hand = hands[humanPlayerIndex]
+        let hand = hands[currentHumanPlayerIndex]
         if currentTrick.isEmpty { return Set(hand.map(\.id)) }
         let ledSuit = currentTrick[0].card.suit
         let canFollow = hand.filter { $0.suit == ledSuit }
@@ -563,6 +702,7 @@ final class ComputerGameViewModel {
     // MARK: - Helper
 
     func playerName(_ index: Int) -> String {
-        index == humanPlayerIndex ? humanName : aiNames[index - 1]
+        if !_allPlayerNames.isEmpty { return _allPlayerNames.indices.contains(index) ? _allPlayerNames[index] : "Player \(index+1)" }
+        return index == humanPlayerIndex ? humanName : aiNames[index - 1]
     }
 }

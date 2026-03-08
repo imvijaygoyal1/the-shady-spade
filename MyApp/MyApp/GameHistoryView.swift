@@ -33,7 +33,6 @@ struct GameHistoryView: View {
             }
             .navigationTitle("Game History")
             .navigationBarTitleDisplayMode(.large)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -50,7 +49,7 @@ struct GameHistoryView: View {
                 .foregroundStyle(.secondary)
             Text("No Games Yet")
                 .font(.title3.bold())
-                .foregroundStyle(.white)
+                .foregroundStyle(.adaptivePrimary)
             Text("Complete a solo game to see your history here.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -83,7 +82,7 @@ private struct GameHistoryRow: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(winnerName + " won")
                     .font(.subheadline.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.adaptivePrimary)
 
                 Text("\(roundCount) round\(roundCount == 1 ? "" : "s") · \(game.date.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)
@@ -152,7 +151,6 @@ struct GameHistoryDetailView: View {
         }
         .navigationTitle("Game · \(game.date.formatted(date: .abbreviated, time: .omitted))")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
     }
 
     private var finalScoreboard: some View {
@@ -179,18 +177,18 @@ struct GameHistoryDetailView: View {
 
                     Text(name)
                         .font(.subheadline.bold())
-                        .foregroundStyle(isWinner ? Color.masterGold : Color.white)
+                        .foregroundStyle(isWinner ? Color.masterGold : Color.adaptivePrimary)
 
                     Spacer()
 
                     Text("\(score)")
                         .font(.subheadline.bold().monospacedDigit())
-                        .foregroundStyle(isWinner ? Color.masterGold : Color.white)
+                        .foregroundStyle(isWinner ? Color.masterGold : Color.adaptivePrimary)
                 }
                 .padding(.vertical, 4)
 
                 if rank < sortedIndices.count - 1 {
-                    Divider().overlay(Color.white.opacity(0.07))
+                    Divider().overlay(Color.adaptiveDivider)
                 }
             }
         }
@@ -219,12 +217,12 @@ private struct HistoryRoundCard: View {
                             .foregroundStyle(.secondary)
                         Text(round.trumpSuit.rawValue)
                             .font(.subheadline.bold())
-                            .foregroundStyle(round.trumpSuit.isRed ? Color.defenseRose : Color.white)
+                            .foregroundStyle(round.trumpSuit.isRed ? Color.defenseRose : Color.adaptivePrimary)
                     }
 
                     Text(bidderName + " bid \(round.bidAmount)")
                         .font(.subheadline.bold())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.adaptivePrimary)
                 }
 
                 Spacer()
@@ -241,7 +239,7 @@ private struct HistoryRoundCard: View {
             }
             .padding(14)
 
-            Divider().overlay(Color.white.opacity(0.07))
+            Divider().overlay(Color.adaptiveDivider)
 
             // Per-player deltas
             VStack(spacing: 0) {
@@ -263,7 +261,7 @@ private struct HistoryRoundCard: View {
 
                         Text(name)
                             .font(.subheadline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.adaptivePrimary)
 
                         Text(role.label)
                             .font(.caption2)
@@ -284,7 +282,7 @@ private struct HistoryRoundCard: View {
                     .padding(.vertical, 9)
 
                     if i < 5 {
-                        Divider().overlay(Color.white.opacity(0.05))
+                        Divider().overlay(Color.adaptiveDivider)
                     }
                 }
             }

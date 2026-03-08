@@ -15,7 +15,7 @@ struct MainView: View {
             HistoryView(vm: vm)
                 .tabItem { Label("History", systemImage: "clock.fill") }
 
-            SettingsView(vm: vm)
+            SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }
         .tint(.masterGold)
@@ -94,7 +94,6 @@ private struct LeaderboardView: View {
             }
             .navigationTitle("The Shady Spade")
             .navigationBarTitleDisplayMode(.large)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 16) {
@@ -151,7 +150,7 @@ private struct LeaderboardView: View {
                             .frame(width: 44, height: 44)
                             .overlay {
                                 Circle().strokeBorder(
-                                    best ? Color.masterGold : Color.white.opacity(0.22),
+                                    best ? Color.masterGold : Color.adaptiveDivider,
                                     lineWidth: 1.5)
                             }
                         Image(systemName: vm.playerAvatars[i])
@@ -253,7 +252,7 @@ private struct PlayerScoreCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(name)
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.adaptivePrimary)
                 HStack(spacing: 8) {
                     Label("\(rounds.count) rounds", systemImage: "arrow.clockwise")
                     Label("\(bidsWon) wins", systemImage: "crown")
@@ -320,7 +319,6 @@ private struct HistoryView: View {
             }
             .navigationTitle("History")
             .navigationBarTitleDisplayMode(.large)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -342,7 +340,7 @@ private struct HistoryView: View {
                 .font(.system(size: 90, weight: .black))
                 .foregroundStyle(.masterGold)
             Text("No Rounds Yet")
-                .font(.title2.bold()).foregroundStyle(.white)
+                .font(.title2.bold()).foregroundStyle(.adaptivePrimary)
             Text("Tap + to record your first round.")
                 .font(.subheadline).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -363,7 +361,7 @@ private struct HistoryRoundCard: View {
             HStack {
                 HStack(spacing: 8) {
                     Text("Round \(round.roundNumber)")
-                        .font(.headline.bold()).foregroundStyle(.white)
+                        .font(.headline.bold()).foregroundStyle(.adaptivePrimary)
                     Text(round.trumpSuit.rawValue)
                         .font(.title3.bold()).foregroundStyle(round.trumpSuit.displayColor)
                 }
@@ -378,7 +376,7 @@ private struct HistoryRoundCard: View {
                 }
             }
 
-            Divider().overlay(Color.white.opacity(0.10))
+            Divider().overlay(Color.adaptiveDivider)
 
             // Bidder + called cards
             HStack(spacing: 6) {
@@ -399,7 +397,7 @@ private struct HistoryRoundCard: View {
             }
             .foregroundStyle(.offenseBlue.opacity(0.8))
 
-            Divider().overlay(Color.white.opacity(0.07))
+            Divider().overlay(Color.adaptiveDivider)
 
             // Points
             HStack {
@@ -425,7 +423,7 @@ private struct HistoryRoundCard: View {
                 }
             }
 
-            Divider().overlay(Color.white.opacity(0.07))
+            Divider().overlay(Color.adaptiveDivider)
 
             // Per-player chips
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
@@ -452,7 +450,7 @@ private struct HistoryRoundCard: View {
         return VStack(spacing: 2) {
             Text(playerNames[i])
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.adaptivePrimary)
                 .lineLimit(1)
             Text(score >= 0 ? "+\(score)" : "\(score)")
                 .font(.system(size: 11, weight: .bold).monospacedDigit())

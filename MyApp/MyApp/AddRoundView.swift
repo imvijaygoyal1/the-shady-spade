@@ -27,7 +27,6 @@ struct AddRoundView: View {
             }
             .navigationTitle("Round \(vm.nextRoundNumber)")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -99,7 +98,7 @@ struct AddRoundView: View {
                     }
                 }
 
-                Divider().overlay(Color.white.opacity(0.08))
+                Divider().overlay(Color.adaptiveDivider)
 
                 // Trump suit
                 HStack(spacing: 10) {
@@ -115,13 +114,13 @@ struct AddRoundView: View {
                                     .foregroundStyle(sel ? suit.displayColor : suit.displayColor.opacity(0.35))
                                 Text(suit.displayName)
                                     .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(sel ? .white : .secondary)
+                                    .foregroundStyle(sel ? Color.adaptivePrimary : .secondary)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
                             .background {
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(sel ? Color.white.opacity(0.12) : Color.white.opacity(0.05))
+                                    .fill(sel ? Color.adaptiveSubtle : Color.adaptiveDivider)
                                     .overlay {
                                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                                             .strokeBorder(sel ? suit.displayColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
@@ -148,7 +147,7 @@ struct AddRoundView: View {
                 callCardRow(label: "Card 1",
                             rank: $vm.callCard1Rank,
                             suit: $vm.callCard1Suit)
-                Divider().overlay(Color.white.opacity(0.08))
+                Divider().overlay(Color.adaptiveDivider)
                 callCardRow(label: "Card 2",
                             rank: $vm.callCard2Rank,
                             suit: $vm.callCard2Suit)
@@ -180,14 +179,14 @@ struct AddRoundView: View {
                 HStack(spacing: 4) {
                     Text(rank.wrappedValue.isEmpty ? "Rank" : rank.wrappedValue)
                         .font(.headline.bold())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.adaptivePrimary)
                     Image(systemName: "chevron.down")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color.white.opacity(0.1))
+                .background(Color.adaptiveSubtle)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
@@ -202,13 +201,13 @@ struct AddRoundView: View {
                     } label: {
                         Text(s)
                             .font(.title3)
-                            .foregroundStyle(isRed ? Color.defenseRose : Color.white)
+                            .foregroundStyle(isRed ? Color.defenseRose : Color.adaptivePrimary)
                             .padding(8)
-                            .background(selected ? Color.white.opacity(0.18) : Color.clear)
+                            .background(selected ? Color.adaptiveSubtle : Color.clear)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 8)
-                                    .strokeBorder(selected ? (isRed ? Color.defenseRose : Color.white).opacity(0.6) : Color.clear, lineWidth: 1.5)
+                                    .strokeBorder(selected ? (isRed ? Color.defenseRose : Color.adaptivePrimary).opacity(0.6) : Color.clear, lineWidth: 1.5)
                             }
                     }
                     .buttonStyle(BouncyButton())
@@ -222,7 +221,7 @@ struct AddRoundView: View {
             if !rank.wrappedValue.isEmpty && !suit.wrappedValue.isEmpty {
                 Text(rank.wrappedValue + suit.wrappedValue)
                     .font(.headline.bold())
-                    .foregroundStyle(["♥","♦"].contains(suit.wrappedValue) ? Color.defenseRose : .white)
+                    .foregroundStyle(["♥","♦"].contains(suit.wrappedValue) ? Color.defenseRose : Color.adaptivePrimary)
             }
         }
     }
@@ -245,14 +244,14 @@ struct AddRoundView: View {
                             HStack(spacing: 12) {
                                 ZStack {
                                     Circle()
-                                        .fill(vm.isPartner(idx) ? Color.offenseBlue.opacity(0.2) : Color.white.opacity(0.06))
+                                        .fill(vm.isPartner(idx) ? Color.offenseBlue.opacity(0.2) : Color.adaptiveDivider)
                                         .frame(width: 36, height: 36)
                                     Text(String(vm.playerNames[idx].prefix(1)).uppercased())
                                         .font(.subheadline.bold())
                                         .foregroundStyle(vm.isPartner(idx) ? .offenseBlue : .white)
                                 }
                                 Text(vm.playerNames[idx])
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(.adaptivePrimary)
                                 Spacer()
                                 if vm.isPartner(idx) {
                                     Image(systemName: "checkmark.circle.fill")
@@ -267,7 +266,7 @@ struct AddRoundView: View {
                         .accessibilityLabel(vm.playerNames[idx] + (vm.isPartner(idx) ? ", selected as partner" : ""))
                         .accessibilityHint("Toggle as partner")
 
-                        if idx < 5 { Divider().overlay(Color.white.opacity(0.07)) }
+                        if idx < 5 { Divider().overlay(Color.adaptiveDivider) }
                     }
                 }
             }
@@ -315,7 +314,7 @@ struct AddRoundView: View {
             Text(label).font(.headline).foregroundStyle(color)
             Text("\(points)")
                 .font(.system(size: 50, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(.adaptivePrimary)
                 .contentTransition(.numericText())
                 .animation(.spring(response: 0.3), value: points)
             VStack(spacing: 6) {
@@ -370,7 +369,7 @@ struct AddRoundView: View {
                           ? AnyShapeStyle(LinearGradient(
                                 colors: [.masterGold, Color(red: 0.80, green: 0.65, blue: 0.15)],
                                 startPoint: .leading, endPoint: .trailing))
-                          : AnyShapeStyle(Color.white.opacity(0.09)))
+                          : AnyShapeStyle(Color.adaptiveSubtle))
             }
         }
         .disabled(!vm.isFormValid)
@@ -409,11 +408,11 @@ struct AddRoundView: View {
                 Circle()
                     .fill(selected
                           ? AnyShapeStyle(color)
-                          : AnyShapeStyle(Color.white.opacity(0.09)))
+                          : AnyShapeStyle(Color.adaptiveSubtle))
                     .frame(width: 44, height: 44)
                 Text(String(vm.playerNames[idx].prefix(1)).uppercased())
                     .font(.caption.bold())
-                    .foregroundStyle(selected ? Color.black : Color.white)
+                    .foregroundStyle(selected ? Color.black : Color.adaptivePrimary)
             }
             Text(String(vm.playerNames[idx].prefix(4)))
                 .font(.system(size: 9, weight: .medium))
