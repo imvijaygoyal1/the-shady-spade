@@ -390,6 +390,7 @@ private struct CustomGameSetupView: View {
     @State private var playerUID = UUID().uuidString
     @State private var sessionVM = OnlineSessionViewModel()
     @State private var showingLobby = false
+    @State private var isCreating = false
 
     private static let seatsByCount: [[Int]] = [
         [0], [0, 3], [0, 2, 4], [0, 1, 3, 4], [0, 1, 2, 3, 4]
@@ -507,32 +508,45 @@ private struct CustomGameSetupView: View {
 
     private var startButton: some View {
         Button {
+            guard !isCreating && !trimmed.isEmpty else { return }
             HapticManager.impact(.medium)
-            Task { await createAndShowLobby() }
+            isCreating = true
+            createAndShowLobby()
         } label: {
-            Text("Create Lobby")
-                .font(.title3.bold())
-                .foregroundStyle(trimmed.isEmpty ? Color.secondary : Color.black)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 18)
-                .background(trimmed.isEmpty ? Color.masterGold.opacity(0.35) : Color.masterGold)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            HStack(spacing: 10) {
+                if isCreating {
+                    ProgressView().tint(.black).scaleEffect(0.85)
+                }
+                Text(isCreating ? "Creating…" : "Create Lobby")
+                    .font(.title3.bold())
+                    .foregroundStyle(trimmed.isEmpty ? Color.secondary : Color.black)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .background(trimmed.isEmpty ? Color.masterGold.opacity(0.35) : Color.masterGold)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(BouncyButton())
-        .disabled(trimmed.isEmpty)
+        .disabled(trimmed.isEmpty || isCreating)
     }
 
-    private func createAndShowLobby() async {
+    /// Instantly shows lobby (synchronous local prep) then writes to Firebase in background.
+    private func createAndShowLobby() {
         playerUID = UUID().uuidString
         sessionVM = OnlineSessionViewModel()
-        await sessionVM.createSession(
+        // 1. Prepare local state synchronously — lobby can show immediately
+        sessionVM.prepareLocalSession(
             uid: playerUID,
             name: trimmed.isEmpty ? "Player" : trimmed,
             avatar: playerAvatar,
             aiSeats: aiSeats,
             sessionType: "custom"
         )
+        // 2. Show lobby right away (session code is already set)
         showingLobby = true
+        isCreating = false
+        // 3. Write to Firebase in background
+        Task { await sessionVM.writeSessionToFirebase() }
     }
 }
 

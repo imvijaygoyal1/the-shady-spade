@@ -362,9 +362,36 @@ private struct SessionLobbyView: View {
                             .strokeBorder(Color.masterGold.opacity(0.45), lineWidth: 1.5)
                     )
 
-                    Text("Share this code with 5 friends")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    // Connecting / error state
+                    if sessionVM.isConnecting {
+                        HStack(spacing: 8) {
+                            ProgressView().scaleEffect(0.8).tint(.secondary)
+                            Text("Connecting to server…")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    } else if let err = sessionVM.errorMessage {
+                        VStack(spacing: 8) {
+                            Text(err)
+                                .font(.caption).foregroundStyle(.defenseRose)
+                                .multilineTextAlignment(.center)
+                            Button {
+                                sessionVM.errorMessage = nil
+                                sessionVM.isConnecting = true
+                                Task { await sessionVM.writeSessionToFirebase() }
+                            } label: {
+                                Text("Retry")
+                                    .font(.caption.bold()).foregroundStyle(.masterGold)
+                                    .padding(.horizontal, 14).padding(.vertical, 6)
+                                    .background(Color.masterGold.opacity(0.15))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    } else {
+                        Text(sessionVM.sessionType == "custom"
+                             ? "Share this code with friends to join"
+                             : "Share this code with 5 friends")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
 
                     HStack(spacing: 10) {
                         // Share button → native share sheet
@@ -376,12 +403,13 @@ private struct SessionLobbyView: View {
                                 Image(systemName: "square.and.arrow.up").font(.subheadline.bold())
                                 Text("Share Code").font(.subheadline.bold())
                             }
-                            .foregroundStyle(.black)
+                            .foregroundStyle(sessionVM.isConnecting ? Color.secondary : .black)
                             .padding(.vertical, 10)
                             .frame(maxWidth: .infinity)
-                            .background(Color.masterGold)
+                            .background(sessionVM.isConnecting ? Color.masterGold.opacity(0.4) : Color.masterGold)
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
+                        .disabled(sessionVM.isConnecting)
 
                         // Copy button with toast
                         Button {
@@ -401,10 +429,19 @@ private struct SessionLobbyView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
                         .accessibilityLabel(codeCopied ? "Code copied" : "Copy room code")
+                        .disabled(sessionVM.isConnecting)
                     }
                 }
                 .padding()
                 .glassmorphic(cornerRadius: 20)
+                .task(id: sessionVM.isConnecting) {
+                    guard sessionVM.isConnecting else { return }
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    if sessionVM.isConnecting {
+                        sessionVM.errorMessage = "Connection is taking too long. Please retry."
+                        sessionVM.isConnecting = false
+                    }
+                }
 
                 // Player slots
                 let humanSlots = (0..<6).filter { !sessionVM.aiSeats.contains($0) }

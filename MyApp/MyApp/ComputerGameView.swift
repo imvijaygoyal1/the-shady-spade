@@ -76,7 +76,7 @@ struct ComputerGameView: View {
                         previousRunningScores: runningScores,
                         previousRounds: savedHistoryRounds,
                         onNextRound: { Task { nextRound() } },
-                        onQuit: { dismiss() }
+                        onQuit: { saveAndQuit() }
                     )
                 }
             }
@@ -207,17 +207,20 @@ struct ComputerGameView: View {
         }
     }
 
-    private func saveGameHistory(finalScores: [Int]) {
+    private func saveGameHistory(finalScores: [Int], rounds: [HistoryRound]? = nil, mode: String = "Solo") {
+        let roundsToSave = rounds ?? savedHistoryRounds
+        guard !roundsToSave.isEmpty else { return }
         let names = (0..<6).map { game.playerName($0) }
         let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
         let history = GameHistory(
             date: Date(),
             playerNames: names,
             finalScores: finalScores,
-            winnerIndex: winnerIndex
+            winnerIndex: winnerIndex,
+            gameMode: mode
         )
-        for hr in savedHistoryRounds { modelContext.insert(hr) }
-        history.historyRounds = savedHistoryRounds
+        for hr in roundsToSave { modelContext.insert(hr) }
+        history.historyRounds = roundsToSave
         modelContext.insert(history)
 
         // Prune: keep only last 10 games
@@ -226,6 +229,33 @@ struct ComputerGameView: View {
             for old in all.dropFirst(10) { modelContext.delete(old) }
         }
         try? modelContext.save()
+    }
+
+    private func saveAndQuit() {
+        // Capture the completed round currently showing in RoundCompleteView
+        let nextRoundNum = vm?.nextRoundNumber ?? (game.roundNumber + 1)
+        let builtRound = game.buildRound(nextRoundNumber: nextRoundNum)
+        var updated = runningScores
+        for i in 0..<6 { updated[i] += builtRound.score(for: i) }
+        let hr = HistoryRound(
+            roundNumber: builtRound.roundNumber,
+            dealerIndex: builtRound.dealerIndex,
+            bidderIndex: builtRound.bidderIndex,
+            bidAmount: builtRound.bidAmount,
+            trumpSuit: builtRound.trumpSuit,
+            callCard1: builtRound.callCard1,
+            callCard2: builtRound.callCard2,
+            partner1Index: builtRound.partner1Index,
+            partner2Index: builtRound.partner2Index,
+            offensePointsCaught: builtRound.offensePointsCaught,
+            defensePointsCaught: builtRound.defensePointsCaught,
+            runningScores: updated
+        )
+        var allRounds = savedHistoryRounds
+        allRounds.append(hr)
+        let mode = game._allPlayerNames.isEmpty ? "Solo" : "Custom"
+        saveGameHistory(finalScores: updated, rounds: allRounds, mode: mode)
+        dismiss()
     }
 
     private func playAgain() {

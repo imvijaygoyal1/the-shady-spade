@@ -50,7 +50,7 @@ struct GameHistoryView: View {
             Text("No Games Yet")
                 .font(.title3.bold())
                 .foregroundStyle(.adaptivePrimary)
-            Text("Complete a solo game to see your history here.")
+            Text("Play your first game to see history here.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -80,9 +80,18 @@ private struct GameHistoryRow: View {
             }
 
             VStack(alignment: .leading, spacing: 5) {
-                Text(winnerName + " won")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.adaptivePrimary)
+                HStack(spacing: 8) {
+                    Text(winnerName + " won")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.adaptivePrimary)
+                    let modeColor: Color = game.gameMode == "Online" ? .teal : game.gameMode == "Custom" ? .purple : .masterGold
+                    Text(game.gameMode)
+                        .font(.caption2.bold())
+                        .foregroundStyle(modeColor)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(modeColor.opacity(0.18))
+                        .clipShape(Capsule())
+                }
 
                 Text("\(roundCount) round\(roundCount == 1 ? "" : "s") · \(game.date.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)

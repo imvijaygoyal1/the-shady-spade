@@ -108,12 +108,18 @@ enum SessionStatus: String {
     var errorMessage: String? = nil
     var aiSeats: [Int] = []
     var sessionType: String = "online"
+    /// True while the Firebase document write is in-flight (after prepareLocalSession)
+    var isConnecting: Bool = false
 
     /// Called by GameViewModel to propagate round updates
     var onSessionUpdated: (() -> Void)? = nil
 
     private var listener: ListenerRegistration? = nil
     private let db = Firestore.firestore()
+    // Pending values stored by prepareLocalSession for later Firebase write
+    private var pendingUID: String = ""
+    private var pendingName: String = ""
+    private var pendingAvatar: String = ""
 
     deinit { listener?.remove() }
 
@@ -160,6 +166,60 @@ enum SessionStatus: String {
             errorMessage = "Failed to create session. Please try again."
         }
         return code
+    }
+
+    /// Synchronously sets up local state (session code, host flag, player slots).
+    /// Call this first, then `showingLobby = true`, then `writeSessionToFirebase()` in a Task.
+    @discardableResult
+    func prepareLocalSession(uid: String, name: String, avatar: String = "",
+                              aiSeats newAISeats: [Int] = [], sessionType newSessionType: String = "online") -> String {
+        let code = generateRoomCode()
+        sessionCode = code
+        isHost = true
+        isConnecting = true
+        errorMessage = nil
+        self.aiSeats = newAISeats
+        self.sessionType = newSessionType
+        pendingUID = uid
+        pendingName = name
+        pendingAvatar = avatar
+
+        let aiNamePool = ["Alex", "Jordan", "Sam", "Riley", "Morgan", "Casey"]
+        var slots = (0..<6).map { SessionPlayer.empty(at: $0) }
+        slots[0] = SessionPlayer(slotIndex: 0, uid: uid, name: name, avatar: avatar, joined: true)
+        for (n, i) in newAISeats.enumerated() {
+            slots[i] = SessionPlayer(slotIndex: i, uid: "AI-\(i)",
+                                     name: aiNamePool[n % aiNamePool.count], avatar: "🤖", joined: true)
+        }
+        playerSlots = slots
+        return code
+    }
+
+    /// Writes the prepared session to Firestore and attaches the listener.
+    /// Call this after `prepareLocalSession` (and after setting `showingLobby = true`).
+    func writeSessionToFirebase() async {
+        guard let code = sessionCode else { return }
+        let slotsData = playerSlots.map { slot -> [String: Any] in
+            ["uid": slot.uid, "name": slot.name, "avatar": slot.avatar, "joined": slot.joined]
+        }
+        let data: [String: Any] = [
+            "hostUid": pendingUID,
+            "status": SessionStatus.waiting.rawValue,
+            "createdAt": Timestamp(),
+            "currentDealerIndex": 0,
+            "playerSlots": slotsData,
+            "rounds": [],
+            "aiSeats": aiSeats,
+            "sessionType": sessionType
+        ]
+        do {
+            try await db.collection("sessions").document(code).setData(data)
+            isConnecting = false
+            attachListener(code: code)
+        } catch {
+            errorMessage = "Connection failed. Tap Retry to try again."
+            isConnecting = false
+        }
     }
 
     func joinSession(code: String, uid: String, name: String, avatar: String = "") async throws {

@@ -202,13 +202,15 @@ final class GameHistory {
     var playerNames: [String]   // 6 names at time of game
     var finalScores: [Int]      // 6 final cumulative scores
     var winnerIndex: Int        // player index with highest final score
+    var gameMode: String = "Solo"   // "Solo", "Online", or "Custom"
     @Relationship(deleteRule: .cascade) var historyRounds: [HistoryRound] = []
 
-    init(date: Date, playerNames: [String], finalScores: [Int], winnerIndex: Int) {
+    init(date: Date, playerNames: [String], finalScores: [Int], winnerIndex: Int, gameMode: String = "Solo") {
         self.id           = UUID()
         self.date         = date
         self.playerNames  = playerNames
         self.finalScores  = finalScores
         self.winnerIndex  = winnerIndex
+        self.gameMode     = gameMode
     }
 }

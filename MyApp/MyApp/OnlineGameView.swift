@@ -1,10 +1,12 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - Root
 
 struct OnlineGameView: View {
     @Bindable var game: OnlineGameViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @State private var showRoundResultBanner = false
     @State private var showQuitConfirm = false
 
@@ -33,6 +35,7 @@ struct OnlineGameView: View {
                 }
             case .gameOver:
                 OnlineGameOverView(game: game) {
+                    saveOnlineGameHistory()
                     game.cleanup()
                     dismiss()
                 }
@@ -98,7 +101,7 @@ struct OnlineGameView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(.adaptiveSecondary)
                         .frame(width: 32, height: 32)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
@@ -110,6 +113,27 @@ struct OnlineGameView: View {
             }
         }
         .onDisappear { game.cleanup() }
+    }
+
+    private func saveOnlineGameHistory() {
+        let finalScores = game.runningScores
+        guard finalScores.max() ?? 0 > 0 else { return }
+        let names = game.playerNames
+        let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
+        let mode = game.aiSeats.isEmpty ? "Online" : "Custom"
+        let history = GameHistory(
+            date: Date(),
+            playerNames: names,
+            finalScores: finalScores,
+            winnerIndex: winnerIndex,
+            gameMode: mode
+        )
+        modelContext.insert(history)
+        let descriptor = FetchDescriptor<GameHistory>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+        if let all = try? modelContext.fetch(descriptor), all.count > 10 {
+            for old in all.dropFirst(10) { modelContext.delete(old) }
+        }
+        try? modelContext.save()
     }
 }
 
@@ -123,7 +147,7 @@ private struct OnlineDealingView: View {
                 .tint(.masterGold)
             Text("Dealing cards…")
                 .font(.title3.bold())
-                .foregroundStyle(.white)
+                .foregroundStyle(.adaptivePrimary)
             Text("Please wait")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -271,15 +295,15 @@ private struct OnlineBiddingView: View {
                                     Circle()
                                         .fill(entry.playerIndex == game.myPlayerIndex
                                               ? Color.masterGold.opacity(0.2)
-                                              : Color.white.opacity(0.08))
+                                              : Color.adaptiveDivider)
                                         .frame(width: 32, height: 32)
                                     Text(String(game.playerName(entry.playerIndex).prefix(1)).uppercased())
                                         .font(.caption.bold())
-                                        .foregroundStyle(entry.playerIndex == game.myPlayerIndex ? .masterGold : .white)
+                                        .foregroundStyle(entry.playerIndex == game.myPlayerIndex ? .masterGold : .adaptivePrimary)
                                 }
                                 Text(entry.playerIndex == game.myPlayerIndex ? "You" : game.playerName(entry.playerIndex))
                                     .font(.subheadline.bold())
-                                    .foregroundStyle(entry.playerIndex == game.myPlayerIndex ? .masterGold : .white)
+                                    .foregroundStyle(entry.playerIndex == game.myPlayerIndex ? .masterGold : .adaptivePrimary)
                                 Spacer()
                                 if entry.amount > 0 {
                                     Text("Bid \(entry.amount)")
@@ -295,7 +319,7 @@ private struct OnlineBiddingView: View {
                                 }
                             }
                             .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background(Color.white.opacity(0.05))
+                            .background(Color.adaptiveDivider)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .id(idx)
                         }
@@ -321,7 +345,7 @@ private struct OnlineBiddingView: View {
                 VStack(spacing: 16) {
                     Text(game.humanMustPass ? "You must pass" : "Your turn to bid")
                         .font(.headline)
-                        .foregroundStyle(game.humanMustPass ? .defenseRose : .white)
+                        .foregroundStyle(game.humanMustPass ? .defenseRose : .adaptivePrimary)
 
                     if !game.humanMustPass {
                         VStack(spacing: 8) {
@@ -395,14 +419,14 @@ private struct OnlineBidderChip: View {
         VStack(spacing: 4) {
             ZStack {
                 Circle()
-                    .fill(isActive ? chipColor : Color.white.opacity(bid >= 0 ? 0.12 : 0.05))
+                    .fill(isActive ? chipColor : (bid >= 0 ? Color.adaptiveSubtle : Color.adaptiveDivider))
                     .frame(width: 42, height: 42)
                 if isActive {
                     Circle().stroke(chipColor, lineWidth: 1.5).frame(width: 42, height: 42)
                 }
                 Text(String(name.prefix(1)).uppercased())
                     .font(.caption.bold())
-                    .foregroundStyle(isActive ? .black : .white)
+                    .foregroundStyle(isActive ? .black : .adaptivePrimary)
             }
             Group {
                 if bid > 0 {
@@ -454,12 +478,12 @@ private struct OnlineCallingView: View {
                                         Text(suit.rawValue).font(.system(size: 26))
                                             .foregroundStyle(sel ? suit.displayColor : suit.displayColor.opacity(0.35))
                                         Text(suit.displayName).font(.system(size: 10, weight: .medium))
-                                            .foregroundStyle(sel ? .white : .secondary)
+                                            .foregroundStyle(sel ? .adaptivePrimary : .secondary)
                                     }
                                     .frame(maxWidth: .infinity).padding(.vertical, 10)
                                     .background {
                                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .fill(sel ? Color.white.opacity(0.12) : Color.white.opacity(0.05))
+                                            .fill(sel ? Color.adaptiveSubtle : Color.adaptiveDivider)
                                             .overlay {
                                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                                                     .strokeBorder(sel ? suit.displayColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
@@ -476,7 +500,7 @@ private struct OnlineCallingView: View {
                     VStack(spacing: 14) {
                         SectionHeader(title: "Call Cards (must not be in your hand)")
                         callCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit)
-                        Divider().overlay(Color.white.opacity(0.08))
+                        Divider().overlay(Color.adaptiveDivider)
                         callCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit)
 
                         if !game.callingValid {
@@ -527,7 +551,7 @@ private struct OnlineCallingView: View {
                                       ? AnyShapeStyle(LinearGradient(
                                           colors: [.masterGold, Color(red: 0.80, green: 0.65, blue: 0.15)],
                                           startPoint: .leading, endPoint: .trailing))
-                                      : AnyShapeStyle(Color.white.opacity(0.09)))
+                                      : AnyShapeStyle(Color.adaptiveDivider))
                         }
                     }
                     .disabled(!game.callingValid)
@@ -579,11 +603,11 @@ private struct OnlineCallingView: View {
             } label: {
                 HStack(spacing: 4) {
                     Text(rank.wrappedValue.isEmpty ? "Rank" : rank.wrappedValue)
-                        .font(.headline.bold()).foregroundStyle(.white)
+                        .font(.headline.bold()).foregroundStyle(.adaptivePrimary)
                     Image(systemName: "chevron.down").font(.caption2).foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Color.white.opacity(0.1))
+                .background(Color.adaptiveDivider)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
@@ -596,13 +620,13 @@ private struct OnlineCallingView: View {
                         suit.wrappedValue = s
                     } label: {
                         Text(s).font(.title3)
-                            .foregroundStyle(isRed ? Color.defenseRose : Color.white)
+                            .foregroundStyle(isRed ? Color.defenseRose : Color.adaptivePrimary)
                             .padding(8)
-                            .background(selected ? Color.white.opacity(0.18) : Color.clear)
+                            .background(selected ? Color.adaptiveSubtle : Color.clear)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 8)
-                                    .strokeBorder(selected ? (isRed ? Color.defenseRose : Color.white).opacity(0.6) : Color.clear, lineWidth: 1.5)
+                                    .strokeBorder(selected ? (isRed ? Color.defenseRose : Color.adaptivePrimary).opacity(0.6) : Color.clear, lineWidth: 1.5)
                             }
                     }
                     .buttonStyle(BouncyButton())
@@ -614,7 +638,7 @@ private struct OnlineCallingView: View {
             let combined = rank.wrappedValue + suit.wrappedValue
             if !combined.isEmpty {
                 let isRed = suit.wrappedValue == "♥" || suit.wrappedValue == "♦"
-                Text(combined).font(.headline.bold()).foregroundStyle(isRed ? Color.defenseRose : .white)
+                Text(combined).font(.headline.bold()).foregroundStyle(isRed ? Color.defenseRose : .adaptivePrimary)
             }
         }
     }
@@ -667,7 +691,7 @@ private struct OnlineOffenseChip: View {
         HStack(spacing: 5) {
             ZStack {
                 Circle()
-                    .fill(revealed ? Color.masterGold.opacity(0.2) : Color.white.opacity(0.07))
+                    .fill(revealed ? Color.masterGold.opacity(0.2) : Color.adaptiveDivider)
                     .frame(width: 20, height: 20)
                 Text(revealed ? String((name ?? "").prefix(1)).uppercased() : "?")
                     .font(.system(size: 8, weight: .bold))
@@ -675,7 +699,7 @@ private struct OnlineOffenseChip: View {
             }
             Text(name ?? "Partner?")
                 .font(.system(size: 10, weight: revealed ? .semibold : .regular))
-                .foregroundStyle(revealed ? .white : .secondary)
+                .foregroundStyle(revealed ? .adaptivePrimary : .secondary)
                 .lineLimit(1)
             if isBidder {
                 Image(systemName: "crown.fill")
@@ -685,10 +709,10 @@ private struct OnlineOffenseChip: View {
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 4)
-        .background(revealed ? Color.masterGold.opacity(0.08) : Color.white.opacity(0.04))
+        .background(revealed ? Color.masterGold.opacity(0.08) : Color.adaptiveDivider)
         .clipShape(Capsule())
         .overlay(Capsule().strokeBorder(
-            revealed ? Color.masterGold.opacity(0.3) : Color.white.opacity(0.08),
+            revealed ? Color.masterGold.opacity(0.3) : Color.adaptiveDivider,
             lineWidth: 0.8))
         .transition(.scale.combined(with: .opacity))
     }
@@ -728,7 +752,7 @@ private struct OnlinePlayingView: View {
                             LiveDot()
                             Text("Current Hand")
                                 .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.adaptivePrimary)
                             Spacer()
                         }
                         Rectangle()
@@ -740,7 +764,7 @@ private struct OnlinePlayingView: View {
                         if game.currentTrick.isEmpty {
                             Text("Waiting for first card…")
                                 .font(.caption)
-                                .foregroundStyle(.white.opacity(0.35))
+                                .foregroundStyle(.adaptiveSecondary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
                         } else {
@@ -767,7 +791,7 @@ private struct OnlinePlayingView: View {
                                                  ? "You"
                                                  : String(game.playerName(entry.playerIndex).prefix(5)))
                                                 .font(.system(size: 8, weight: .semibold))
-                                                .foregroundStyle(isWinning ? .masterGold : .white.opacity(0.55))
+                                                .foregroundStyle(isWinning ? .masterGold : .adaptiveSecondary)
                                                 .lineLimit(1)
                                         }
                                         .frame(width: cardWidth)
@@ -892,7 +916,7 @@ private struct OnlinePlayerBadge: View {
                     .frame(width: 44, height: 44)
                     .overlay(Circle().strokeBorder(isActive ? Color.masterGold.opacity(0.8) : (isOffense ? Color.offenseBlue.opacity(0.4) : Color.clear), lineWidth: isActive ? 2 : 1))
                 Text(String(name.prefix(1)))
-                    .font(.subheadline.bold()).foregroundStyle(.white)
+                    .font(.subheadline.bold()).foregroundStyle(.adaptivePrimary)
                 Text("\(cardCount)")
                     .font(.system(size: 9, weight: .bold)).foregroundStyle(.black)
                     .padding(3).background(Circle().fill(isActive ? Color.masterGold : Color.masterGold.opacity(0.7)))
@@ -971,7 +995,7 @@ private struct OnlineRoundResultBanner: View {
                                 }
                                 Text(i == game.myPlayerIndex ? "You" : game.playerName(i))
                                     .font(.caption.bold())
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(.adaptivePrimary)
                                     .lineLimit(1)
                                 Text(i == game.highBidderIndex ? "Bidder" : "Partner")
                                     .font(.system(size: 9, weight: .semibold))
@@ -1089,7 +1113,7 @@ private struct OnlineRoundCompleteView: View {
                             }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(isMe ? "You" : game.playerName(i))
-                                    .font(.subheadline.bold()).foregroundStyle(.white)
+                                    .font(.subheadline.bold()).foregroundStyle(.adaptivePrimary)
                                 Text(role.label).font(.caption2).foregroundStyle(role.color)
                             }
                             Spacer()
@@ -1099,7 +1123,7 @@ private struct OnlineRoundCompleteView: View {
                         }
                         .padding(.horizontal, 16).padding(.vertical, 12)
 
-                        if i < 5 { Divider().overlay(Color.white.opacity(0.07)) }
+                        if i < 5 { Divider().overlay(Color.adaptiveDivider) }
                     }
                 }
                 .glassmorphic(cornerRadius: 18).padding(.horizontal, 16)
@@ -1123,18 +1147,18 @@ private struct OnlineRoundCompleteView: View {
                             Text("\(rank + 1)").font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(.secondary).frame(width: 14)
                             Circle()
-                                .fill(isLeader ? Color.masterGold.opacity(0.2) : Color.white.opacity(0.08))
+                                .fill(isLeader ? Color.masterGold.opacity(0.2) : Color.adaptiveDivider)
                                 .frame(width: 28, height: 28)
                                 .overlay(Text(String((isMe ? "You" : game.playerName(i)).prefix(1)))
                                     .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(isLeader ? .masterGold : .white))
+                                    .foregroundStyle(isLeader ? .masterGold : .adaptivePrimary))
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(isMe ? "You" : game.playerName(i))
                                     .font(.caption.bold())
-                                    .foregroundStyle(isLeader ? .masterGold : .white)
+                                    .foregroundStyle(isLeader ? .masterGold : .adaptivePrimary)
                                 GeometryReader { geo in
                                     ZStack(alignment: .leading) {
-                                        Capsule().fill(Color.white.opacity(0.08))
+                                        Capsule().fill(Color.adaptiveDivider)
                                         Capsule().fill(isLeader ? Color.masterGold : Color.offenseBlue.opacity(0.7))
                                             .frame(width: geo.size.width * progress)
                                     }
@@ -1144,10 +1168,10 @@ private struct OnlineRoundCompleteView: View {
                             Spacer()
                             Text("\(max(score, 0))")
                                 .font(.subheadline.bold().monospacedDigit())
-                                .foregroundStyle(isLeader ? .masterGold : .white)
+                                .foregroundStyle(isLeader ? .masterGold : .adaptivePrimary)
                         }
                         .padding(.horizontal, 16).padding(.vertical, 9)
-                        if rank < 5 { Divider().overlay(Color.white.opacity(0.06)) }
+                        if rank < 5 { Divider().overlay(Color.adaptiveDivider) }
                     }
                     .padding(.bottom, 14)
                 }
@@ -1172,7 +1196,7 @@ private struct OnlineRoundCompleteView: View {
                                       ? AnyShapeStyle(LinearGradient(
                                           colors: [.masterGold, Color(red: 0.80, green: 0.65, blue: 0.15)],
                                           startPoint: .leading, endPoint: .trailing))
-                                      : AnyShapeStyle(Color.white.opacity(0.08)))
+                                      : AnyShapeStyle(Color.adaptiveDivider))
                         }
                     }
                     .buttonStyle(BouncyButton())
@@ -1200,7 +1224,7 @@ private struct OnlineScorePill: View {
         VStack(spacing: 6) {
             Text(label).font(.caption.uppercaseSmallCaps()).foregroundStyle(color)
             Text("\(points)").font(.system(size: 38, weight: .black, design: .rounded))
-                .foregroundStyle(.white).contentTransition(.numericText())
+                .foregroundStyle(.adaptivePrimary).contentTransition(.numericText())
             Text("pts").font(.caption2).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 18).glassmorphic(cornerRadius: 16)
@@ -1261,15 +1285,15 @@ private struct OnlineGameOverView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(isMe ? "You" : game.playerName(i))
                                     .font(.subheadline.bold())
-                                    .foregroundStyle(rank == 0 ? .masterGold : .white)
+                                    .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
                             }
                             Spacer()
                             Text("\(max(score, 0))")
                                 .font(.title3.bold().monospacedDigit())
-                                .foregroundStyle(rank == 0 ? .masterGold : .white)
+                                .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
                         }
                         .padding(.horizontal, 16).padding(.vertical, 12)
-                        if rank < 5 { Divider().overlay(Color.white.opacity(0.07)) }
+                        if rank < 5 { Divider().overlay(Color.adaptiveDivider) }
                     }
                 }
                 .glassmorphic(cornerRadius: 18).padding(.horizontal, 16)
@@ -1301,9 +1325,9 @@ private struct WaitingOverlay: View {
             VStack(spacing: 16) {
                 ProgressView().scaleEffect(1.4).tint(.masterGold)
                 Text("Waiting for \(name)…")
-                    .font(.subheadline.bold()).foregroundStyle(.white)
+                    .font(.subheadline.bold()).foregroundStyle(.adaptivePrimary)
                     .padding(.horizontal, 20).padding(.vertical, 12)
-                    .background(Color.white.opacity(0.12))
+                    .background(Color.adaptiveSubtle)
                     .clipShape(Capsule())
             }
         }
@@ -1318,7 +1342,7 @@ private struct OnlinePartnerRevealBanner: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "person.2.fill").font(.subheadline).foregroundStyle(.masterGold)
-            Text(message).font(.subheadline.bold()).foregroundStyle(.white)
+            Text(message).font(.subheadline.bold()).foregroundStyle(.adaptivePrimary)
         }
         .padding(.horizontal, 18).padding(.vertical, 12)
         .background {
