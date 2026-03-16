@@ -1768,7 +1768,7 @@ private struct RoundResultBanner: View {
                             }
                         }
 
-                        Text(isSet ? "Defense team scored \(250 - game.highBid) pts" : "Scored \(game.defensePoints) pts")
+                        Text("Defense team scored \(250 - game.highBid) pts")
                             .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(defenseTint.opacity(0.9))
                     }
@@ -1839,8 +1839,7 @@ private struct RoundCompleteView: View {
         }()
 
         // Award pill values
-        let partnerPts = (game.highBid + 1) / 2
-        let defensePts = game.defensePoints / 3
+        let partnerPts = game.highBid / 2
 
         // Bar chart entries — sorted descending by running total
         let sortedEntries: [PlayerScoreEntry] = (0..<6).map { i in
@@ -1884,7 +1883,7 @@ private struct RoundCompleteView: View {
                     HStack(spacing: 8) {
                         AwardPill(label: "Bidder", points: game.highBid, color: .masterGold)
                         AwardPill(label: "Each Partner", points: partnerPts, color: .offenseBlue)
-                        AwardPill(label: "Each Defense", points: defensePts, color: .secondary)
+                        AwardPill(label: "Defense Team", points: 250 - game.highBid, color: .secondary)
                     }
                     .padding(.horizontal, 20)
                 } else {

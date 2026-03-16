@@ -108,13 +108,12 @@ final class Round {
     var defenseIndices: [Int]    { (0..<6).filter { !offenseIndices.contains($0) } }
 
     func score(for playerIndex: Int) -> Int {
-        if isSet {
-            // BID FAILED: all players score 0 individually
-            return 0
-        }
-        if playerIndex == bidderIndex { return bidAmount }
-        if offenseIndices.contains(playerIndex) { return (bidAmount + 1) / 2 }
-        return defensePointsCaught / 3
+        ScoringEngine.calculateRoundScores(
+            bidAmount: bidAmount,
+            bidderIndex: bidderIndex,
+            offenseIndices: offenseIndices,
+            bidMade: !isSet
+        ).playerDeltas[playerIndex]
     }
 
     func role(of playerIndex: Int) -> PlayerRole {
@@ -177,13 +176,12 @@ final class HistoryRound {
     var offenseIndices: Set<Int> { [bidderIndex, partner1Index, partner2Index] }
 
     func scoreDelta(for playerIndex: Int) -> Int {
-        if isSet {
-            // BID FAILED: all players score 0 individually
-            return 0
-        }
-        if playerIndex == bidderIndex { return bidAmount }
-        if offenseIndices.contains(playerIndex) { return (bidAmount + 1) / 2 }
-        return defensePointsCaught / 3
+        ScoringEngine.calculateRoundScores(
+            bidAmount: bidAmount,
+            bidderIndex: bidderIndex,
+            offenseIndices: offenseIndices,
+            bidMade: !isSet
+        ).playerDeltas[playerIndex]
     }
 
     func role(of playerIndex: Int) -> PlayerRole {

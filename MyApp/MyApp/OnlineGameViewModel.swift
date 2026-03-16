@@ -619,19 +619,14 @@ final class OnlineGameViewModel {
                     let defPts = (0..<6).filter { !offSet.contains($0) }.map { newWon[$0] }.reduce(0, +)
                     let bidMade = offPts >= highBid
 
+                    let scoring = ScoringEngine.calculateRoundScores(
+                        bidAmount: highBid,
+                        bidderIndex: highBidderIndex,
+                        offenseIndices: offSet,
+                        bidMade: bidMade
+                    )
                     var newRS = runningScores
-                    let partnerPts = (highBid + 1) / 2   // ceil(bid / 2)
-                    for i in 0..<6 {
-                        if i == highBidderIndex {
-                            // BID FAILED: bidder scores 0 (not negative)
-                            newRS[i] += bidMade ? highBid : 0
-                        } else if offSet.contains(i) {
-                            newRS[i] += bidMade ? partnerPts : 0
-                        } else {
-                            // BID FAILED: defense scores 0 individually
-                            newRS[i] += bidMade ? defPts / 3 : 0
-                        }
-                    }
+                    for i in 0..<6 { newRS[i] += scoring.playerDeltas[i] }
 
                     let nextPhase: OnlineGamePhase = (newRS.max() ?? 0) >= Self.winningScore ? .gameOver : .roundComplete
                     var gs = buildGS(phase: nextPhase, currentActionPlayer: -1,

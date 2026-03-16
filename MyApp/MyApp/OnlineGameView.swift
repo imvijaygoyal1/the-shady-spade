@@ -1420,7 +1420,7 @@ private struct OnlineRoundResultBanner: View {
                             }
                         }
 
-                        Text(isSet ? "Defense team scored \(250 - game.highBid) pts" : "Scored \(game.defensePoints) pts")
+                        Text("Defense team scored \(250 - game.highBid) pts")
                             .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(defenseTint.opacity(0.9))
                     }
@@ -1473,7 +1473,7 @@ private struct OnlineRoundCompleteView: View {
     private let targetScore = OnlineGameViewModel.winningScore
 
     var body: some View {
-        let partnerPts = (game.highBid + 1) / 2
+        let partnerPts = game.highBid / 2
         let sortedEntries: [PlayerScoreEntry] = (0..<6).map { i in
             let isOff = game.offenseSet.contains(i)
             let isBidder = i == game.highBidderIndex
@@ -1510,11 +1510,10 @@ private struct OnlineRoundCompleteView: View {
                 // Award breakdown
                 VStack(spacing: 10) {
                     if !isSet {
-                        let partnerPts = (game.highBid + 1) / 2
                         HStack(spacing: 8) {
                             OnlineAwardPill(label: "Bidder", points: game.highBid, color: .masterGold)
                             OnlineAwardPill(label: "Each Partner", points: partnerPts, color: .offenseBlue)
-                            OnlineAwardPill(label: "Defense", points: 0, color: .secondary)
+                            OnlineAwardPill(label: "Defense Team", points: 250 - game.highBid, color: .secondary)
                         }
                     } else {
                         HStack(spacing: 8) {
@@ -1530,7 +1529,6 @@ private struct OnlineRoundCompleteView: View {
                     ForEach(0..<6, id: \.self) { i in
                         let isOff = game.offenseSet.contains(i)
                         let isBidder = i == game.highBidderIndex
-                        let partnerPts = (game.highBid + 1) / 2
                         let pts: Int = {
                             // BID FAILED: all players individually score 0
                             if isBidder { return isSet ? 0 : game.highBid }
