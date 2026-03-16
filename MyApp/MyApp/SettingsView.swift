@@ -280,14 +280,15 @@ private struct HowToPlayView: View {
 
             You can pick any avatar including AI character avatars for yourself during setup.
 
-            Themes — Choose from 5 visual themes in Settings:
+            Themes — Choose from 6 visual themes in Settings:
             · 🌅 Sunset Social — midnight gold (featured)
             · 💥 Comic Book — bold and energetic
             · 🌙 Minimal Dark — always dark
             · ☀️ Minimal Light — always light
             · 🎰 Casino Night — classic green felt
+            · 🎰 Casino Royale — dark green felt with gold serif style
 
-            Sunset Social and Comic Book support both dark and light display modes. The other 3 themes have fixed colour modes.
+            Sunset Social and Comic Book support both dark and light display modes. The other 4 themes have fixed colour modes.
             """
         ),
     ]
