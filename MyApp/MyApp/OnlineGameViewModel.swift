@@ -13,11 +13,14 @@ enum OnlineGamePhase: String {
 @Observable @MainActor
 final class OnlineGameViewModel {
 
+    static let winningScore = 500
+
     // MARK: Identity
     let myPlayerIndex: Int
     let isHost: Bool
     let sessionCode: String
     var playerNames: [String]
+    var playerAvatars: [String]
 
     // MARK: Published — synced from Firestore
     var phase: OnlineGamePhase = .dealing
@@ -41,6 +44,10 @@ final class OnlineGameViewModel {
     var myHand: [Card] = []
     var myHandSorted: [Card] { myHand.sortedBySuit() }
 
+    // MARK: Bidding cycle state (synced via Firestore)
+    var playerHasPassed: [Bool] = Array(repeating: false, count: 6)
+    var bidHistory: [(playerIndex: Int, amount: Int)] = []
+
     // MARK: UI state (local only — not synced from Firestore)
     var trumpSuitSelection: TrumpSuit = .spades
     var calledCard1Rank: String = "A"
@@ -48,8 +55,13 @@ final class OnlineGameViewModel {
     var calledCard2Rank: String = "K"
     var calledCard2Suit: String = "♦"
     var humanBidAmount: Double = 130
+    var biddingToastMessage: String? = nil
+    var bidWinnerInfo: BidWinnerInfo? = nil
     var partnerRevealMessage: String? = nil
     var errorMessage: String? = nil
+
+    /// First player to bid (highBid == 0) must bid; all others may pass.
+    var humanCanPass: Bool { highBid > 0 }
 
     // MARK: AI seats (custom game)
     var aiSeats: [Int] = []
@@ -78,6 +90,7 @@ final class OnlineGameViewModel {
         isHost: Bool,
         sessionCode: String,
         playerNames: [String],
+        playerAvatars: [String] = [],
         dealerIndex: Int,
         roundNumber: Int,
         aiSeats: [Int] = []
@@ -86,6 +99,7 @@ final class OnlineGameViewModel {
         self.isHost = isHost
         self.sessionCode = sessionCode
         self.playerNames = playerNames
+        self.playerAvatars = playerAvatars
         self.dealerIndex = dealerIndex
         self.roundNumber = roundNumber
         self.aiSeats = aiSeats
@@ -127,11 +141,7 @@ final class OnlineGameViewModel {
         return trickWinnerIndex(trick: currentTrick)
     }
 
-    var bidHistoryOrdered: [(playerIndex: Int, amount: Int)] {
-        (1...6).map { (dealerIndex + $0) % 6 }
-            .filter { bids[$0] >= 0 }
-            .map { (playerIndex: $0, amount: bids[$0]) }
-    }
+    var bidHistoryOrdered: [(playerIndex: Int, amount: Int)] { bidHistory }
 
     var offensePoints: Int {
         (0..<6).filter { offenseSet.contains($0) }.map { wonPointsPerPlayer[$0] }.reduce(0, +)
@@ -145,6 +155,12 @@ final class OnlineGameViewModel {
         guard index >= 0 && index < playerNames.count else { return "Player \(index + 1)" }
         let n = playerNames[index]
         return n.isEmpty ? "Player \(index + 1)" : n
+    }
+
+    func playerAvatar(_ index: Int) -> String {
+        guard index >= 0 && index < playerAvatars.count else { return "🃏" }
+        let a = playerAvatars[index]
+        return a.isEmpty ? "🃏" : a
     }
 
     func buildRound(nextRoundNumber: Int) -> Round {
@@ -191,6 +207,8 @@ final class OnlineGameViewModel {
             "bids": Array(repeating: -1, count: 6),
             "highBid": 0,
             "highBidderIndex": -1,
+            "playerHasPassed": Array(repeating: false, count: 6),
+            "bidHistory": [] as [[String: Any]],
             "trumpSuit": TrumpSuit.spades.rawValue,
             "calledCard1": "",
             "calledCard2": "",
@@ -221,11 +239,17 @@ final class OnlineGameViewModel {
         let db = Firestore.firestore()
         let ref = db.collection("sessions").document(sessionCode)
         let firstBidder = (dealerIndex + 1) % 6
-        try? await ref.updateData([
-            "gameState.phase": OnlineGamePhase.bidding.rawValue,
-            "gameState.currentActionPlayer": firstBidder,
-            "gameState.message": "Bidding has started!"
-        ])
+        let gs = buildGS(
+            phase: .bidding,
+            currentActionPlayer: firstBidder,
+            bids: Array(repeating: -1, count: 6),
+            highBid: 0,
+            highBidderIndex: -1,
+            playerHasPassed: Array(repeating: false, count: 6),
+            bidHistory: [],
+            message: "\(playerName(firstBidder)) starts the bid!"
+        )
+        try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
     }
 
     // MARK: - Listener
@@ -242,6 +266,11 @@ final class OnlineGameViewModel {
     }
 
     private func handleSnapshot(_ data: [String: Any]) async {
+        // Sync aiSeats from session document root (updated when humans replace AI slots)
+        if let rawAI = data["aiSeats"] as? [Any] {
+            aiSeats = rawAI.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
+        }
+
         // Parse game state
         if let gs = data["gameState"] as? [String: Any] {
             parseGameState(gs)
@@ -319,6 +348,22 @@ final class OnlineGameViewModel {
         if newP1 == -1 { hasRevealedPartner1 = false; revealedPartner1Index = -1 }
         if newP2 == -1 { hasRevealedPartner2 = false; revealedPartner2Index = -1 }
 
+        // Bid winner announcement (detect .bidding → .calling before updating phase)
+        if newPhase == .calling && phase == .bidding {
+            let winnerIdx = iDef("highBidderIndex", -1)
+            let winnerBid = i("highBid")
+            if winnerIdx >= 0 {
+                bidWinnerInfo = BidWinnerInfo(name: playerName(winnerIdx), avatar: "", bid: winnerBid)
+                if winnerIdx != myPlayerIndex {
+                    // Not our win — auto-dismiss after 2.5s
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                        self?.bidWinnerInfo = nil
+                    }
+                }
+                // Human winner: banner stays until they tap Continue (proceedFromBidWinner)
+            }
+        }
+
         // Update published props
         phase = newPhase
         roundNumber = newRoundNumber
@@ -327,8 +372,27 @@ final class OnlineGameViewModel {
         if let bidsAny = gs["bids"] as? [Any] {
             bids = bidsAny.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? -1 }
         }
+        if let passedAny = gs["playerHasPassed"] as? [Any] {
+            playerHasPassed = passedAny.map { ($0 as? Bool) ?? false }
+        }
+        if let histArr = gs["bidHistory"] as? [[String: Any]] {
+            bidHistory = histArr.compactMap { entry in
+                guard let pi  = (entry["pi"]  as? Int) ?? (entry["pi"]  as? Int64).map(Int.init),
+                      let amt = (entry["amt"] as? Int) ?? (entry["amt"] as? Int64).map(Int.init)
+                else { return nil }
+                return (playerIndex: pi, amount: amt)
+            }
+        }
         highBid = i("highBid")
         highBidderIndex = iDef("highBidderIndex", -1)
+
+        // Show toast when bidding phase begins
+        if newPhase == .bidding && phase != .bidding {
+            biddingToastMessage = "\(playerName(newCurrentActionPlayer)) starts the bid!"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                self?.biddingToastMessage = nil
+            }
+        }
         if newPhase != .calling {
             if let ts = gs["trumpSuit"] as? String, let suit = TrumpSuit(rawValue: ts) {
                 trumpSuit = suit
@@ -403,6 +467,10 @@ final class OnlineGameViewModel {
         try? await ref.updateData(["pendingAction": action])
     }
 
+    func proceedFromBidWinner() {
+        bidWinnerInfo = nil
+    }
+
     func confirmCalling() async {
         let c1 = calledCard1Rank + calledCard1Suit
         let c2 = calledCard2Rank + calledCard2Suit
@@ -454,32 +522,44 @@ final class OnlineGameViewModel {
             var newHighBid = highBid
             var newHighBidder = highBidderIndex
             if amount > newHighBid { newHighBid = amount; newHighBidder = playerIndex }
+            let newPassed = playerHasPassed       // bidder stays active (not marked passed)
+            var newHistory = bidHistory
+            newHistory.append((playerIndex: playerIndex, amount: amount))
 
-            let order = (1...6).map { (dealerIndex + $0) % 6 }
-            let nextBidder = order.first(where: { newBids[$0] == -1 })
-
-            if let next = nextBidder {
+            // End bidding when only one player hasn't passed; otherwise rotate clockwise
+            let activePlayers = (0..<6).filter { !newPassed[$0] }
+            if activePlayers.count <= 1 {
+                await concludeBidding(ref: ref, bids: newBids, highBid: newHighBid, highBidder: newHighBidder)
+            } else {
+                var next = (playerIndex + 1) % 6
+                while newPassed[next] { next = (next + 1) % 6 }
                 let gs = buildGS(phase: .bidding, currentActionPlayer: next,
                     bids: newBids, highBid: newHighBid, highBidderIndex: newHighBidder,
+                    playerHasPassed: newPassed, bidHistory: newHistory,
                     message: "\(playerName(playerIndex)) bid \(amount)")
                 try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
-            } else {
-                await concludeBidding(ref: ref, bids: newBids, highBid: newHighBid, highBidder: newHighBidder)
             }
 
         case "pass":
             var newBids = bids
             newBids[playerIndex] = 0
-            let order = (1...6).map { (dealerIndex + $0) % 6 }
-            let nextBidder = order.first(where: { newBids[$0] == -1 })
+            var newPassed = playerHasPassed
+            newPassed[playerIndex] = true
+            var newHistory = bidHistory
+            newHistory.append((playerIndex: playerIndex, amount: 0))
 
-            if let next = nextBidder {
+            // End bidding when only one active player remains
+            let activePlayers = (0..<6).filter { !newPassed[$0] }
+            if activePlayers.count <= 1 {
+                await concludeBidding(ref: ref, bids: newBids, highBid: highBid, highBidder: highBidderIndex)
+            } else {
+                var next = (playerIndex + 1) % 6
+                while newPassed[next] { next = (next + 1) % 6 }
                 let gs = buildGS(phase: .bidding, currentActionPlayer: next,
                     bids: newBids, highBid: highBid, highBidderIndex: highBidderIndex,
+                    playerHasPassed: newPassed, bidHistory: newHistory,
                     message: "\(playerName(playerIndex)) passed")
                 try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
-            } else {
-                await concludeBidding(ref: ref, bids: newBids, highBid: highBid, highBidder: highBidderIndex)
             }
 
         case "callCards":
@@ -541,18 +621,19 @@ final class OnlineGameViewModel {
 
                     var newRS = runningScores
                     let partnerPts = (highBid + 1) / 2   // ceil(bid / 2)
-                    let defensePerPlayer = defPts / 3
                     for i in 0..<6 {
                         if i == highBidderIndex {
-                            newRS[i] += bidMade ? highBid : -highBid
+                            // BID FAILED: bidder scores 0 (not negative)
+                            newRS[i] += bidMade ? highBid : 0
                         } else if offSet.contains(i) {
                             newRS[i] += bidMade ? partnerPts : 0
                         } else {
-                            newRS[i] += defensePerPlayer
+                            // BID FAILED: defense scores 0 individually
+                            newRS[i] += bidMade ? defPts / 3 : 0
                         }
                     }
 
-                    let nextPhase: OnlineGamePhase = (newRS.max() ?? 0) >= 500 ? .gameOver : .roundComplete
+                    let nextPhase: OnlineGamePhase = (newRS.max() ?? 0) >= Self.winningScore ? .gameOver : .roundComplete
                     var gs = buildGS(phase: nextPhase, currentActionPlayer: -1,
                         bids: bids, highBid: highBid, highBidderIndex: highBidderIndex,
                         message: "\(playerName(winner)) wins! \(bidMade ? "Bid made!" : "SET!")")
@@ -630,6 +711,8 @@ final class OnlineGameViewModel {
         bids: [Int],
         highBid: Int,
         highBidderIndex: Int,
+        playerHasPassed: [Bool] = Array(repeating: false, count: 6),
+        bidHistory: [(playerIndex: Int, amount: Int)] = [],
         message: String
     ) -> [String: Any] {
         [
@@ -640,6 +723,8 @@ final class OnlineGameViewModel {
             "bids": bids,
             "highBid": highBid,
             "highBidderIndex": highBidderIndex,
+            "playerHasPassed": playerHasPassed,
+            "bidHistory": bidHistory.map { ["pi": $0.playerIndex, "amt": $0.amount] as [String: Any] },
             "trumpSuit": trumpSuit.rawValue,
             "calledCard1": calledCard1,
             "calledCard2": calledCard2,
@@ -688,7 +773,8 @@ final class OnlineGameViewModel {
 
     private func processAITurnIfNeeded() async {
         guard isHost, !aiSeats.isEmpty, aiSeats.contains(currentActionPlayer) else { return }
-        try? await Task.sleep(nanoseconds: 400_000_000)
+        let delay = UInt64.random(in: 1_000_000_000...1_500_000_000)
+        try? await Task.sleep(nanoseconds: delay)
         let seat = currentActionPlayer
         switch phase {
         case .bidding:

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AuthView: View {
+    @ObservedObject private var themeManager = ThemeManager.shared
     @Environment(AuthViewModel.self) private var authVM
     @Environment(\.dismiss) private var dismiss
     @State private var page: Page = .signIn
@@ -154,7 +155,7 @@ private struct VerifyEmailPage: View {
                 }
                 Text("Check Your Inbox")
                     .font(.title2.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.adaptivePrimary)
                 Text("A verification email was sent to\n\(maskedEmail(authVM.user?.email))")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -222,10 +223,10 @@ private struct AuthTextField: View {
                 }
             }
             .tint(.masterGold)
-            .foregroundStyle(.white)
+            .foregroundStyle(.adaptivePrimary)
             .padding(.vertical, 10)
             .padding(.horizontal, 12)
-            .background(Color.white.opacity(0.06))
+            .background(Color.adaptiveDivider)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
@@ -240,7 +241,7 @@ private func headerView(title: String) -> some View {
             .foregroundStyle(.masterGold)
         Text(title)
             .font(.title.bold())
-            .foregroundStyle(.white)
+            .foregroundStyle(.adaptivePrimary)
         Text("The Shady Spade")
             .font(.subheadline)
             .foregroundStyle(.secondary)

@@ -4,6 +4,7 @@ import SwiftData
 // MARK: - Game History List
 
 struct GameHistoryView: View {
+    @EnvironmentObject private var themeManager: ThemeManager
     @Query(sort: \GameHistory.date, order: .reverse) private var games: [GameHistory]
     @Environment(\.dismiss) private var dismiss
 
@@ -84,7 +85,7 @@ private struct GameHistoryRow: View {
                     Text(winnerName + " won")
                         .font(.subheadline.bold())
                         .foregroundStyle(.adaptivePrimary)
-                    let modeColor: Color = game.gameMode == "Online" ? .teal : game.gameMode == "Custom" ? .purple : .masterGold
+                    let modeColor: Color = game.gameMode == "Online" ? .teal : game.gameMode == "Multiplayer" || game.gameMode == "Custom" ? .purple : .masterGold
                     Text(game.gameMode)
                         .font(.caption2.bold())
                         .foregroundStyle(modeColor)
@@ -131,6 +132,7 @@ private struct GameHistoryRow: View {
 // MARK: - Game History Detail (rounds list)
 
 struct GameHistoryDetailView: View {
+    @EnvironmentObject private var themeManager: ThemeManager
     let game: GameHistory
 
     private var sortedRounds: [HistoryRound] {

@@ -109,9 +109,8 @@ final class Round {
 
     func score(for playerIndex: Int) -> Int {
         if isSet {
-            if playerIndex == bidderIndex { return -bidAmount }
-            if offenseIndices.contains(playerIndex) { return -(bidAmount / 2) }
-            return defensePointsCaught / 3
+            // BID FAILED: all players score 0 individually
+            return 0
         }
         if playerIndex == bidderIndex { return bidAmount }
         if offenseIndices.contains(playerIndex) { return (bidAmount + 1) / 2 }
@@ -179,9 +178,8 @@ final class HistoryRound {
 
     func scoreDelta(for playerIndex: Int) -> Int {
         if isSet {
-            if playerIndex == bidderIndex { return -bidAmount }
-            if offenseIndices.contains(playerIndex) { return -(bidAmount / 2) }
-            return defensePointsCaught / 3
+            // BID FAILED: all players score 0 individually
+            return 0
         }
         if playerIndex == bidderIndex { return bidAmount }
         if offenseIndices.contains(playerIndex) { return (bidAmount + 1) / 2 }

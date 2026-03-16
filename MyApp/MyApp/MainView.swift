@@ -38,6 +38,7 @@ struct MainView: View {
         }
         .sheet(isPresented: $vm.showingOnlineSession) {
             OnlineSessionView(vm: vm)
+                .environmentObject(ThemeManager.shared)
         }
     }
 

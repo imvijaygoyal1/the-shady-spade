@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreImage.CIFilterBuiltins
 
 // MARK: - Share Sheet
 
@@ -13,13 +14,14 @@ private struct ShareSheetView: UIViewControllerRepresentable {
 // MARK: - Online Session View
 
 struct OnlineSessionView: View {
+    @EnvironmentObject private var themeManager: ThemeManager
     @Bindable var vm: GameViewModel
     var playerName: String = "Player"
     var playerAvatar: String = "🦁"
     /// When provided, skip CreateOrJoinView and go straight to lobby with this pre-created session
     var prebuiltSessionVM: OnlineSessionViewModel? = nil
     var prebuiltPlayerUID: String? = nil
-    var onGameReady: ((Int, Bool, String, [String]) -> Void)? = nil
+    var onGameReady: ((Int, Bool, String, [String], [String]) -> Void)? = nil
 
     @State private var ownedSessionVM = OnlineSessionViewModel()
     @State private var ownedPlayerUID = UUID().uuidString
@@ -39,6 +41,22 @@ struct OnlineSessionView: View {
                     playerAvatar: playerAvatar,
                     playerUID: playerUID
                 )
+                .overlay(alignment: .topLeading) {
+                    Button {
+                        HapticManager.impact(.light)
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 13, weight: .black))
+                            .foregroundStyle(Comic.white)
+                            .frame(width: 32, height: 32)
+                            .background(Comic.black)
+                            .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(Comic.white, lineWidth: 2))
+                    }
+                    .padding(.top, 16)
+                    .padding(.leading, 16)
+                }
             } else {
                 SessionLobbyView(
                     sessionVM: sessionVM,
@@ -96,9 +114,14 @@ private struct CreateOrJoinView: View {
                 // Host a Game
                 Button {
                     HapticManager.impact(.medium)
-                    Task {
-                        await sessionVM.createSession(uid: playerUID, name: playerName, avatar: playerAvatar)
-                    }
+                    sessionVM.prepareLocalSession(
+                        uid: playerUID,
+                        name: playerName,
+                        avatar: playerAvatar,
+                        aiSeats: [1, 2, 3, 4, 5],
+                        sessionType: "multiplayer"
+                    )
+                    Task { await sessionVM.writeSessionToFirebase() }
                 } label: {
                     HStack(spacing: 14) {
                         ZStack {
@@ -178,10 +201,12 @@ private struct JoinByCodeView: View {
     let playerName: String
     let playerAvatar: String
 
+    @ObservedObject private var themeManager = ThemeManager.shared
     @Environment(\.dismiss) private var dismiss
     @State private var code = ""
     @State private var isJoining = false
     @State private var joinError: String? = nil
+    @State private var showScanner = false
     @FocusState private var fieldFocused: Bool
 
     var body: some View {
@@ -267,10 +292,41 @@ private struct JoinByCodeView: View {
                 }
                 .buttonStyle(BouncyButton())
                 .disabled(code.count < 6 || isJoining)
+
+                Button {
+                    HapticManager.impact(.light)
+                    showScanner = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "qrcode.viewfinder")
+                        Text("Scan QR Code").fontWeight(.semibold)
+                    }
+                    .foregroundStyle(.adaptivePrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.adaptiveSubtle)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(BouncyButton())
             }
             .padding()
         }
         .onAppear { fieldFocused = true }
+        .sheet(isPresented: $showScanner) {
+            QRScannerView { scannedCode in
+                let cleaned = String(scannedCode.trimmingCharacters(in: .whitespacesAndNewlines).prefix(6).uppercased())
+                code = cleaned
+                showScanner = false
+                // Don't auto-join — let the player verify the code then tap Join
+            }
+            .presentationDetents([.large])
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .joinRoomFromQR)) { notification in
+            if let incomingCode = notification.userInfo?["roomCode"] as? String {
+                code = String(incomingCode.trimmingCharacters(in: .whitespacesAndNewlines).prefix(6).uppercased())
+                // Don't auto-join — let the player verify and tap Join
+            }
+        }
     }
 
     private func joinSession() {
@@ -299,13 +355,26 @@ private struct SessionLobbyView: View {
     var sessionVM: OnlineSessionViewModel
     var vm: GameViewModel
     let playerUID: String
-    var onGameReady: ((Int, Bool, String, [String]) -> Void)? = nil
+    var onGameReady: ((Int, Bool, String, [String], [String]) -> Void)? = nil
     var onGameStart: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @State private var codeCopied = false
     @State private var showingShare = false
+    @State private var showQRCode = false
+    @State private var newlyJoinedSlots: Set<Int> = []
+
+    private func generateQRCode(from string: String) -> UIImage {
+        let context = CIContext()
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.uppercased().utf8)
+        filter.correctionLevel = "H"
+        guard let outputImage = filter.outputImage else { return UIImage() }
+        let scaled = outputImage.transformed(by: CGAffineTransform(scaleX: 12, y: 12))
+        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return UIImage() }
+        return UIImage(cgImage: cgImage)
+    }
 
     private var gridColumns: [GridItem] {
         let count = hSizeClass == .regular ? 3 : 2
@@ -387,9 +456,7 @@ private struct SessionLobbyView: View {
                             }
                         }
                     } else {
-                        Text(sessionVM.sessionType == "custom"
-                             ? "Share this code with friends to join"
-                             : "Share this code with 5 friends")
+                        Text("Share this code with friends to join")
                             .font(.caption).foregroundStyle(.secondary)
                     }
 
@@ -430,6 +497,23 @@ private struct SessionLobbyView: View {
                         }
                         .accessibilityLabel(codeCopied ? "Code copied" : "Copy room code")
                         .disabled(sessionVM.isConnecting)
+
+                        // QR Code button
+                        Button {
+                            HapticManager.impact(.light)
+                            showQRCode = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "qrcode").font(.subheadline.bold())
+                                Text("QR").font(.subheadline.bold())
+                            }
+                            .foregroundStyle(Color.adaptivePrimary)
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.adaptiveSubtle)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                        .disabled(sessionVM.isConnecting || sessionVM.sessionCode == nil)
                     }
                 }
                 .padding()
@@ -444,27 +528,49 @@ private struct SessionLobbyView: View {
                 }
 
                 // Player slots
-                let humanSlots = (0..<6).filter { !sessionVM.aiSeats.contains($0) }
-                let humanJoined = humanSlots.filter { sessionVM.playerSlots[$0].joined }.count
+                let humanCount = (0..<6).filter { !sessionVM.aiSeats.contains($0) && sessionVM.playerSlots[$0].joined }.count
+                let aiCount = sessionVM.aiSeats.count
+                let isMultiplayer = sessionVM.sessionType == "multiplayer"
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(sessionVM.aiSeats.isEmpty
-                         ? "Players (\(sessionVM.playerSlots.filter(\.joined).count)/6)"
-                         : "Players (\(humanJoined)/\(humanSlots.count) humans + \(sessionVM.aiSeats.count) AI)")
-                        .font(.headline)
-                        .foregroundStyle(.masterGold)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Players (\(humanCount + aiCount)/6)")
+                            .font(.headline)
+                            .foregroundStyle(.masterGold)
+                        Text("\(humanCount) human\(humanCount == 1 ? "" : "s") · \(aiCount) AI")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if isMultiplayer && aiCount == 0 {
+                            Text("Room Full")
+                                .font(.caption.bold())
+                                .foregroundStyle(.defenseRose)
+                        }
+                    }
 
                     LazyVGrid(columns: gridColumns, spacing: 12) {
                         ForEach(0..<6, id: \.self) { i in
-                            PlayerSlotCard(index: i, slot: sessionVM.playerSlots[i],
-                                           isAI: sessionVM.aiSeats.contains(i))
+                            PlayerSlotCard(
+                                index: i,
+                                slot: sessionVM.playerSlots[i],
+                                isAI: sessionVM.aiSeats.contains(i),
+                                isHost: i == 0 && sessionVM.playerSlots[i].joined && !sessionVM.aiSeats.contains(i),
+                                isNew: newlyJoinedSlots.contains(i)
+                            )
+                            .id("\(i)-\(sessionVM.aiSeats.contains(i))")
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.8).combined(with: .opacity),
+                                removal: .opacity
+                            ))
                         }
                     }
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: sessionVM.aiSeats)
                 }
                 .padding()
                 .glassmorphic(cornerRadius: 20)
 
                 // Start / waiting
-                let canStart = sessionVM.aiSeats.isEmpty ? sessionVM.allSlotsJoined : sessionVM.humanSlotsFull
+                let humanSlots2 = (0..<6).filter { !sessionVM.aiSeats.contains($0) }
+                let humanJoined2 = humanSlots2.filter { sessionVM.playerSlots[$0].joined }.count
+                let canStart = isMultiplayer || (sessionVM.aiSeats.isEmpty ? sessionVM.allSlotsJoined : sessionVM.humanSlotsFull)
                 if sessionVM.isHost {
                     VStack(spacing: 8) {
                         Button {
@@ -484,8 +590,12 @@ private struct SessionLobbyView: View {
                         .buttonStyle(BouncyButton())
                         .disabled(!canStart)
 
-                        if !canStart {
-                            let needed = humanSlots.count - humanJoined
+                        if isMultiplayer {
+                            Text("Share the code to invite more friends")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else if !canStart {
+                            let needed = humanSlots2.count - humanJoined2
                             Text("Waiting for \(needed) more player\(needed == 1 ? "" : "s") to join…")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -504,26 +614,134 @@ private struct SessionLobbyView: View {
             .adaptiveContentFrame()
             .padding()
         }
+        .onChange(of: sessionVM.aiSeats) { oldAI, newAI in
+            let joined = Set(oldAI).subtracting(Set(newAI))
+            for slot in joined {
+                withAnimation { newlyJoinedSlots.insert(slot) }
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    withAnimation { newlyJoinedSlots.remove(slot) }
+                }
+            }
+        }
         .onChange(of: sessionVM.status) { _, newStatus in
             if newStatus == .playing, let onGameReady {
                 let myIndex = sessionVM.playerSlots.firstIndex(where: { $0.uid == playerUID }) ?? 0
                 let names = sessionVM.playerSlots.map { slot in
                     slot.name.isEmpty ? "Player \(slot.slotIndex + 1)" : slot.name
                 }
-                onGameReady(myIndex, sessionVM.isHost, sessionVM.sessionCode ?? "", names)
+                let avatars = sessionVM.playerSlots.map { $0.avatar }
+                onGameReady(myIndex, sessionVM.isHost, sessionVM.sessionCode ?? "", names, avatars)
             }
         }
         .sheet(isPresented: $showingShare) {
             if let code = sessionVM.sessionCode {
-                let isCustom = sessionVM.sessionType == "custom"
-                let text = isCustom
-                    ? "Join my Shady Spade Custom Game! Code: \(code) in the app. shadyspade://join/\(code)"
-                    : "Join my Shady Spade game! Use code: \(code) in the app. shadyspade://join/\(code)"
+                let text = "Join my Shady Spade Multiplayer game! Code: \(code) — open the app and tap Multiplayer → Join. shadyspade://join/\(code)"
                 ShareSheetView(items: [text])
                     .ignoresSafeArea()
             }
         }
+        .sheet(isPresented: $showQRCode) {
+            if let code = sessionVM.sessionCode {
+                QRCodeSheetView(
+                    roomCode: code,
+                    qrImage: generateQRCode(from: code)
+                )
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
+        }
     }
+}
+
+// MARK: - QR Code Sheet
+
+struct QRCodeSheetView: View {
+    let roomCode: String
+    let qrImage: UIImage
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            Color.darkBG.ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                Spacer().frame(height: 4)
+
+                Text("Scan to Join")
+                    .font(.title2.bold())
+                    .foregroundStyle(.adaptivePrimary)
+
+                Text("ROOM CODE: \(roomCode)")
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.masterGold)
+                    .tracking(2)
+
+                // QR Code — always white background for scanner readability
+                Image(uiImage: qrImage)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 220, height: 220)
+                    .padding(16)
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(Color.masterGold.opacity(0.5), lineWidth: 1.5)
+                    )
+                    .shadow(color: Color.black.opacity(0.3), radius: 8, x: 0, y: 4)
+
+                VStack(spacing: 5) {
+                    Text("Scan with your iPhone camera")
+                        .font(.subheadline)
+                        .foregroundStyle(.adaptivePrimary)
+                    Text("Open The Shady Spade → Multiplayer → Join a Game → enter the code")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+
+                Button {
+                    HapticManager.impact(.medium)
+                    shareQRImage()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.and.arrow.up")
+                        Text("Share QR Code").fontWeight(.bold)
+                    }
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.masterGold)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(BouncyButton())
+                .padding(.horizontal, 24)
+
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+
+    private func shareQRImage() {
+        let activityVC = UIActivityViewController(
+            activityItems: [qrImage],
+            applicationActivities: nil
+        )
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first,
+           let rootVC = window.rootViewController {
+            rootVC.present(activityVC, animated: true)
+        }
+    }
+}
+
+// MARK: - Deep link notification name
+
+extension Notification.Name {
+    static let joinRoomFromQR = Notification.Name("joinRoomFromQR")
 }
 
 // MARK: - Player Slot Card
@@ -532,6 +750,8 @@ private struct PlayerSlotCard: View {
     let index: Int
     let slot: SessionPlayer
     var isAI: Bool = false
+    var isHost: Bool = false
+    var isNew: Bool = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -560,25 +780,50 @@ private struct PlayerSlotCard: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(isAI ? slot.name : (slot.joined ? slot.name : "Empty"))
                     .font(.subheadline.weight((slot.joined || isAI) ? .semibold : .regular))
                     .foregroundStyle(isAI ? Color.adaptiveSecondary : (slot.joined ? Color.adaptivePrimary : .secondary))
                     .lineLimit(1)
-                Text(isAI ? "AI Player" : "Slot \(index + 1)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+
+                if isHost {
+                    Text("HOST")
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.masterGold)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.masterGold.opacity(0.15))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().strokeBorder(Color.masterGold.opacity(0.4), lineWidth: 1))
+                } else if isNew {
+                    Text("NEW")
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.offenseBlue)
+                        .clipShape(Capsule())
+                } else if isAI {
+                    Text("AI")
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.adaptiveDivider)
+                        .clipShape(Capsule())
+                }
             }
 
             Spacer()
 
-            if isAI {
+            if isNew {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.offenseBlue)
+                    .font(.caption)
+            } else if isAI {
                 Image(systemName: "cpu.fill")
                     .foregroundStyle(Color.adaptiveSecondary)
                     .font(.caption)
             } else if slot.joined {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.offenseBlue)
+                    .foregroundStyle(isHost ? Color.masterGold : .offenseBlue)
                     .font(.caption)
             }
         }
@@ -590,10 +835,14 @@ private struct PlayerSlotCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(isAI
-                              ? Color.adaptiveSubtle
-                              : slot.joined ? Color.offenseBlue.opacity(0.30) : Color.adaptiveSubtle,
-                              lineWidth: 1)
+                .strokeBorder(
+                    isNew ? Color.offenseBlue.opacity(0.5) :
+                    isHost ? Color.masterGold.opacity(0.4) :
+                    isAI ? Color.adaptiveSubtle :
+                    slot.joined ? Color.offenseBlue.opacity(0.30) : Color.adaptiveSubtle,
+                    lineWidth: isHost || isNew ? 1.5 : 1
+                )
         }
+        .opacity(isAI ? 0.85 : 1.0)
     }
 }

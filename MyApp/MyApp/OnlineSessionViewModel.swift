@@ -139,9 +139,10 @@ enum SessionStatus: String {
         slots[0] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
 
         // Pre-fill AI slots
-        let aiNamePool = ["Alex", "Jordan", "Sam", "Riley", "Morgan", "Casey"]
+        let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
+        let shuffledAINames = Array(aiNamePool.shuffled().prefix(newAISeats.count))
         for (n, i) in newAISeats.enumerated() {
-            slots[i] = ["uid": "AI-\(i)", "name": aiNamePool[n % aiNamePool.count], "avatar": "🤖", "joined": true]
+            slots[i] = ["uid": "AI-\(i)", "name": shuffledAINames[n], "avatar": "🤖", "joined": true]
         }
 
         let data: [String: Any] = [
@@ -184,12 +185,13 @@ enum SessionStatus: String {
         pendingName = name
         pendingAvatar = avatar
 
-        let aiNamePool = ["Alex", "Jordan", "Sam", "Riley", "Morgan", "Casey"]
+        let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
+        let shuffledNames = Array(aiNamePool.shuffled().prefix(newAISeats.count))
         var slots = (0..<6).map { SessionPlayer.empty(at: $0) }
         slots[0] = SessionPlayer(slotIndex: 0, uid: uid, name: name, avatar: avatar, joined: true)
         for (n, i) in newAISeats.enumerated() {
             slots[i] = SessionPlayer(slotIndex: i, uid: "AI-\(i)",
-                                     name: aiNamePool[n % aiNamePool.count], avatar: "🤖", joined: true)
+                                     name: shuffledNames[n], avatar: "🤖", joined: true)
         }
         playerSlots = slots
         return code
@@ -226,17 +228,31 @@ enum SessionStatus: String {
         let ref = db.collection("sessions").document(code)
         let snapshot = try await ref.getDocument()
 
-        guard snapshot.exists,
-              let slotsData = snapshot.data()?["playerSlots"] as? [[String: Any]] else {
+        guard snapshot.exists, let data = snapshot.data(),
+              let slotsData = data["playerSlots"] as? [[String: Any]] else {
             throw URLError(.badServerResponse)
         }
-        guard let emptyIndex = slotsData.firstIndex(where: { !($0["joined"] as? Bool ?? false) }) else {
-            throw URLError(.resourceUnavailable)
+
+        let rawAISeats = (data["aiSeats"] as? [Any] ?? [])
+            .compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
+            .sorted()
+
+        let joinIndex: Int
+        if let firstAI = rawAISeats.first {
+            // Multiplayer: replace the lowest-numbered AI slot
+            joinIndex = firstAI
+        } else {
+            // Classic online: find first empty slot
+            guard let idx = slotsData.firstIndex(where: { !($0["joined"] as? Bool ?? false) }) else {
+                throw URLError(.resourceUnavailable)
+            }
+            joinIndex = idx
         }
 
         var updated = slotsData
-        updated[emptyIndex] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
-        try await ref.updateData(["playerSlots": updated])
+        updated[joinIndex] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
+        let newAISeats = rawAISeats.filter { $0 != joinIndex }
+        try await ref.updateData(["playerSlots": updated, "aiSeats": newAISeats])
 
         sessionCode = code
         isHost = false

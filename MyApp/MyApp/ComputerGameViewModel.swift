@@ -97,6 +97,7 @@ final class ComputerGameViewModel {
     var humanMustPass: Bool { humanMinBid > 250 }
     var biddingStartPlayerIndex: Int = 0
     var biddingToastMessage: String? = nil
+    var bidWinnerInfo: BidWinnerInfo? = nil
     var playerHasPassed: [Bool] = Array(repeating: false, count: 6)
     var humanCanPass: Bool = true
 
@@ -105,6 +106,7 @@ final class ComputerGameViewModel {
     var lastTrickWinnerIndex: Int = -1
     var lastTrickPoints: Int = 0
     private var nextHandContinuation: CheckedContinuation<Void, Never>?
+    private var bidWinnerContinuation: CheckedContinuation<Void, Never>?
 
     // MARK: Post-bid
     var trumpSuit: TrumpSuit = .spades
@@ -300,9 +302,17 @@ final class ComputerGameViewModel {
             message = "\(playerName(dealerIndex)) is forced to bid 130"
             try? await Task.sleep(nanoseconds: 500_000_000)
         } else {
-            biddingToastMessage = "🎉 \(playerName(highBidderIndex)) wins the bid at \(highBid)!"
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            biddingToastMessage = nil
+            bidWinnerInfo = BidWinnerInfo(name: playerName(highBidderIndex),
+                                          avatar: playerAvatar(highBidderIndex),
+                                          bid: highBid)
+            if humanPlayerIndices.contains(highBidderIndex) {
+                // Human winner — wait until they tap Continue
+                await withCheckedContinuation { cont in bidWinnerContinuation = cont }
+            } else {
+                // AI winner — auto-proceed after 1.5 seconds
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+            }
+            bidWinnerInfo = nil
         }
 
         if humanPlayerIndices.contains(highBidderIndex) {
@@ -323,6 +333,11 @@ final class ComputerGameViewModel {
     func humanPass() {
         bidContinuation?.resume(returning: 0)
         bidContinuation = nil
+    }
+
+    func proceedFromBidWinner() {
+        bidWinnerContinuation?.resume()
+        bidWinnerContinuation = nil
     }
 
     // MARK: - Smart Calling Defaults

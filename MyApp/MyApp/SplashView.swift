@@ -4,6 +4,7 @@ import Foundation
 // MARK: - Splash + Onboarding Flow
 
 struct SplashView: View {
+    @EnvironmentObject private var themeManager: ThemeManager
     var onComplete: () -> Void
 
     enum Page { case splash, playerSetup, deckAndDeal }
@@ -12,7 +13,7 @@ struct SplashView: View {
 
     var body: some View {
         ZStack {
-            Color.darkBG.ignoresSafeArea()
+            Comic.bg.ignoresSafeArea()
             switch page {
             case .splash:
                 SplashPage(onProceed: {
@@ -80,17 +81,9 @@ private struct SplashPage: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // ── Background gradient ──────────────────────────────────
-                RadialGradient(
-                    colors: [
-                        Color(red: 0.10, green: 0.14, blue: 0.26),
-                        Color.darkBG
-                    ],
-                    center: .init(x: 0.5, y: 0.38),
-                    startRadius: 0,
-                    endRadius: geo.size.height * 0.72
-                )
-                .ignoresSafeArea()
+                // ── Background ──────────────────────────────────
+                Comic.bg.ignoresSafeArea()
+                ThemedBackground().ignoresSafeArea()
 
                 // ── Floating particles ───────────────────────────────────
                 ForEach(0..<particles.count, id: \.self) { i in
@@ -131,53 +124,30 @@ private struct SplashPage: View {
                 VStack(spacing: 0) {
                     Spacer()
 
-                    // Spade logo
+                    // Spade logo — 120pt gold, thick black shadow offset 4pt
                     Text("♠")
-                        .font(.system(size: 112, weight: .black))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color.masterGold,
-                                         Color(red: 1.0, green: 0.95, blue: 0.55),
-                                         Color.masterGold],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .shadow(color: Color.masterGold.opacity(0.9), radius: 24)
-                        .shadow(color: Color.masterGold.opacity(0.4), radius: 48)
+                        .font(.system(size: 120, weight: .black))
+                        .foregroundStyle(Comic.yellow)
+                        .shadow(color: Comic.black, radius: 0, x: 4, y: 4)
+                        .shadow(color: Comic.black.opacity(0.3), radius: 0, x: 8, y: 8)
                         .offset(y: spadeY)
                         .opacity(spadeOpacity)
                         .scaleEffect(spadeScale)
 
                     Spacer().frame(height: 18)
 
-                    // Title with shimmer
+                    // Title — black outline text effect
                     Text("The Shady Spade")
-                        .font(.system(size: 34, weight: .heavy, design: .default))
-                        .foregroundStyle(
-                            // Guard: shimmer outside (0,1) means the highlight is fully
-                            // off-screen — stops would collapse or invert, causing the
-                            // "Gradient stop locations must be ordered" runtime warning.
-                            shimmer > 0.0 && shimmer < 1.0
-                                ? AnyShapeStyle(LinearGradient(
-                                    stops: [
-                                        .init(color: .white,      location: max(0.0, shimmer - 0.25)),
-                                        .init(color: .masterGold, location: shimmer),
-                                        .init(color: .white,      location: min(1.0, shimmer + 0.25)),
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ))
-                                : AnyShapeStyle(Color.white)
-                        )
-                        .shadow(color: Color.masterGold.opacity(0.3), radius: 8)
+                        .font(.system(size: 34, weight: .black, design: .default))
+                        .foregroundStyle(Comic.textPrimary)
+                        .shadow(color: Comic.black.opacity(0.25), radius: 0, x: 2, y: 2)
 
                     Spacer().frame(height: 6)
 
-                    // Subtitle
+                    // Subtitle — bold
                     Text("6-Player Secret Partner Card Game")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.55))
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
                         .opacity(subtitleOp)
 
                     Spacer().frame(height: 36)
@@ -194,28 +164,18 @@ private struct SplashPage: View {
                         Text("CREATED BY")
                             .font(.system(size: 10, weight: .semibold))
                             .kerning(2.5)
-                            .foregroundStyle(.white.opacity(0.35))
+                            .foregroundStyle(Comic.textSecondary.opacity(0.7))
                         Text("Vijay Goyal")
                             .font(.title3.bold())
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.masterGold, Color(red: 1, green: 0.95, blue: 0.6)],
-                                    startPoint: .leading, endPoint: .trailing
-                                )
-                            )
+                            .foregroundStyle(Comic.textPrimary)
                     }
                     .opacity(creatorOp)
                     .padding(.bottom, 28)
 
                     // CTA
                     VStack(spacing: 12) {
-                        goldButton(label: "Let's Play", icon: "arrow.right.circle.fill", action: onProceed)
+                        goldButton(label: "Let's Play", icon: "arrow.right.circle.fill", action: { onSkip?() })
                             .padding(.horizontal, 32)
-                        if let onSkip {
-                            Button("Skip to menu") { onSkip() }
-                                .font(.footnote)
-                                .foregroundStyle(.white.opacity(0.45))
-                        }
                     }
                     .padding(.bottom, 54)
                     .opacity(buttonOp)
@@ -237,32 +197,29 @@ private struct SplashPage: View {
             ruleRow("xmark.seal.fill",    "Get SET → lose your bid amount")
         }
         .padding(18)
-        .background {
+        .background(Comic.yellow)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [Color.masterGold.opacity(0.5), Color.white.opacity(0.1)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                }
-        }
+                .strokeBorder(Comic.black, lineWidth: Comic.borderWidth)
+        )
+        .shadow(color: Comic.black.opacity(0.85), radius: 0, x: 5, y: 5)
         .padding(.horizontal, 24)
     }
 
     private func ruleRow(_ icon: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.caption.bold())
-                .foregroundStyle(.masterGold)
-                .frame(width: 18)
+            ZStack {
+                Circle()
+                    .fill(Comic.black)
+                    .frame(width: 24, height: 24)
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Comic.white)
+            }
             Text(text)
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.82))
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .foregroundStyle(Comic.black)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -320,9 +277,9 @@ private struct PlayerSetupPage: View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
                 Text("♠").font(.system(size: 40, weight: .black)).foregroundStyle(.masterGold)
-                Text("Who's Playing?").font(.largeTitle.bold()).foregroundStyle(.white)
+                Text("Who's Playing?").font(.system(size: 34, weight: .black, design: .rounded)).foregroundStyle(.adaptivePrimary)
                 Text("Enter a name for each of the 6 players")
-                    .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             .padding(.top, 56)
             .padding(.bottom, 24)
@@ -365,17 +322,18 @@ private struct PlayerSetupPage: View {
     private func nameField(index i: Int) -> some View {
         HStack(spacing: 14) {
             ZStack {
-                Circle().fill(Color.offenseBlue.opacity(0.15)).frame(width: 38, height: 38)
-                Text("\(i + 1)").font(.headline.bold()).foregroundStyle(.offenseBlue)
+                Circle().fill(Comic.yellow).frame(width: 38, height: 38)
+                Circle().strokeBorder(Comic.black, lineWidth: 2).frame(width: 38, height: 38)
+                Text("\(i + 1)").font(.system(size: 17, weight: .black, design: .rounded)).foregroundStyle(Comic.black)
             }
             TextField("Player \(i + 1)", text: $names[i])
-                .font(.body).foregroundStyle(.white).tint(.offenseBlue)
+                .font(.system(size: 16, weight: .bold, design: .rounded)).foregroundStyle(Comic.textPrimary).tint(.offenseBlue)
                 .focused($focused, equals: i)
                 .submitLabel(i < 5 ? .next : .done)
                 .onSubmit { focused = i < 5 ? i + 1 : nil }
         }
         .padding()
-        .glassmorphic(cornerRadius: 14)
+        .comicContainer(cornerRadius: 14)
     }
 }
 
@@ -410,7 +368,8 @@ private struct DeckAndDealPage: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Color.darkBG.ignoresSafeArea()
+                Comic.bg.ignoresSafeArea()
+                ThemedBackground().ignoresSafeArea()
 
                 // Top label
                 topLabel
@@ -436,11 +395,11 @@ private struct DeckAndDealPage: View {
                 // Deck info label
                 VStack(spacing: 2) {
                     Text("48 cards · 8 per player")
-                        .font(.caption)
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
                         .foregroundStyle(.secondary)
                     if phase == .shuffled || phase == .dealing || phase == .dealt {
                         Text("✓ Shuffled")
-                            .font(.caption.bold())
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(.offenseBlue)
                             .transition(.scale.combined(with: .opacity))
                     }
@@ -465,10 +424,10 @@ private struct DeckAndDealPage: View {
     private var topLabel: some View {
         VStack(spacing: 4) {
             Text("The Table")
-                .font(.title2.bold())
-                .foregroundStyle(.white)
+                .font(.system(size: 22, weight: .black, design: .rounded))
+                .foregroundStyle(.adaptivePrimary)
             Text("Shuffle the deck before dealing")
-                .font(.caption)
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
                 .foregroundStyle(.secondary)
         }
     }
@@ -496,23 +455,17 @@ private struct DeckAndDealPage: View {
             .fill(Color.white)
             .overlay {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .strokeBorder(Color(white: 0.75), lineWidth: 0.5)
+                    .strokeBorder(Comic.black, lineWidth: Comic.borderWidth)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(colors: [
-                            Color(red: 0.08, green: 0.18, blue: 0.50),
-                            Color(red: 0.14, green: 0.08, blue: 0.40)
-                        ], startPoint: .topLeading, endPoint: .bottomTrailing),
-                        lineWidth: 5
-                    )
+                    .strokeBorder(Comic.yellow, lineWidth: 4)
                     .padding(5)
             }
             .overlay {
                 Text("♠")
                     .font(.system(size: 18, weight: .black))
-                    .foregroundStyle(Color(red: 0.08, green: 0.18, blue: 0.50).opacity(0.5))
+                    .foregroundStyle(Comic.black.opacity(0.5))
             }
     }
 
@@ -525,27 +478,26 @@ private struct DeckAndDealPage: View {
         return VStack(spacing: 4) {
             ZStack {
                 Circle()
-                    .fill(active ? Color.masterGold.opacity(0.18) : Color.white.opacity(0.08))
+                    .fill(active ? Comic.yellow : Comic.containerBG)
                     .frame(width: 52, height: 52)
-                    .overlay {
-                        Circle().strokeBorder(
-                            active ? Color.masterGold : Color.white.opacity(0.22),
-                            lineWidth: 1.5)
-                    }
+                Circle()
+                    .strokeBorder(Comic.black, lineWidth: active ? Comic.borderWidth : 1.5)
+                    .frame(width: 52, height: 52)
                 Text(String(playerNames[i].prefix(1)).uppercased())
-                    .font(.headline.bold())
-                    .foregroundStyle(.white)
+                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .foregroundStyle(active ? Comic.black : Comic.textPrimary)
             }
+            .shadow(color: Comic.black.opacity(active ? 0.7 : 0), radius: 0, x: 3, y: 3)
             .scaleEffect(dealt > 0 && dealt % 1 == 0 ? 1.0 : 1.0) // pulse handled separately
 
             Text(playerNames[i])
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.white.opacity(0.65))
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.adaptiveSecondary)
                 .lineLimit(1)
 
             if dealt > 0 {
                 Text("\(dealt) cards")
-                    .font(.system(size: 8, weight: .semibold))
+                    .font(.system(size: 8, weight: .heavy, design: .rounded))
                     .foregroundStyle(.masterGold)
                     .transition(.scale.combined(with: .opacity))
             }
@@ -588,7 +540,7 @@ private struct DeckAndDealPage: View {
         case .shuffling:
             HStack(spacing: 10) {
                 ProgressView().tint(.masterGold)
-                Text("Shuffling…").fontWeight(.semibold).foregroundStyle(.masterGold)
+                Text("Shuffling…").font(.system(size: 17, weight: .heavy, design: .rounded)).foregroundStyle(.masterGold)
             }
             .frame(width: geo.size.width - 64)
 
@@ -602,7 +554,7 @@ private struct DeckAndDealPage: View {
         case .dealing:
             HStack(spacing: 10) {
                 ProgressView().tint(.offenseBlue)
-                Text("Dealing…").fontWeight(.semibold).foregroundStyle(.offenseBlue)
+                Text("Dealing…").font(.system(size: 17, weight: .heavy, design: .rounded)).foregroundStyle(.offenseBlue)
             }
             .frame(width: geo.size.width - 64)
 
@@ -732,21 +684,17 @@ private func goldButton(
     Button(action: action) {
         HStack(spacing: 10) {
             Image(systemName: icon)
-            Text(label).fontWeight(.bold)
+            Text(label)
         }
-        .font(.title3)
-        .foregroundStyle(enabled ? Color.black : Color.secondary)
+        .font(.system(size: 20, weight: .black, design: .rounded))
+        .foregroundStyle(enabled ? Comic.black : Color.secondary)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
-        .background {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(enabled
-                      ? AnyShapeStyle(LinearGradient(
-                            colors: [.masterGold, Color(red: 0.78, green: 0.62, blue: 0.12)],
-                            startPoint: .leading, endPoint: .trailing))
-                      : AnyShapeStyle(Color.white.opacity(0.09)))
-        }
     }
     .disabled(!enabled)
-    .buttonStyle(BouncyButton())
+    .buttonStyle(ComicButtonStyle(
+        bg: enabled ? Comic.yellow : Comic.containerBG,
+        fg: enabled ? Comic.black : .secondary,
+        borderColor: Comic.black
+    ))
 }

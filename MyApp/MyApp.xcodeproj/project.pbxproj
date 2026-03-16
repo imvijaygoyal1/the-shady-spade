@@ -18,6 +18,7 @@
 		B1000004 /* AddRoundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004 /* AddRoundView.swift */; };
 		B1000005 /* Styles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000005 /* Styles.swift */; };
 		C1000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* SettingsView.swift */; };
+		CT00001 /* ComicTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CT00002 /* ComicTheme.swift */; };
 		D1000001 /* GameTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000001 /* GameTableView.swift */; };
 		E1000001 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001 /* SplashView.swift */; };
 		F1000001 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000001 /* AuthViewModel.swift */; };
@@ -32,10 +33,20 @@
 		J1000001 /* OnlineGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = J2000001 /* OnlineGameViewModel.swift */; };
 		K1000001 /* OnlineGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K2000001 /* OnlineGameView.swift */; };
 		L1000001 /* GameHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L2000001 /* GameHistoryView.swift */; };
+		M1000001 /* CardDealAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = M2000001 /* CardDealAnimationView.swift */; };
+		N1000001 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = N2000001 /* QRScannerView.swift */; };
+		O1000001 /* AdaptiveColours.swift in Sources */ = {isa = PBXBuildFile; fileRef = O2000001 /* AdaptiveColours.swift */; };
 		P1000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = P2000001 /* PrivacyInfo.xcprivacy */; };
+		Q1000001 /* PlayerScoreBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q2000001 /* PlayerScoreBarChart.swift */; };
+		TE100001 /* ThemeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200001 /* ThemeEngine.swift */; };
+		TE100002 /* Themes.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200002 /* Themes.swift */; };
+		TE100003 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200003 /* ThemeManager.swift */; };
+		TE100004 /* ThemedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200004 /* ThemedComponents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9F4365EF2F66FDBF008FD94E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		9F4365F02F67002C008FD94E /* MyApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyApp.entitlements; sourceTree = "<group>"; };
 		9FCB9B022F54A07D005C3E4B /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A2000000 /* MyApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2000001 /* MyAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyAppApp.swift; sourceTree = "<group>"; };
@@ -48,6 +59,7 @@
 		B2000004 /* AddRoundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddRoundView.swift; sourceTree = "<group>"; };
 		B2000005 /* Styles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Styles.swift; sourceTree = "<group>"; };
 		C2000001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		CT00002 /* ComicTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComicTheme.swift; sourceTree = "<group>"; };
 		D2000001 /* GameTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTableView.swift; sourceTree = "<group>"; };
 		E2000001 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		F2000001 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
@@ -60,7 +72,15 @@
 		J2000001 /* OnlineGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGameViewModel.swift; sourceTree = "<group>"; };
 		K2000001 /* OnlineGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGameView.swift; sourceTree = "<group>"; };
 		L2000001 /* GameHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameHistoryView.swift; sourceTree = "<group>"; };
+		M2000001 /* CardDealAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardDealAnimationView.swift; sourceTree = "<group>"; };
+		N2000001 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
+		O2000001 /* AdaptiveColours.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveColours.swift; sourceTree = "<group>"; };
 		P2000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		Q2000001 /* PlayerScoreBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerScoreBarChart.swift; sourceTree = "<group>"; };
+		TE200001 /* ThemeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeEngine.swift; sourceTree = "<group>"; };
+		TE200002 /* Themes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Themes.swift; sourceTree = "<group>"; };
+		TE200003 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
+		TE200004 /* ThemedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemedComponents.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,6 +107,8 @@
 		A4000001 /* MyApp */ = {
 			isa = PBXGroup;
 			children = (
+				9F4365F02F67002C008FD94E /* MyApp.entitlements */,
+				9F4365EF2F66FDBF008FD94E /* Info.plist */,
 				A2000001 /* MyAppApp.swift */,
 				B2000003 /* MainView.swift */,
 				B2000004 /* AddRoundView.swift */,
@@ -96,6 +118,11 @@
 				B2000001 /* GameModel.swift */,
 				B2000002 /* GameViewModel.swift */,
 				B2000005 /* Styles.swift */,
+				CT00002 /* ComicTheme.swift */,
+				TE200001 /* ThemeEngine.swift */,
+				TE200002 /* Themes.swift */,
+				TE200003 /* ThemeManager.swift */,
+				TE200004 /* ThemedComponents.swift */,
 				F2000001 /* AuthViewModel.swift */,
 				F2000002 /* AuthView.swift */,
 				F2000003 /* OnlineSessionViewModel.swift */,
@@ -106,6 +133,10 @@
 				J2000001 /* OnlineGameViewModel.swift */,
 				K2000001 /* OnlineGameView.swift */,
 				L2000001 /* GameHistoryView.swift */,
+				M2000001 /* CardDealAnimationView.swift */,
+				N2000001 /* QRScannerView.swift */,
+				O2000001 /* AdaptiveColours.swift */,
+				Q2000001 /* PlayerScoreBarChart.swift */,
 				A2000002 /* ContentView.swift */,
 				A2000003 /* Assets.xcassets */,
 				A4000003 /* Preview Content */,
@@ -217,6 +248,11 @@
 				B1000003 /* MainView.swift in Sources */,
 				B1000004 /* AddRoundView.swift in Sources */,
 				B1000005 /* Styles.swift in Sources */,
+				CT00001 /* ComicTheme.swift in Sources */,
+				TE100001 /* ThemeEngine.swift in Sources */,
+				TE100002 /* Themes.swift in Sources */,
+				TE100003 /* ThemeManager.swift in Sources */,
+				TE100004 /* ThemedComponents.swift in Sources */,
 				C1000001 /* SettingsView.swift in Sources */,
 				D1000001 /* GameTableView.swift in Sources */,
 				E1000001 /* SplashView.swift in Sources */,
@@ -230,6 +266,10 @@
 				J1000001 /* OnlineGameViewModel.swift in Sources */,
 				K1000001 /* OnlineGameView.swift in Sources */,
 				L1000001 /* GameHistoryView.swift in Sources */,
+				M1000001 /* CardDealAnimationView.swift in Sources */,
+				N1000001 /* QRScannerView.swift in Sources */,
+				O1000001 /* AdaptiveColours.swift in Sources */,
+				Q1000001 /* PlayerScoreBarChart.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -359,24 +399,28 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MyApp/MyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "\"MyApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MyApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "The Shady Spade";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera is used to scan QR codes to join a multiplayer game room.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Vijay Goyal. All rights reserved.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -392,24 +436,28 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MyApp/MyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "\"MyApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MyApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "The Shady Spade";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera is used to scan QR codes to join a multiplayer game room.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Vijay Goyal. All rights reserved.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

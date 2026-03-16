@@ -25,9 +25,26 @@ struct MyAppApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @AppStorage("hasCompletedSetup") private var hasCompletedSetup = false
     @State private var authVM: AuthViewModel
+    @StateObject private var themeManager = ThemeManager.shared
 
     init() {
         _authVM = State(initialValue: AuthViewModel())
+        ThemeManager.shared.loadSavedTheme()
+    }
+
+    private func handleIncomingURL(_ url: URL) {
+        // Handles shadyspade://join/ROOMCODE
+        // and https://imvijaygoyal1.github.io/shadyspade/join/ROOMCODE
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return }
+        let parts = components.path.split(separator: "/").map(String.init)
+        guard let joinIndex = parts.firstIndex(of: "join"), joinIndex + 1 < parts.count else { return }
+        let roomCode = parts[joinIndex + 1]
+        guard !roomCode.isEmpty else { return }
+        NotificationCenter.default.post(
+            name: .joinRoomFromQR,
+            object: nil,
+            userInfo: ["roomCode": roomCode]
+        )
     }
 
     var body: some Scene {
@@ -35,17 +52,18 @@ struct MyAppApp: App {
             Group {
                 if hasCompletedSetup {
                     ModeSelectionView()
-                        .preferredColorScheme(.dark)
                 } else {
                     SplashView {
                         hasCompletedSetup = true
                     }
-                    .preferredColorScheme(.dark)
                 }
             }
+            .preferredColorScheme(themeManager.preferredColorScheme)
+            .environmentObject(themeManager)
             // didFinishLaunchingWithOptions has already run at this point,
             // so Firebase is configured and it is safe to start the auth listener.
             .task { authVM.start() }
+            .onOpenURL { url in handleIncomingURL(url) }
         }
         .modelContainer(for: [Round.self, GameHistory.self, HistoryRound.self])
         .environment(authVM)

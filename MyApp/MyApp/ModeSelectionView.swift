@@ -1,7 +1,14 @@
 import SwiftUI
 import SwiftData
 
+private struct NamePromptRequest: Identifiable {
+    let id = UUID()
+    let mode: String
+    let isOnline: Bool
+}
+
 struct ModeSelectionView: View {
+    @EnvironmentObject private var themeManager: ThemeManager
     @Environment(\.modelContext) private var modelContext
     @Environment(AuthViewModel.self) private var authVM
     @State private var vm = GameViewModel()
@@ -9,18 +16,18 @@ struct ModeSelectionView: View {
     @State private var showingOnline = false
     @State private var showingSettings = false
     @State private var showingHistory = false
-    @State private var showingNamePrompt = false
+    @State private var namePromptRequest: NamePromptRequest? = nil
     @State private var pendingName = ""
     @State private var pendingAvatar = "🦁"
     @State private var nameConfirmed = false
-    @State private var isOnlineNamePrompt = false
-    @State private var showingCustomSetup = false
+    @State private var confirmedIsOnline = false
     @AppStorage("soloPlayerName") private var soloPlayerName = ""
     @AppStorage("soloPlayerAvatar") private var soloPlayerAvatar = "🦁"
 
     var body: some View {
         ZStack {
-            Color.darkBG.ignoresSafeArea()
+            Comic.bg.ignoresSafeArea()
+            ThemedBackground().ignoresSafeArea()
 
             // Top bar — history (left) + settings (right)
             VStack {
@@ -31,10 +38,11 @@ struct ModeSelectionView: View {
                     } label: {
                         Image(systemName: "clock.fill")
                             .font(.system(size: 18))
-                            .foregroundStyle(Color.adaptiveSecondary)
+                            .foregroundStyle(Color.white)
                             .frame(width: 40, height: 40)
-                            .background(Color.adaptiveSubtle)
+                            .background(Comic.black)
                             .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
                     }
                     .padding(.top, 56)
                     .padding(.leading, 20)
@@ -47,10 +55,11 @@ struct ModeSelectionView: View {
                     } label: {
                         Image(systemName: "gearshape.fill")
                             .font(.system(size: 18))
-                            .foregroundStyle(Color.adaptiveSecondary)
+                            .foregroundStyle(Color.white)
                             .frame(width: 40, height: 40)
-                            .background(Color.adaptiveSubtle)
+                            .background(Comic.black)
                             .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
                     }
                     .padding(.top, 56)
                     .padding(.trailing, 20)
@@ -63,14 +72,16 @@ struct ModeSelectionView: View {
 
                 VStack(spacing: 14) {
                     Image(systemName: "suit.spade.fill")
-                        .font(.system(size: 60))
-                        .foregroundStyle(.masterGold)
+                        .font(.system(size: 72))
+                        .foregroundStyle(Comic.yellow)
+                        .shadow(color: Comic.black, radius: 0, x: 3, y: 3)
                     Text("The Shady Spade")
-                        .font(.largeTitle.bold())
-                        .foregroundStyle(.adaptivePrimary)
+                        .font(.system(size: 34, weight: .black))
+                        .foregroundStyle(Comic.textPrimary)
+                        .shadow(color: Comic.black.opacity(0.18), radius: 0, x: 2, y: 2)
                     Text("Choose a game mode")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
                 }
                 .padding(.bottom, 52)
 
@@ -79,36 +90,26 @@ struct ModeSelectionView: View {
                         icon: "person.fill.badge.plus",
                         title: "Play Solo",
                         subtitle: "Face 5 AI opponents in a fully simulated game",
-                        color: .masterGold
+                        color: Comic.yellow,
+                        iconBG: Comic.yellow
                     ) {
                         HapticManager.impact(.medium)
-                        isOnlineNamePrompt = false
                         pendingName = soloPlayerName
                         pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        showingNamePrompt = true
-                    }
-
-                    ModeCard(
-                        icon: "person.wave.2.fill",
-                        title: "Play Online",
-                        subtitle: "6 real players over Wi-Fi or internet",
-                        color: .teal
-                    ) {
-                        HapticManager.impact(.medium)
-                        isOnlineNamePrompt = true
-                        pendingName = soloPlayerName
-                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        showingNamePrompt = true
+                        namePromptRequest = NamePromptRequest(mode: "Solo Game", isOnline: false)
                     }
 
                     ModeCard(
                         icon: "person.3.fill",
-                        title: "Custom Game",
-                        subtitle: "2–5 humans online + AI fills empty seats",
-                        color: Color(red: 0.55, green: 0.35, blue: 0.85)
+                        title: "Multiplayer",
+                        subtitle: "Play with friends — mix humans and AI",
+                        color: Comic.blue,
+                        iconBG: Comic.blue
                     ) {
                         HapticManager.impact(.medium)
-                        showingCustomSetup = true
+                        pendingName = soloPlayerName
+                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                        namePromptRequest = NamePromptRequest(mode: "Multiplayer", isOnline: true)
                     }
                 }
                 .adaptiveContentFrame()
@@ -117,31 +118,30 @@ struct ModeSelectionView: View {
                 Spacer()
 
                 Text("© 2026 Vijay Goyal. All rights reserved.")
-                    .font(.caption2)
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white.opacity(0.25))
                     .padding(.bottom, 20)
             }
         }
         .onAppear { vm.setup(with: modelContext) }
-        .sheet(isPresented: $showingNamePrompt, onDismiss: {
+        .sheet(item: $namePromptRequest, onDismiss: {
             if nameConfirmed {
                 nameConfirmed = false
-                if isOnlineNamePrompt { isOnlineNamePrompt = false; showingOnline = true }
+                if confirmedIsOnline { showingOnline = true }
                 else { showingSolo = true }
-            } else {
-                isOnlineNamePrompt = false
             }
-        }) {
+        }) { request in
             NamePromptSheet(
                 pendingName: $pendingName,
                 pendingAvatar: $pendingAvatar,
-                mode: isOnlineNamePrompt ? "Online Game" : "Solo Game"
+                mode: request.mode
             ) {
                 let trimmed = pendingName.trimmingCharacters(in: .whitespaces)
                 soloPlayerName = trimmed.isEmpty ? "Player" : trimmed
                 soloPlayerAvatar = pendingAvatar
+                confirmedIsOnline = request.isOnline
                 nameConfirmed = true
-                showingNamePrompt = false
+                namePromptRequest = nil
             }
         }
         .fullScreenCover(isPresented: $showingSolo) {
@@ -150,6 +150,7 @@ struct ModeSelectionView: View {
                 humanName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
                 humanAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
             )
+            .environmentObject(themeManager)
         }
         .fullScreenCover(isPresented: $showingOnline) {
             OnlineEntryView(
@@ -157,15 +158,15 @@ struct ModeSelectionView: View {
                 playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
                 playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
             )
+            .environmentObject(themeManager)
         }
         .sheet(isPresented: $showingHistory) {
             GameHistoryView()
+                .environmentObject(themeManager)
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
-        }
-        .fullScreenCover(isPresented: $showingCustomSetup) {
-            CustomGameSetupView(vm: vm)
+                .environmentObject(themeManager)
         }
     }
 }
@@ -186,12 +187,13 @@ private struct OnlineEntryView: View {
                 vm: vm,
                 playerName: playerName,
                 playerAvatar: playerAvatar,
-                onGameReady: { myIndex, isHostVal, code, names in
+                onGameReady: { myIndex, isHostVal, code, names, avatars in
                     onlineGame = OnlineGameViewModel(
                         myPlayerIndex: myIndex,
                         isHost: isHostVal,
                         sessionCode: code,
                         playerNames: names,
+                        playerAvatars: avatars,
                         dealerIndex: 0,
                         roundNumber: 1
                     )
@@ -207,59 +209,55 @@ private struct NamePromptSheet: View {
     var mode: String = "Solo Game"
     let onStart: () -> Void
 
-    private let avatarOptions = [
-        "🦁", "🐯", "🦊", "🐺", "🦅", "🐻", "🦈", "🐉",
-        "🧙", "🥷", "🤴", "👸", "🦸", "🎩"
-    ]
+    private let avatarOptions = Comic.comicCharacters.map { $0.emoji }
     private var trimmed: String { pendingName.trimmingCharacters(in: .whitespaces) }
 
     var body: some View {
         ZStack {
-            Color.darkBG.ignoresSafeArea()
+            Comic.bg.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
 
-                    // Large avatar preview with gold edit badge
+                    // Large avatar preview with comic border
                     ZStack {
                         Circle()
-                            .fill(Color.masterGold.opacity(0.12))
+                            .fill(Comic.yellow.opacity(0.25))
                             .frame(width: 104, height: 104)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.masterGold.opacity(0.35), lineWidth: 2)
-                            )
-                            .shadow(color: Color.masterGold.opacity(0.25), radius: 14)
+                        Circle()
+                            .strokeBorder(Comic.black, lineWidth: Comic.borderWidth)
+                            .frame(width: 104, height: 104)
                         Text(pendingAvatar)
                             .font(.system(size: 58))
                             .animation(.spring(response: 0.3, dampingFraction: 0.65), value: pendingAvatar)
                     }
+                    .shadow(color: Comic.black.opacity(0.85), radius: 0, x: 4, y: 4)
                     .padding(.top, 28)
 
                     // Title & subtitle
                     VStack(spacing: 6) {
                         Text(mode)
-                            .font(.title2.bold())
+                            .font(.system(size: 22, weight: .black, design: .rounded))
                             .foregroundStyle(.adaptivePrimary)
                         Text("Pick a name for your avatar")
-                            .font(.subheadline)
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
                             .foregroundStyle(.secondary)
                     }
 
                     // Name input
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Your Avatar Name")
-                            .font(.caption.bold())
-                            .foregroundStyle(.masterGold)
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Comic.textSecondary)
                             .padding(.leading, 4)
                         TextField("Enter avatar name...", text: $pendingName)
                             .textFieldStyle(.plain)
-                            .font(.title3.bold())
-                            .foregroundStyle(.adaptivePrimary)
+                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Comic.textPrimary)
                             .multilineTextAlignment(.center)
                             .padding(.vertical, 14)
-                            .background(Color.adaptiveSubtle)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .padding(.horizontal, 14)
+                            .comicContainer(cornerRadius: 14)
                             .submitLabel(.go)
                             .onSubmit(onStart)
                     }
@@ -268,7 +266,7 @@ private struct NamePromptSheet: View {
                     // Avatar picker
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Choose Your Avatar")
-                            .font(.caption.bold())
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(.masterGold)
                             .padding(.leading, 28)
 
@@ -282,25 +280,29 @@ private struct NamePromptSheet: View {
                                             pendingAvatar = emoji
                                         }
                                     } label: {
-                                        ZStack {
-                                            Circle()
-                                                .fill(isSelected
-                                                      ? Color.masterGold.opacity(0.18)
-                                                      : Color.adaptiveSubtle)
-                                                .frame(width: 64, height: 64)
-                                                .overlay(
-                                                    Circle()
-                                                        .stroke(
-                                                            isSelected ? Color.masterGold : Color.adaptiveDivider,
-                                                            lineWidth: isSelected ? 2.5 : 1
-                                                        )
-                                                )
-                                                .shadow(
-                                                    color: isSelected ? Color.masterGold.opacity(0.45) : .clear,
-                                                    radius: 10
-                                                )
-                                            Text(emoji)
-                                                .font(.system(size: 34))
+                                        VStack(spacing: 4) {
+                                            ZStack {
+                                                Circle()
+                                                    .fill(Comic.avatarBG(for: emoji))
+                                                    .frame(width: 58, height: 58)
+                                                Circle()
+                                                    .strokeBorder(Color.white.opacity(0.6), lineWidth: 1.5)
+                                                    .frame(width: 58, height: 58)
+                                                Circle()
+                                                    .strokeBorder(isSelected ? Comic.yellow : Comic.black, lineWidth: isSelected ? 3 : 2)
+                                                    .frame(width: 58, height: 58)
+                                                Text(emoji)
+                                                    .font(.system(size: 32))
+                                            }
+                                            .shadow(color: isSelected ? Comic.yellow.opacity(0.7) : Comic.black.opacity(0.6), radius: 0, x: 2, y: 2)
+                                            .scaleEffect(isSelected ? 1.1 : 1.0)
+                                            .animation(.spring(response: 0.3), value: isSelected)
+
+                                            Text(Comic.characterName(for: emoji))
+                                                .font(.system(size: 9, weight: .heavy, design: .rounded))
+                                                .foregroundStyle(isSelected ? Comic.yellow : Comic.textSecondary)
+                                                .lineLimit(1)
+                                                .frame(width: 64)
                                         }
                                     }
                                     .buttonStyle(BouncyButton())
@@ -314,18 +316,16 @@ private struct NamePromptSheet: View {
                     // Start Game button
                     Button(action: onStart) {
                         Text("Start Game")
-                            .font(.headline.bold())
-                            .foregroundStyle(trimmed.isEmpty ? Color.secondary : Color.black)
+                            .font(.system(size: 18, weight: .black, design: .rounded))
+                            .foregroundStyle(trimmed.isEmpty ? Color.secondary : Comic.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(
-                                trimmed.isEmpty
-                                    ? AnyShapeStyle(Color.adaptiveDivider)
-                                    : AnyShapeStyle(Color.masterGold)
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
-                    .buttonStyle(BouncyButton())
+                    .buttonStyle(ComicButtonStyle(
+                        bg: trimmed.isEmpty ? Comic.containerBG : Comic.yellow,
+                        fg: trimmed.isEmpty ? .secondary : Comic.black,
+                        borderColor: Comic.black
+                    ))
                     .disabled(trimmed.isEmpty)
                     .padding(.horizontal, 28)
                     .padding(.bottom, 36)
@@ -333,7 +333,7 @@ private struct NamePromptSheet: View {
             }
         }
         .presentationDetents([.large])
-        .presentationBackground(Color.darkBG)
+        .presentationBackground(Comic.bg)
     }
 }
 
@@ -342,6 +342,8 @@ private struct ModeCard: View {
     let title: String
     let subtitle: String
     let color: Color
+    /// Solid icon-background colour
+    var iconBG: Color = Comic.yellow
     let action: () -> Void
 
     var body: some View {
@@ -349,239 +351,35 @@ private struct ModeCard: View {
             HStack(spacing: 18) {
                 ZStack {
                     Circle()
-                        .fill(color.opacity(0.15))
-                        .frame(width: 60, height: 60)
+                        .fill(iconBG)
+                        .frame(width: 56, height: 56)
+                        .overlay(Circle().strokeBorder(Comic.black, lineWidth: Comic.borderWidth))
                     Image(systemName: icon)
-                        .font(.system(size: 26))
-                        .foregroundStyle(color)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(Comic.white)
                 }
+                .shadow(color: Comic.black.opacity(0.85), radius: 0, x: 3, y: 3)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.title3.bold())
-                        .foregroundStyle(.adaptivePrimary)
+                        .font(.system(size: 20, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
                     Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
                         .multilineTextAlignment(.leading)
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(color.opacity(0.6))
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
             }
             .padding(20)
-            .glassmorphic(cornerRadius: 20)
+            .comicContainer(cornerRadius: 20)
         }
         .buttonStyle(BouncyButton())
     }
 }
 
-// MARK: - Custom Game Setup (Firestore multi-device with AI auto-play)
-
-private struct CustomGameSetupView: View {
-    @Bindable var vm: GameViewModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var humanCount = 2
-    @State private var playerName = ""
-    @State private var playerAvatar = "🦁"
-    @State private var playerUID = UUID().uuidString
-    @State private var sessionVM = OnlineSessionViewModel()
-    @State private var showingLobby = false
-    @State private var isCreating = false
-
-    private static let seatsByCount: [[Int]] = [
-        [0], [0, 3], [0, 2, 4], [0, 1, 3, 4], [0, 1, 2, 3, 4]
-    ]
-    private var humanSeats: [Int] { Self.seatsByCount[humanCount - 1] }
-    private var aiSeats: [Int] { (0..<6).filter { !humanSeats.contains($0) } }
-
-    private let avatarOptions = [
-        "🦁", "🐯", "🦊", "🐺", "🦅", "🐻", "🦈", "🐉", "🧙", "🥷", "🤴", "👸", "🦸", "🎩"
-    ]
-    private var trimmed: String { playerName.trimmingCharacters(in: .whitespaces) }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.darkBG.ignoresSafeArea()
-                ScrollView {
-                    VStack(spacing: 20) {
-                        humanCountSection
-                        hostIdentitySection
-                        startButton
-                    }
-                    .padding()
-                }
-            }
-            .navigationTitle("Custom Game")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .fullScreenCover(isPresented: $showingLobby) {
-            CustomOnlineEntryView(
-                vm: vm,
-                playerName: trimmed.isEmpty ? "Player" : trimmed,
-                playerAvatar: playerAvatar,
-                playerUID: playerUID,
-                sessionVM: sessionVM
-            )
-        }
-    }
-
-    private var humanCountSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Number of Human Players")
-                .font(.headline)
-                .foregroundStyle(.masterGold)
-            Text("Remaining seats are filled by AI opponents")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack(spacing: 16) {
-                ForEach(2...5, id: \.self) { n in
-                    Button {
-                        HapticManager.impact(.light)
-                        humanCount = n
-                    } label: {
-                        Text("\(n)")
-                            .font(.title3.bold())
-                            .foregroundStyle(humanCount == n ? .black : .adaptivePrimary)
-                            .frame(width: 48, height: 48)
-                            .background(humanCount == n ? Color.masterGold : Color.adaptiveSubtle)
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(BouncyButton())
-                }
-                Spacer()
-            }
-        }
-        .padding()
-        .glassmorphic(cornerRadius: 20)
-    }
-
-    private var hostIdentitySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Your Name & Avatar")
-                .font(.headline)
-                .foregroundStyle(.masterGold)
-
-            TextField("Enter your name...", text: $playerName)
-                .textFieldStyle(.plain)
-                .font(.title3.bold())
-                .foregroundStyle(.adaptivePrimary)
-                .padding(.vertical, 12)
-                .padding(.horizontal, 14)
-                .background(Color.adaptiveSubtle)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(avatarOptions, id: \.self) { emoji in
-                        let isSelected = playerAvatar == emoji
-                        Button {
-                            HapticManager.impact(.light)
-                            playerAvatar = emoji
-                        } label: {
-                            Text(emoji)
-                                .font(.system(size: 28))
-                                .frame(width: 48, height: 48)
-                                .background(isSelected ? Color.masterGold.opacity(0.2) : Color.adaptiveSubtle)
-                                .clipShape(Circle())
-                                .overlay(Circle().strokeBorder(isSelected ? Color.masterGold : Color.clear, lineWidth: 2))
-                        }
-                        .buttonStyle(BouncyButton())
-                    }
-                }
-                .padding(.horizontal, 2)
-            }
-        }
-        .padding()
-        .glassmorphic(cornerRadius: 20)
-    }
-
-    private var startButton: some View {
-        Button {
-            guard !isCreating && !trimmed.isEmpty else { return }
-            HapticManager.impact(.medium)
-            isCreating = true
-            createAndShowLobby()
-        } label: {
-            HStack(spacing: 10) {
-                if isCreating {
-                    ProgressView().tint(.black).scaleEffect(0.85)
-                }
-                Text(isCreating ? "Creating…" : "Create Lobby")
-                    .font(.title3.bold())
-                    .foregroundStyle(trimmed.isEmpty ? Color.secondary : Color.black)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
-            .background(trimmed.isEmpty ? Color.masterGold.opacity(0.35) : Color.masterGold)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
-        .buttonStyle(BouncyButton())
-        .disabled(trimmed.isEmpty || isCreating)
-    }
-
-    /// Instantly shows lobby (synchronous local prep) then writes to Firebase in background.
-    private func createAndShowLobby() {
-        playerUID = UUID().uuidString
-        sessionVM = OnlineSessionViewModel()
-        // 1. Prepare local state synchronously — lobby can show immediately
-        sessionVM.prepareLocalSession(
-            uid: playerUID,
-            name: trimmed.isEmpty ? "Player" : trimmed,
-            avatar: playerAvatar,
-            aiSeats: aiSeats,
-            sessionType: "custom"
-        )
-        // 2. Show lobby right away (session code is already set)
-        showingLobby = true
-        isCreating = false
-        // 3. Write to Firebase in background
-        Task { await sessionVM.writeSessionToFirebase() }
-    }
-}
-
-// MARK: - Custom Online Entry (host-driven Firestore game with AI seats)
-
-private struct CustomOnlineEntryView: View {
-    @Bindable var vm: GameViewModel
-    let playerName: String
-    let playerAvatar: String
-    let playerUID: String
-    var sessionVM: OnlineSessionViewModel
-    @State private var onlineGame: OnlineGameViewModel? = nil
-
-    var body: some View {
-        if let game = onlineGame {
-            OnlineGameView(game: game)
-        } else {
-            OnlineSessionView(
-                vm: vm,
-                playerName: playerName,
-                playerAvatar: playerAvatar,
-                prebuiltSessionVM: sessionVM,
-                prebuiltPlayerUID: playerUID,
-                onGameReady: { myIndex, isHostVal, code, names in
-                    onlineGame = OnlineGameViewModel(
-                        myPlayerIndex: myIndex,
-                        isHost: isHostVal,
-                        sessionCode: code,
-                        playerNames: names,
-                        dealerIndex: 0,
-                        roundNumber: 1,
-                        aiSeats: sessionVM.aiSeats
-                    )
-                }
-            )
-        }
-    }
-}

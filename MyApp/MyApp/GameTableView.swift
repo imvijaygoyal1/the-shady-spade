@@ -168,17 +168,17 @@ struct GameTableView: View {
                     .overlay {
                         Circle()
                             .strokeBorder(
-                                received ? Color.masterGold : Color.white.opacity(0.3),
+                                received ? Color.masterGold : Color.adaptiveDivider,
                                 lineWidth: 1.5
                             )
                     }
                 Text(String(playerNames[i].prefix(1)).uppercased())
                     .font(.headline.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.adaptivePrimary)
             }
             Text(playerNames[i])
                 .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(Color.adaptiveSecondary)
                 .lineLimit(1)
         }
     }
