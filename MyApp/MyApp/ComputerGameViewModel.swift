@@ -474,7 +474,6 @@ final class ComputerGameViewModel {
         currentLeaderIndex = highBidderIndex
 
         for _ in 0..<8 {
-            currentTrick = []
             let order = (0..<6).map { (currentLeaderIndex + $0) % 6 }
 
             for playerIndex in order {
@@ -508,13 +507,16 @@ final class ComputerGameViewModel {
                 }
             }
 
-            resolveTrick()
-            if trickNumber < 8 {
-                // Pause and wait for human to confirm next hand
-                await waitForNextHand()
+            // Brief pause so SwiftUI renders the 6th card before resolveTrick() fires.
+            // Pass & Play uses 1s (multiple people at the table); solo uses 0.4s.
+            if humanPlayerIndices.count > 1 {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
             } else {
                 try? await Task.sleep(nanoseconds: 400_000_000)
             }
+            resolveTrick()
+            await waitForNextHand()
+            currentTrick = []
         }
 
         phase = .roundComplete
@@ -524,10 +526,22 @@ final class ComputerGameViewModel {
         lastTrickWinnerIndex = trickWinners.last ?? -1
         lastTrickPoints = completedTricks.last?.map(\.card.pointValue).reduce(0, +) ?? 0
         waitingForNextHand = true
-        await withCheckedContinuation { cont in
-            nextHandContinuation = cont
+        print("DEBUG waitForNextHand: humanPlayerIndices=\(humanPlayerIndices), count=\(humanPlayerIndices.count)")
+
+        if humanPlayerIndices.count > 1 {
+            print("DEBUG: multiplayer mode - auto advancing")
+            // Pass & Play — auto advance after 5 seconds
+            // so all players at the table can see the cards
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            waitingForNextHand = false
+        } else {
+            print("DEBUG: solo mode - waiting for tap")
+            // Solo — wait for human to tap Next Hand
+            await withCheckedContinuation { cont in
+                nextHandContinuation = cont
+            }
+            waitingForNextHand = false
         }
-        waitingForNextHand = false
     }
 
     func humanReadyForNextHand() {
@@ -547,23 +561,38 @@ final class ComputerGameViewModel {
 
     private func checkPartnerReveal(card: Card, playerIndex: Int) {
         guard playerIndex != highBidderIndex else { return }
-        let isCard1 = card.id == calledCard1
-        let isCard2 = card.id == calledCard2
-        guard isCard1 || isCard2 else { return }
 
-        if isCard1 && !partner1Revealed { partner1Revealed = true }
-        else if isCard2 && !partner2Revealed { partner2Revealed = true }
-        else { return }
+        let isCalledCard1 = card.id == calledCard1
+        let isCalledCard2 = card.id == calledCard2
+        guard isCalledCard1 || isCalledCard2 else { return }
 
-        // Fill display slots in play order regardless of which card was called
-        if revealedPartner1Index == nil {
+        // Use the index slots as the single source of truth.
+        // Only set each slot once — first come first served in play order.
+        // Do NOT use separate boolean flags — they can desync from indices.
+
+        if isCalledCard1 && revealedPartner1Index == nil {
+            // Called card 1 played for the first time
             revealedPartner1Index = playerIndex
-        } else {
+            partner1Revealed = true
+        } else if isCalledCard2 && revealedPartner2Index == nil {
+            // Called card 2 played for the first time
             revealedPartner2Index = playerIndex
+            partner2Revealed = true
+        } else if isCalledCard1 && revealedPartner1Index != nil {
+            // Called card 1 already revealed — ignore duplicate
+            return
+        } else if isCalledCard2 && revealedPartner2Index != nil {
+            // Called card 2 already revealed — ignore duplicate
+            return
+        } else {
+            return
         }
 
-        let isSelf = playerIndex == humanPlayerIndex
-        partnerRevealMessage = isSelf ? "You are a partner!" : "\(playerName(playerIndex)) is a partner!"
+        // Show the reveal banner
+        let isSelf = humanPlayerIndices.contains(playerIndex)
+        partnerRevealMessage = isSelf
+            ? "You are a partner!"
+            : "\(playerName(playerIndex)) is a partner!"
         Task {
             try? await Task.sleep(nanoseconds: 2_500_000_000)
             partnerRevealMessage = nil

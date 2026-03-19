@@ -15,6 +15,11 @@ final class ThemeManager: ObservableObject {
         MinimalLightTheme(),
         ClassicGreenTheme(),
         CasinoRoyaleTheme(),
+        MidnightNoirTheme(),
+        RoyalCrimsonTheme(),
+        DiamondClubTheme(),
+        BaroqueGoldTheme(),
+        NeonUndergroundTheme(),
     ]
 
     // MARK: - Convenience accessors

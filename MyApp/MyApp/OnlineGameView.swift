@@ -770,283 +770,6 @@ private struct OnlineCallingView: View {
 
 // MARK: - Playing
 
-// MARK: - Offense Team Strip (online)
-
-private struct OnlineOffenseTeamStrip: View {
-    var game: OnlineGameViewModel
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Text("Bidding Team:")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            OnlineOffenseChip(
-                name: game.playerName(game.highBidderIndex),
-                isBidder: true
-            )
-
-            let p1Name: String? = game.revealedPartner1Index >= 0
-                ? game.playerName(game.revealedPartner1Index)
-                : nil
-            let p2Name: String? = game.revealedPartner2Index >= 0
-                ? game.playerName(game.revealedPartner2Index)
-                : nil
-
-            OnlineOffenseChip(name: p1Name)
-            OnlineOffenseChip(name: p2Name)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
-    }
-}
-
-private struct OnlineOffenseChip: View {
-    let name: String?
-    var isBidder: Bool = false
-
-    private var revealed: Bool { name != nil }
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ZStack {
-                Circle()
-                    .fill(revealed ? Color.masterGold.opacity(0.22) : Color.adaptiveDivider)
-                    .frame(width: 28, height: 28)
-                Text(revealed ? String((name ?? "").prefix(1)).uppercased() : "?")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(revealed ? .masterGold : .secondary)
-            }
-            Text(name ?? "Partner?")
-                .font(.system(size: 15, weight: revealed ? .semibold : .regular))
-                .foregroundStyle(revealed ? .adaptivePrimary : .secondary)
-                .lineLimit(1)
-            if isBidder {
-                Image(systemName: "crown.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.masterGold)
-            }
-        }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
-        .background(revealed ? Color.masterGold.opacity(0.08) : Color.adaptiveDivider)
-        .clipShape(Capsule())
-        .overlay(Capsule().strokeBorder(
-            revealed ? Color.masterGold.opacity(0.3) : Color.adaptiveDivider,
-            lineWidth: 0.8))
-        .transition(.scale.combined(with: .opacity))
-    }
-}
-
-// MARK: - Online Teams Banner
-
-private struct OnlineTeamsBanner: View {
-    var game: OnlineGameViewModel
-
-    // Only show players whose reveal has been triggered by playing a called card
-    private var offenseIndices: [Int] {
-        [game.highBidderIndex >= 0 ? game.highBidderIndex : nil,
-         game.revealedPartner1Index >= 0 ? game.revealedPartner1Index : nil,
-         game.revealedPartner2Index >= 0 ? game.revealedPartner2Index : nil].compactMap { $0 }
-    }
-    private var defenseIndices: [Int] {
-        let known = Set(offenseIndices)
-        return (0..<6).filter { !known.contains($0) }
-    }
-
-    var body: some View {
-        VStack(spacing: 8) {
-            offenseRow
-            defenseRow
-        }
-        .padding(.horizontal, 16)
-    }
-
-    private var offenseRow: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 4) {
-                Text("👑")
-                    .font(.system(size: 16))
-                Text("BIDDING TEAM")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(Comic.biddingTeamText)
-            }
-            .frame(width: 110, alignment: .leading)
-
-            Spacer()
-
-            HStack(spacing: 4) {
-                ForEach(offenseIndices, id: \.self) { i in
-                    offenseNamePill(index: i)
-                }
-                // Unknown partner placeholders until reveal
-                ForEach(0..<(3 - offenseIndices.count), id: \.self) { _ in
-                    unknownPartnerPill()
-                }
-            }
-            .animation(.spring(response: 0.4), value: offenseIndices.count)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(minHeight: 44)
-        .background(Comic.biddingTeamBG)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Comic.black, lineWidth: 3)
-        )
-        .overlay(alignment: .top) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.5), lineWidth: 1)
-                .padding(2)
-        }
-        .shadow(color: Comic.black.opacity(0.8), radius: 0, x: 3, y: 3)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: offenseIndices.count)
-    }
-
-    private var defenseRow: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 4) {
-                Text("🛡")
-                    .font(.system(size: 16))
-                Text("DEFENSE")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(Comic.defenseTeamText)
-            }
-            .frame(width: 110, alignment: .leading)
-
-            Spacer()
-
-            HStack(spacing: 4) {
-                ForEach(defenseIndices, id: \.self) { i in
-                    defenseNamePill(index: i)
-                }
-            }
-            .animation(.spring(response: 0.4), value: defenseIndices.count)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(minHeight: 44)
-        .background(Comic.defenseTeamBG)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Comic.black, lineWidth: 3)
-        )
-        .overlay(alignment: .top) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
-                .padding(2)
-        }
-        .shadow(color: Comic.black.opacity(0.8), radius: 0, x: 3, y: 3)
-    }
-
-    private func offensePlayerChip(index: Int) -> some View {
-        ZStack {
-            Circle()
-                .fill(Color.white.opacity(0.9))
-                .frame(width: 34, height: 34)
-            Circle()
-                .strokeBorder(Comic.black, lineWidth: 2)
-                .frame(width: 34, height: 34)
-            Text(String(game.playerName(index).prefix(1)).uppercased())
-                .font(.system(size: 14, weight: .black, design: .rounded))
-                .foregroundStyle(Comic.black)
-        }
-        .shadow(color: Comic.black.opacity(0.6), radius: 0, x: 1.5, y: 1.5)
-    }
-
-    private func defensePlayerChip(index: Int) -> some View {
-        ZStack {
-            Circle()
-                .fill(Comic.defenseTeamText.opacity(0.2))
-                .frame(width: 34, height: 34)
-            Circle()
-                .strokeBorder(Comic.defenseTeamText, lineWidth: 2)
-                .frame(width: 34, height: 34)
-            Text(String(game.playerName(index).prefix(1)).uppercased())
-                .font(.system(size: 14, weight: .black, design: .rounded))
-                .foregroundStyle(Comic.defenseTeamText)
-        }
-        .shadow(color: Comic.black.opacity(0.6), radius: 0, x: 1.5, y: 1.5)
-    }
-
-    private func offenseNamePill(index: Int) -> some View {
-        let name = game.playerName(index)
-        let display = String(name.prefix(7))
-        return Text(display)
-            .font(.system(size: 11, weight: .heavy, design: .rounded))
-            .foregroundStyle(Comic.black)
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(minWidth: 32, minHeight: 26)
-            .background(Color.white.opacity(0.9))
-            .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Comic.black, lineWidth: 1.5))
-            .shadow(color: Comic.black.opacity(0.5), radius: 0, x: 1, y: 1)
-            .transition(.move(edge: .trailing).combined(with: .opacity))
-    }
-
-    private func unknownPartnerPill() -> some View {
-        Text("? Partner")
-            .font(.system(size: 11, weight: .heavy, design: .rounded))
-            .foregroundStyle(Comic.black.opacity(0.35))
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(minWidth: 32, minHeight: 26)
-            .background(Color.white.opacity(0.25))
-            .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Comic.black.opacity(0.3), lineWidth: 1.5))
-    }
-
-    private func defenseNamePill(index: Int) -> some View {
-        let name = game.playerName(index)
-        let display = String(name.prefix(7))
-        return Text(display)
-            .font(.system(size: 11, weight: .heavy, design: .rounded))
-            .foregroundStyle(Comic.defenseTeamText)
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(minWidth: 32, minHeight: 26)
-            .background(Comic.defenseTeamText.opacity(0.15))
-            .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Comic.defenseTeamText.opacity(0.5), lineWidth: 1.5))
-            .shadow(color: Comic.black.opacity(0.5), radius: 0, x: 1, y: 1)
-            .transition(.move(edge: .trailing).combined(with: .opacity))
-    }
-}
-
-private struct OnlineDefenseChip: View {
-    let name: String
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ZStack {
-                Circle()
-                    .fill(Color.defenseRose.opacity(0.20))
-                    .frame(width: 28, height: 28)
-                Text(String(name.prefix(1)).uppercased())
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.defenseRose)
-            }
-            Text(name)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.adaptivePrimary)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(Color.defenseRose.opacity(0.10))
-        .clipShape(Capsule())
-        .overlay(Capsule().strokeBorder(Color.defenseRose.opacity(0.55), lineWidth: 1))
-        .transition(.scale.combined(with: .opacity))
-    }
-}
-
 private struct OnlinePlayingView: View {
     var game: OnlineGameViewModel
     @State private var turnTextPulse = false
@@ -1055,22 +778,28 @@ private struct OnlinePlayingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Other player badges — fixed non-scrollable top row (mirrors solo mode)
-            HStack(spacing: 6) {
-                ForEach(0..<6) { i in
-                    if i != game.myPlayerIndex {
-                        OnlinePlayerBadge(
-                            name: game.playerName(i),
-                            avatar: game.playerAvatar(i),
-                            isOffense: game.offenseSet.contains(i),
-                            isActive: game.currentActionPlayer == i,
-                            compact: vSizeClass == .compact
+            // Player role cards — all 6 players
+            HStack(spacing: 5) {
+                ForEach(0..<6, id: \.self) { i in
+                    AvatarRoleCard(
+                        avatar: game.playerAvatar(i),
+                        name: game.playerName(i),
+                        role: resolveAvatarRole(
+                            playerIndex: i,
+                            bidderIndex: game.highBidderIndex,
+                            revealedPartner1: game.revealedPartner1Index >= 0
+                                ? game.revealedPartner1Index : nil,
+                            revealedPartner2: game.revealedPartner2Index >= 0
+                                ? game.revealedPartner2Index : nil,
+                            isRoundComplete: false
                         )
-                        .frame(maxWidth: .infinity)
-                    }
+                    )
                 }
             }
-            .padding(.horizontal, 12)
+            .id("avatars-\(game.revealedPartner1Index)-\(game.revealedPartner2Index)")
+            .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
+            .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
+            .padding(.horizontal, 8)
             .padding(.top, vSizeClass == .compact ? 8 : 44)
             .padding(.bottom, vSizeClass == .compact ? 4 : 8)
 
@@ -1154,21 +883,8 @@ private struct OnlinePlayingView: View {
                     .padding(.horizontal, 16)
 
                     // Info row — trump badge + called cards badge
-                    GeometryReader { geo in
-                        let badgeW = geo.size.width / 2 - 24
-                        HStack(spacing: 8) {
-                            TrumpBadge(suit: game.trumpSuit, width: badgeW)
-                            CalledCardsBadge(card1: game.calledCard1, card2: game.calledCard2, width: badgeW)
-                            Spacer()
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .frame(height: 52)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 4)
-
-                    // Teams banner — bidding + defense
-                    OnlineTeamsBanner(game: game)
+                    TrumpAndCalledRow(trumpSuit: game.trumpSuit, card1: game.calledCard1, card2: game.calledCard2)
+                        .padding(.vertical, 4)
 
                     // Score banner
                     BidProgressBanner(
@@ -1196,8 +912,6 @@ private struct OnlinePlayingView: View {
 
             if game.isMyTurn {
                 HStack(spacing: 8) {
-                    Text("👆")
-                        .font(.system(size: 20))
                     Text("Your turn — tap a card to play")
                         .font(.system(size: 18, weight: .black, design: .rounded))
                         .foregroundStyle(Comic.yellow)
@@ -1248,11 +962,6 @@ private struct OnlinePlayingView: View {
                 }
                 .frame(height: onlineAdaptiveHandHeight())
 
-                Text("Your Hand")
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 8)
             }
             .playerTurnGlow(isActive: game.isMyTurn)
             .padding(.horizontal, 12)
@@ -1269,33 +978,73 @@ private struct OnlinePlayingView: View {
     }
 }
 
-private struct OnlinePlayerBadge: View {
-    let name: String
-    let avatar: String
-    let isOffense: Bool
-    let isActive: Bool
-    var compact: Bool = false
+// MARK: - Offense Team Strip (online)
 
-    private var circleSize: CGFloat { compact ? 34 : 46 }
+private struct OnlineOffenseTeamStrip: View {
+    var game: OnlineGameViewModel
 
     var body: some View {
-        VStack(spacing: compact ? 2 : 4) {
+        HStack(spacing: 6) {
+            Text("Bidding Team:")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            OnlineOffenseChip(
+                name: game.playerName(game.highBidderIndex),
+                isBidder: true
+            )
+
+            let p1Name: String? = game.revealedPartner1Index >= 0
+                ? game.playerName(game.revealedPartner1Index)
+                : nil
+            let p2Name: String? = game.revealedPartner2Index >= 0
+                ? game.playerName(game.revealedPartner2Index)
+                : nil
+
+            OnlineOffenseChip(name: p1Name)
+            OnlineOffenseChip(name: p2Name)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
+    }
+}
+
+private struct OnlineOffenseChip: View {
+    let name: String?
+    var isBidder: Bool = false
+
+    private var revealed: Bool { name != nil }
+
+    var body: some View {
+        HStack(spacing: 6) {
             ZStack {
                 Circle()
-                    .fill(isOffense ? Color.offenseBlue.opacity(0.18) : Color.defenseRose.opacity(0.12))
-                    .frame(width: circleSize, height: circleSize)
-                    .overlay(Circle().strokeBorder(
-                        isActive ? Color.masterGold.opacity(0.8) : (isOffense ? Color.offenseBlue.opacity(0.4) : Color.defenseRose.opacity(0.2)),
-                        lineWidth: isActive ? 2 : 1))
-                Text(avatar)
-                    .font(.system(size: compact ? 20 : 28))
+                    .fill(revealed ? Color.masterGold.opacity(0.22) : Color.adaptiveDivider)
+                    .frame(width: 28, height: 28)
+                Text(revealed ? String((name ?? "").prefix(1)).uppercased() : "?")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(revealed ? .masterGold : .secondary)
             }
-            Text(name)
-                .font(.system(size: compact ? 7 : 9, weight: .bold, design: .rounded))
-                .foregroundStyle(.adaptivePrimary)
+            Text(name ?? "Partner?")
+                .font(.system(size: 15, weight: revealed ? .semibold : .regular))
+                .foregroundStyle(revealed ? .adaptivePrimary : .secondary)
                 .lineLimit(1)
+            if isBidder {
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.masterGold)
+            }
         }
-        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .background(revealed ? Color.masterGold.opacity(0.08) : Color.adaptiveDivider)
+        .clipShape(Capsule())
+        .overlay(Capsule().strokeBorder(
+            revealed ? Color.masterGold.opacity(0.3) : Color.adaptiveDivider,
+            lineWidth: 0.8))
+        .transition(.scale.combined(with: .opacity))
     }
 }
 
@@ -1539,13 +1288,21 @@ private struct OnlineRoundCompleteView: View {
                         let isMe = i == game.myPlayerIndex
 
                         HStack(spacing: 12) {
-                            ZStack {
-                                Circle().fill(Comic.yellow)
-                                    .frame(width: 36, height: 36)
-                                    .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
-                                Text(String((isMe ? "You" : game.playerName(i)).prefix(1)).uppercased())
-                                    .font(.caption.bold()).foregroundStyle(Comic.black)
-                            }
+                            AvatarRoleCard(
+                                avatar: game.playerAvatar(i),
+                                name: game.playerName(i),
+                                role: resolveAvatarRole(
+                                    playerIndex: i,
+                                    bidderIndex: game.highBidderIndex,
+                                    revealedPartner1: game.partner1Index >= 0
+                                        ? game.partner1Index : nil,
+                                    revealedPartner2: game.partner2Index >= 0
+                                        ? game.partner2Index : nil,
+                                    isRoundComplete: true
+                                ),
+                                width: 48,
+                                height: 68
+                            )
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(isMe ? "You" : game.playerName(i))
                                     .font(.subheadline.bold()).foregroundStyle(Comic.textPrimary)
@@ -1784,6 +1541,7 @@ private func onlineAdaptiveCardWidth(available: CGFloat, count: Int) -> CGFloat 
 private func onlineAdaptiveHandHeight() -> CGFloat {
     74 * (106.0 / 74.0)
 }
+
 
 // MARK: - ViewModel extension for card count helper
 

@@ -511,61 +511,54 @@ extension View {
     }
 }
 
-// MARK: - Bid Progress Banner (UPDATE 7: circular only, no horizontal bar)
+// MARK: - Bid Progress Banner
 
 struct BidProgressBanner: View {
     let bidderName: String
     let offenseCaught: Int
     let bid: Int
-    var circleSize: CGFloat = 72  // NEW parameter
 
-    private var remaining: Int { max(0, bid - offenseCaught) }
     private var progress: Double { bid > 0 ? min(1.0, Double(offenseCaught) / Double(bid)) : 0 }
     private var bidMade: Bool { offenseCaught >= bid }
-
-    private var accentColor: Color {
-        if bidMade          { return Color(red: 0.20, green: 0.78, blue: 0.45) }
-        if progress >= 0.75 { return Color.masterGold }
-        return Color.offenseBlue
+    private var barColor: Color {
+        bidMade
+            ? ThemeManager.shared.colours.scoreCircleProgress
+            : (progress >= 0.75
+                ? ThemeManager.shared.colours.accentColor
+                : ThemeManager.shared.colours.scoreCircleProgress)
     }
 
     var body: some View {
-        VStack(spacing: 6) {
-            ZStack {
-                // Yellow fill background for comic look
-                Circle()
-                    .fill(Comic.yellow.opacity(0.18))
-                    .frame(width: circleSize, height: circleSize)
-                Circle()
-                    .stroke(Comic.black.opacity(0.15), lineWidth: 4)
-                    .frame(width: circleSize, height: circleSize)
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(accentColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                    .frame(width: circleSize, height: circleSize)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.5), value: progress)
-                // 4pt black border ring
-                Circle()
-                    .strokeBorder(Comic.black, lineWidth: 4)
-                    .frame(width: circleSize, height: circleSize)
-                VStack(spacing: 1) {
-                    Text("\(offenseCaught)")
-                        .font(.system(size: circleSize * 0.286, weight: .black, design: .rounded))
-                        .foregroundStyle(Comic.textPrimary)
-                        .contentTransition(.numericText())
-                    Text("/ \(bid)")
-                        .font(.system(size: circleSize * 0.131, weight: .black, design: .rounded))
-                        .foregroundStyle(Comic.textSecondary)
+        VStack(spacing: 4) {
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
+                Text("\(offenseCaught)")
+                    .font(.system(size: 16, weight: .black, design: .rounded).monospacedDigit())
+                    .foregroundStyle(ThemeManager.shared.colours.scoreCircleText)
+                    .contentTransition(.numericText())
+                Text("/ \(bid)")
+                    .font(.system(size: 12, weight: .heavy, design: .rounded).monospacedDigit())
+                    .foregroundStyle(ThemeManager.shared.colours.textTertiary)
+                Spacer()
+                if bidMade {
+                    Text("✓ Made!")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(ThemeManager.shared.colours.scoreCircleProgress)
                 }
             }
-            Text(bidMade ? "✓ Made!" : "\(remaining) to go")
-                .font(.system(size: 14, weight: .black, design: .rounded))
-                .foregroundStyle(bidMade ? accentColor : Comic.textSecondary)
-                .contentTransition(.identity)
-                .animation(.easeInOut, value: bidMade)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(ThemeManager.shared.colours.scoreCircleTrack)
+                        .frame(height: 10)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(barColor)
+                        .frame(width: max(8, geo.size.width * CGFloat(progress)), height: 10)
+                        .animation(.easeInOut(duration: 0.5), value: progress)
+                }
+            }
+            .frame(height: 10)
         }
-        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
         .padding(.vertical, 6)
     }
 }
@@ -603,11 +596,12 @@ struct TrumpBadge: View {
     }
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(alignment: .center, spacing: 2) {
             Text("TRUMP")
                 .font(.system(size: 8, weight: .heavy, design: .rounded))
                 .foregroundStyle(Color.adaptiveSecondary)
                 .kerning(1.5)
+                .frame(maxWidth: .infinity)
             HStack(spacing: 5) {
                 Text(suit.rawValue)
                     .font(.system(size: 26, weight: .black, design: .rounded))
@@ -618,9 +612,31 @@ struct TrumpBadge: View {
                     .minimumScaleFactor(0.5)
                     .foregroundStyle(suitColor)
             }
+            .frame(maxWidth: .infinity)
         }
         .frame(width: width, height: 52)
         .comicContainer(cornerRadius: 12)
+    }
+}
+
+// MARK: - Trump And Called Row
+
+struct TrumpAndCalledRow: View {
+    let trumpSuit: TrumpSuit
+    let card1: String
+    let card2: String
+
+    var body: some View {
+        GeometryReader { geo in
+            let badgeW = geo.size.width / 2 - 6
+            HStack(spacing: 12) {
+                TrumpBadge(suit: trumpSuit, width: badgeW)
+                CalledCardsBadge(card1: card1, card2: card2, width: badgeW)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .frame(height: 52)
+        .padding(.horizontal, 16)
     }
 }
 
@@ -646,11 +662,12 @@ struct CalledCardsBadge: View {
     }
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(alignment: .center, spacing: 2) {
             Text("CALLED")
                 .font(.system(size: 8, weight: .heavy, design: .rounded))
                 .foregroundStyle(Color.adaptiveSecondary)
                 .kerning(1.5)
+                .frame(maxWidth: .infinity)
             HStack(spacing: 4) {
                 Text(card1)
                     .font(.system(size: 18, weight: .black, design: .rounded))
@@ -662,8 +679,207 @@ struct CalledCardsBadge: View {
                     .font(.system(size: 18, weight: .black, design: .rounded))
                     .foregroundStyle(cardColor(card2))
             }
+            .frame(maxWidth: .infinity)
         }
         .frame(width: width, height: 52)
         .comicContainer(cornerRadius: 12)
+    }
+}
+
+// MARK: - AvatarRole
+
+enum AvatarRole {
+    case bidder
+    case partner
+    case defense
+    case unknown
+}
+
+// MARK: - AvatarRole Resolution
+
+/// Single source of truth for role resolution across all game modes.
+/// Call this from every playing and round-complete view instead of
+/// writing inline role logic.
+///
+/// - Parameters:
+///   - playerIndex:       The player index to resolve (0–5)
+///   - bidderIndex:       Index of the current round's bidder
+///   - revealedPartner1:  Index of first revealed partner, or nil if not yet revealed
+///   - revealedPartner2:  Index of second revealed partner, or nil if not yet revealed
+///   - isRoundComplete:   Pass true on round complete screens where all roles are known
+///
+func resolveAvatarRole(
+    playerIndex: Int,
+    bidderIndex: Int,
+    revealedPartner1: Int?,   // nil = unrevealed
+    revealedPartner2: Int?,   // nil = unrevealed
+    isRoundComplete: Bool = false
+) -> AvatarRole {
+
+    let isBidder = playerIndex == bidderIndex
+
+    if isRoundComplete {
+        let isPartner = (revealedPartner1 == playerIndex
+                      || revealedPartner2 == playerIndex)
+                      && !isBidder
+        switch (isBidder, isPartner) {
+        case (true,  _    ): return .bidder
+        case (false, true ): return .partner
+        default:             return .defense
+        }
+    }
+
+    // During play — partners only confirmed when they play their called card
+    let isRevealedPartner = revealedPartner1 == playerIndex
+                         || revealedPartner2 == playerIndex
+    let bothRevealed = revealedPartner1 != nil
+                    && revealedPartner2 != nil
+    let isConfirmedDefense = bothRevealed
+                          && !isBidder
+                          && !isRevealedPartner
+
+    switch (isBidder, isRevealedPartner, isConfirmedDefense) {
+    case (true,  _,     _    ): return .bidder
+    case (false, true,  _    ): return .partner
+    case (false, _,     true ): return .defense
+    default:                    return .unknown
+    }
+}
+
+// MARK: - AvatarRoleCard
+
+struct AvatarRoleCard: View {
+    let avatar: String
+    let name: String
+    let role: AvatarRole
+    var width: CGFloat = 58
+    var height: CGFloat = 80
+
+    @ObservedObject private var theme = ThemeManager.shared
+
+    private var topLabel: String {
+        switch role {
+        case .bidder:  return "BIDDER"
+        case .partner: return "★ PARTNER"
+        case .defense: return "DEFENSE"
+        case .unknown: return "?"
+        }
+    }
+
+    private var topBg: Color {
+        switch role {
+        case .bidder:  return theme.colours.accentColor
+        case .partner: return theme.colours.calledBadgeText.opacity(0.9)
+        case .defense: return theme.colours.defenseBackground
+        case .unknown: return theme.colours.containerBackground.opacity(0.5)
+        }
+    }
+
+    private var topFg: Color {
+        switch role {
+        case .bidder:  return theme.colours.shadySpadeText
+        case .partner: return theme.colours.screenBackground
+        case .defense: return theme.colours.defenseText
+        case .unknown: return theme.colours.textTertiary
+        }
+    }
+
+    private var midBg: Color {
+        switch role {
+        case .bidder:  return theme.colours.biddingTeamBackground
+        case .partner: return theme.colours.calledBadgeBackground.opacity(0.3)
+        case .defense: return theme.colours.defenseBackground.opacity(0.8)
+        case .unknown: return theme.colours.containerBackground
+        }
+    }
+
+    private var bottomFg: Color {
+        switch role {
+        case .bidder:  return theme.colours.biddingTeamText
+        case .partner: return theme.colours.calledBadgeText
+        case .defense: return theme.colours.defenseText.opacity(0.7)
+        case .unknown: return theme.colours.textSecondary
+        }
+    }
+
+    private var bottomBg: Color {
+        switch role {
+        case .bidder:  return theme.colours.biddingTeamBackground
+        case .partner: return theme.colours.calledBadgeBackground.opacity(0.15)
+        case .defense: return theme.colours.defenseBackground.opacity(0.5)
+        case .unknown: return theme.colours.screenBackground.opacity(0.3)
+        }
+    }
+
+    private var borderColor: Color {
+        switch role {
+        case .bidder:  return theme.colours.accentColor
+        case .partner: return theme.colours.calledBadgeBorder
+        case .defense: return theme.colours.defenseBorder
+        case .unknown: return theme.colours.separator
+        }
+    }
+
+    private var isDashed: Bool { role == .unknown }
+    private var isPartner: Bool { role == .partner }
+
+    @State private var glowPulse = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(topLabel)
+                .font(.system(size: 7, weight: .heavy, design: .rounded))
+                .kerning(0.4)
+                .foregroundStyle(topFg)
+                .frame(maxWidth: .infinity)
+                .frame(height: 18)
+                .background(topBg)
+
+            Text(avatar)
+                .font(.system(size: 22))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(midBg)
+
+            Text(String(name.prefix(8)))
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(bottomFg)
+                .frame(maxWidth: .infinity)
+                .frame(height: 16)
+                .background(bottomBg)
+        }
+        .frame(width: width, height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(
+                    isDashed ? borderColor.opacity(0.4) : borderColor,
+                    style: isDashed
+                        ? StrokeStyle(lineWidth: 1.5, dash: [4, 3])
+                        : StrokeStyle(lineWidth: isPartner ? 3.0 : 1.5)
+                )
+        )
+        .overlay(
+            Group {
+                if isPartner {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .strokeBorder(
+                            theme.colours.calledBadgeBorder.opacity(glowPulse ? 0.8 : 0.2),
+                            lineWidth: 4
+                        )
+                        .padding(-3)
+                        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: glowPulse)
+                }
+            }
+        )
+        .scaleEffect(isPartner ? 1.06 : 1.0)
+        .transition(.asymmetric(
+            insertion: .scale(scale: 0.6).combined(with: .opacity),
+            removal: .opacity
+        ))
+        .animation(.spring(response: 0.5, dampingFraction: 0.6), value: role)
+        .onAppear { if isPartner { glowPulse = true } }
+        .onChange(of: role) { _, newRole in
+            if newRole == .partner { glowPulse = true }
+        }
     }
 }

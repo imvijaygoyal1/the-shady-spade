@@ -18,6 +18,7 @@
 		B1000004 /* AddRoundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004 /* AddRoundView.swift */; };
 		B1000005 /* Styles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000005 /* Styles.swift */; };
 		C1000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* SettingsView.swift */; };
+		CR100001 /* CasinoRoyaleTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CR200001 /* CasinoRoyaleTheme.swift */; };
 		CT00001 /* ComicTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CT00002 /* ComicTheme.swift */; };
 		D1000001 /* GameTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000001 /* GameTableView.swift */; };
 		E1000001 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001 /* SplashView.swift */; };
@@ -37,9 +38,9 @@
 		N1000001 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = N2000001 /* QRScannerView.swift */; };
 		O1000001 /* AdaptiveColours.swift in Sources */ = {isa = PBXBuildFile; fileRef = O2000001 /* AdaptiveColours.swift */; };
 		P1000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = P2000001 /* PrivacyInfo.xcprivacy */; };
+		PT100001 /* PremiumThemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = PT200001 /* PremiumThemes.swift */; };
 		Q1000001 /* PlayerScoreBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q2000001 /* PlayerScoreBarChart.swift */; };
 		SE100001 /* ScoringEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SE200001 /* ScoringEngine.swift */; };
-		CR100001 /* CasinoRoyaleTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CR200001 /* CasinoRoyaleTheme.swift */; };
 		TE100001 /* ThemeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200001 /* ThemeEngine.swift */; };
 		TE100002 /* Themes.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200002 /* Themes.swift */; };
 		TE100003 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200003 /* ThemeManager.swift */; };
@@ -61,6 +62,7 @@
 		B2000004 /* AddRoundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddRoundView.swift; sourceTree = "<group>"; };
 		B2000005 /* Styles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Styles.swift; sourceTree = "<group>"; };
 		C2000001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		CR200001 /* CasinoRoyaleTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CasinoRoyaleTheme.swift; sourceTree = "<group>"; };
 		CT00002 /* ComicTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComicTheme.swift; sourceTree = "<group>"; };
 		D2000001 /* GameTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTableView.swift; sourceTree = "<group>"; };
 		E2000001 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
@@ -78,9 +80,9 @@
 		N2000001 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
 		O2000001 /* AdaptiveColours.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveColours.swift; sourceTree = "<group>"; };
 		P2000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		PT200001 /* PremiumThemes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumThemes.swift; sourceTree = "<group>"; };
 		Q2000001 /* PlayerScoreBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerScoreBarChart.swift; sourceTree = "<group>"; };
 		SE200001 /* ScoringEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngine.swift; sourceTree = "<group>"; };
-		CR200001 /* CasinoRoyaleTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CasinoRoyaleTheme.swift; sourceTree = "<group>"; };
 		TE200001 /* ThemeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeEngine.swift; sourceTree = "<group>"; };
 		TE200002 /* Themes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Themes.swift; sourceTree = "<group>"; };
 		TE200003 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
@@ -143,6 +145,7 @@
 				Q2000001 /* PlayerScoreBarChart.swift */,
 				SE200001 /* ScoringEngine.swift */,
 				CR200001 /* CasinoRoyaleTheme.swift */,
+				PT200001 /* PremiumThemes.swift */,
 				A2000002 /* ContentView.swift */,
 				A2000003 /* Assets.xcassets */,
 				A4000003 /* Preview Content */,
@@ -278,6 +281,7 @@
 				Q1000001 /* PlayerScoreBarChart.swift in Sources */,
 				SE100001 /* ScoringEngine.swift in Sources */,
 				CR100001 /* CasinoRoyaleTheme.swift in Sources */,
+				PT100001 /* PremiumThemes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -344,6 +348,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				VALIDATE_WORKSPACE = NO;
 			};
 			name = Debug;
 		};
@@ -399,6 +404,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
+				VALIDATE_WORKSPACE = NO;
 			};
 			name = Release;
 		};
@@ -409,7 +415,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = MyApp/MyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"MyApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
@@ -428,7 +434,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -446,7 +452,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = MyApp/MyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"MyApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
@@ -465,7 +471,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

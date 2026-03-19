@@ -76,8 +76,6 @@ final class OnlineGameViewModel {
     private var lastProcessedNonce: String = ""
 
     // MARK: Partner reveal tracking (all devices)
-    private var hasRevealedPartner1 = false
-    private var hasRevealedPartner2 = false
     private var hasInitializedCalling = false
     // Revealed in play order (slot 2 = first reveal, slot 3 = second reveal)
     var revealedPartner1Index: Int = -1
@@ -312,12 +310,12 @@ final class OnlineGameViewModel {
         let newP1 = iDef("partner1Index", -1)
         let newP2 = iDef("partner2Index", -1)
 
-        // Partner reveal detection (before updating) — fill display slots in play order
+        // Partner reveal detection — index being >= 0 IS the boolean (no separate flags)
+        // partner1Index from Firestore maps directly to revealedPartner1Index (card1 → slot1)
+        // partner2Index from Firestore maps directly to revealedPartner2Index (card2 → slot2)
         if newPhase == .playing || newPhase == .roundComplete || newPhase == .gameOver {
-            if !hasRevealedPartner1 && newP1 >= 0 {
-                hasRevealedPartner1 = true
-                if revealedPartner1Index == -1 { revealedPartner1Index = newP1 }
-                else { revealedPartner2Index = newP1 }
+            if newP1 >= 0 && revealedPartner1Index == -1 {
+                revealedPartner1Index = newP1
                 let name = playerName(newP1)
                 let isSelf = newP1 == myPlayerIndex
                 partnerRevealMessage = isSelf ? "You are a partner!" : "\(name) is a partner!"
@@ -326,10 +324,8 @@ final class OnlineGameViewModel {
                     self.partnerRevealMessage = nil
                 }
             }
-            if !hasRevealedPartner2 && newP2 >= 0 {
-                hasRevealedPartner2 = true
-                if revealedPartner1Index == -1 { revealedPartner1Index = newP2 }
-                else { revealedPartner2Index = newP2 }
+            if newP2 >= 0 && revealedPartner2Index == -1 {
+                revealedPartner2Index = newP2
                 let name = playerName(newP2)
                 let isSelf = newP2 == myPlayerIndex
                 let msg = isSelf ? "You are a partner!" : "\(name) is a partner!"
@@ -344,9 +340,9 @@ final class OnlineGameViewModel {
             }
         }
 
-        // Reset reveal flags and play-order slots on new round
-        if newP1 == -1 { hasRevealedPartner1 = false; revealedPartner1Index = -1 }
-        if newP2 == -1 { hasRevealedPartner2 = false; revealedPartner2Index = -1 }
+        // Reset index slots on new round — index being -1 means unrevealed
+        if newP1 == -1 { revealedPartner1Index = -1 }
+        if newP2 == -1 { revealedPartner2Index = -1 }
 
         // Bid winner announcement (detect .bidding → .calling before updating phase)
         if newPhase == .calling && phase == .bidding {
@@ -402,6 +398,8 @@ final class OnlineGameViewModel {
         calledCard2 = gs["calledCard2"] as? String ?? ""
         partner1Index = newP1
         partner2Index = newP2
+        let prevTrickNumber = trickNumber
+        let prevWonTotal = wonPointsPerPlayer.reduce(0, +)
         currentLeaderIndex = i("currentLeaderIndex")
         trickNumber = i("trickNumber")
         if let wpp = gs["wonPointsPerPlayer"] as? [Any] {
@@ -433,6 +431,9 @@ final class OnlineGameViewModel {
         if newPhase == .bidding && newCurrentActionPlayer == myPlayerIndex {
             humanBidAmount = Double(max(130, highBid + 5))
         }
+
+        // No next-hand confirmation overlay in online mode.
+        // The host controls round progression via Firestore.
     }
 
     private func parseCard(_ id: String) -> Card? {
@@ -470,6 +471,7 @@ final class OnlineGameViewModel {
     func proceedFromBidWinner() {
         bidWinnerInfo = nil
     }
+
 
     func confirmCalling() async {
         let c1 = calledCard1Rank + calledCard1Suit
@@ -607,6 +609,19 @@ final class OnlineGameViewModel {
             let trickData = newTrick.map { e -> [String: Any] in ["pi": e.playerIndex, "card": e.card.id] }
 
             if newTrick.count == 6 {
+                // Show all 6 cards to every client before resolving so the
+                // 6th card has a chance to render on all screens.
+                var showGs = buildGS(phase: .playing, currentActionPlayer: -1,
+                    bids: bids, highBid: highBid, highBidderIndex: highBidderIndex,
+                    message: "\(playerName(playerIndex)) played \(card.rank)\(card.suit)")
+                showGs["currentTrick"] = trickData
+                showGs["partner1Index"] = newP1
+                showGs["partner2Index"] = newP2
+                try? await ref.updateData(["gameState": showGs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
+
+                // 1 second for clients to render the 6th card
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+
                 let winner = trickWinnerIndex(trick: newTrick)
                 let pts = newTrick.map(\.card.pointValue).reduce(0, +)
                 var newWon = wonPointsPerPlayer
@@ -639,7 +654,7 @@ final class OnlineGameViewModel {
                     gs["currentLeaderIndex"] = winner
                     gs["partner1Index"] = hostPartner1
                     gs["partner2Index"] = hostPartner2
-                    try? await ref.updateData(["gameState": gs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
+                    try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
                 } else {
                     var gs = buildGS(phase: .playing, currentActionPlayer: winner,
                         bids: bids, highBid: highBid, highBidderIndex: highBidderIndex,
@@ -650,7 +665,7 @@ final class OnlineGameViewModel {
                     gs["currentLeaderIndex"] = winner
                     gs["partner1Index"] = newP1
                     gs["partner2Index"] = newP2
-                    try? await ref.updateData(["gameState": gs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
+                    try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
                 }
             } else {
                 // Trick in progress — advance to next in order

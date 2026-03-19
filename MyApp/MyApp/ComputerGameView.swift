@@ -76,12 +76,13 @@ struct ComputerGameView: View {
                 case .playing, .humanPlaying:
                     PlayingPhaseView(game: game)
                         .overlay {
-                            if game.waitingForNextHand {
+                            if game.waitingForNextHand && game.humanPlayerIndices.count == 1 {
                                 NextHandConfirmationOverlay(game: game)
                                     .transition(.opacity)
                             }
                         }
-                        .animation(.easeInOut(duration: 0.22), value: game.waitingForNextHand)
+                        .animation(.easeInOut(duration: 0.22),
+                            value: game.waitingForNextHand)
                 case .roundComplete:
                     RoundCompleteView(
                         game: game,
@@ -1080,186 +1081,6 @@ private struct OffenseChip: View {
     }
 }
 
-// MARK: - TeamsBanner (UPDATE 8: bidding + defense)
-
-private struct TeamsBanner: View {
-    var game: ComputerGameViewModel
-    @Environment(\.colorScheme) private var colorScheme
-
-    // Only show players whose reveal has been triggered by playing a called card
-    private var offenseIndices: [Int] {
-        [game.highBidderIndex, game.revealedPartner1Index, game.revealedPartner2Index].compactMap { $0 }
-    }
-    private var defenseIndices: [Int] {
-        let known = Set(offenseIndices)
-        return (0..<6).filter { !known.contains($0) }
-    }
-
-    var body: some View {
-        VStack(spacing: 8) {
-            offenseRow
-            defenseRow
-        }
-        .padding(.horizontal, 16)
-    }
-
-    private var offenseRow: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 4) {
-                Text("👑")
-                    .font(.system(size: 16))
-                Text("BIDDING TEAM")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(Comic.biddingTeamText)
-            }
-            .frame(width: 110, alignment: .leading)
-
-            Spacer()
-
-            HStack(spacing: 4) {
-                ForEach(offenseIndices, id: \.self) { i in
-                    offenseNamePill(index: i)
-                }
-                // Unknown partner placeholders until reveal
-                ForEach(0..<(3 - offenseIndices.count), id: \.self) { _ in
-                    unknownPartnerPill()
-                }
-            }
-            .animation(.spring(response: 0.4), value: offenseIndices.count)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(minHeight: 44)
-        .background(Comic.biddingTeamBG)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Comic.black, lineWidth: 3)
-        )
-        .overlay(alignment: .top) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.5), lineWidth: 1)
-                .padding(2)
-        }
-        .shadow(color: Comic.black.opacity(0.8), radius: 0, x: 3, y: 3)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: offenseIndices.count)
-    }
-
-    private var defenseRow: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 4) {
-                Text("🛡")
-                    .font(.system(size: 16))
-                Text("DEFENSE")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(Comic.defenseTeamText)
-            }
-            .frame(width: 110, alignment: .leading)
-
-            Spacer()
-
-            HStack(spacing: 4) {
-                ForEach(defenseIndices, id: \.self) { i in
-                    defenseNamePill(index: i)
-                }
-            }
-            .animation(.spring(response: 0.4), value: defenseIndices.count)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(minHeight: 44)
-        .background(Comic.defenseTeamBG)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Comic.black, lineWidth: 3)
-        )
-        .overlay(alignment: .top) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
-                .padding(2)
-        }
-        .shadow(color: Comic.black.opacity(0.8), radius: 0, x: 3, y: 3)
-    }
-
-    private func offensePlayerChip(index: Int) -> some View {
-        ZStack {
-            Circle()
-                .fill(Color.white.opacity(0.9))
-                .frame(width: 34, height: 34)
-            Circle()
-                .strokeBorder(Comic.black, lineWidth: 2)
-                .frame(width: 34, height: 34)
-            Text(String(game.playerName(index).prefix(1)).uppercased())
-                .font(.system(size: 14, weight: .black, design: .rounded))
-                .foregroundStyle(Comic.black)
-        }
-        .shadow(color: Comic.black.opacity(0.6), radius: 0, x: 1.5, y: 1.5)
-    }
-
-    private func defensePlayerChip(index: Int) -> some View {
-        ZStack {
-            Circle()
-                .fill(Comic.defenseTeamText.opacity(0.2))
-                .frame(width: 34, height: 34)
-            Circle()
-                .strokeBorder(Comic.defenseTeamText, lineWidth: 2)
-                .frame(width: 34, height: 34)
-            Text(String(game.playerName(index).prefix(1)).uppercased())
-                .font(.system(size: 14, weight: .black, design: .rounded))
-                .foregroundStyle(Comic.defenseTeamText)
-        }
-        .shadow(color: Comic.black.opacity(0.6), radius: 0, x: 1.5, y: 1.5)
-    }
-
-    private func offenseNamePill(index: Int) -> some View {
-        let name = game.playerName(index)
-        let display = String(name.prefix(7))
-        return Text(display)
-            .font(.system(size: 11, weight: .heavy, design: .rounded))
-            .foregroundStyle(Comic.black)
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(minWidth: 32, minHeight: 26)
-            .background(Color.white.opacity(0.9))
-            .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Comic.black, lineWidth: 1.5))
-            .shadow(color: Comic.black.opacity(0.5), radius: 0, x: 1, y: 1)
-            .transition(.move(edge: .trailing).combined(with: .opacity))
-    }
-
-    private func unknownPartnerPill() -> some View {
-        Text("? Partner")
-            .font(.system(size: 11, weight: .heavy, design: .rounded))
-            .foregroundStyle(Comic.black.opacity(0.35))
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(minWidth: 32, minHeight: 26)
-            .background(Color.white.opacity(0.25))
-            .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Comic.black.opacity(0.3), lineWidth: 1.5))
-    }
-
-    private func defenseNamePill(index: Int) -> some View {
-        let name = game.playerName(index)
-        let display = String(name.prefix(7))
-        return Text(display)
-            .font(.system(size: 11, weight: .heavy, design: .rounded))
-            .foregroundStyle(Comic.defenseTeamText)
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(minWidth: 32, minHeight: 26)
-            .background(Comic.defenseTeamText.opacity(0.15))
-            .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Comic.defenseTeamText.opacity(0.5), lineWidth: 1.5))
-            .shadow(color: Comic.black.opacity(0.5), radius: 0, x: 1, y: 1)
-            .transition(.move(edge: .trailing).combined(with: .opacity))
-    }
-}
-
 private struct DefenseChip: View {
     let name: String
 
@@ -1321,67 +1142,6 @@ private struct TrumpAndCalledCardsPanel: View {
     }
 }
 
-// MARK: - NextHandConfirmationOverlay (UPDATE 6)
-
-private struct NextHandConfirmationOverlay: View {
-    var game: ComputerGameViewModel
-
-    private var winnerName: String {
-        game.lastTrickWinnerIndex >= 0 ? game.playerName(game.lastTrickWinnerIndex) : "Unknown"
-    }
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.72).ignoresSafeArea()
-
-            VStack(spacing: 20) {
-                Text(game.offenseSet.contains(game.lastTrickWinnerIndex) ? "⚔️" : "🛡️")
-                    .font(.system(size: 44))
-
-                VStack(spacing: 6) {
-                    Text("\(winnerName) wins the hand!")
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.adaptivePrimary)
-                        .multilineTextAlignment(.center)
-
-                    if game.lastTrickPoints > 0 {
-                        Text("\(game.lastTrickPoints) pts captured")
-                            .font(.system(size: 15, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.masterGold)
-                    } else {
-                        Text("No points in this hand")
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text("Hand \(game.trickNumber) of 8 complete")
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-
-                Button {
-                    HapticManager.impact(.medium)
-                    game.humanReadyForNextHand()
-                } label: {
-                    HStack(spacing: 8) {
-                        Text("Next Hand")
-                            .fontWeight(.black)
-                        Image(systemName: "arrow.right")
-                    }
-                    .font(.system(size: 17, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Comic.black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                }
-                .buttonStyle(ComicButtonStyle())
-            }
-            .padding(28)
-            .comicContainer(cornerRadius: 24)
-            .padding(.horizontal, 32)
-        }
-    }
-}
-
 // MARK: - PlayingPhaseView
 
 private struct PlayingPhaseView: View {
@@ -1396,19 +1156,26 @@ private struct PlayingPhaseView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // AI player strip — compact top row
-            HStack(spacing: 6) {
-                ForEach(1..<6) { i in
-                    AIPlayerBadge(
-                        name: game.playerName(i),
+            // Player role cards — all 6 players
+            HStack(spacing: 5) {
+                ForEach(0..<6, id: \.self) { i in
+                    AvatarRoleCard(
                         avatar: game.playerAvatar(i),
-                        isOffense: game.offenseSet.contains(i),
-                        compact: vSizeClass == .compact
+                        name: game.playerName(i),
+                        role: resolveAvatarRole(
+                            playerIndex: i,
+                            bidderIndex: game.highBidderIndex,
+                            revealedPartner1: game.revealedPartner1Index,
+                            revealedPartner2: game.revealedPartner2Index,
+                            isRoundComplete: false
+                        )
                     )
-                    .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.horizontal, 12)
+            .id("avatars-\(game.revealedPartner1Index.map(String.init) ?? "nil")-\(game.revealedPartner2Index.map(String.init) ?? "nil")")
+            .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
+            .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
+            .padding(.horizontal, 8)
             .padding(.top, vSizeClass == .compact ? 8 : 44)
             .padding(.bottom, vSizeClass == .compact ? 4 : 8)
 
@@ -1491,12 +1258,9 @@ private struct PlayingPhaseView: View {
                     .padding(.horizontal, 16)
 
                     // Info row — trump badge + called cards badge + trick history
-                    GeometryReader { geo in
-                        let badgeW = geo.size.width / 2 - 24
-                        HStack(spacing: 8) {
-                            TrumpBadge(suit: game.trumpSuit, width: badgeW)
-                            CalledCardsBadge(card1: game.calledCard1, card2: game.calledCard2, width: badgeW)
-                            Spacer()
+                    TrumpAndCalledRow(trumpSuit: game.trumpSuit, card1: game.calledCard1, card2: game.calledCard2)
+                        .padding(.vertical, 4)
+                        .overlay(alignment: .trailing) {
                             if !game.completedTricks.isEmpty {
                                 Button {
                                     HapticManager.impact(.light)
@@ -1506,16 +1270,9 @@ private struct PlayingPhaseView: View {
                                         .font(.system(size: 13, weight: .heavy, design: .rounded))
                                         .foregroundStyle(.offenseBlue)
                                 }
+                                .padding(.trailing, 20)
                             }
                         }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .frame(height: 52)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 4)
-
-                    // Teams banner — bidding + defense (UPDATE 8)
-                    TeamsBanner(game: game)
 
                     // Score banner (UPDATE 7 — circular only)
                     BidProgressBanner(
@@ -1544,8 +1301,6 @@ private struct PlayingPhaseView: View {
 
             if isMyTurn {
                 HStack(spacing: 8) {
-                    Text("👆")
-                        .font(.system(size: 20))
                     Text("Your turn — tap a card to play")
                         .font(.system(size: 18, weight: .black, design: .rounded))
                         .foregroundStyle(Comic.yellow)
@@ -1596,11 +1351,6 @@ private struct PlayingPhaseView: View {
                 }
                 .frame(height: adaptiveHandHeight())
 
-                Text("Your Hand")
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 8)
             }
             .playerTurnGlow(isActive: isMyTurn)
             .padding(.horizontal, 12)
@@ -1617,33 +1367,6 @@ private struct PlayingPhaseView: View {
         .sheet(isPresented: $showingTrickHistory) {
             TrickHistoryView(game: game)
         }
-    }
-}
-
-private struct AIPlayerBadge: View {
-    let name: String
-    let avatar: String
-    let isOffense: Bool
-    var compact: Bool = false
-
-    private var circleSize: CGFloat { compact ? 34 : 46 }
-
-    var body: some View {
-        VStack(spacing: compact ? 2 : 4) {
-            ZStack {
-                Circle()
-                    .fill(isOffense ? Color.offenseBlue.opacity(0.18) : Color.defenseRose.opacity(0.12))
-                    .frame(width: circleSize, height: circleSize)
-                    .overlay(Circle().strokeBorder(isOffense ? Color.offenseBlue.opacity(0.4) : Color.defenseRose.opacity(0.2), lineWidth: 1))
-                Text(avatar)
-                    .font(.system(size: compact ? 20 : 28))
-            }
-            Text(name)
-                .font(.system(size: compact ? 7 : 9, weight: .bold, design: .rounded))
-                .foregroundStyle(.adaptivePrimary)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -1900,14 +1623,19 @@ private struct RoundCompleteView: View {
                         let role = builtRound.role(of: i)
                         let pts = builtRound.score(for: i)
                         HStack(spacing: 12) {
-                            ZStack {
-                                Circle()
-                                    .fill(role.color.opacity(0.18))
-                                    .frame(width: 36, height: 36)
-                                Text(String(game.playerName(i).prefix(1)).uppercased())
-                                    .font(.system(size: 13, weight: .heavy, design: .rounded))
-                                    .foregroundStyle(role.color)
-                            }
+                            AvatarRoleCard(
+                                avatar: game.playerAvatar(i),
+                                name: game.playerName(i),
+                                role: resolveAvatarRole(
+                                    playerIndex: i,
+                                    bidderIndex: builtRound.bidderIndex,
+                                    revealedPartner1: builtRound.partner1Index,
+                                    revealedPartner2: builtRound.partner2Index,
+                                    isRoundComplete: true
+                                ),
+                                width: 48,
+                                height: 68
+                            )
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(game.playerName(i))
                                     .font(.system(size: 15, weight: .heavy, design: .rounded))
@@ -2279,6 +2007,72 @@ private struct GameOverView: View {
 }
 
 // MARK: - PassDeviceView
+
+private struct NextHandConfirmationOverlay: View {
+    var game: ComputerGameViewModel
+
+    private var winnerName: String {
+        game.lastTrickWinnerIndex >= 0
+            ? game.playerName(game.lastTrickWinnerIndex)
+            : "Unknown"
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.72).ignoresSafeArea()
+            VStack(spacing: 20) {
+                Text(game.offenseSet.contains(
+                    game.lastTrickWinnerIndex) ? "⚔️" : "🛡️")
+                    .font(.system(size: 44))
+
+                VStack(spacing: 6) {
+                    Text("\(winnerName) wins the hand!")
+                        .font(.system(size: 20, weight: .heavy,
+                            design: .rounded))
+                        .foregroundStyle(.adaptivePrimary)
+                        .multilineTextAlignment(.center)
+
+                    if game.lastTrickPoints > 0 {
+                        Text("\(game.lastTrickPoints) pts captured")
+                            .font(.system(size: 15, weight: .heavy,
+                                design: .rounded))
+                            .foregroundStyle(.masterGold)
+                    } else {
+                        Text("No points in this hand")
+                            .font(.system(size: 15, weight: .bold,
+                                design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("Hand \(game.trickNumber) of 8 complete")
+                        .font(.system(size: 13, weight: .heavy,
+                            design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+
+                Button {
+                    HapticManager.impact(.medium)
+                    game.humanReadyForNextHand()
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("Next Hand")
+                            .fontWeight(.black)
+                        Image(systemName: "arrow.right")
+                    }
+                    .font(.system(size: 17, weight: .heavy,
+                        design: .rounded))
+                    .foregroundStyle(Comic.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                }
+                .buttonStyle(ComicButtonStyle())
+            }
+            .padding(28)
+            .comicContainer(cornerRadius: 24)
+            .padding(.horizontal, 32)
+        }
+    }
+}
 
 private struct PassDeviceView: View {
     let playerName: String
