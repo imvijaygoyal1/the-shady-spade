@@ -1,4 +1,5 @@
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
 const admin = require("firebase-admin");
 admin.initializeApp();
 
@@ -237,4 +238,18 @@ exports.recordGame = onCall(
 
       await batch.commit();
       return {success: true, gameId};
+    });
+
+// ── Scheduled: monthly leaderboard reset ─────────────────────
+exports.resetMonthlyLeaderboard = onSchedule(
+    {schedule: "0 0 1 * *", timeZone: "America/New_York"},
+    async () => {
+      const collections = ["player_stats", "game_log"];
+      for (const col of collections) {
+        const snap = await db.collection(col).get();
+        const batch = db.batch();
+        snap.forEach((doc) => batch.delete(doc.ref));
+        if (!snap.empty) await batch.commit();
+      }
+      console.log("Monthly leaderboard reset complete.");
     });
