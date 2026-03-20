@@ -458,69 +458,94 @@ private struct SessionLobbyView: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
 
-                    HStack(spacing: 10) {
-                        // Share button → ShareLink
-                        if let code = sessionVM.sessionCode {
+                    GeometryReader { geo in
+                        let buttonWidth = (geo.size.width - 20) / 3
+                        HStack(spacing: 10) {
                             ShareLink(
                                 item: """
 Join my Shady Spade game! 🃏
-Room Code: \(code)
-Tap to join: shadyspade://join/\(code)
+Room Code: \(sessionVM.sessionCode ?? "")
+Tap to join: shadyspade://join/\(sessionVM.sessionCode ?? "")
 """,
                                 preview: SharePreview(
-                                    "Shady Spade — Room \(code)"
+                                    "Shady Spade — Room \(sessionVM.sessionCode ?? "")"
                                 )
                             ) {
                                 HStack(spacing: 6) {
-                                    Image(systemName: "square.and.arrow.up").font(.subheadline.bold())
-                                    Text("Share Code").font(.subheadline.bold())
+                                    Image(systemName:
+                                        "square.and.arrow.up")
+                                        .font(.subheadline.bold())
+                                    Text("Share Code")
+                                        .font(.subheadline.bold())
                                 }
-                                .foregroundStyle(sessionVM.isConnecting ? Color.secondary : .black)
-                                .padding(.vertical, 10)
-                                .frame(maxWidth: .infinity)
-                                .background(sessionVM.isConnecting ? Color.masterGold.opacity(0.4) : Color.masterGold)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .foregroundStyle(sessionVM.isConnecting
+                                    ? Color.secondary : .black)
+                                .frame(width: buttonWidth,
+                                    height: 44)
+                                .background(sessionVM.isConnecting
+                                    ? Color.masterGold.opacity(0.4)
+                                    : Color.masterGold)
+                                .clipShape(RoundedRectangle(
+                                    cornerRadius: 10,
+                                    style: .continuous))
                             }
                             .disabled(sessionVM.isConnecting)
-                        }
 
-                        // Copy button with toast
-                        Button {
-                            UIPasteboard.general.string = sessionVM.sessionCode
-                            HapticManager.success()
-                            codeCopied = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { codeCopied = false }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: codeCopied ? "checkmark" : "doc.on.doc")
-                                Text(codeCopied ? "Copied!" : "Copy").font(.subheadline.bold())
+                            Button {
+                                UIPasteboard.general.string =
+                                    sessionVM.sessionCode
+                                HapticManager.success()
+                                codeCopied = true
+                                DispatchQueue.main.asyncAfter(
+                                    deadline: .now() + 2) {
+                                    codeCopied = false
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: codeCopied
+                                        ? "checkmark"
+                                        : "doc.on.doc")
+                                        .font(.subheadline.bold())
+                                    Text(codeCopied
+                                        ? "Copied!" : "Copy")
+                                        .font(.subheadline.bold())
+                                }
+                                .foregroundStyle(codeCopied
+                                    ? .masterGold
+                                    : Color.adaptivePrimary)
+                                .frame(width: buttonWidth,
+                                    height: 44)
+                                .background(Color.adaptiveSubtle)
+                                .clipShape(RoundedRectangle(
+                                    cornerRadius: 10,
+                                    style: .continuous))
                             }
-                            .foregroundStyle(codeCopied ? .masterGold : Color.adaptivePrimary)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity)
-                            .background(Color.adaptiveSubtle)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        }
-                        .accessibilityLabel(codeCopied ? "Code copied" : "Copy room code")
-                        .disabled(sessionVM.isConnecting)
+                            .disabled(sessionVM.isConnecting)
 
-                        // QR Code button
-                        Button {
-                            HapticManager.impact(.light)
-                            showQRCode = true
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "qrcode").font(.subheadline.bold())
-                                Text("QR").font(.subheadline.bold())
+                            Button {
+                                HapticManager.impact(.light)
+                                showQRCode = true
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "qrcode")
+                                        .font(.subheadline.bold())
+                                    Text("QR")
+                                        .font(.subheadline.bold())
+                                }
+                                .foregroundStyle(
+                                    Color.adaptivePrimary)
+                                .frame(width: buttonWidth,
+                                    height: 44)
+                                .background(Color.adaptiveSubtle)
+                                .clipShape(RoundedRectangle(
+                                    cornerRadius: 10,
+                                    style: .continuous))
                             }
-                            .foregroundStyle(Color.adaptivePrimary)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity)
-                            .background(Color.adaptiveSubtle)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .disabled(sessionVM.isConnecting
+                                || sessionVM.sessionCode == nil)
                         }
-                        .disabled(sessionVM.isConnecting || sessionVM.sessionCode == nil)
                     }
+                    .frame(height: 44)
                 }
                 .padding()
                 .glassmorphic(cornerRadius: 20)
