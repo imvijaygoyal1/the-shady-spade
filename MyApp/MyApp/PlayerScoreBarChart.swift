@@ -175,7 +175,7 @@ struct PlayerBarRow: View {
             // Score
             Text(player.score >= 0 ? "+\(player.score)" : "\(player.score)")
                 .font(.caption.weight(.bold).monospacedDigit())
-                .foregroundColor(player.score > 0 ? accentColor : .secondary)
+                .foregroundColor(player.score > 0 ? accentColor : (player.score == 0 ? Color.secondary : Color.defenseRose))
                 .frame(width: 38, alignment: .trailing)
         }
         .padding(.horizontal, 4)
@@ -263,7 +263,7 @@ struct PlayerScoreDetailSheet: View {
                                 Spacer()
                                 Text(row.points >= 0 ? "+\(row.points)" : "\(row.points)")
                                     .font(.subheadline.bold().monospacedDigit())
-                                    .foregroundColor(row.points > 0 ? .primary : .secondary)
+                                    .foregroundColor(row.points > 0 ? .primary : (row.points == 0 ? Color.secondary : Color.defenseRose))
                             }
                         }
                     }

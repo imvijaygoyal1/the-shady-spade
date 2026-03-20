@@ -48,6 +48,7 @@ struct ComputerGameView: View {
             if !dealAnimDone {
                 CardDealAnimationView(
                     playerNames: (0..<6).map { game.playerName($0) },
+                    playerAvatars: (0..<6).map { game.playerAvatar($0) },
                     humanPlayerIndex: game.humanPlayerIndex,
                     onComplete: {
                         withAnimation(.easeInOut(duration: 0.35)) { dealAnimDone = true }
@@ -256,6 +257,21 @@ struct ComputerGameView: View {
             for old in all.dropFirst(10) { modelContext.delete(old) }
         }
         try? modelContext.save()
+
+        let capturedNames   = names
+        let capturedScores  = finalScores
+        let capturedWinner  = winnerIndex
+        let capturedRounds  = roundsToSave
+        let capturedMode    = mode
+        Task {
+            await LeaderboardService.shared.recordGame(
+                gameMode:    capturedMode,
+                playerNames: capturedNames,
+                finalScores: capturedScores,
+                winnerIndex: capturedWinner,
+                rounds:      capturedRounds
+            )
+        }
     }
 
     private func saveAndQuit() {
@@ -474,28 +490,27 @@ private struct BiddingPhaseView: View {
             .padding(.top, vSizeClass == .compact ? 12 : 48)
             .padding(.bottom, vSizeClass == .compact ? 8 : 16)
 
-            // Six player chips — GeometryReader ensures all 6 fit on screen
+            // Six player cards — GeometryReader ensures all 6 fit on screen
             GeometryReader { geo in
-                let chipW = (geo.size.width - 24) / 6
-                HStack(spacing: 0) {
+                let cardW = (geo.size.width - 44) / 6
+                HStack(spacing: 4) {
                     ForEach(0..<6) { i in
-                        BidderChip(
+                        BidderCard(
                             name: game.playerName(i),
                             avatar: game.playerAvatar(i),
                             bid: game.bids[i],
-                            isActive: game.currentBidTurn == i && !game.playerHasPassed[i],
-                            isHuman: game.humanPlayerIndices.contains(i),
-                            isPassed: game.playerHasPassed[i],
+                            isActive: game.currentBidTurn == i
+                                && !game.playerHasPassed[i],
                             isHighBidder: i == game.highBidderIndex,
-                            index: i,
-                            maxWidth: chipW
+                            isPassed: game.playerHasPassed[i],
+                            width: cardW,
+                            height: 76
                         )
                     }
                 }
-                .frame(maxWidth: .infinity)
                 .padding(.horizontal, 12)
             }
-            .frame(height: 90)
+            .frame(height: 82)
 
             // Bidding start announcement
             Text(game.biddingToastMessage ?? "")
@@ -690,111 +705,7 @@ private struct BiddingPhaseView: View {
             }
         }
         .animation(.spring(response: 0.35), value: game.phase)
-    }
-}
-
-// SHARED VIEW — used by Solo, Multiplayer (Online + Custom).
-// Never create mode-specific duplicates of this view.
-// Pass mode-specific behaviour via callbacks/closures only.
-struct BidderChip: View {
-    let name: String
-    let avatar: String
-    let bid: Int          // -1=pending, 0=pass, >0=bid amount
-    let isActive: Bool
-    let isHuman: Bool
-    let isPassed: Bool
-    let isHighBidder: Bool
-    var index: Int = 0
-    var maxWidth: CGFloat = 60
-
-    @State private var floating = false
-    @State private var pulsing = false
-
-    private var floatDuration: Double { 1.0 + Double(index) * 0.1 }
-    private var avatarSize: CGFloat { min(52, maxWidth - 8) }
-
-    var body: some View {
-        VStack(spacing: 4) {
-            ZStack(alignment: .bottomTrailing) {
-                // Pulsing gold ring for active bidder
-                if isActive {
-                    Circle()
-                        .strokeBorder(Comic.yellow, lineWidth: 3)
-                        .frame(width: avatarSize + 12, height: avatarSize + 12)
-                        .scaleEffect(pulsing ? 1.15 : 1.0)
-                        .opacity(pulsing ? 0.4 : 0.9)
-                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulsing)
-                }
-
-                ZStack {
-                    Circle()
-                        .fill(Comic.avatarBG(for: avatar))
-                        .frame(width: avatarSize, height: avatarSize)
-                        .opacity(isPassed ? 0.4 : 1.0)
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.6), lineWidth: 1.5)
-                        .frame(width: avatarSize, height: avatarSize)
-                    Circle()
-                        .strokeBorder(Comic.black, lineWidth: 3)
-                        .frame(width: avatarSize, height: avatarSize)
-                    Text(avatar)
-                        .font(.system(size: avatarSize * 0.52))
-                        .opacity(isPassed ? 0.4 : 1.0)
-                }
-                .shadow(color: Comic.black.opacity(0.8), radius: 0, x: 2, y: 2)
-                .offset(y: floating ? -4 : 4)
-                .animation(
-                    isPassed ? .default :
-                    .easeInOut(duration: floatDuration).repeatForever(autoreverses: true),
-                    value: floating
-                )
-
-                if isActive {
-                    Circle()
-                        .strokeBorder(Comic.yellow, lineWidth: 3)
-                        .frame(width: avatarSize, height: avatarSize)
-                }
-
-                if isPassed {
-                    ZStack {
-                        Circle()
-                            .fill(Comic.red)
-                            .frame(width: 22, height: 22)
-                        Circle()
-                            .strokeBorder(Comic.black, lineWidth: 1.5)
-                            .frame(width: 22, height: 22)
-                        Text("✕")
-                            .font(.system(size: 10, weight: .black))
-                            .foregroundStyle(.white)
-                    }
-                    .offset(x: 2, y: 2)
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .frame(width: avatarSize + 12, height: avatarSize + 12)
-
-            Group {
-                if bid > 0 {
-                    Text("\(bid)")
-                        .font(.system(size: min(11, maxWidth * 0.18), weight: .heavy, design: .rounded))
-                        .foregroundStyle(isHighBidder ? .masterGold : .adaptivePrimary)
-                } else {
-                    Text(String(name.prefix(4)))
-                        .font(.system(size: min(11, maxWidth * 0.18), weight: .heavy, design: .rounded))
-                        .foregroundStyle(isPassed ? Comic.textPrimary.opacity(0.4) : Comic.textPrimary)
-                }
-            }
-            .opacity(isPassed ? 0.4 : 1.0)
-            .lineLimit(1)
-            .frame(maxWidth: maxWidth - 4)
-        }
-        .frame(maxWidth: .infinity)
-        .onAppear {
-            floating = true
-            if isActive { pulsing = true }
-        }
-        .onChange(of: isActive) { _, active in pulsing = active }
-        .animation(.spring(response: 0.3), value: isPassed)
+        .turnNudge(isMyTurn: game.phase == .humanBidding)
     }
 }
 
@@ -1367,6 +1278,7 @@ private struct PlayingPhaseView: View {
         .sheet(isPresented: $showingTrickHistory) {
             TrickHistoryView(game: game)
         }
+        .turnNudge(isMyTurn: game.phase == .humanPlaying)
     }
 }
 
@@ -1491,7 +1403,7 @@ private struct RoundResultBanner: View {
                             }
                         }
 
-                        Text("Defense team scored \(250 - game.highBid) pts")
+                        Text(isSet ? "Defense team blocked the bid!" : "Defense team scored 0 pts")
                             .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(defenseTint.opacity(0.9))
                     }
@@ -1602,20 +1514,18 @@ private struct RoundCompleteView: View {
                 .padding(.top, 52)
 
                 // Award breakdown
-                if !isSet {
-                    HStack(spacing: 8) {
-                        AwardPill(label: "Bidder", points: game.highBid, color: .masterGold)
-                        AwardPill(label: "Each Partner", points: partnerPts, color: .offenseBlue)
-                        AwardPill(label: "Defense Team", points: 250 - game.highBid, color: .secondary)
-                    }
-                    .padding(.horizontal, 20)
-                } else {
-                    HStack(spacing: 8) {
-                        AwardPill(label: "Bidding Team", points: 0, color: .secondary)
-                        AwardPill(label: "Defense Team", points: 250 - game.highBid, color: .masterGold)
-                    }
-                    .padding(.horizontal, 20)
+                HStack(spacing: 8) {
+                    AwardPill(label: "Bidder",
+                              points: isSet ? -game.highBid : game.highBid,
+                              color: isSet ? .defenseRose : .masterGold)
+                    AwardPill(label: "Each Partner",
+                              points: isSet ? -((game.highBid + 1) / 2) : game.highBid / 2,
+                              color: isSet ? .defenseRose : .offenseBlue)
+                    AwardPill(label: "Defense",
+                              points: 0,
+                              color: .secondary)
                 }
+                .padding(.horizontal, 20)
 
                 // Per-player breakdown (this round)
                 VStack(spacing: 0) {

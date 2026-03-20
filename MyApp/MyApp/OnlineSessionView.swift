@@ -1,15 +1,6 @@
 import SwiftUI
 import CoreImage.CIFilterBuiltins
-
-// MARK: - Share Sheet
-
-private struct ShareSheetView: UIViewControllerRepresentable {
-    let items: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    func updateUIViewController(_ uvc: UIActivityViewController, context: Context) {}
-}
+import FirebaseAuth
 
 // MARK: - Online Session View
 
@@ -24,7 +15,7 @@ struct OnlineSessionView: View {
     var onGameReady: ((Int, Bool, String, [String], [String]) -> Void)? = nil
 
     @State private var ownedSessionVM = OnlineSessionViewModel()
-    @State private var ownedPlayerUID = UUID().uuidString
+    @State private var ownedPlayerUID = Auth.auth().currentUser?.uid ?? UUID().uuidString
     @Environment(\.dismiss) private var dismiss
 
     private var sessionVM: OnlineSessionViewModel { prebuiltSessionVM ?? ownedSessionVM }
@@ -341,8 +332,16 @@ private struct JoinByCodeView: View {
                     avatar: playerAvatar
                 )
                 dismiss()
+            } catch let error as URLError
+                where error.code == .resourceUnavailable {
+                joinError = "Room is full."
+            } catch let error as URLError {
+                joinError = "Room not found. Check the code."
+                print("Join error: \(error)")
             } catch {
-                joinError = "Room not found or is full."
+                joinError = "Connection error. Check your " +
+                    "internet and try again."
+                print("Join error: \(error)")
             }
             isJoining = false
         }
@@ -361,7 +360,6 @@ private struct SessionLobbyView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @State private var codeCopied = false
-    @State private var showingShare = false
     @State private var showQRCode = false
     @State private var newlyJoinedSlots: Set<Int> = []
 
@@ -461,22 +459,30 @@ private struct SessionLobbyView: View {
                     }
 
                     HStack(spacing: 10) {
-                        // Share button → native share sheet
-                        Button {
-                            HapticManager.impact(.medium)
-                            showingShare = true
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "square.and.arrow.up").font(.subheadline.bold())
-                                Text("Share Code").font(.subheadline.bold())
+                        // Share button → ShareLink
+                        if let code = sessionVM.sessionCode {
+                            ShareLink(
+                                item: """
+Join my Shady Spade game! 🃏
+Room Code: \(code)
+Tap to join: shadyspade://join/\(code)
+""",
+                                preview: SharePreview(
+                                    "Shady Spade — Room \(code)"
+                                )
+                            ) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "square.and.arrow.up").font(.subheadline.bold())
+                                    Text("Share Code").font(.subheadline.bold())
+                                }
+                                .foregroundStyle(sessionVM.isConnecting ? Color.secondary : .black)
+                                .padding(.vertical, 10)
+                                .frame(maxWidth: .infinity)
+                                .background(sessionVM.isConnecting ? Color.masterGold.opacity(0.4) : Color.masterGold)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
-                            .foregroundStyle(sessionVM.isConnecting ? Color.secondary : .black)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity)
-                            .background(sessionVM.isConnecting ? Color.masterGold.opacity(0.4) : Color.masterGold)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .disabled(sessionVM.isConnecting)
                         }
-                        .disabled(sessionVM.isConnecting)
 
                         // Copy button with toast
                         Button {
@@ -634,13 +640,6 @@ private struct SessionLobbyView: View {
                 onGameReady(myIndex, sessionVM.isHost, sessionVM.sessionCode ?? "", names, avatars)
             }
         }
-        .sheet(isPresented: $showingShare) {
-            if let code = sessionVM.sessionCode {
-                let text = "Join my Shady Spade Multiplayer game! Code: \(code) — open the app and tap Multiplayer → Join. shadyspade://join/\(code)"
-                ShareSheetView(items: [text])
-                    .ignoresSafeArea()
-            }
-        }
         .sheet(isPresented: $showQRCode) {
             if let code = sessionVM.sessionCode {
                 QRCodeSheetView(
@@ -702,10 +701,13 @@ struct QRCodeSheetView: View {
                 }
                 .multilineTextAlignment(.center)
 
-                Button {
-                    HapticManager.impact(.medium)
-                    shareQRImage()
-                } label: {
+                ShareLink(
+                    item: Image(uiImage: qrImage),
+                    preview: SharePreview(
+                        "Join my Shady Spade game — Room: \(roomCode)",
+                        image: Image(uiImage: qrImage)
+                    )
+                ) {
                     HStack(spacing: 8) {
                         Image(systemName: "square.and.arrow.up")
                         Text("Share QR Code").fontWeight(.bold)
@@ -719,21 +721,33 @@ struct QRCodeSheetView: View {
                 .buttonStyle(BouncyButton())
                 .padding(.horizontal, 24)
 
+                ShareLink(
+                    item: """
+Join my Shady Spade game! 🃏
+Room Code: \(roomCode)
+Tap to join: shadyspade://join/\(roomCode)
+""",
+                    preview: SharePreview(
+                        "Shady Spade — Room \(roomCode)",
+                        image: Image(uiImage: qrImage)
+                    )
+                ) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "text.bubble")
+                        Text("Share Room Code").fontWeight(.bold)
+                    }
+                    .foregroundStyle(.adaptivePrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.adaptiveSubtle)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(BouncyButton())
+                .padding(.horizontal, 24)
+
                 Spacer()
             }
             .padding(.horizontal, 24)
-        }
-    }
-
-    private func shareQRImage() {
-        let activityVC = UIActivityViewController(
-            activityItems: [qrImage],
-            applicationActivities: nil
-        )
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first,
-           let rootVC = window.rootViewController {
-            rootVC.present(activityVC, animated: true)
         }
     }
 }

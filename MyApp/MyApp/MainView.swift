@@ -9,7 +9,7 @@ struct MainView: View {
 
     var body: some View {
         TabView {
-            LeaderboardView(vm: vm)
+            LocalLeaderboardView(vm: vm)
                 .tabItem { Label("Leaderboard", systemImage: "trophy.fill") }
 
             HistoryView(vm: vm)
@@ -51,9 +51,9 @@ struct MainView: View {
     }
 }
 
-// MARK: - Leaderboard
+// MARK: - Local Leaderboard
 
-private struct LeaderboardView: View {
+private struct LocalLeaderboardView: View {
     @Bindable var vm: GameViewModel
     @Environment(AuthViewModel.self) private var authVM
     @State private var avatarsVisible = false

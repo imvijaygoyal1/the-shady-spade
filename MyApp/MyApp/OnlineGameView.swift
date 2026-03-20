@@ -20,6 +20,7 @@ struct OnlineGameView: View {
             case .dealing:
                 CardDealAnimationView(
                     playerNames: (0..<6).map { game.playerName($0) },
+                    playerAvatars: (0..<6).map { game.playerAvatar($0) },
                     humanPlayerIndex: game.myPlayerIndex,
                     onComplete: { }  // server controls the phase transition
                 )
@@ -135,8 +136,11 @@ struct OnlineGameView: View {
         let finalScores = game.runningScores
         guard finalScores.max() ?? 0 > 0 else { return }
         let names = game.playerNames
-        let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
-        let mode = game.aiSeats.isEmpty ? "Online" : "Multiplayer"
+        let winnerIndex = (0..<6).max(by: {
+            finalScores[$0] < finalScores[$1]
+        }) ?? 0
+        let mode = game.aiSeats.isEmpty
+            ? "Online" : "Multiplayer"
         let history = GameHistory(
             date: Date(),
             playerNames: names,
@@ -145,32 +149,39 @@ struct OnlineGameView: View {
             gameMode: mode
         )
         modelContext.insert(history)
-        let descriptor = FetchDescriptor<GameHistory>(sortBy: [SortDescriptor(\.date, order: .reverse)])
-        if let all = try? modelContext.fetch(descriptor), all.count > 10 {
-            for old in all.dropFirst(10) { modelContext.delete(old) }
+        let descriptor = FetchDescriptor<GameHistory>(
+            sortBy: [SortDescriptor(
+                \.date, order: .reverse)])
+        if let all = try? modelContext.fetch(
+            descriptor), all.count > 10 {
+            for old in all.dropFirst(10) {
+                modelContext.delete(old)
+            }
         }
         try? modelContext.save()
-    }
-}
-
-// MARK: - Dealing
-
-private struct OnlineDealingView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.8)
-                .tint(Comic.yellow)
-            Text("Dealing cards…")
-                .font(.system(size: 20, weight: .heavy, design: .rounded))
-                .foregroundStyle(Comic.textPrimary)
-            Text("Please wait")
-                .font(.system(size: 15, weight: .heavy, design: .rounded))
-                .foregroundStyle(Comic.textSecondary)
+        let lastRound = HistoryRound(
+            roundNumber: game.roundNumber,
+            dealerIndex: game.dealerIndex,
+            bidderIndex: max(0, game.highBidderIndex),
+            bidAmount: max(130, game.highBid),
+            trumpSuit: game.trumpSuit,
+            callCard1: game.calledCard1,
+            callCard2: game.calledCard2,
+            partner1Index: max(0, game.partner1Index),
+            partner2Index: max(0, game.partner2Index),
+            offensePointsCaught: game.offensePoints,
+            defensePointsCaught: game.defensePoints,
+            runningScores: finalScores
+        )
+        Task {
+            await LeaderboardService.shared.recordGame(
+                gameMode:    mode,
+                playerNames: names,
+                finalScores: finalScores,
+                winnerIndex: winnerIndex,
+                rounds:      [lastRound]
+            )
         }
-        .padding(40)
-        .comicContainer(cornerRadius: 24)
-        .padding(40)
     }
 }
 
@@ -322,28 +333,27 @@ private struct OnlineBiddingView: View {
             .padding(.top, vSizeClass == .compact ? 12 : 48)
             .padding(.bottom, vSizeClass == .compact ? 8 : 16)
 
-            // Six player chips — GeometryReader ensures all 6 fit on screen
+            // Six player cards — GeometryReader ensures all 6 fit on screen
             GeometryReader { geo in
-                let chipW = (geo.size.width - 24) / 6
-                HStack(spacing: 0) {
+                let cardW = (geo.size.width - 44) / 6
+                HStack(spacing: 4) {
                     ForEach(0..<6) { i in
-                        BidderChip(
+                        BidderCard(
                             name: game.playerName(i),
                             avatar: game.playerAvatar(i),
                             bid: game.bids[i],
-                            isActive: game.currentActionPlayer == i && !game.playerHasPassed[i],
-                            isHuman: i == game.myPlayerIndex,
-                            isPassed: game.playerHasPassed[i],
+                            isActive: game.currentActionPlayer == i
+                                && !game.playerHasPassed[i],
                             isHighBidder: i == game.highBidderIndex,
-                            index: i,
-                            maxWidth: chipW
+                            isPassed: game.playerHasPassed[i],
+                            width: cardW,
+                            height: 76
                         )
                     }
                 }
-                .frame(maxWidth: .infinity)
                 .padding(.horizontal, 12)
             }
-            .frame(height: 90)
+            .frame(height: 82)
 
             // Bidding start announcement
             Text(game.biddingToastMessage ?? "")
@@ -538,6 +548,7 @@ private struct OnlineBiddingView: View {
             }
         }
         .animation(.spring(response: 0.35), value: game.isMyTurn)
+        .turnNudge(isMyTurn: game.isMyTurn && game.phase == .bidding)
     }
 }
 
@@ -975,6 +986,7 @@ private struct OnlinePlayingView: View {
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: game.partnerRevealMessage != nil)
+        .turnNudge(isMyTurn: game.isMyTurn && game.phase == .playing)
     }
 }
 
@@ -1169,7 +1181,7 @@ private struct OnlineRoundResultBanner: View {
                             }
                         }
 
-                        Text("Defense team scored \(250 - game.highBid) pts")
+                        Text(isSet ? "Defense team blocked the bid!" : "Defense team scored 0 pts")
                             .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(defenseTint.opacity(0.9))
                     }
@@ -1222,20 +1234,20 @@ private struct OnlineRoundCompleteView: View {
     private let targetScore = OnlineGameViewModel.winningScore
 
     var body: some View {
-        let partnerPts = game.highBid / 2
+        let scoring = ScoringEngine.calculateRoundScores(
+            bidAmount: game.highBid,
+            bidderIndex: game.highBidderIndex,
+            offenseIndices: game.offenseSet,
+            bidMade: !isSet
+        )
         let sortedEntries: [PlayerScoreEntry] = (0..<6).map { i in
             let isOff = game.offenseSet.contains(i)
             let isBidder = i == game.highBidderIndex
-            let delta: Int = {
-                if isBidder  { return isSet ? 0 : game.highBid }
-                if isOff     { return isSet ? 0 : partnerPts }
-                return 0
-            }()
             return PlayerScoreEntry(
                 playerIndex: i,
                 playerName: game.playerName(i),
                 score: game.runningScores[i],
-                roundDelta: delta,
+                roundDelta: scoring.playerDeltas[i],
                 role: isBidder ? "Bidder" : (isOff ? "Partner" : "Defense"),
                 avatar: game.playerAvatar(i),
                 isCurrentPlayer: i == game.myPlayerIndex,
@@ -1257,19 +1269,16 @@ private struct OnlineRoundCompleteView: View {
                 .padding(.top, 52)
 
                 // Award breakdown
-                VStack(spacing: 10) {
-                    if !isSet {
-                        HStack(spacing: 8) {
-                            OnlineAwardPill(label: "Bidder", points: game.highBid, color: .masterGold)
-                            OnlineAwardPill(label: "Each Partner", points: partnerPts, color: .offenseBlue)
-                            OnlineAwardPill(label: "Defense Team", points: 250 - game.highBid, color: .secondary)
-                        }
-                    } else {
-                        HStack(spacing: 8) {
-                            OnlineAwardPill(label: "Bidding Team", points: 0, color: .secondary)
-                            OnlineAwardPill(label: "Defense Team", points: 250 - game.highBid, color: .masterGold)
-                        }
-                    }
+                HStack(spacing: 8) {
+                    OnlineAwardPill(label: "Bidder",
+                                    points: scoring.bidderScore,
+                                    color: isSet ? .defenseRose : .masterGold)
+                    OnlineAwardPill(label: "Each Partner",
+                                    points: scoring.eachPartnerScore,
+                                    color: isSet ? .defenseRose : .offenseBlue)
+                    OnlineAwardPill(label: "Defense",
+                                    points: 0,
+                                    color: .secondary)
                 }
                 .padding(.horizontal, 20)
 
@@ -1278,12 +1287,7 @@ private struct OnlineRoundCompleteView: View {
                     ForEach(0..<6, id: \.self) { i in
                         let isOff = game.offenseSet.contains(i)
                         let isBidder = i == game.highBidderIndex
-                        let pts: Int = {
-                            // BID FAILED: all players individually score 0
-                            if isBidder { return isSet ? 0 : game.highBid }
-                            else if isOff { return isSet ? 0 : partnerPts }
-                            else { return 0 }
-                        }()
+                        let pts = scoring.playerDeltas[i]
                         let role: PlayerRole = isBidder ? .bidder : (isOff ? .partner : .defense)
                         let isMe = i == game.myPlayerIndex
 

@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import FirebaseCore
+import FirebaseAuth
 import UIKit
 
 class AppDelegate: NSObject, UIApplicationDelegate {
@@ -9,7 +10,17 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         FirebaseApp.configure()
+        signInAnonymouslyIfNeeded()
         return true
+    }
+
+    private func signInAnonymouslyIfNeeded() {
+        guard Auth.auth().currentUser == nil else { return }
+        Auth.auth().signInAnonymously { _, error in
+            if let error {
+                print("Anonymous auth error: \(error)")
+            }
+        }
     }
 
     func application(

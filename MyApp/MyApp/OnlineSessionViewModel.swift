@@ -226,10 +226,23 @@ enum SessionStatus: String {
 
     func joinSession(code: String, uid: String, name: String, avatar: String = "") async throws {
         let ref = db.collection("sessions").document(code)
-        let snapshot = try await ref.getDocument()
 
-        guard snapshot.exists, let data = snapshot.data(),
+        let snapshot: DocumentSnapshot
+        do {
+            snapshot = try await ref.getDocument()
+        } catch {
+            print("joinSession: getDocument failed — \(error)")
+            throw error
+        }
+
+        guard snapshot.exists else {
+            print("joinSession: document does not exist for code \(code)")
+            throw URLError(.badServerResponse)
+        }
+
+        guard let data = snapshot.data(),
               let slotsData = data["playerSlots"] as? [[String: Any]] else {
+            print("joinSession: bad data shape")
             throw URLError(.badServerResponse)
         }
 

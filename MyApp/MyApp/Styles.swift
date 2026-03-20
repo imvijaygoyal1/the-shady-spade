@@ -520,12 +520,9 @@ struct BidProgressBanner: View {
 
     private var progress: Double { bid > 0 ? min(1.0, Double(offenseCaught) / Double(bid)) : 0 }
     private var bidMade: Bool { offenseCaught >= bid }
+    private var isSetConfirmed: Bool { offenseCaught < bid }
     private var barColor: Color {
-        bidMade
-            ? ThemeManager.shared.colours.scoreCircleProgress
-            : (progress >= 0.75
-                ? ThemeManager.shared.colours.accentColor
-                : ThemeManager.shared.colours.scoreCircleProgress)
+        bidMade ? ThemeManager.shared.colours.scoreCircleProgress : .defenseRose
     }
 
     var body: some View {
@@ -881,5 +878,219 @@ struct AvatarRoleCard: View {
         .onChange(of: role) { _, newRole in
             if newRole == .partner { glowPulse = true }
         }
+    }
+}
+
+// MARK: - BidderCard
+
+struct BidderCard: View {
+    let name: String
+    let avatar: String
+    let bid: Int          // -1 = pending, 0 = pass, >0 = bid amount
+    let isActive: Bool
+    let isHighBidder: Bool
+    let isPassed: Bool
+    var width: CGFloat = 52
+    var height: CGFloat = 76
+
+    var body: some View {
+        VStack(spacing: 0) {
+
+            // TOP — bid amount or status
+            ZStack {
+                topBackground
+                topContent
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 18)
+
+            // MIDDLE — avatar emoji, dimmed if passed
+            ZStack {
+                midBackground
+                Text(avatar)
+                    .font(.system(size: 22))
+                    .opacity(isPassed ? 0.4 : 1.0)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: height - 36)
+
+            // BOTTOM — player name
+            ZStack {
+                bottomBackground
+                Text(String(name.prefix(6)))
+                    .font(.system(size: 10, weight: .bold,
+                        design: .rounded))
+                    .foregroundStyle(bottomTextColor)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 18)
+        }
+        .frame(width: width, height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 10,
+            style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(borderColor,
+                    lineWidth: isHighBidder ? 2.5 : 1.5)
+        )
+    }
+
+    private var topBackground: Color {
+        if isPassed     { return Color(hex: "E63946").opacity(0.15) }
+        if isHighBidder { return ThemeManager.shared.colours.accentColor }
+        if isActive     { return ThemeManager.shared.colours.accentColor.opacity(0.3) }
+        if bid > 0      { return ThemeManager.shared.colours.biddingTeamBackground }
+        return ThemeManager.shared.colours.containerBackground.opacity(0.5)
+    }
+
+    private var topContent: some View {
+        Group {
+            if isPassed {
+                Text("PASS")
+                    .font(.system(size: 7, weight: .heavy,
+                        design: .rounded))
+                    .foregroundStyle(Color(hex: "E63946"))
+            } else if bid > 0 {
+                Text("\(bid)")
+                    .font(.system(size: 9, weight: .heavy,
+                        design: .rounded))
+                    .foregroundStyle(
+                        isHighBidder
+                            ? ThemeManager.shared.colours.shadySpadeText
+                            : ThemeManager.shared.colours.biddingTeamText
+                    )
+            } else if isActive {
+                Text("BIDDING")
+                    .font(.system(size: 6, weight: .heavy,
+                        design: .rounded))
+                    .foregroundStyle(
+                        ThemeManager.shared.colours.accentColor)
+            } else {
+                Text("—")
+                    .font(.system(size: 7, weight: .heavy,
+                        design: .rounded))
+                    .foregroundStyle(
+                        ThemeManager.shared.colours.textTertiary)
+            }
+        }
+    }
+
+    private var midBackground: Color {
+        if isPassed     { return ThemeManager.shared.colours.screenBackground.opacity(0.6) }
+        if isHighBidder { return ThemeManager.shared.colours.biddingTeamBackground }
+        if isActive     { return ThemeManager.shared.colours.containerBackground }
+        return ThemeManager.shared.colours.screenBackgroundLayer2
+    }
+
+    private var bottomBackground: Color {
+        if isPassed     { return ThemeManager.shared.colours.screenBackground.opacity(0.4) }
+        if isHighBidder { return ThemeManager.shared.colours.accentColor.opacity(0.2) }
+        if isActive     { return ThemeManager.shared.colours.accentColor.opacity(0.15) }
+        return ThemeManager.shared.colours.screenBackgroundLayer3.opacity(0.8)
+    }
+
+    private var bottomTextColor: Color {
+        if isPassed     { return ThemeManager.shared.colours.textTertiary }
+        if isHighBidder { return ThemeManager.shared.colours.biddingTeamText }
+        if isActive     { return ThemeManager.shared.colours.accentColor }
+        return ThemeManager.shared.colours.textPrimary
+    }
+
+    private var borderColor: Color {
+        if isPassed     { return Color(hex: "E63946").opacity(0.4) }
+        if isHighBidder { return ThemeManager.shared.colours.accentColor }
+        if isActive     { return ThemeManager.shared.colours.accentColor.opacity(0.6) }
+        return ThemeManager.shared.colours.separator
+    }
+}
+
+// MARK: - AvatarPickerCard
+
+struct AvatarPickerCard: View {
+    let emoji: String
+    let name: String
+    let isSelected: Bool
+    var width: CGFloat = 60
+    var height: CGFloat = 80
+
+    var body: some View {
+        VStack(spacing: 0) {
+
+            // TOP — character name label
+            ZStack {
+                Rectangle()
+                    .fill(isSelected
+                        ? Color.masterGold
+                        : Comic.containerBG.opacity(0.6))
+                Text(name)
+                    .font(.system(size: 7, weight: .heavy,
+                        design: .rounded))
+                    .foregroundStyle(isSelected
+                        ? Comic.black
+                        : Comic.textSecondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 18)
+
+            // MIDDLE — avatar emoji
+            ZStack {
+                Rectangle()
+                    .fill(isSelected
+                        ? Comic.avatarBG(for: emoji)
+                        : Color(hex: "112A1C").opacity(0.6))
+                Text(emoji)
+                    .font(.system(size: height * 0.45))
+                    .scaleEffect(isSelected ? 1.1 : 1.0)
+                    .animation(.spring(response: 0.25,
+                        dampingFraction: 0.6),
+                        value: isSelected)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: height - 36)
+
+            // BOTTOM — selected indicator
+            ZStack {
+                Rectangle()
+                    .fill(isSelected
+                        ? Color.masterGold.opacity(0.25)
+                        : Comic.containerBG.opacity(0.4))
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundStyle(Color.masterGold)
+                } else {
+                    Circle()
+                        .strokeBorder(
+                            Comic.textSecondary.opacity(0.3),
+                            lineWidth: 1)
+                        .frame(width: 10, height: 10)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 18)
+        }
+        .frame(width: width, height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 10,
+            style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10,
+                style: .continuous)
+                .strokeBorder(
+                    isSelected
+                        ? Color.masterGold
+                        : Comic.containerBorder.opacity(0.4),
+                    lineWidth: isSelected ? 2.5 : 1.5
+                )
+        )
+        .shadow(
+            color: isSelected
+                ? Color.masterGold.opacity(0.35)
+                : Comic.black.opacity(0.5),
+            radius: 0,
+            x: isSelected ? 2 : 3,
+            y: isSelected ? 2 : 3
+        )
     }
 }

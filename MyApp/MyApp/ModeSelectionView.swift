@@ -15,7 +15,7 @@ struct ModeSelectionView: View {
     @State private var showingSolo = false
     @State private var showingOnline = false
     @State private var showingSettings = false
-    @State private var showingHistory = false
+    @State private var showingLeaderboard = false
     @State private var namePromptRequest: NamePromptRequest? = nil
     @State private var pendingName = ""
     @State private var pendingAvatar = "🦁"
@@ -34,15 +34,16 @@ struct ModeSelectionView: View {
                 HStack {
                     Button {
                         HapticManager.impact(.light)
-                        showingHistory = true
+                        showingLeaderboard = true
                     } label: {
-                        Image(systemName: "clock.fill")
+                        Image(systemName: "trophy.fill")
                             .font(.system(size: 18))
-                            .foregroundStyle(Color.white)
+                            .foregroundStyle(Color.masterGold)
                             .frame(width: 40, height: 40)
                             .background(Comic.black)
                             .clipShape(Circle())
-                            .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
+                            .overlay(Circle().strokeBorder(
+                                Comic.yellow, lineWidth: 2))
                     }
                     .padding(.top, 56)
                     .padding(.leading, 20)
@@ -160,8 +161,8 @@ struct ModeSelectionView: View {
             )
             .environmentObject(themeManager)
         }
-        .sheet(isPresented: $showingHistory) {
-            GameHistoryView()
+        .sheet(isPresented: $showingLeaderboard) {
+            LeaderboardView()
                 .environmentObject(themeManager)
         }
         .sheet(isPresented: $showingSettings) {
@@ -219,20 +220,17 @@ private struct NamePromptSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
 
-                    // Large avatar preview with comic border
-                    ZStack {
-                        Circle()
-                            .fill(Comic.yellow.opacity(0.25))
-                            .frame(width: 104, height: 104)
-                        Circle()
-                            .strokeBorder(Comic.black, lineWidth: Comic.borderWidth)
-                            .frame(width: 104, height: 104)
-                        Text(pendingAvatar)
-                            .font(.system(size: 58))
-                            .animation(.spring(response: 0.3, dampingFraction: 0.65), value: pendingAvatar)
-                    }
-                    .shadow(color: Comic.black.opacity(0.85), radius: 0, x: 4, y: 4)
+                    // Large avatar preview card
+                    AvatarPickerCard(
+                        emoji: pendingAvatar,
+                        name: Comic.characterName(for: pendingAvatar),
+                        isSelected: true,
+                        width: 100,
+                        height: 132
+                    )
                     .padding(.top, 28)
+                    .animation(.spring(response: 0.3,
+                        dampingFraction: 0.65), value: pendingAvatar)
 
                     // Title & subtitle
                     VStack(spacing: 6) {
@@ -263,53 +261,39 @@ private struct NamePromptSheet: View {
                     }
                     .padding(.horizontal, 28)
 
-                    // Avatar picker
+                    // Avatar picker — rectangular cards
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Choose Your Avatar")
-                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .font(.system(size: 13, weight: .heavy,
+                                design: .rounded))
                             .foregroundStyle(.masterGold)
                             .padding(.leading, 28)
 
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
+                            HStack(spacing: 8) {
                                 ForEach(avatarOptions, id: \.self) { emoji in
                                     let isSelected = pendingAvatar == emoji
                                     Button {
                                         HapticManager.impact(.light)
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.65)) {
+                                        withAnimation(.spring(response: 0.25,
+                                            dampingFraction: 0.6)) {
                                             pendingAvatar = emoji
                                         }
                                     } label: {
-                                        VStack(spacing: 4) {
-                                            ZStack {
-                                                Circle()
-                                                    .fill(Comic.avatarBG(for: emoji))
-                                                    .frame(width: 58, height: 58)
-                                                Circle()
-                                                    .strokeBorder(Color.white.opacity(0.6), lineWidth: 1.5)
-                                                    .frame(width: 58, height: 58)
-                                                Circle()
-                                                    .strokeBorder(isSelected ? Comic.yellow : Comic.black, lineWidth: isSelected ? 3 : 2)
-                                                    .frame(width: 58, height: 58)
-                                                Text(emoji)
-                                                    .font(.system(size: 32))
-                                            }
-                                            .shadow(color: isSelected ? Comic.yellow.opacity(0.7) : Comic.black.opacity(0.6), radius: 0, x: 2, y: 2)
-                                            .scaleEffect(isSelected ? 1.1 : 1.0)
-                                            .animation(.spring(response: 0.3), value: isSelected)
-
-                                            Text(Comic.characterName(for: emoji))
-                                                .font(.system(size: 9, weight: .heavy, design: .rounded))
-                                                .foregroundStyle(isSelected ? Comic.yellow : Comic.textSecondary)
-                                                .lineLimit(1)
-                                                .frame(width: 64)
-                                        }
+                                        AvatarPickerCard(
+                                            emoji: emoji,
+                                            name: Comic.characterName(
+                                                for: emoji),
+                                            isSelected: isSelected,
+                                            width: 62,
+                                            height: 84
+                                        )
                                     }
                                     .buttonStyle(BouncyButton())
                                 }
                             }
                             .padding(.horizontal, 28)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 8)
                         }
                     }
 

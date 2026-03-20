@@ -184,6 +184,13 @@ final class OnlineGameViewModel {
         let db = Firestore.firestore()
         let ref = db.collection("sessions").document(sessionCode)
 
+        // Show dealing animation on all clients first
+        let dealingGs: [String: Any] = ["phase": OnlineGamePhase.dealing.rawValue]
+        try? await ref.updateData(["gameState": dealingGs])
+
+        // Wait for animation to play (~3s)
+        try? await Task.sleep(nanoseconds: 3_000_000_000)
+
         // Deal
         let deck = ComputerGameViewModel.freshDeck().shuffled()
         allHands = (0..<6).map { i in Array(deck[(i * 8)..<((i + 1) * 8)]) }

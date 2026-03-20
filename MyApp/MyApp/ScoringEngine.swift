@@ -27,9 +27,21 @@ enum ScoringEngine {
         offenseIndices: Set<Int>,
         bidMade: Bool
     ) -> RoundScoreResult {
-        let bidderScore     = bidMade ? bidAmount : 0
-        let eachPartnerScore = bidMade ? bidAmount / 2 : 0   // floor division
-        let defenseDisplayScore = 250 - bidAmount             // display only, never added to totals
+        let bidderScore: Int
+        let eachPartnerScore: Int
+
+        if bidMade {
+            // Offense made the bid — positive scores
+            bidderScore      = bidAmount
+            eachPartnerScore = bidAmount / 2              // floor division
+        } else {
+            // Offense SET — negative scores
+            bidderScore      = -bidAmount
+            eachPartnerScore = -((bidAmount + 1) / 2)    // ceiling division
+        }
+
+        // Defense always scores 0 individually
+        let defenseDisplayScore = 0                        // defense always scores 0 individually
 
         var playerDeltas = Array(repeating: 0, count: 6)
         for i in 0..<6 {
@@ -38,7 +50,7 @@ enum ScoringEngine {
             } else if offenseIndices.contains(i) {
                 playerDeltas[i] = eachPartnerScore
             } else {
-                playerDeltas[i] = 0   // defense always scores 0 individually
+                playerDeltas[i] = 0
             }
         }
 
