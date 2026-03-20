@@ -1,4 +1,4 @@
-const functions = require("firebase-functions");
+const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 admin.initializeApp();
 
@@ -62,11 +62,11 @@ function isValidIndex(i) {
 }
 
 // ── Cloud Function: recordGame ────────────────────────────────
-exports.recordGame = functions.https.onCall(
-    async (data, context) => {
+exports.recordGame = onCall(
+    async (request) => {
     // ── Auth check ─────────────────────────────────────────
-      if (!context.auth) {
-        throw new functions.https.HttpsError(
+      if (!request.auth) {
+        throw new HttpsError(
             "unauthenticated",
             "You must be signed in to record a game.",
         );
@@ -84,12 +84,12 @@ exports.recordGame = functions.https.onCall(
         partner2Index,
         defensePointsCaught,
         roundCount,
-      } = data;
+      } = request.data;
 
       // ── Validate gameMode ──────────────────────────────────
       const validModes = ["Solo", "Online", "Multiplayer"];
       if (!validModes.includes(gameMode)) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             "invalid-argument", "Invalid game mode.",
         );
       }
@@ -97,7 +97,7 @@ exports.recordGame = functions.https.onCall(
       // ── Validate playerNames ───────────────────────────────
       if (!Array.isArray(playerNames) ||
         playerNames.length !== PLAYER_COUNT) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             "invalid-argument",
             "Exactly 6 player names required.",
         );
@@ -108,7 +108,7 @@ exports.recordGame = functions.https.onCall(
         !isValidIndex(partner1Index) ||
         !isValidIndex(partner2Index) ||
         !isValidIndex(winnerIndex)) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             "invalid-argument", "Invalid player index.",
         );
       }
@@ -117,7 +117,7 @@ exports.recordGame = functions.https.onCall(
       if (bidderIndex === partner1Index ||
         bidderIndex === partner2Index ||
         partner1Index === partner2Index) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             "invalid-argument",
             "Bidder and partners must be different seats.",
         );
@@ -126,7 +126,7 @@ exports.recordGame = functions.https.onCall(
       // ── Validate bid ───────────────────────────────────────
       if (!Number.isInteger(bid) ||
         bid < MIN_BID || bid > MAX_BID) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             "invalid-argument",
             `Bid must be between ${MIN_BID} and ${MAX_BID}.`,
         );
@@ -136,7 +136,7 @@ exports.recordGame = functions.https.onCall(
       if (!Number.isInteger(defensePointsCaught) ||
         defensePointsCaught < 0 ||
         defensePointsCaught > 250) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             "invalid-argument",
             "Invalid defense points.",
         );
@@ -145,7 +145,7 @@ exports.recordGame = functions.https.onCall(
       // ── Validate roundCount ────────────────────────────────
       if (!Number.isInteger(roundCount) ||
         roundCount < 1 || roundCount > 50) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             "invalid-argument", "Invalid round count.",
         );
       }
@@ -164,7 +164,7 @@ exports.recordGame = functions.https.onCall(
       // not just this round — we trust the app for this
       // but cap it to a valid index
       if (!isValidIndex(winnerIndex)) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             "invalid-argument", "Invalid winner index.",
         );
       }
