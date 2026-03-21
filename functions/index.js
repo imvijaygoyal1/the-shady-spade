@@ -65,8 +65,14 @@ function isValidIndex(i) {
 // ── Cloud Function: recordGame ────────────────────────────────
 exports.recordGame = onCall(
     async (request) => {
-    // ── Auth check ─────────────────────────────────────────
+      // ── Log every invocation (before auth) for diagnostics ──
+      console.log("recordGame: invoked, auth=",
+          request.auth ? request.auth.uid : "NONE",
+          "data=", JSON.stringify(request.data));
+
+      // ── Auth check ─────────────────────────────────────────
       if (!request.auth) {
+        console.error("recordGame: unauthenticated — no auth token");
         throw new HttpsError(
             "unauthenticated",
             "You must be signed in to record a game.",
@@ -90,6 +96,7 @@ exports.recordGame = onCall(
       // ── Validate gameMode ──────────────────────────────────
       const validModes = ["Solo", "Online", "Multiplayer"];
       if (!validModes.includes(gameMode)) {
+        console.error("recordGame: invalid gameMode —", gameMode);
         throw new HttpsError(
             "invalid-argument", "Invalid game mode.",
         );
@@ -98,6 +105,8 @@ exports.recordGame = onCall(
       // ── Validate playerNames ───────────────────────────────
       if (!Array.isArray(playerNames) ||
         playerNames.length !== PLAYER_COUNT) {
+        console.error("recordGame: invalid playerNames length —",
+            playerNames?.length);
         throw new HttpsError(
             "invalid-argument",
             "Exactly 6 player names required.",
@@ -142,7 +151,7 @@ exports.recordGame = onCall(
 
       // ── Validate roundCount ────────────────────────────────
       if (!Number.isInteger(roundCount) ||
-        roundCount < 1 || roundCount > 50) {
+        roundCount < 1 || roundCount > 200) {
         console.error("recordGame: invalid roundCount —",
             roundCount);
         throw new HttpsError(

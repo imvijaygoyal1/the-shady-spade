@@ -178,6 +178,9 @@ final class LeaderboardService {
             "roundCount":          rounds.count
         ]
 
+        print("LeaderboardService: recording game mode=\(gameMode)" +
+              " rounds=\(rounds.count) names=\(playerNames)")
+
         // Call 2nd gen Cloud Function via explicit Cloud Run URL,
         // bypassing FirebaseFunctions SDK name resolution which
         // fails for 2nd gen callable endpoints.
@@ -197,11 +200,22 @@ final class LeaderboardService {
 
             // Attach Firebase ID token so Cloud Function can
             // verify request.auth
-            if let token = try? await Auth.auth()
-                .currentUser?.getIDToken() {
-                request.setValue(
-                    "Bearer \(token)",
-                    forHTTPHeaderField: "Authorization")
+            if let user = Auth.auth().currentUser {
+                do {
+                    let token = try await user.getIDToken()
+                    request.setValue(
+                        "Bearer \(token)",
+                        forHTTPHeaderField: "Authorization")
+                    print("LeaderboardService: auth token attached")
+                } catch {
+                    print("LeaderboardService: getIDToken failed — \(error)")
+                    errorMessage = "Score not saved: auth error."
+                    return
+                }
+            } else {
+                print("LeaderboardService: no current user — skipping")
+                errorMessage = "Score not saved: not signed in."
+                return
             }
 
             let (data, response) = try await
@@ -209,15 +223,19 @@ final class LeaderboardService {
 
             if let http = response as? HTTPURLResponse,
                http.statusCode == 200 {
-                print("LeaderboardService: game recorded")
+                print("LeaderboardService: game recorded ✓")
+                errorMessage = nil
             } else {
                 let body = String(data: data,
                     encoding: .utf8) ?? "unknown"
-                print("LeaderboardService: " +
-                    "Cloud Function error — \(body)")
+                let status = (response as? HTTPURLResponse)?
+                    .statusCode ?? 0
+                print("LeaderboardService: HTTP \(status) — \(body)")
+                errorMessage = "Score not saved (HTTP \(status))."
             }
         } catch {
             print("LeaderboardService: request failed — \(error)")
+            errorMessage = "Score not saved: \(error.localizedDescription)"
         }
     }
 }

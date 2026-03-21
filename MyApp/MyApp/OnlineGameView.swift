@@ -62,14 +62,6 @@ struct OnlineGameView: View {
                 .zIndex(100)
             }
 
-            // Waiting overlay — shown when it's not the local player's turn (during action phases)
-            if !game.isMyTurn && game.phase == .bidding {
-                let waitName: String = {
-                    if game.currentActionPlayer >= 0 { return game.playerName(game.currentActionPlayer) }
-                    return "..."
-                }()
-                WaitingOverlay(name: waitName)
-            }
         }
         .animation(.easeInOut(duration: 0.3), value: game.bidWinnerInfo != nil)
         .confirmationDialog(

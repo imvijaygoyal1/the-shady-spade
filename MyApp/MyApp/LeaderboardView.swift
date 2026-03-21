@@ -56,6 +56,29 @@ struct LeaderboardView: View {
                 }
                 .padding(.bottom, 12)
 
+                if let errMsg = service.errorMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.defenseRose)
+                        Text(errMsg)
+                            .font(.caption.bold())
+                            .foregroundStyle(.defenseRose)
+                        Spacer()
+                        Button {
+                            service.errorMessage = nil
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.defenseRose.opacity(0.12))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 4)
+                }
+
                 if service.isLoading && service.playerStats.isEmpty {
                     Spacer()
                     ProgressView().tint(.masterGold)

@@ -1150,20 +1150,39 @@ private struct PlayingPhaseView: View {
             // Player role cards — all 6 players
             HStack(spacing: 5) {
                 ForEach(0..<6, id: \.self) { i in
-                    AvatarRoleCard(
-                        avatar: game.playerAvatar(i),
-                        name: game.playerName(i),
-                        role: resolveAvatarRole(
-                            playerIndex: i,
-                            bidderIndex: game.highBidderIndex,
-                            revealedPartner1: game.revealedPartner1Index,
-                            revealedPartner2: game.revealedPartner2Index,
-                            isRoundComplete: false
+                    let isActive = i == game.currentLeaderIndex
+                    ZStack(alignment: .top) {
+                        AvatarRoleCard(
+                            avatar: game.playerAvatar(i),
+                            name: game.playerName(i),
+                            role: resolveAvatarRole(
+                                playerIndex: i,
+                                bidderIndex: game.highBidderIndex,
+                                revealedPartner1: game.revealedPartner1Index,
+                                revealedPartner2: game.revealedPartner2Index,
+                                isRoundComplete: false
+                            )
                         )
-                    )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(
+                                    isActive
+                                        ? Color(red: 0.29, green: 0.87, blue: 0.50)
+                                        : Color.clear,
+                                    lineWidth: 2.5
+                                )
+                        )
+                        if isActive {
+                            TurnArrow()
+                                .fill(Color(red: 0.29, green: 0.87, blue: 0.50))
+                                .frame(width: 8, height: 6)
+                                .offset(y: -8)
+                        }
+                    }
                 }
             }
             .id("avatars-\(game.revealedPartner1Index.map(String.init) ?? "nil")-\(game.revealedPartner2Index.map(String.init) ?? "nil")")
+            .animation(.easeInOut(duration: 0.2), value: game.currentLeaderIndex)
             .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
             .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
             .padding(.horizontal, 8)
