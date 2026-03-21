@@ -448,6 +448,7 @@ private struct ViewingCardsView: View {
 
 private struct BiddingPhaseView: View {
     @Bindable var game: ComputerGameViewModel
+    @State private var isSubmittingBid = false
     @Environment(\.verticalSizeClass) private var vSizeClass
 
     var body: some View {
@@ -740,8 +741,11 @@ private struct BiddingPhaseView: View {
                     HStack(spacing: 12) {
                         if game.humanCanPass || game.humanMustPass {
                             Button {
+                                guard !isSubmittingBid else { return }
                                 HapticManager.impact(.light)
+                                isSubmittingBid = true
                                 game.humanPass()
+                                isSubmittingBid = false
                             } label: {
                                 Text("PASS!")
                                     .font(.system(size: 17, weight: .heavy, design: .rounded))
@@ -750,12 +754,16 @@ private struct BiddingPhaseView: View {
                                     .padding(.vertical, 14)
                             }
                             .buttonStyle(ComicButtonStyle(bg: Comic.red, fg: Comic.white, borderColor: Comic.black))
+                            .disabled(isSubmittingBid || game.phase != .humanBidding)
                         }
 
                         if !game.humanMustPass {
                             Button {
+                                guard !isSubmittingBid else { return }
                                 HapticManager.impact(.medium)
+                                isSubmittingBid = true
                                 game.humanBid(Int(game.humanBidAmount))
+                                isSubmittingBid = false
                             } label: {
                                 Text("BID!")
                                     .font(.system(size: 18, weight: .black, design: .rounded))
@@ -764,6 +772,7 @@ private struct BiddingPhaseView: View {
                                     .padding(.vertical, 14)
                             }
                             .buttonStyle(ComicButtonStyle())
+                            .disabled(isSubmittingBid || game.phase != .humanBidding)
                         }
                     }
                 }

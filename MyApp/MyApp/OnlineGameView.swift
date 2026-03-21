@@ -291,6 +291,7 @@ private struct OnlineLookingAtCardsView: View {
 
 private struct OnlineBiddingView: View {
     @Bindable var game: OnlineGameViewModel
+    @State private var isSubmittingBid = false
     @Environment(\.verticalSizeClass) private var vSizeClass
 
     var body: some View {
@@ -583,8 +584,13 @@ private struct OnlineBiddingView: View {
                     HStack(spacing: 12) {
                         if game.humanCanPass || game.humanMustPass {
                             Button {
+                                guard !isSubmittingBid else { return }
                                 HapticManager.impact(.light)
-                                Task { await game.pass() }
+                                isSubmittingBid = true
+                                Task {
+                                    await game.pass()
+                                    isSubmittingBid = false
+                                }
                             } label: {
                                 Text("PASS!")
                                     .font(.system(size: 17, weight: .heavy, design: .rounded))
@@ -593,12 +599,18 @@ private struct OnlineBiddingView: View {
                                     .padding(.vertical, 14)
                             }
                             .buttonStyle(ComicButtonStyle(bg: Comic.red, fg: Comic.white, borderColor: Comic.black))
+                            .disabled(isSubmittingBid || !game.isMyTurn)
                         }
 
                         if !game.humanMustPass {
                             Button {
+                                guard !isSubmittingBid else { return }
                                 HapticManager.impact(.medium)
-                                Task { await game.placeBid(Int(game.humanBidAmount)) }
+                                isSubmittingBid = true
+                                Task {
+                                    await game.placeBid(Int(game.humanBidAmount))
+                                    isSubmittingBid = false
+                                }
                             } label: {
                                 Text("BID!")
                                     .font(.system(size: 18, weight: .black, design: .rounded))
@@ -607,6 +619,7 @@ private struct OnlineBiddingView: View {
                                     .padding(.vertical, 14)
                             }
                             .buttonStyle(ComicButtonStyle())
+                            .disabled(isSubmittingBid || !game.isMyTurn)
                         }
                     }
                 }

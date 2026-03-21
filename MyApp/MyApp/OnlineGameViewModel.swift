@@ -379,12 +379,14 @@ final class OnlineGameViewModel {
             playerHasPassed = passedAny.map { ($0 as? Bool) ?? false }
         }
         if let histArr = gs["bidHistory"] as? [[String: Any]] {
-            bidHistory = histArr.compactMap { entry in
+            let parsed = histArr.compactMap { entry -> (playerIndex: Int, amount: Int)? in
                 guard let pi  = (entry["pi"]  as? Int) ?? (entry["pi"]  as? Int64).map(Int.init),
                       let amt = (entry["amt"] as? Int) ?? (entry["amt"] as? Int64).map(Int.init)
                 else { return nil }
                 return (playerIndex: pi, amount: amt)
             }
+            var seen = Set<Int>()
+            bidHistory = parsed.filter { seen.insert($0.playerIndex).inserted }
         }
         highBid = i("highBid")
         highBidderIndex = iDef("highBidderIndex", -1)

@@ -267,6 +267,8 @@ final class ComputerGameViewModel {
                 }
                 bids[currentPlayer] = amount
                 bidHistory.append((playerIndex: currentPlayer, amount: amount))
+                var seenH = Set<Int>()
+                bidHistory = bidHistory.filter { seenH.insert($0.playerIndex).inserted }
                 if amount > 0 {
                     if amount > highBid { highBid = amount; highBidderIndex = currentPlayer }
                     message = "\(playerName(currentPlayer)) bid \(amount)"
@@ -280,6 +282,8 @@ final class ComputerGameViewModel {
                 let amount = aiBidAmount(for: currentPlayer, canPass: canPassThisTurn)
                 bids[currentPlayer] = amount
                 bidHistory.append((playerIndex: currentPlayer, amount: amount))
+                var seenH = Set<Int>()
+                bidHistory = bidHistory.filter { seenH.insert($0.playerIndex).inserted }
                 if amount > 0 {
                     if amount > highBid { highBid = amount; highBidderIndex = currentPlayer }
                     message = "\(playerName(currentPlayer)) bid \(amount)"
@@ -299,6 +303,8 @@ final class ComputerGameViewModel {
             highBid = 130
             bids[dealerIndex] = 130
             bidHistory.append((playerIndex: dealerIndex, amount: 130))
+            var seenH = Set<Int>()
+            bidHistory = bidHistory.filter { seenH.insert($0.playerIndex).inserted }
             message = "\(playerName(dealerIndex)) is forced to bid 130"
             try? await Task.sleep(nanoseconds: 500_000_000)
         } else {
