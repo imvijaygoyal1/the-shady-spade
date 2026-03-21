@@ -128,9 +128,10 @@ exports.recordGame = onCall(
       }
 
       // ── Validate defensePointsCaught ───────────────────────
+      // Max is 250 * roundCount (defense can catch all points every round)
       if (!Number.isInteger(defensePointsCaught) ||
         defensePointsCaught < 0 ||
-        defensePointsCaught > 250) {
+        defensePointsCaught > 250 * roundCount) {
         console.error("recordGame: invalid defensePoints —",
             defensePointsCaught);
         throw new HttpsError(
