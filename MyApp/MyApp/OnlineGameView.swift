@@ -12,6 +12,7 @@ struct OnlineGameView: View {
     @State private var showQuitConfirm = false
     @State private var droppedPlayerAlert = false
     @State private var droppedPlayerName = ""
+    @State private var showRemovedFromGameAlert = false
 
     var body: some View {
         ZStack {
@@ -105,6 +106,14 @@ struct OnlineGameView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("\(droppedPlayerName)\nThe game will continue with an AI bot.")
+        }
+        .onChange(of: game.wasRemovedFromGame) { _, removed in
+            if removed { showRemovedFromGameAlert = true }
+        }
+        .alert("Removed from Game", isPresented: $showRemovedFromGameAlert) {
+            Button("OK") { dismiss() }
+        } message: {
+            Text("The host removed you from the game.")
         }
         .onChange(of: game.phase) { _, newPhase in
             if newPhase == .roundComplete {
@@ -310,6 +319,7 @@ private struct OnlineLookingAtCardsView: View {
 private struct OnlineBiddingView: View {
     @Bindable var game: OnlineGameViewModel
     @State private var isSubmittingBid = false
+    @State private var removeTargetIndex: Int? = nil
     @Environment(\.verticalSizeClass) private var vSizeClass
 
     var body: some View {
@@ -359,6 +369,9 @@ private struct OnlineBiddingView: View {
                     ForEach(0..<6) { i in
                         let isActive = game.currentActionPlayer == i
                             && !game.playerHasPassed[i]
+                        let canRemove = game.isHost
+                            && i != game.myPlayerIndex
+                            && !game.aiSeats.contains(i)
                         ZStack(alignment: .top) {
                             BidderCard(
                                 name: game.playerName(i),
@@ -391,6 +404,9 @@ private struct OnlineBiddingView: View {
                                     .frame(width: 8, height: 6)
                                     .offset(y: -8)
                             }
+                        }
+                        .onLongPressGesture {
+                            if canRemove { removeTargetIndex = i }
                         }
                     }
                 }
@@ -651,6 +667,24 @@ private struct OnlineBiddingView: View {
         }
         .animation(.spring(response: 0.35), value: game.isMyTurn)
         .turnNudge(isMyTurn: game.isMyTurn && game.phase == .bidding)
+        .confirmationDialog(
+            removeTargetIndex.map { "Remove \(game.playerName($0))?" } ?? "",
+            isPresented: Binding(
+                get: { removeTargetIndex != nil },
+                set: { if !$0 { removeTargetIndex = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Remove Player", role: .destructive) {
+                if let idx = removeTargetIndex {
+                    Task { await game.removePlayerMidGame(atIndex: idx) }
+                }
+                removeTargetIndex = nil
+            }
+            Button("Cancel", role: .cancel) { removeTargetIndex = nil }
+        } message: {
+            Text("They will be replaced by an AI bot and the game will continue.")
+        }
     }
 }
 
@@ -887,6 +921,7 @@ private struct OnlinePlayingView: View {
     var game: OnlineGameViewModel
     @State private var turnTextPulse = false
     @State private var waitPulse = false
+    @State private var removeTargetIndex: Int? = nil
     @Environment(\.verticalSizeClass) private var vSizeClass
 
     var body: some View {
@@ -895,6 +930,9 @@ private struct OnlinePlayingView: View {
             HStack(spacing: 5) {
                 ForEach(0..<6, id: \.self) { i in
                     let isActive = i == game.currentActionPlayer
+                    let canRemove = game.isHost
+                        && i != game.myPlayerIndex
+                        && !game.aiSeats.contains(i)
                     ZStack(alignment: .top) {
                         AvatarRoleCard(
                             avatar: game.playerAvatar(i),
@@ -930,6 +968,9 @@ private struct OnlinePlayingView: View {
                                 .frame(width: 8, height: 6)
                                 .offset(y: -8)
                         }
+                    }
+                    .onLongPressGesture {
+                        if canRemove { removeTargetIndex = i }
                     }
                 }
             }
@@ -1157,6 +1198,24 @@ private struct OnlinePlayingView: View {
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: game.partnerRevealMessage != nil)
         .turnNudge(isMyTurn: game.isMyTurn && game.phase == .playing)
+        .confirmationDialog(
+            removeTargetIndex.map { "Remove \(game.playerName($0))?" } ?? "",
+            isPresented: Binding(
+                get: { removeTargetIndex != nil },
+                set: { if !$0 { removeTargetIndex = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Remove Player", role: .destructive) {
+                if let idx = removeTargetIndex {
+                    Task { await game.removePlayerMidGame(atIndex: idx) }
+                }
+                removeTargetIndex = nil
+            }
+            Button("Cancel", role: .cancel) { removeTargetIndex = nil }
+        } message: {
+            Text("They will be replaced by an AI bot and the game will continue.")
+        }
     }
 }
 

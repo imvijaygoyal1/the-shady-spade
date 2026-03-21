@@ -78,6 +78,10 @@ final class OnlineGameViewModel {
     // MARK: Presence tracking
     private var presenceTimer: Timer?
     private var monitoringTimer: Timer?
+    private var prevAISeats: Set<Int> = []
+
+    // Set to true when this player's own seat becomes AI mid-game (host removed them)
+    var wasRemovedFromGame = false
 
     // MARK: Partner reveal tracking (all devices)
     private var hasInitializedCalling = false
@@ -285,6 +289,34 @@ final class OnlineGameViewModel {
         monitoringTimer = nil
     }
 
+    func removePlayerMidGame(atIndex index: Int) async {
+        guard isHost, index != myPlayerIndex, !aiSeats.contains(index) else { return }
+        let db = Firestore.firestore()
+        let ref = db.collection("sessions").document(sessionCode)
+        guard let data = (try? await ref.getDocument())?.data(),
+              var slotsData = data["playerSlots"] as? [[String: Any]] else { return }
+
+        var currentAISeats = (data["aiSeats"] as? [Any] ?? []).compactMap {
+            ($0 as? Int) ?? ($0 as? Int64).map(Int.init)
+        }
+        let removedName = slotsData[safe: index]?["name"] as? String ?? "Player"
+        let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley"]
+        let usedNames = slotsData.compactMap { $0["name"] as? String }
+        let aiName = aiNamePool.first { !usedNames.contains($0) } ?? "Bot"
+
+        slotsData[index] = ["uid": "AI-\(index)", "name": aiName, "avatar": "🤖", "joined": true]
+        currentAISeats.append(index)
+        currentAISeats.sort()
+
+        try? await ref.updateData([
+            "playerSlots": slotsData,
+            "aiSeats": currentAISeats,
+            "gameState.aiSeats": currentAISeats,
+            "removedSlot": index,
+            "gameState.message": "\(removedName) was removed. AI took over."
+        ])
+    }
+
     func monitorPresence() {
         guard isHost else { return }
         let db = Firestore.firestore()
@@ -357,6 +389,12 @@ final class OnlineGameViewModel {
             ?? (data["gameState"] as? [String: Any])?["aiSeats"] as? [Any]
             ?? []
         aiSeats = rawAI.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
+
+        // Detect if this player was removed mid-game (their seat just entered aiSeats)
+        if !isHost && !prevAISeats.contains(myPlayerIndex) && Set(aiSeats).contains(myPlayerIndex) {
+            wasRemovedFromGame = true
+        }
+        prevAISeats = Set(aiSeats)
 
         // Parse game state
         if let gs = data["gameState"] as? [String: Any] {
