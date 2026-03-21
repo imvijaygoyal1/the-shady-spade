@@ -1,6 +1,5 @@
 import Foundation
 import FirebaseFirestore
-import FirebaseFunctions
 import SwiftUI
 
 struct GameLogEntry: Identifiable {
@@ -161,31 +160,68 @@ final class LeaderboardService {
         guard playerNames.count == 6,
               let lastRound = rounds.last else { return }
 
-        let totalDefensePts = rounds.reduce(0) {
+        let bidAmount   = lastRound.bidAmount
+        let bidderIndex = lastRound.bidderIndex
+        let p1Index     = lastRound.partner1Index
+        let p2Index     = lastRound.partner2Index
+        let bidMade     = !lastRound.isSet
+        let offenseSet  = Set([bidderIndex, p1Index, p2Index])
+        let defenseArr  = (0..<6)
+            .filter { !offenseSet.contains($0) }
+            .map { i -> [String: Any] in ["name": playerNames[i]] }
+        let totalDefense = rounds.reduce(0) {
             $0 + $1.defensePointsCaught
         }
 
-        let payload: [String: Any] = [
+        let batch = db.batch()
+
+        // game_log entry
+        let logRef = db.collection("game_log").document()
+        let logData: [String: Any] = [
+            "date":                FieldValue.serverTimestamp(),
             "gameMode":            gameMode,
-            "playerNames":         playerNames,
-            "winnerIndex":         winnerIndex,
-            "bid":                 lastRound.bidAmount,
-            "bidMade":             !lastRound.isSet,
-            "bidderIndex":         lastRound.bidderIndex,
-            "partner1Index":       lastRound.partner1Index,
-            "partner2Index":       lastRound.partner2Index,
-            "defensePointsCaught": totalDefensePts,
-            "roundCount":          rounds.count
+            "bid":                 bidAmount,
+            "bidMade":             bidMade,
+            "bidderName":          playerNames[bidderIndex],
+            "bidderScore":         finalScores[bidderIndex],
+            "partner1Name":        playerNames[p1Index],
+            "partner1Score":       finalScores[p1Index],
+            "partner2Name":        playerNames[p2Index],
+            "partner2Score":       finalScores[p2Index],
+            "defense":             defenseArr,
+            "defensePointsCaught": totalDefense
         ]
+        batch.setData(logData, forDocument: logRef)
+
+        // player_stats — one doc per player
+        for i in 0..<6 {
+            let name = playerNames[i]
+                .trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { continue }
+            let score = max(0, finalScores[i])
+            var stats: [String: Any] = [
+                "name":         name,
+                "wins":         FieldValue.increment(
+                    i == winnerIndex ? Int64(1) : Int64(0)),
+                "gamesPlayed":  FieldValue.increment(Int64(1)),
+                "totalPoints":  FieldValue.increment(Int64(score)),
+                "lastPlayed":   FieldValue.serverTimestamp(),
+                "lastGameMode": gameMode
+            ]
+            if i == bidderIndex {
+                stats["totalBids"] = FieldValue.increment(Int64(1))
+                stats["bidsMade"]  = FieldValue.increment(
+                    bidMade ? Int64(1) : Int64(0))
+            }
+            let statsRef = db.collection("player_stats").document(name)
+            batch.setData(stats, forDocument: statsRef, merge: true)
+        }
 
         do {
-            let functions = Functions.functions()
-            let result = try await functions
-                .httpsCallable("recordGame")
-                .call(payload)
-            print("LeaderboardService: recorded — \(result.data)")
+            try await batch.commit()
+            print("LeaderboardService: game recorded")
         } catch {
-            print("LeaderboardService: Cloud Function failed — \(error)")
+            print("LeaderboardService: write failed — \(error)")
         }
     }
 }
