@@ -10,6 +10,8 @@ struct OnlineGameView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showRoundResultBanner = false
     @State private var showQuitConfirm = false
+    @State private var droppedPlayerAlert = false
+    @State private var droppedPlayerName = ""
 
     var body: some View {
         ZStack {
@@ -86,7 +88,23 @@ struct OnlineGameView: View {
         }
         .task {
             game.attachListener()
+            game.startPresenceTracking()
+            game.monitorPresence()
             if game.isHost { await game.startGame() }
+        }
+        .onDisappear {
+            game.stopPresenceTracking()
+        }
+        .onChange(of: game.message) { _, newMsg in
+            if newMsg.contains("left. AI took over") {
+                droppedPlayerName = newMsg
+                droppedPlayerAlert = true
+            }
+        }
+        .alert("Player Left", isPresented: $droppedPlayerAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("\(droppedPlayerName)\nThe game will continue with an AI bot.")
         }
         .onChange(of: game.phase) { _, newPhase in
             if newPhase == .roundComplete {

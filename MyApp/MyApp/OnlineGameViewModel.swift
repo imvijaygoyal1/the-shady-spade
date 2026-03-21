@@ -75,6 +75,9 @@ final class OnlineGameViewModel {
     private var listener: ListenerRegistration?
     private var lastProcessedNonce: String = ""
 
+    // MARK: Presence tracking
+    private var presenceTimer: Timer?
+
     // MARK: Partner reveal tracking (all devices)
     private var hasInitializedCalling = false
     // Revealed in play order (slot 2 = first reveal, slot 3 = second reveal)
@@ -257,6 +260,81 @@ final class OnlineGameViewModel {
         try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
     }
 
+    // MARK: - Presence tracking
+
+    func startPresenceTracking() {
+        guard !isHost else { return }
+        let db = Firestore.firestore()
+        let ref = db.collection("sessions").document(sessionCode)
+        presenceTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task {
+                try? await ref.updateData([
+                    "presence.\(self.myPlayerIndex)": Timestamp()
+                ])
+            }
+        }
+        presenceTimer?.fire()
+    }
+
+    func stopPresenceTracking() {
+        presenceTimer?.invalidate()
+        presenceTimer = nil
+    }
+
+    func monitorPresence() {
+        guard isHost else { return }
+        let db = Firestore.firestore()
+        let ref = db.collection("sessions").document(sessionCode)
+
+        Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let snap = try? await ref.getDocument()
+                guard let data = snap?.data(),
+                      let presence = data["presence"] as? [String: Any]
+                else { return }
+
+                let now = Date()
+                var slotsData = data["playerSlots"] as? [[String: Any]] ?? []
+                var currentAISeats = (data["aiSeats"] as? [Any] ?? []).compactMap {
+                    ($0 as? Int) ?? ($0 as? Int64).map(Int.init)
+                }
+                var droppedNames: [String] = []
+                var changed = false
+
+                let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley"]
+
+                for i in 0..<6 {
+                    guard !currentAISeats.contains(i), i != self.myPlayerIndex else { continue }
+                    let lastSeen = (presence["\(i)"] as? Timestamp)?.dateValue()
+                    let isDropped = lastSeen == nil || now.timeIntervalSince(lastSeen!) > 30
+                    if isDropped, let name = slotsData[safe: i]?["name"] as? String {
+                        let usedNames = slotsData.compactMap { $0["name"] as? String }
+                        let aiName = aiNamePool.first { !usedNames.contains($0) } ?? "Bot"
+                        slotsData[i] = ["uid": "AI-\(i)", "name": aiName, "avatar": "🤖", "joined": true]
+                        currentAISeats.append(i)
+                        currentAISeats.sort()
+                        droppedNames.append(name)
+                        changed = true
+                    }
+                }
+
+                if changed {
+                    let droppedMsg = droppedNames.joined(separator: ", ")
+                    try? await ref.updateData([
+                        "playerSlots": slotsData,
+                        "aiSeats": currentAISeats,
+                        "gameState.aiSeats": currentAISeats,
+                        "droppedPlayers": FieldValue.arrayUnion(droppedNames),
+                        "gameState.message": "\(droppedMsg) left. AI took over."
+                    ])
+                }
+            }
+        }
+    }
+
     // MARK: - Listener
 
     func attachListener() {
@@ -271,10 +349,11 @@ final class OnlineGameViewModel {
     }
 
     private func handleSnapshot(_ data: [String: Any]) async {
-        // Sync aiSeats from session document root (updated when humans replace AI slots)
-        if let rawAI = data["aiSeats"] as? [Any] {
-            aiSeats = rawAI.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
-        }
+        // Sync aiSeats from session document root, or gameState.aiSeats if updated mid-game
+        let rawAI = (data["aiSeats"] as? [Any])
+            ?? (data["gameState"] as? [String: Any])?["aiSeats"] as? [Any]
+            ?? []
+        aiSeats = rawAI.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
 
         // Parse game state
         if let gs = data["gameState"] as? [String: Any] {

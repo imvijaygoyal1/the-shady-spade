@@ -272,6 +272,47 @@ enum SessionStatus: String {
         attachListener(code: code)
     }
 
+    func removePlayer(atSlot slotIndex: Int) async {
+        guard let code = sessionCode,
+              isHost,
+              slotIndex != 0 else { return }
+
+        let ref = db.collection("sessions").document(code)
+        let snapshot = try? await ref.getDocument()
+        guard let data = snapshot?.data(),
+              var slotsData = data["playerSlots"] as? [[String: Any]],
+              slotIndex < slotsData.count
+        else { return }
+
+        var currentAISeats = (data["aiSeats"] as? [Any] ?? []).compactMap {
+            ($0 as? Int) ?? ($0 as? Int64).map(Int.init)
+        }
+
+        let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan",
+                          "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
+        let usedNames = slotsData.compactMap { $0["name"] as? String }
+        let availNames = aiNamePool.filter { !usedNames.contains($0) }
+        let aiName = availNames.first ?? "Bot"
+
+        slotsData[slotIndex] = [
+            "uid": "AI-\(slotIndex)",
+            "name": aiName,
+            "avatar": "🤖",
+            "joined": true
+        ]
+
+        if !currentAISeats.contains(slotIndex) {
+            currentAISeats.append(slotIndex)
+            currentAISeats.sort()
+        }
+
+        try? await ref.updateData([
+            "playerSlots": slotsData,
+            "aiSeats": currentAISeats,
+            "removedSlot": slotIndex
+        ])
+    }
+
     func startGame() async {
         guard let code = sessionCode, isHost else { return }
         do {

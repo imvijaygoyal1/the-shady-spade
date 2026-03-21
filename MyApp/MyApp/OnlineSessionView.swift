@@ -362,6 +362,7 @@ private struct SessionLobbyView: View {
     @State private var codeCopied = false
     @State private var showQRCode = false
     @State private var newlyJoinedSlots: Set<Int> = []
+    @State private var wasRemoved = false
 
     private func generateQRCode(from string: String) -> UIImage {
         let context = CIContext()
@@ -579,14 +580,19 @@ Tap to join: shadyspade://join/\(sessionVM.sessionCode ?? "")
 
                     LazyVGrid(columns: gridColumns, spacing: 12) {
                         ForEach(0..<6, id: \.self) { i in
+                            let slot = sessionVM.playerSlots[i]
+                            let isAI = sessionVM.aiSeats.contains(i)
+                            let canRemove = sessionVM.isHost && i != 0 && slot.joined && !isAI
                             PlayerSlotCard(
                                 index: i,
-                                slot: sessionVM.playerSlots[i],
-                                isAI: sessionVM.aiSeats.contains(i),
-                                isHost: i == 0 && sessionVM.playerSlots[i].joined && !sessionVM.aiSeats.contains(i),
-                                isNew: newlyJoinedSlots.contains(i)
+                                slot: slot,
+                                isAI: isAI,
+                                isHost: i == 0 && slot.joined && !isAI,
+                                isNew: newlyJoinedSlots.contains(i),
+                                canRemove: canRemove,
+                                onRemove: { Task { await sessionVM.removePlayer(atSlot: i) } }
                             )
-                            .id("\(i)-\(sessionVM.aiSeats.contains(i))")
+                            .id("\(i)-\(isAI)")
                             .transition(.asymmetric(
                                 insertion: .scale(scale: 0.8).combined(with: .opacity),
                                 removal: .opacity
@@ -654,6 +660,20 @@ Tap to join: shadyspade://join/\(sessionVM.sessionCode ?? "")
                     withAnimation { newlyJoinedSlots.remove(slot) }
                 }
             }
+            // Detect if this player was removed by host
+            if !sessionVM.isHost {
+                let mySlotIndex = sessionVM.playerSlots
+                    .first(where: { $0.uid == playerUID })?.slotIndex ?? -1
+                if mySlotIndex >= 0 && Set(newAI).contains(mySlotIndex) &&
+                   !Set(oldAI).contains(mySlotIndex) {
+                    wasRemoved = true
+                }
+            }
+        }
+        .alert("Removed from Game", isPresented: $wasRemoved) {
+            Button("OK") { dismiss() }
+        } message: {
+            Text("The host removed you from the game.")
         }
         .onChange(of: sessionVM.status) { _, newStatus in
             if newStatus == .playing, let onGameReady {
@@ -791,6 +811,9 @@ private struct PlayerSlotCard: View {
     var isAI: Bool = false
     var isHost: Bool = false
     var isNew: Bool = false
+    var canRemove: Bool = false
+    var onRemove: (() -> Void)? = nil
+    @State private var showRemoveConfirm = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -883,5 +906,18 @@ private struct PlayerSlotCard: View {
                 )
         }
         .opacity(isAI ? 0.85 : 1.0)
+        .onTapGesture {
+            if canRemove { showRemoveConfirm = true }
+        }
+        .confirmationDialog(
+            "Remove \(slot.name)?",
+            isPresented: $showRemoveConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Remove Player", role: .destructive) { onRemove?() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("They will be replaced by an AI bot.")
+        }
     }
 }
