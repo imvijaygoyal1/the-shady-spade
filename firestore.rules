@@ -3,11 +3,13 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /game_log/{gameId} {
-      allow read, write: if request.auth != null;
+      allow read: if request.auth != null;
+      allow write: if false;
     }
 
     match /player_stats/{playerName} {
-      allow read, write: if request.auth != null;
+      allow read: if request.auth != null;
+      allow write: if false;
     }
 
     match /sessions/{sessionId} {
