@@ -864,7 +864,6 @@ private struct OnlinePlayingView: View {
             HStack(spacing: 5) {
                 ForEach(0..<6, id: \.self) { i in
                     let isActive = i == game.currentActionPlayer
-                        && game.aiSeats.count < 5
                     ZStack(alignment: .top) {
                         AvatarRoleCard(
                             avatar: game.playerAvatar(i),
@@ -915,8 +914,7 @@ private struct OnlinePlayingView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 10) {
 
-                    if game.aiSeats.count < 5
-                        && !game.isMyTurn
+                    if !game.isMyTurn
                         && game.currentActionPlayer >= 0 {
                         HStack(spacing: 6) {
                             Circle()

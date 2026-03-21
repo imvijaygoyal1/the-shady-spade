@@ -1165,8 +1165,7 @@ private struct PlayingPhaseView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 10) {
 
-                    if game.humanPlayerIndices.count > 1
-                        && !game.humanPlayerIndices.contains(
+                    if !game.humanPlayerIndices.contains(
                             game.currentLeaderIndex)
                         && game.currentLeaderIndex >= 0 {
                         HStack(spacing: 6) {
