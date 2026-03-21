@@ -109,24 +109,18 @@ exports.recordGame = onCall(
         !isValidIndex(partner1Index) ||
         !isValidIndex(partner2Index) ||
         !isValidIndex(winnerIndex)) {
+        console.error("recordGame: invalid index —",
+            {bidderIndex, partner1Index, partner2Index,
+              winnerIndex});
         throw new HttpsError(
             "invalid-argument", "Invalid player index.",
-        );
-      }
-
-      // Bidder and partners must be distinct seats
-      if (bidderIndex === partner1Index ||
-        bidderIndex === partner2Index ||
-        partner1Index === partner2Index) {
-        throw new HttpsError(
-            "invalid-argument",
-            "Bidder and partners must be different seats.",
         );
       }
 
       // ── Validate bid ───────────────────────────────────────
       if (!Number.isInteger(bid) ||
         bid < MIN_BID || bid > MAX_BID) {
+        console.error("recordGame: invalid bid —", bid);
         throw new HttpsError(
             "invalid-argument",
             `Bid must be between ${MIN_BID} and ${MAX_BID}.`,
@@ -137,6 +131,8 @@ exports.recordGame = onCall(
       if (!Number.isInteger(defensePointsCaught) ||
         defensePointsCaught < 0 ||
         defensePointsCaught > 250) {
+        console.error("recordGame: invalid defensePoints —",
+            defensePointsCaught);
         throw new HttpsError(
             "invalid-argument",
             "Invalid defense points.",
@@ -146,6 +142,8 @@ exports.recordGame = onCall(
       // ── Validate roundCount ────────────────────────────────
       if (!Number.isInteger(roundCount) ||
         roundCount < 1 || roundCount > 50) {
+        console.error("recordGame: invalid roundCount —",
+            roundCount);
         throw new HttpsError(
             "invalid-argument", "Invalid round count.",
         );
@@ -237,6 +235,8 @@ exports.recordGame = onCall(
       }
 
       await batch.commit();
+      console.log("recordGame: wrote game", gameId,
+          "mode:", gameMode, "winner:", winnerIndex);
       return {success: true, gameId};
     });
 
