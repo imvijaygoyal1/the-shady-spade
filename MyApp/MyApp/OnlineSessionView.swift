@@ -582,7 +582,7 @@ Tap to join: shadyspade://join/\(sessionVM.sessionCode ?? "")
                         ForEach(0..<6, id: \.self) { i in
                             let slot = sessionVM.playerSlots[i]
                             let isAI = sessionVM.aiSeats.contains(i)
-                            let canRemove = sessionVM.isHost && i != 0 && slot.joined && !isAI
+                            let canRemove = sessionVM.isHost && i != 0 && slot.joined
                             PlayerSlotCard(
                                 index: i,
                                 slot: slot,
@@ -910,14 +910,16 @@ private struct PlayerSlotCard: View {
             if canRemove { showRemoveConfirm = true }
         }
         .confirmationDialog(
-            "Remove \(slot.name)?",
+            isAI ? "Remove \(slot.name) (AI)?" : "Remove \(slot.name)?",
             isPresented: $showRemoveConfirm,
             titleVisibility: .visible
         ) {
-            Button("Remove Player", role: .destructive) { onRemove?() }
+            Button(isAI ? "Remove AI Bot" : "Remove Player", role: .destructive) { onRemove?() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("They will be replaced by an AI bot.")
+            Text(isAI
+                 ? "This slot will open for a human player to join."
+                 : "They will be replaced by an AI bot.")
         }
     }
 }

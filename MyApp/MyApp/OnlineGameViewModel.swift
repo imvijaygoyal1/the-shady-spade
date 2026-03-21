@@ -77,6 +77,7 @@ final class OnlineGameViewModel {
 
     // MARK: Presence tracking
     private var presenceTimer: Timer?
+    private var monitoringTimer: Timer?
 
     // MARK: Partner reveal tracking (all devices)
     private var hasInitializedCalling = false
@@ -280,6 +281,8 @@ final class OnlineGameViewModel {
     func stopPresenceTracking() {
         presenceTimer?.invalidate()
         presenceTimer = nil
+        monitoringTimer?.invalidate()
+        monitoringTimer = nil
     }
 
     func monitorPresence() {
@@ -287,7 +290,7 @@ final class OnlineGameViewModel {
         let db = Firestore.firestore()
         let ref = db.collection("sessions").document(sessionCode)
 
-        Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] timer in
+        monitoringTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
             Task { @MainActor [weak self] in
                 guard let self else { return }

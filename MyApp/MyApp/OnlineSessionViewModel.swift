@@ -288,36 +288,70 @@ enum SessionStatus: String {
             ($0 as? Int) ?? ($0 as? Int64).map(Int.init)
         }
 
-        let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan",
-                          "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
-        let usedNames = slotsData.compactMap { $0["name"] as? String }
-        let availNames = aiNamePool.filter { !usedNames.contains($0) }
-        let aiName = availNames.first ?? "Bot"
+        let isAISlot = currentAISeats.contains(slotIndex)
 
-        slotsData[slotIndex] = [
-            "uid": "AI-\(slotIndex)",
-            "name": aiName,
-            "avatar": "🤖",
-            "joined": true
-        ]
+        if isAISlot {
+            // Removing an AI bot — free the slot so a human can join
+            slotsData[slotIndex] = ["uid": "", "name": "", "avatar": "", "joined": false]
+            currentAISeats.removeAll { $0 == slotIndex }
+            try? await ref.updateData([
+                "playerSlots": slotsData,
+                "aiSeats": currentAISeats
+            ])
+        } else {
+            // Removing a human player — replace with AI bot
+            let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan",
+                              "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
+            let usedNames = slotsData.compactMap { $0["name"] as? String }
+            let aiName = aiNamePool.filter { !usedNames.contains($0) }.first ?? "Bot"
 
-        if !currentAISeats.contains(slotIndex) {
+            slotsData[slotIndex] = [
+                "uid": "AI-\(slotIndex)",
+                "name": aiName,
+                "avatar": "🤖",
+                "joined": true
+            ]
             currentAISeats.append(slotIndex)
             currentAISeats.sort()
+            try? await ref.updateData([
+                "playerSlots": slotsData,
+                "aiSeats": currentAISeats,
+                "removedSlot": slotIndex
+            ])
         }
-
-        try? await ref.updateData([
-            "playerSlots": slotsData,
-            "aiSeats": currentAISeats,
-            "removedSlot": slotIndex
-        ])
     }
 
     func startGame() async {
         guard let code = sessionCode, isHost else { return }
+        let ref = db.collection("sessions").document(code)
+
+        // Auto-fill any remaining empty slots with AI bots before starting
+        if let data = try? await ref.getDocument().data(),
+           var slotsData = data["playerSlots"] as? [[String: Any]] {
+            var currentAISeats = (data["aiSeats"] as? [Any] ?? []).compactMap {
+                ($0 as? Int) ?? ($0 as? Int64).map(Int.init)
+            }
+            let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan",
+                              "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
+            var changed = false
+            for i in 1..<6 {
+                let joined = slotsData[i]["joined"] as? Bool ?? false
+                if !joined {
+                    let usedNames = slotsData.compactMap { $0["name"] as? String }
+                    let aiName = aiNamePool.filter { !usedNames.contains($0) }.first ?? "Bot\(i)"
+                    slotsData[i] = ["uid": "AI-\(i)", "name": aiName, "avatar": "🤖", "joined": true]
+                    if !currentAISeats.contains(i) { currentAISeats.append(i) }
+                    changed = true
+                }
+            }
+            if changed {
+                currentAISeats.sort()
+                try? await ref.updateData(["playerSlots": slotsData, "aiSeats": currentAISeats])
+            }
+        }
+
         do {
-            try await db.collection("sessions").document(code)
-                .updateData(["status": SessionStatus.playing.rawValue])
+            try await ref.updateData(["status": SessionStatus.playing.rawValue])
         } catch {
             errorMessage = "Failed to start game. Please try again."
         }
