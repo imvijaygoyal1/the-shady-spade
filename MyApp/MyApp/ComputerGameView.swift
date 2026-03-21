@@ -1094,6 +1094,51 @@ private struct PlayingPhaseView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 10) {
 
+                    if game.humanPlayerIndices.count > 1
+                        && !game.humanPlayerIndices.contains(
+                            game.currentLeaderIndex)
+                        && game.currentLeaderIndex >= 0 {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color(red: 0.22,
+                                    green: 0.74,
+                                    blue: 0.97))
+                                .frame(width: 6, height: 6)
+                            Text("Waiting for \(game.playerName(game.currentLeaderIndex)) to play…")
+                                .font(.system(size: 11,
+                                    weight: .heavy,
+                                    design: .rounded))
+                                .foregroundStyle(
+                                    Color(red: 0.22,
+                                        green: 0.74,
+                                        blue: 0.97))
+                            Spacer()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(
+                            Color(red: 0.22, green: 0.74,
+                                blue: 0.97).opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(
+                                cornerRadius: 8,
+                                style: .continuous)
+                                .strokeBorder(
+                                    Color(red: 0.22,
+                                        green: 0.74,
+                                        blue: 0.97)
+                                        .opacity(0.35),
+                                    lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(
+                            cornerRadius: 8,
+                            style: .continuous))
+                        .padding(.horizontal, 12)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.3),
+                            value: game.currentLeaderIndex)
+                    }
+
                     // Current Hand
                     VStack(spacing: 10) {
                         HStack(spacing: 8) {

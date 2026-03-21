@@ -792,24 +792,50 @@ private struct OnlinePlayingView: View {
             // Player role cards — all 6 players
             HStack(spacing: 5) {
                 ForEach(0..<6, id: \.self) { i in
-                    AvatarRoleCard(
-                        avatar: game.playerAvatar(i),
-                        name: game.playerName(i),
-                        role: resolveAvatarRole(
-                            playerIndex: i,
-                            bidderIndex: game.highBidderIndex,
-                            revealedPartner1: game.revealedPartner1Index >= 0
-                                ? game.revealedPartner1Index : nil,
-                            revealedPartner2: game.revealedPartner2Index >= 0
-                                ? game.revealedPartner2Index : nil,
-                            isRoundComplete: false
+                    let isActive = i == game.currentActionPlayer
+                        && game.aiSeats.count < 5
+                    ZStack(alignment: .top) {
+                        AvatarRoleCard(
+                            avatar: game.playerAvatar(i),
+                            name: game.playerName(i),
+                            role: resolveAvatarRole(
+                                playerIndex: i,
+                                bidderIndex: game.highBidderIndex,
+                                revealedPartner1: game.revealedPartner1Index >= 0
+                                    ? game.revealedPartner1Index : nil,
+                                revealedPartner2: game.revealedPartner2Index >= 0
+                                    ? game.revealedPartner2Index : nil,
+                                isRoundComplete: false
+                            )
                         )
-                    )
+                        .overlay(
+                            RoundedRectangle(
+                                cornerRadius: 10,
+                                style: .continuous)
+                                .strokeBorder(
+                                    isActive
+                                        ? Color(red: 0.29,
+                                            green: 0.87,
+                                            blue: 0.50)
+                                        : Color.clear,
+                                    lineWidth: 2.5
+                                )
+                        )
+                        if isActive {
+                            Triangle()
+                                .fill(Color(red: 0.29,
+                                    green: 0.87,
+                                    blue: 0.50))
+                                .frame(width: 8, height: 6)
+                                .offset(y: -8)
+                        }
+                    }
                 }
             }
             .id("avatars-\(game.revealedPartner1Index)-\(game.revealedPartner2Index)")
             .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
             .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
+            .animation(.easeInOut(duration: 0.2), value: game.currentActionPlayer)
             .padding(.horizontal, 8)
             .padding(.top, vSizeClass == .compact ? 8 : 44)
             .padding(.bottom, vSizeClass == .compact ? 4 : 8)
@@ -817,6 +843,50 @@ private struct OnlinePlayingView: View {
             // Scrollable middle content — no fixed heights, no dead space
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 10) {
+
+                    if game.aiSeats.count < 5
+                        && !game.isMyTurn
+                        && game.currentActionPlayer >= 0 {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color(red: 0.22,
+                                    green: 0.74,
+                                    blue: 0.97))
+                                .frame(width: 6, height: 6)
+                            Text("Waiting for \(game.playerName(game.currentActionPlayer)) to play…")
+                                .font(.system(size: 11,
+                                    weight: .heavy,
+                                    design: .rounded))
+                                .foregroundStyle(
+                                    Color(red: 0.22,
+                                        green: 0.74,
+                                        blue: 0.97))
+                            Spacer()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(
+                            Color(red: 0.22, green: 0.74,
+                                blue: 0.97).opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(
+                                cornerRadius: 8,
+                                style: .continuous)
+                                .strokeBorder(
+                                    Color(red: 0.22,
+                                        green: 0.74,
+                                        blue: 0.97)
+                                        .opacity(0.35),
+                                    lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(
+                            cornerRadius: 8,
+                            style: .continuous))
+                        .padding(.horizontal, 12)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.3),
+                            value: game.currentActionPlayer)
+                    }
 
                     // Current Hand
                     VStack(spacing: 10) {
@@ -1530,6 +1600,22 @@ private struct OnlinePartnerRevealBanner: View {
     }
 }
 
+
+// MARK: - Triangle shape (used in OnlinePlayingView turn indicator)
+
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(
+            x: rect.midX, y: rect.maxY))
+        path.addLine(to: CGPoint(
+            x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(
+            x: rect.maxX, y: rect.minY))
+        path.closeSubpath()
+        return path
+    }
+}
 
 // MARK: - Adaptive sizing helpers (Online)
 
