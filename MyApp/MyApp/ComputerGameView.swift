@@ -495,22 +495,93 @@ private struct BiddingPhaseView: View {
                 let cardW = (geo.size.width - 44) / 6
                 HStack(spacing: 4) {
                     ForEach(0..<6) { i in
-                        BidderCard(
-                            name: game.playerName(i),
-                            avatar: game.playerAvatar(i),
-                            bid: game.bids[i],
-                            isActive: game.currentBidTurn == i
-                                && !game.playerHasPassed[i],
-                            isHighBidder: i == game.highBidderIndex,
-                            isPassed: game.playerHasPassed[i],
-                            width: cardW,
-                            height: 76
-                        )
+                        let isActive = game.currentBidTurn == i
+                            && !game.playerHasPassed[i]
+                        ZStack(alignment: .top) {
+                            BidderCard(
+                                name: game.playerName(i),
+                                avatar: game.playerAvatar(i),
+                                bid: game.bids[i],
+                                isActive: isActive,
+                                isHighBidder: i == game.highBidderIndex,
+                                isPassed: game.playerHasPassed[i],
+                                width: cardW,
+                                height: 76
+                            )
+                            .overlay(
+                                RoundedRectangle(
+                                    cornerRadius: 10,
+                                    style: .continuous)
+                                    .strokeBorder(
+                                        isActive
+                                            ? Color(red: 0.29,
+                                                green: 0.87,
+                                                blue: 0.50)
+                                            : Color.clear,
+                                        lineWidth: 2.5
+                                    )
+                            )
+                            if isActive {
+                                TurnArrow()
+                                    .fill(Color(red: 0.29,
+                                        green: 0.87,
+                                        blue: 0.50))
+                                    .frame(width: 8, height: 6)
+                                    .offset(y: -8)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 12)
             }
             .frame(height: 82)
+            .animation(.easeInOut(duration: 0.2),
+                value: game.currentBidTurn)
+
+            if !game.humanPlayerIndices.contains(
+                game.currentBidTurn)
+                && !game.playerHasPassed[
+                    game.currentBidTurn] {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color(red: 0.22,
+                            green: 0.74,
+                            blue: 0.97))
+                        .frame(width: 6, height: 6)
+                    Text("Waiting for \(game.playerName(game.currentBidTurn)) to bid…")
+                        .font(.system(size: 13,
+                            weight: .heavy,
+                            design: .rounded))
+                        .foregroundStyle(
+                            Color(red: 0.22,
+                                green: 0.74,
+                                blue: 0.97))
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(
+                    Color(red: 0.22, green: 0.74,
+                        blue: 0.97).opacity(0.1))
+                .overlay(
+                    RoundedRectangle(
+                        cornerRadius: 10,
+                        style: .continuous)
+                        .strokeBorder(
+                            Color(red: 0.22,
+                                green: 0.74,
+                                blue: 0.97)
+                                .opacity(0.35),
+                            lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(
+                    cornerRadius: 10,
+                    style: .continuous))
+                .padding(.horizontal, 16)
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.3),
+                    value: game.currentBidTurn)
+            }
 
             // Bidding start announcement
             Text(game.biddingToastMessage ?? "")
