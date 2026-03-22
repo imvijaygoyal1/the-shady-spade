@@ -172,17 +172,19 @@ final class LeaderboardService {
             $0 + $1.defensePointsCaught
         }
 
+        // Explicitly cast all numeric values to Int to avoid SwiftData
+        // model proxy types that JSONSerialization can't handle correctly.
         let payload: [String: Any] = [
             "gameMode":            gameMode,
             "playerNames":         playerNames,
-            "winnerIndex":         winnerIndex,
-            "bid":                 lastRound.bidAmount,
+            "winnerIndex":         Int(winnerIndex),
+            "bid":                 Int(lastRound.bidAmount),
             "bidMade":             !lastRound.isSet,
-            "bidderIndex":         lastRound.bidderIndex,
-            "partner1Index":       lastRound.partner1Index,
-            "partner2Index":       lastRound.partner2Index,
-            "defensePointsCaught": totalDefensePts,
-            "roundCount":          rounds.count
+            "bidderIndex":         Int(lastRound.bidderIndex),
+            "partner1Index":       Int(lastRound.partner1Index),
+            "partner2Index":       Int(lastRound.partner2Index),
+            "defensePointsCaught": Int(totalDefensePts),
+            "roundCount":          Int(rounds.count)
         ]
 
         print("LeaderboardService: recording game mode=\(gameMode)" +
