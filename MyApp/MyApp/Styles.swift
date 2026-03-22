@@ -1113,72 +1113,92 @@ struct TurnArrow: Shape {
 // MARK: - Last Hand Strip
 
 struct LastHandView: View {
-    /// Each entry: (card, playerName, isWinner)
     let cards: [(card: Card, playerName: String, isWinner: Bool)]
     let winnerName: String
     let pointsWon: Int
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 8) {
+
+            // Header
             HStack {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: "star.fill")
-                        .font(.system(size: 8, weight: .heavy))
-                        .foregroundStyle(Color.masterGold.opacity(0.8))
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundStyle(Color.masterGold)
                     Text("Last Hand")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color.masterGold.opacity(0.8))
+                        .font(.system(size: 15, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
                 }
                 Spacer()
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     Text("\(winnerName) won")
-                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
                         .foregroundStyle(Color.masterGold)
                     Text("\(pointsWon) pts")
-                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .font(.system(size: 10, weight: .black, design: .rounded))
                         .foregroundStyle(Color.masterGold)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.masterGold.opacity(0.2))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.masterGold.opacity(0.15))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
                                 .strokeBorder(Color.masterGold.opacity(0.4), lineWidth: 1)
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
             }
-            .padding(.bottom, 6)
 
-            HStack(spacing: 3) {
-                ForEach(Array(cards.enumerated()), id: \.offset) { _, entry in
-                    VStack(spacing: 2) {
-                        PlayingCardView(card: entry.card, width: entry.isWinner ? 36 : 32)
-                            .opacity(entry.isWinner ? 1.0 : 0.55)
-                            .offset(y: entry.isWinner ? -4 : 0)
-                            .overlay(
-                                entry.isWinner
-                                ? RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                    .strokeBorder(Color.masterGold, lineWidth: 2)
-                                    .offset(y: -4)
-                                : nil
-                            )
-                        Text(String(entry.playerName.prefix(5)))
-                            .font(.system(size: 5, weight: .heavy, design: .rounded))
-                            .foregroundStyle(
-                                entry.isWinner
-                                ? Color.masterGold
-                                : Color.white.opacity(0.3))
+            // Cards row
+            GeometryReader { geo in
+                let count = cards.count
+                let spacing: CGFloat = 4
+                let totalSpacing = spacing * CGFloat(count - 1)
+                let cardW = min(56, (geo.size.width - totalSpacing) / CGFloat(count))
+                let cardH = cardW * (106.0 / 74.0)
+
+                HStack(spacing: spacing) {
+                    ForEach(Array(cards.enumerated()), id: \.offset) { _, entry in
+                        VStack(spacing: 4) {
+                            HandCardView(card: entry.card, width: cardW)
+                                .opacity(entry.isWinner ? 1.0 : 0.5)
+                                .offset(y: entry.isWinner ? -5 : 0)
+                                .overlay(
+                                    entry.isWinner
+                                    ? RoundedRectangle(
+                                        cornerRadius: cardW * (12.0/74.0),
+                                        style: .continuous)
+                                        .strokeBorder(Color.masterGold, lineWidth: 2.5)
+                                        .offset(y: -5)
+                                    : nil
+                                )
+
+                            Text(String(entry.playerName.prefix(6)))
+                                .font(.system(size: 9, weight: .heavy, design: .rounded))
+                                .foregroundStyle(
+                                    entry.isWinner
+                                    ? Color.masterGold
+                                    : Comic.textSecondary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity)
                 }
+                .frame(height: cardH + 20)
             }
+            .frame(height: 56 * (106.0/74.0) + 20)
         }
-        .padding(10)
-        .background(Color.masterGold.opacity(0.06))
+        .padding(12)
+        .background(Comic.containerBG)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.masterGold.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.masterGold.opacity(0.35), lineWidth: Comic.borderWidth)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(
+            color: Comic.black.opacity(0.6),
+            radius: 0,
+            x: Comic.shadowOffset,
+            y: Comic.shadowOffset)
     }
 }
