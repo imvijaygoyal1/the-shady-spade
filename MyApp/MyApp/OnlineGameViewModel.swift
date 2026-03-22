@@ -38,6 +38,9 @@ final class OnlineGameViewModel {
     var currentTrick: [(playerIndex: Int, card: Card)] = []
     var currentLeaderIndex: Int = 0
     var trickNumber: Int = 0
+    var lastCompletedTrick: [(playerIndex: Int, card: Card)] = []
+    var lastTrickWinnerIndex: Int = -1
+    var lastTrickPoints: Int = 0
     var wonPointsPerPlayer: [Int] = Array(repeating: 0, count: 6)
     var runningScores: [Int] = Array(repeating: 0, count: 6)
     var message: String = ""
@@ -529,8 +532,23 @@ final class OnlineGameViewModel {
         partner2Index = newP2
         let prevTrickNumber = trickNumber
         let prevWonTotal = wonPointsPerPlayer.reduce(0, +)
+        let newTrickNumber = i("trickNumber")
         currentLeaderIndex = i("currentLeaderIndex")
-        trickNumber = i("trickNumber")
+        trickNumber = newTrickNumber
+
+        // Trick just completed — capture it as lastCompletedTrick
+        if newTrickNumber > prevTrickNumber && !currentTrick.isEmpty {
+            lastCompletedTrick = currentTrick
+            lastTrickWinnerIndex = currentLeaderIndex
+            lastTrickPoints = currentTrick.map { $0.card.pointValue }.reduce(0, +)
+        }
+        // New round — reset
+        if newTrickNumber == 0 {
+            lastCompletedTrick = []
+            lastTrickWinnerIndex = -1
+            lastTrickPoints = 0
+        }
+
         if let wpp = gs["wonPointsPerPlayer"] as? [Any] {
             wonPointsPerPlayer = wpp.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? 0 }
         }

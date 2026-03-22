@@ -1096,6 +1096,21 @@ private struct OnlinePlayingView: View {
                     .currentHandStage()
                     .padding(.horizontal, 16)
 
+                    if !game.lastCompletedTrick.isEmpty && game.lastTrickWinnerIndex >= 0 {
+                        LastHandView(
+                            cards: game.lastCompletedTrick.map { entry in
+                                (card: entry.card,
+                                 playerName: game.playerName(entry.playerIndex),
+                                 isWinner: entry.playerIndex == game.lastTrickWinnerIndex)
+                            },
+                            winnerName: game.playerName(game.lastTrickWinnerIndex),
+                            pointsWon: game.lastTrickPoints
+                        )
+                        .padding(.horizontal, 16)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .animation(.easeInOut(duration: 0.3), value: game.lastTrickWinnerIndex)
+                    }
+
                     // Info row — trump badge + called cards badge
                     TrumpAndCalledRow(trumpSuit: game.trumpSuit, card1: game.calledCard1, card2: game.calledCard2)
                         .padding(.vertical, 4)

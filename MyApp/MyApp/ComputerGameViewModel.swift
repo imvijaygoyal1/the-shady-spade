@@ -105,6 +105,7 @@ final class ComputerGameViewModel {
     var waitingForNextHand: Bool = false
     var lastTrickWinnerIndex: Int = -1
     var lastTrickPoints: Int = 0
+    var lastCompletedTrick: [(playerIndex: Int, card: Card)] = []
     private var nextHandContinuation: CheckedContinuation<Void, Never>?
     private var bidWinnerContinuation: CheckedContinuation<Void, Never>?
 
@@ -207,6 +208,7 @@ final class ComputerGameViewModel {
         waitingForNextHand = false
         lastTrickWinnerIndex = -1
         lastTrickPoints = 0
+        lastCompletedTrick = []
         phase = .viewingCards
     }
 
@@ -531,6 +533,7 @@ final class ComputerGameViewModel {
     private func waitForNextHand() async {
         lastTrickWinnerIndex = trickWinners.last ?? -1
         lastTrickPoints = completedTricks.last?.map(\.card.pointValue).reduce(0, +) ?? 0
+        lastCompletedTrick = completedTricks.last ?? []
         waitingForNextHand = true
         print("DEBUG waitForNextHand: humanPlayerIndices=\(humanPlayerIndices), count=\(humanPlayerIndices.count)")
 
