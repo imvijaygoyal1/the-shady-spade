@@ -79,6 +79,9 @@ struct OnlineGameView: View {
             titleVisibility: .visible
         ) {
             Button(game.isHost ? "End Game" : "Leave", role: .destructive) {
+                if game.runningScores.max() ?? 0 >= OnlineGameViewModel.winningScore {
+                    saveOnlineGameHistory()
+                }
                 game.cleanup()
                 dismiss()
             }
