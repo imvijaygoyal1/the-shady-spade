@@ -73,7 +73,10 @@ struct MyAppApp: App {
             .environmentObject(themeManager)
             // didFinishLaunchingWithOptions has already run at this point,
             // so Firebase is configured and it is safe to start the auth listener.
-            .task { authVM.start() }
+            .task {
+                authVM.start()
+                LeaderboardService.shared.startListening()
+            }
             .onOpenURL { url in handleIncomingURL(url) }
         }
         .modelContainer(for: [Round.self, GameHistory.self, HistoryRound.self])

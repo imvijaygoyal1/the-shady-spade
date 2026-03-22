@@ -83,6 +83,7 @@ private struct SignUpPage: View {
     private var passwordMismatch: Bool {
         !confirmPassword.isEmpty && password != confirmPassword
     }
+    private var nameIsProfane: Bool { ProfanityFilter.isProfane(name) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -105,6 +106,9 @@ private struct SignUpPage: View {
 
                 VStack(spacing: 16) {
                     AuthTextField(title: "Display Name", text: $name)
+                    if nameIsProfane {
+                        errorLabel("Inappropriate name — please choose another")
+                    }
                     AuthTextField(title: "Email", text: $email, keyboardType: .emailAddress)
                     AuthTextField(title: "Password", text: $password, isSecure: true)
                     AuthTextField(title: "Confirm Password", text: $confirmPassword, isSecure: true)
@@ -118,7 +122,7 @@ private struct SignUpPage: View {
 
                 primaryButton(title: "Create Account", isLoading: authVM.isLoading,
                               disabled: name.isEmpty || email.isEmpty || password.isEmpty
-                                      || passwordMismatch) {
+                                      || passwordMismatch || nameIsProfane) {
                     Task {
                         await authVM.signUp(name: name, email: email, password: password)
                         if authVM.errorMessage == nil { onVerify() }

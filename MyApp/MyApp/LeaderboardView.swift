@@ -90,8 +90,7 @@ struct LeaderboardView: View {
                 }
             }
         }
-        .onAppear  { service.startListening() }
-        .onDisappear { service.stopListening() }
+        .onAppear { service.startListening() }
     }
 
     private func lbTab(_ label: String, tab: LBTab) -> some View {

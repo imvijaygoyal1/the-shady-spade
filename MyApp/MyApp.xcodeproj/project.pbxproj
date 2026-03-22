@@ -36,6 +36,7 @@
 		K1000001 /* OnlineGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K2000001 /* OnlineGameView.swift */; };
 		L1000001 /* GameHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L2000001 /* GameHistoryView.swift */; };
 		LS100001 /* LeaderboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = LS200001 /* LeaderboardService.swift */; };
+		PF100001 /* ProfanityFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF200001 /* ProfanityFilter.swift */; };
 		LV100001 /* LeaderboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = LV200001 /* LeaderboardView.swift */; };
 		M1000001 /* CardDealAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = M2000001 /* CardDealAnimationView.swift */; };
 		N1000001 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = N2000001 /* QRScannerView.swift */; };
@@ -81,6 +82,7 @@
 		K2000001 /* OnlineGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGameView.swift; sourceTree = "<group>"; };
 		L2000001 /* GameHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameHistoryView.swift; sourceTree = "<group>"; };
 		LS200001 /* LeaderboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardService.swift; sourceTree = "<group>"; };
+		PF200001 /* ProfanityFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfanityFilter.swift; sourceTree = "<group>"; };
 		LV200001 /* LeaderboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardView.swift; sourceTree = "<group>"; };
 		M2000001 /* CardDealAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardDealAnimationView.swift; sourceTree = "<group>"; };
 		N2000001 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
@@ -153,6 +155,7 @@
 				Q2000001 /* PlayerScoreBarChart.swift */,
 				SE200001 /* ScoringEngine.swift */,
 				LS200001 /* LeaderboardService.swift */,
+				PF200001 /* ProfanityFilter.swift */,
 				LV200001 /* LeaderboardView.swift */,
 				TN200001 /* TurnNudge.swift */,
 				CR200001 /* CasinoRoyaleTheme.swift */,
@@ -295,6 +298,7 @@
 				CR100001 /* CasinoRoyaleTheme.swift in Sources */,
 				PT100001 /* PremiumThemes.swift in Sources */,
 				LS100001 /* LeaderboardService.swift in Sources */,
+				PF100001 /* ProfanityFilter.swift in Sources */,
 				LV100001 /* LeaderboardView.swift in Sources */,
 				TN100001 /* TurnNudge.swift in Sources */,
 			);

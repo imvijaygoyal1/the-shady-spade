@@ -272,6 +272,8 @@ private struct PlayerSetupPage: View {
     @State private var visible = false
 
     private var allFilled: Bool { names.allSatisfy { !$0.trimmingCharacters(in: .whitespaces).isEmpty } }
+    private var anyProfane: Bool { names.contains { ProfanityFilter.isProfane($0) } }
+    private var canProceed: Bool { allFilled && !anyProfane }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -302,7 +304,7 @@ private struct PlayerSetupPage: View {
 
             Spacer(minLength: 0)
 
-            goldButton(label: "Next: Shuffle Cards", icon: "rectangle.on.rectangle.angled", enabled: allFilled) {
+            goldButton(label: "Next: Shuffle Cards", icon: "rectangle.on.rectangle.angled", enabled: canProceed) {
                 let resolved = names.enumerated().map { i, n in
                     n.trimmingCharacters(in: .whitespaces).isEmpty ? "Player \(i + 1)" : n
                 }
@@ -320,20 +322,41 @@ private struct PlayerSetupPage: View {
     }
 
     private func nameField(index i: Int) -> some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle().fill(Comic.yellow).frame(width: 38, height: 38)
-                Circle().strokeBorder(Comic.black, lineWidth: 2).frame(width: 38, height: 38)
-                Text("\(i + 1)").font(.system(size: 17, weight: .black, design: .rounded)).foregroundStyle(Comic.black)
+        let profane = ProfanityFilter.isProfane(names[i])
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(Comic.yellow).frame(width: 38, height: 38)
+                    Circle().strokeBorder(Comic.black, lineWidth: 2).frame(width: 38, height: 38)
+                    Text("\(i + 1)").font(.system(size: 17, weight: .black, design: .rounded)).foregroundStyle(Comic.black)
+                }
+                TextField("Player \(i + 1)", text: $names[i])
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(profane ? Color.defenseRose : Comic.textPrimary)
+                    .tint(.offenseBlue)
+                    .focused($focused, equals: i)
+                    .submitLabel(i < 5 ? .next : .done)
+                    .onSubmit { focused = i < 5 ? i + 1 : nil }
             }
-            TextField("Player \(i + 1)", text: $names[i])
-                .font(.system(size: 16, weight: .bold, design: .rounded)).foregroundStyle(Comic.textPrimary).tint(.offenseBlue)
-                .focused($focused, equals: i)
-                .submitLabel(i < 5 ? .next : .done)
-                .onSubmit { focused = i < 5 ? i + 1 : nil }
+            .padding()
+            .comicContainer(cornerRadius: 14)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(profane ? Color.defenseRose : Color.clear, lineWidth: 1.5)
+            )
+            if profane {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                    Text("Inappropriate name")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(Color.defenseRose)
+                .padding(.leading, 56)
+                .transition(.opacity)
+            }
         }
-        .padding()
-        .comicContainer(cornerRadius: 14)
+        .animation(.easeInOut(duration: 0.15), value: profane)
     }
 }
 

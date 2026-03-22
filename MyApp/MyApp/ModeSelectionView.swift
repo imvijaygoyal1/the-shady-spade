@@ -212,6 +212,8 @@ private struct NamePromptSheet: View {
 
     private let avatarOptions = Comic.comicCharacters.map { $0.emoji }
     private var trimmed: String { pendingName.trimmingCharacters(in: .whitespaces) }
+    private var isProfane: Bool { ProfanityFilter.isProfane(trimmed) }
+    private var canStart: Bool { !trimmed.isEmpty && !isProfane }
 
     var body: some View {
         ZStack {
@@ -251,14 +253,31 @@ private struct NamePromptSheet: View {
                         TextField("Enter avatar name...", text: $pendingName)
                             .textFieldStyle(.plain)
                             .font(.system(size: 20, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Comic.textPrimary)
+                            .foregroundStyle(isProfane ? Color.defenseRose : Comic.textPrimary)
                             .multilineTextAlignment(.center)
                             .padding(.vertical, 14)
                             .padding(.horizontal, 14)
                             .comicContainer(cornerRadius: 14)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(isProfane ? Color.defenseRose : Color.clear,
+                                                  lineWidth: 1.5)
+                            )
                             .submitLabel(.go)
-                            .onSubmit(onStart)
+                            .onSubmit { if canStart { onStart() } }
+                        if isProfane {
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 11))
+                                Text("Inappropriate name — please choose another")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                            }
+                            .foregroundStyle(Color.defenseRose)
+                            .padding(.leading, 4)
+                            .transition(.opacity)
+                        }
                     }
+                    .animation(.easeInOut(duration: 0.15), value: isProfane)
                     .padding(.horizontal, 28)
 
                     // Avatar picker — rectangular cards
@@ -301,16 +320,16 @@ private struct NamePromptSheet: View {
                     Button(action: onStart) {
                         Text("Start Game")
                             .font(.system(size: 18, weight: .black, design: .rounded))
-                            .foregroundStyle(trimmed.isEmpty ? Color.secondary : Comic.black)
+                            .foregroundStyle(canStart ? Comic.black : Color.secondary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
                     }
                     .buttonStyle(ComicButtonStyle(
-                        bg: trimmed.isEmpty ? Comic.containerBG : Comic.yellow,
-                        fg: trimmed.isEmpty ? .secondary : Comic.black,
+                        bg: canStart ? Comic.yellow : Comic.containerBG,
+                        fg: canStart ? Comic.black : .secondary,
                         borderColor: Comic.black
                     ))
-                    .disabled(trimmed.isEmpty)
+                    .disabled(!canStart)
                     .padding(.horizontal, 28)
                     .padding(.bottom, 36)
                 }

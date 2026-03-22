@@ -70,7 +70,10 @@ final class LeaderboardService {
     func startListening() {
         guard statsListener == nil else { return }
         isLoading = true
+        attachFirestoreListeners()
+    }
 
+    private func attachFirestoreListeners() {
         statsListener = db.collection("player_stats")
             .order(by: "wins", descending: true)
             .addSnapshotListener { [weak self] snap, err in
@@ -181,11 +184,11 @@ final class LeaderboardService {
         print("LeaderboardService: recording game mode=\(gameMode)" +
               " rounds=\(rounds.count) names=\(playerNames)")
 
-        // Call 2nd gen Cloud Function via explicit Cloud Run URL,
-        // bypassing FirebaseFunctions SDK name resolution which
-        // fails for 2nd gen callable endpoints.
+        // Call Cloud Function via Cloud Run URL (onRequest, not onCall).
+        // Sends Authorization: Bearer <Firebase-ID-token> which the
+        // function verifies directly via admin.auth().verifyIdToken().
         let cloudRunURL = URL(
-            string: "https://recordgame-ttt4s46pta-uc.a.run.app")!
+            string: "https://us-central1-shadyspade-d6b84.cloudfunctions.net/recordGame")!
 
         do {
             var request = URLRequest(url: cloudRunURL)
