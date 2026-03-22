@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+import OSLog
+
+private let ogLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "OnlineGame")
 
 // MARK: - Root
 
@@ -40,6 +43,12 @@ struct OnlineGameView: View {
                     guard game.isHost else { return }
                     Task { await game.startNextRound() }
                 } onQuit: {
+                    // If the game is over (someone hit the winning score),
+                    // record it before quitting — the user may skip the
+                    // gameOver phase by tapping Quit here instead.
+                    if game.runningScores.max() ?? 0 >= OnlineGameViewModel.winningScore {
+                        saveOnlineGameHistory()
+                    }
                     game.cleanup()
                     dismiss()
                 }
@@ -153,7 +162,11 @@ struct OnlineGameView: View {
 
     private func saveOnlineGameHistory() {
         let finalScores = game.runningScores
-        guard finalScores.max() ?? 0 > 0 else { return }
+        ogLog.info("saveOnlineGameHistory called scores=\(finalScores) names=\(game.playerNames.count)")
+        guard finalScores.max() ?? 0 > 0 else {
+            ogLog.error("saveOnlineGameHistory guard failed — max score=\(finalScores.max() ?? 0)")
+            return
+        }
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: {
             finalScores[$0] < finalScores[$1]

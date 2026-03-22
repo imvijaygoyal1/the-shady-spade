@@ -2,6 +2,9 @@ import Foundation
 import FirebaseAuth
 import FirebaseFirestore
 import SwiftUI
+import OSLog
+
+private let lbLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "Leaderboard")
 
 struct GameLogEntry: Identifiable {
     var id: String
@@ -161,10 +164,10 @@ final class LeaderboardService {
         winnerIndex: Int,
         rounds: [HistoryRound]
     ) async {
-        print("LeaderboardService.recordGame: called mode=\(gameMode) names=\(playerNames.count) rounds=\(rounds.count) winner=\(winnerIndex)")
+        lbLog.info("recordGame called mode=\(gameMode) names=\(playerNames.count) rounds=\(rounds.count) winner=\(winnerIndex)")
         guard playerNames.count == 6,
               let lastRound = rounds.last else {
-            print("LeaderboardService.recordGame: guard failed — names=\(playerNames.count) rounds=\(rounds.count)")
+            lbLog.error("recordGame guard failed — names=\(playerNames.count) rounds=\(rounds.count)")
             return
         }
 
@@ -187,8 +190,7 @@ final class LeaderboardService {
             "roundCount":          Int(rounds.count)
         ]
 
-        print("LeaderboardService: recording game mode=\(gameMode)" +
-              " rounds=\(rounds.count) names=\(playerNames)")
+        lbLog.info("sending HTTP request mode=\(gameMode) rounds=\(rounds.count)")
 
         // Call Cloud Function via Cloud Run URL (onRequest, not onCall).
         // Sends Authorization: Bearer <Firebase-ID-token> which the
@@ -215,14 +217,14 @@ final class LeaderboardService {
                     request.setValue(
                         "Bearer \(token)",
                         forHTTPHeaderField: "Authorization")
-                    print("LeaderboardService: auth token attached")
+                    lbLog.info("auth token attached uid=\(user.uid)")
                 } catch {
-                    print("LeaderboardService: getIDToken failed — \(error)")
+                    lbLog.error("getIDToken failed: \(error.localizedDescription)")
                     errorMessage = "Score not saved: auth error."
                     return
                 }
             } else {
-                print("LeaderboardService: no current user — skipping")
+                lbLog.error("no current user — not signed in")
                 errorMessage = "Score not saved: not signed in."
                 return
             }
@@ -232,18 +234,18 @@ final class LeaderboardService {
 
             if let http = response as? HTTPURLResponse,
                http.statusCode == 200 {
-                print("LeaderboardService: game recorded ✓")
+                lbLog.info("game recorded ✓")
                 errorMessage = nil
             } else {
                 let body = String(data: data,
                     encoding: .utf8) ?? "unknown"
                 let status = (response as? HTTPURLResponse)?
                     .statusCode ?? 0
-                print("LeaderboardService: HTTP \(status) — \(body)")
+                lbLog.error("HTTP \(status): \(body)")
                 errorMessage = "Score not saved (HTTP \(status))."
             }
         } catch {
-            print("LeaderboardService: request failed — \(error)")
+            lbLog.error("request failed: \(error.localizedDescription)")
             errorMessage = "Score not saved: \(error.localizedDescription)"
         }
     }
