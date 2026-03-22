@@ -204,7 +204,8 @@ struct ComputerGameView: View {
         savedHistoryRounds.append(hr)
 
         if updated.max() ?? 0 >= targetScore {
-            saveGameHistory(finalScores: updated)
+            let mode = game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer"
+            saveGameHistory(finalScores: updated, mode: mode)
             isGameOver = true
             return
         }
@@ -237,7 +238,11 @@ struct ComputerGameView: View {
 
     private func saveGameHistory(finalScores: [Int], rounds: [HistoryRound]? = nil, mode: String = "Solo") {
         let roundsToSave = rounds ?? savedHistoryRounds
-        guard !roundsToSave.isEmpty else { return }
+        print("ComputerGameView.saveGameHistory: mode=\(mode) rounds=\(roundsToSave.count) savedRounds=\(savedHistoryRounds.count)")
+        guard !roundsToSave.isEmpty else {
+            print("ComputerGameView.saveGameHistory: guard failed — no rounds")
+            return
+        }
         let names = (0..<6).map { game.playerName($0) }
         let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
         let history = GameHistory(
@@ -1953,6 +1958,13 @@ private struct GameOverView: View {
     let onPlayAgain: () -> Void
     let onHistory: () -> Void
     let onQuit: () -> Void
+    @State private var lbService = LeaderboardService.shared
+    @State private var saveStatus: SaveStatus = .saving
+    enum SaveStatus { case saving, saved, failed(String) }
+    private func checkSaveStatus() {
+        if let err = lbService.errorMessage { saveStatus = .failed(err) }
+        else if !lbService.isLoading { saveStatus = .saved }
+    }
 
     private var sortedIndices: [Int] {
         (0..<6).sorted { runningScores[$0] > runningScores[$1] }
@@ -1976,6 +1988,41 @@ private struct GameOverView: View {
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 52)
+
+                // Leaderboard save status
+                Group {
+                    switch saveStatus {
+                    case .saving:
+                        HStack(spacing: 6) {
+                            ProgressView().scaleEffect(0.75)
+                            Text("Saving to leaderboard...")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                    case .saved:
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text("Saved to leaderboard")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                    case .failed(let msg):
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.defenseRose)
+                            Text(msg)
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(.defenseRose)
+                        }
+                    }
+                }
+                .onChange(of: lbService.errorMessage) { checkSaveStatus() }
+                .task {
+                    // Wait a moment for recordGame Task to complete
+                    try? await Task.sleep(for: .seconds(5))
+                    checkSaveStatus()
+                }
 
                 // Final leaderboard
                 VStack(spacing: 0) {

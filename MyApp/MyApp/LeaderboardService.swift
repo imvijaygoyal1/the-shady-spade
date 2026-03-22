@@ -161,8 +161,12 @@ final class LeaderboardService {
         winnerIndex: Int,
         rounds: [HistoryRound]
     ) async {
+        print("LeaderboardService.recordGame: called mode=\(gameMode) names=\(playerNames.count) rounds=\(rounds.count) winner=\(winnerIndex)")
         guard playerNames.count == 6,
-              let lastRound = rounds.last else { return }
+              let lastRound = rounds.last else {
+            print("LeaderboardService.recordGame: guard failed — names=\(playerNames.count) rounds=\(rounds.count)")
+            return
+        }
 
         let totalDefensePts = rounds.reduce(0) {
             $0 + $1.defensePointsCaught

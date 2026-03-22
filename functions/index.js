@@ -241,7 +241,12 @@ exports.recordGame = onRequest(
         batch.set(ref, update, {merge: true});
       }
 
-      await batch.commit();
+      try {
+        await batch.commit();
+      } catch (e) {
+        console.error("recordGame: batch.commit failed —", e.message);
+        return sendError(res, 500, "Database write failed.");
+      }
       console.log("recordGame: wrote game", gameId,
           "mode:", gameMode, "winner:", winnerIndex);
       res.status(200).json({result: {success: true, gameId}});
