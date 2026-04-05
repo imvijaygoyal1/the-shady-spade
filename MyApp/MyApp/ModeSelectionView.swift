@@ -14,6 +14,7 @@ struct ModeSelectionView: View {
     @State private var vm = GameViewModel()
     @State private var showingSolo = false
     @State private var showingOnline = false
+    @State private var showingBluetooth = false
     @State private var showingSettings = false
     @State private var showingLeaderboard = false
     @State private var namePromptRequest: NamePromptRequest? = nil
@@ -21,6 +22,7 @@ struct ModeSelectionView: View {
     @State private var pendingAvatar = "🦁"
     @State private var nameConfirmed = false
     @State private var confirmedIsOnline = false
+    @State private var confirmedIsBluetooth = false
     @AppStorage("soloPlayerName") private var soloPlayerName = ""
     @AppStorage("soloPlayerAvatar") private var soloPlayerAvatar = "🦁"
 
@@ -103,7 +105,7 @@ struct ModeSelectionView: View {
                     ModeCard(
                         icon: "person.3.fill",
                         title: "Multiplayer",
-                        subtitle: "Play with friends — mix humans and AI",
+                        subtitle: "Play with friends online — internet required",
                         color: Comic.blue,
                         iconBG: Comic.blue
                     ) {
@@ -111,6 +113,19 @@ struct ModeSelectionView: View {
                         pendingName = soloPlayerName
                         pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
                         namePromptRequest = NamePromptRequest(mode: "Multiplayer", isOnline: true)
+                    }
+
+                    ModeCard(
+                        icon: "dot.radiowaves.left.and.right",
+                        title: "Local / Bluetooth",
+                        subtitle: "Play nearby — no internet needed",
+                        color: Comic.red,
+                        iconBG: Comic.red
+                    ) {
+                        HapticManager.impact(.medium)
+                        pendingName = soloPlayerName
+                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                        namePromptRequest = NamePromptRequest(mode: "Local / Bluetooth", isOnline: false)
                     }
                 }
                 .adaptiveContentFrame()
@@ -129,6 +144,7 @@ struct ModeSelectionView: View {
             if nameConfirmed {
                 nameConfirmed = false
                 if confirmedIsOnline { showingOnline = true }
+                else if confirmedIsBluetooth { showingBluetooth = true }
                 else { showingSolo = true }
             }
         }) { request in
@@ -141,6 +157,7 @@ struct ModeSelectionView: View {
                 soloPlayerName = trimmed.isEmpty ? "Player" : trimmed
                 soloPlayerAvatar = pendingAvatar
                 confirmedIsOnline = request.isOnline
+                confirmedIsBluetooth = request.mode == "Local / Bluetooth"
                 nameConfirmed = true
                 namePromptRequest = nil
             }
@@ -161,6 +178,13 @@ struct ModeSelectionView: View {
             )
             .environmentObject(themeManager)
         }
+        .fullScreenCover(isPresented: $showingBluetooth) {
+            BTEntryView(
+                playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
+                playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+            )
+            .environmentObject(themeManager)
+        }
         .sheet(isPresented: $showingLeaderboard) {
             LeaderboardView()
                 .environmentObject(themeManager)
@@ -168,6 +192,29 @@ struct ModeSelectionView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
                 .environmentObject(themeManager)
+        }
+    }
+}
+
+// MARK: - Bluetooth Entry
+
+private struct BTEntryView: View {
+    let playerName: String
+    let playerAvatar: String
+    @State private var btGame: BluetoothGameViewModel? = nil
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        if let game = btGame {
+            BluetoothGameView(game: game)
+        } else {
+            BluetoothSessionView(
+                playerName: playerName,
+                playerAvatar: playerAvatar,
+                onGameReady: { vm in
+                    btGame = vm
+                }
+            )
         }
     }
 }
