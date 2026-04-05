@@ -144,6 +144,14 @@
 **Online (`OnlineGamePhase` — synced via Firestore):**
 `.dealing` → `.lookingAtCards` → `.bidding` → `.calling` → `.playing` → `.roundComplete` → `.gameOver`
 
+### Leaderboard Offline Retry
+- `PendingGameRecord: Codable` — serializable record struct; stored as JSON in `UserDefaults` key `leaderboard_pending_records_v1`.
+- `ScoreSaveStatus` enum: `.idle | .saving | .saved | .pending | .failed(String)` — observable on `LeaderboardService.shared.scoreSaveStatus`.
+- `NWPathMonitor` in `LeaderboardService.startListening()` — when connectivity is restored, calls `flushPendingRecords()` which retries all queued records. Also flushes at app launch.
+- `recordGame` enqueues to `pendingRecords` instead of giving up when all 3 HTTP attempts fail due to network error. 4xx errors are terminal (not enqueued).
+- `ScoreSaveStatusRow` in `Styles.swift` — shared view used by `GameOverView` (solo), `OnlineRoundCompleteView`, `BTRoundCompleteView`, `BTGameOverView` to display `.saving / .saved / .pending / .failed` states.
+- `.pending` renders a gold wifi-slash banner: "No internet — score will sync automatically when you're back online."
+
 ### Leaderboard Recording
 - Called from both `ComputerGameView` and `OnlineGameView` when a game ends
 - `LeaderboardService.shared.recordGame(gameMode:playerNames:finalScores:winnerIndex:aiSeats:rounds:)`

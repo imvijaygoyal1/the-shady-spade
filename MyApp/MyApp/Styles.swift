@@ -379,6 +379,63 @@ struct PlayingCardView: View {
     }
 }
 
+// MARK: - Score Save Status Row
+
+struct ScoreSaveStatusRow: View {
+    let status: ScoreSaveStatus
+
+    var body: some View {
+        Group {
+            switch status {
+            case .idle:
+                EmptyView()
+            case .saving:
+                HStack(spacing: 6) {
+                    ProgressView().scaleEffect(0.75)
+                    Text("Saving to leaderboard...")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+            case .saved:
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("Saved to leaderboard")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+            case .pending:
+                HStack(spacing: 8) {
+                    Image(systemName: "wifi.slash")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.masterGold)
+                    Text("No internet — score will sync automatically when you're back online.")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.masterGold)
+                        .multilineTextAlignment(.leading)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.masterGold.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.masterGold.opacity(0.35), lineWidth: 1)
+                )
+            case .failed(let msg):
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.defenseRose)
+                    Text(msg)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.defenseRose)
+                }
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: status == .saving)
+    }
+}
+
 // MARK: - Bid Winner Banner
 
 struct BidWinnerInfo {
@@ -1200,5 +1257,571 @@ struct LastHandView: View {
             radius: 0,
             x: Comic.shadowOffset,
             y: Comic.shadowOffset)
+    }
+}
+
+// MARK: - GameInfoPillsRow
+
+/// 3-pill info row used in portrait and landscape
+struct GameInfoPillsRow: View {
+    let trumpSuit: String
+    let calledCards: String
+    let currentScore: Int
+    let targetScore: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            infoPill(label: "TRUMP", value: trumpSuit)
+            infoPill(label: "CALLED", value: calledCards)
+            scorePill(current: currentScore, target: targetScore)
+        }
+    }
+
+    private func infoPill(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 8, weight: .heavy, design: .rounded))
+                .foregroundStyle(Comic.textSecondary.opacity(0.6))
+                .tracking(0.3)
+            Text(value)
+                .font(.system(size: 13, weight: .black, design: .rounded))
+                .foregroundStyle(Comic.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Comic.containerBG)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Comic.containerBorder, lineWidth: Comic.borderWidth)
+        )
+    }
+
+    private func scorePill(current: Int, target: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("SCORE")
+                .font(.system(size: 8, weight: .heavy, design: .rounded))
+                .foregroundStyle(Comic.textSecondary.opacity(0.6))
+                .tracking(0.3)
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text("\(current)")
+                    .font(.system(size: 13, weight: .black, design: .rounded).monospacedDigit())
+                    .foregroundStyle(Comic.textPrimary)
+                Text("/ \(target)")
+                    .font(.system(size: 9, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(Comic.textSecondary)
+            }
+            GeometryReader { g in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Comic.containerBorder.opacity(0.3))
+                    Capsule()
+                        .fill(Color.defenseRose)
+                        .frame(width: g.size.width * min(1, CGFloat(current) / CGFloat(max(1, target))))
+                }
+            }
+            .frame(height: 4)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Comic.containerBG)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Comic.containerBorder, lineWidth: Comic.borderWidth)
+        )
+    }
+}
+
+// MARK: - LandscapePlayerRow
+
+/// Landscape player list row
+struct LandscapePlayerRow: View {
+    let avatar: String
+    let name: String
+    let role: String
+    let roleColor: Color
+    let isActive: Bool
+    let isBidder: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(avatar)
+                .font(.system(size: 18))
+                .frame(width: 26)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(role)
+                    .font(.system(size: 7, weight: .heavy, design: .rounded))
+                    .foregroundStyle(roleColor)
+                Text(name)
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .foregroundStyle(isBidder ? Color.masterGold : Comic.textPrimary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            if isActive {
+                Circle()
+                    .fill(Color(red: 0.29, green: 0.87, blue: 0.50))
+                    .frame(width: 6, height: 6)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            isBidder
+                ? Color.masterGold.opacity(0.08)
+                : isActive
+                    ? Color(red: 0.29, green: 0.87, blue: 0.50).opacity(0.06)
+                    : Comic.containerBG
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(
+                    isBidder
+                        ? Color.masterGold.opacity(0.4)
+                        : isActive
+                            ? Color(red: 0.29, green: 0.87, blue: 0.50).opacity(0.4)
+                            : Comic.containerBorder,
+                    lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - ShimmerModifier
+
+struct ShimmerModifier: ViewModifier {
+    let isActive: Bool
+    @State private var phase: CGFloat = -1.0
+
+    private func startAnimation() {
+        phase = -1.0
+        withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) {
+            phase = 1.5
+        }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                GeometryReader { _ in
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0.0),
+                            .init(color: Color.masterGold.opacity(0.35), location: 0.45),
+                            .init(color: Color.white.opacity(0.5), location: 0.5),
+                            .init(color: Color.masterGold.opacity(0.35), location: 0.55),
+                            .init(color: .clear, location: 1.0),
+                        ],
+                        startPoint: .init(x: phase, y: 0),
+                        endPoint: .init(x: phase + 1, y: 1)
+                    )
+                    .blendMode(.screen)
+                    .opacity(isActive ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.25), value: isActive)
+                    .allowsHitTesting(false)
+                    .onAppear { startAnimation() }
+                    .onChange(of: isActive) { _, newValue in
+                        if newValue { startAnimation() }
+                    }
+                }
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(
+                        Color.masterGold.opacity(isActive ? 0.55 : 0),
+                        lineWidth: 1.5)
+                    .allowsHitTesting(false)
+                    .animation(.easeInOut(duration: 0.25), value: isActive)
+            )
+    }
+}
+
+extension View {
+    func shimmer(isActive: Bool) -> some View {
+        self.modifier(ShimmerModifier(isActive: isActive))
+    }
+}
+
+// MARK: - BiddingTwoColumnLayout
+
+struct BiddingTwoColumnLayout: View {
+    let playerNames: [String]
+    let playerAvatars: [String]
+    let bids: [Int]
+    let playerHasPassed: [Bool]
+    let highBid: Int
+    let highBidderIndex: Int
+    let currentBidTurn: Int
+    let bidHistory: [(playerIndex: Int, amount: Int)]
+    let humanBidAmount: Double
+    let humanMinBid: Int
+    let humanCanPass: Bool
+    let humanMustPass: Bool
+    let isHumanTurn: Bool
+    let handCards: [Card]
+    let onBid: (Int) -> Void
+    let onPass: () -> Void
+    let onSliderChange: (Double) -> Void
+
+    @State private var isSubmittingBid = false
+
+    var body: some View {
+        GeometryReader { geo in
+            let isLandscape = geo.size.width > geo.size.height
+            if isLandscape {
+                landscapeLayout(geo: geo)
+            } else {
+                portraitLayout(geo: geo)
+            }
+        }
+    }
+
+    // MARK: - Portrait
+
+    private func portraitLayout(geo: GeometryProxy) -> some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 8) {
+                bidderCardRow(geo: geo)
+                    .padding(.horizontal, 12)
+                HStack(alignment: .top, spacing: 8) {
+                    bidHistoryColumn()
+                    bidControlsColumn()
+                }
+                .padding(.horizontal, 12)
+                handSection(geo: geo)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 16)
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    // MARK: - Landscape
+
+    private func landscapeLayout(geo: GeometryProxy) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 6) {
+                    bidderCardRow(geo: geo)
+                    bidHistoryColumn()
+                }
+                .padding(8)
+            }
+            .frame(width: geo.size.width * 0.45)
+
+            Divider().overlay(Comic.containerBorder)
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 6) {
+                    bidControlsColumn()
+                    handSection(geo: geo)
+                }
+                .padding(8)
+            }
+        }
+    }
+
+    // MARK: - BidderCard row
+
+    private func bidderCardRow(geo: GeometryProxy) -> some View {
+        GeometryReader { g in
+            let cardW = (g.size.width - 40) / 6
+            HStack(spacing: 4) {
+                ForEach(0..<6, id: \.self) { i in
+                    let isActive = currentBidTurn == i && !playerHasPassed[i]
+                    let isHighBidder = i == highBidderIndex
+                    let isPassed = playerHasPassed[i]
+                    ZStack(alignment: .top) {
+                        BidderCard(
+                            name: playerNames[i],
+                            avatar: playerAvatars[i],
+                            bid: bids[i],
+                            isActive: isActive,
+                            isHighBidder: isHighBidder,
+                            isPassed: isPassed,
+                            width: cardW,
+                            height: 76)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(
+                                    isActive ? Color(red: 0.29, green: 0.87, blue: 0.50) : Color.clear,
+                                    lineWidth: 2.5)
+                        )
+                        if isActive {
+                            TurnArrow()
+                                .fill(Color(red: 0.29, green: 0.87, blue: 0.50))
+                                .frame(width: 8, height: 6)
+                                .offset(y: -8)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(height: 82)
+    }
+
+    // MARK: - Bid history column
+
+    private func bidHistoryColumn() -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Bid History")
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Comic.containerBG)
+
+            Divider().overlay(Comic.containerBorder)
+
+            if bidHistory.isEmpty {
+                Text("No bids yet")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity)
+            } else {
+                ForEach(Array(bidHistory.enumerated()), id: \.offset) { idx, entry in
+                    let isPassed = entry.amount == 0
+                    let isHighest = entry.playerIndex == highBidderIndex
+                    HStack(spacing: 8) {
+                        Text(playerAvatars[entry.playerIndex])
+                            .font(.system(size: 18))
+                            .frame(width: 28)
+                        Text(playerNames[entry.playerIndex])
+                            .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            .foregroundStyle(isHighest ? Color.masterGold : Comic.textPrimary)
+                            .lineLimit(1)
+                        Spacer()
+                        Text(isPassed ? "Pass" : "\(entry.amount)")
+                            .font(.system(size: 11, weight: .black, design: .rounded).monospacedDigit())
+                            .foregroundStyle(
+                                isPassed ? Color.defenseRose
+                                    : isHighest ? Color.black
+                                    : Comic.textPrimary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                isPassed ? Color.defenseRose.opacity(0.12)
+                                    : isHighest ? Color.masterGold
+                                    : Comic.containerBG)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(
+                                        isPassed ? Color.defenseRose.opacity(0.3)
+                                            : isHighest ? Color.masterGold
+                                            : Comic.containerBorder,
+                                        lineWidth: 1)
+                            )
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(isHighest ? Color.masterGold.opacity(0.06) : Color.clear)
+
+                    if idx < bidHistory.count - 1 {
+                        Divider().overlay(Comic.containerBorder)
+                    }
+                }
+            }
+        }
+        .background(Comic.containerBG)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Comic.containerBorder, lineWidth: Comic.borderWidth)
+        )
+        .shadow(color: Comic.black.opacity(0.5), radius: 0, x: Comic.shadowOffset, y: Comic.shadowOffset)
+    }
+
+    // MARK: - Bid controls column
+
+    private func bidControlsColumn() -> some View {
+        VStack(spacing: 8) {
+            // High bid card
+            VStack(spacing: 2) {
+                Text("HIGH BID")
+                    .font(.system(size: 8, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Color(red: 0.1, green: 0.06, blue: 0.0))
+                    .tracking(0.5)
+                Text(highBid > 0 ? "\(highBid)" : "—")
+                    .font(.system(size: 28, weight: .black, design: .rounded).monospacedDigit())
+                    .foregroundStyle(Color(red: 0.1, green: 0.06, blue: 0.0))
+                if highBidderIndex >= 0 && highBid > 0 {
+                    Text(playerNames[highBidderIndex])
+                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color(red: 0.1, green: 0.06, blue: 0.0).opacity(0.6))
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(Color.masterGold)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(color: Comic.black.opacity(0.6), radius: 0, x: Comic.shadowOffset, y: Comic.shadowOffset)
+
+            if isHumanTurn && !humanMustPass {
+                // Your bid card
+                VStack(spacing: 4) {
+                    Text("YOUR BID")
+                        .font(.system(size: 8, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                        .tracking(0.5)
+                    Text("\(Int(humanBidAmount))")
+                        .font(.system(size: 36, weight: .black, design: .rounded).monospacedDigit())
+                        .foregroundStyle(Comic.textPrimary)
+                        .contentTransition(.numericText())
+                    Slider(
+                        value: Binding(
+                            get: { humanBidAmount },
+                            set: { onSliderChange($0) }
+                        ),
+                        in: Double(humanMinBid)...250,
+                        step: 5)
+                        .tint(Color.masterGold)
+                        .padding(.horizontal, 4)
+                    HStack {
+                        Text("\(humanMinBid) min")
+                        Spacer()
+                        Text("250 max")
+                    }
+                    .font(.system(size: 8, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+                }
+                .padding(10)
+                .background(Comic.containerBG)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Comic.containerBorder, lineWidth: Comic.borderWidth)
+                )
+                .shadow(color: Comic.black.opacity(0.5), radius: 0, x: Comic.shadowOffset, y: Comic.shadowOffset)
+
+                VStack(spacing: 6) {
+                    Button {
+                        guard !isSubmittingBid else { return }
+                        HapticManager.impact(.medium)
+                        isSubmittingBid = true
+                        onBid(Int(humanBidAmount))
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                            isSubmittingBid = false
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isSubmittingBid {
+                                ProgressView().tint(Comic.black).scaleEffect(0.8)
+                            }
+                            Text(isSubmittingBid ? "Placing…" : "Bid \(Int(humanBidAmount))")
+                                .font(.system(size: 15, weight: .black, design: .rounded))
+                                .foregroundStyle(Comic.black)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
+                    .disabled(isSubmittingBid)
+
+                    if humanCanPass {
+                        Button {
+                            guard !isSubmittingBid else { return }
+                            HapticManager.impact(.light)
+                            isSubmittingBid = true
+                            onPass()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                isSubmittingBid = false
+                            }
+                        } label: {
+                            Text("Pass")
+                                .font(.system(size: 14, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.textSecondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        }
+                        .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.textSecondary, borderColor: Comic.containerBorder))
+                        .disabled(isSubmittingBid)
+                    }
+                }
+            } else if humanMustPass {
+                VStack(spacing: 6) {
+                    Text("Maximum bid reached")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                        .multilineTextAlignment(.center)
+                    Button {
+                        HapticManager.impact(.light)
+                        onPass()
+                    } label: {
+                        Text("Pass")
+                            .font(.system(size: 15, weight: .black, design: .rounded))
+                            .foregroundStyle(Comic.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
+                }
+            } else {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color(red: 0.22, green: 0.74, blue: 0.97))
+                        .frame(width: 6, height: 6)
+                    Text("Waiting for \(currentBidTurn >= 0 && currentBidTurn < playerNames.count ? playerNames[currentBidTurn] : "…")…")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color(red: 0.22, green: 0.74, blue: 0.97))
+                        .lineLimit(2)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(red: 0.22, green: 0.74, blue: 0.97).opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color(red: 0.22, green: 0.74, blue: 0.97).opacity(0.35), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+    }
+
+    // MARK: - Hand section
+
+    private func handSection(geo: GeometryProxy) -> some View {
+        let avail = geo.size.width - 56
+        let cardW = adaptiveCardWidth(available: avail, count: handCards.count)
+
+        return VStack(spacing: 6) {
+            HStack {
+                Text("Your Hand")
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                Spacer()
+                Text("\(handCards.map(\.pointValue).reduce(0, +)) pts")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+            }
+            GeometryReader { g in
+                let sp = handCards.count > 1
+                    ? (g.size.width - CGFloat(handCards.count) * cardW) / CGFloat(handCards.count - 1)
+                    : 0
+                HStack(spacing: sp) {
+                    ForEach(handCards) { card in
+                        HandCardView(card: card, width: cardW)
+                    }
+                }
+            }
+            .frame(height: adaptiveHandHeight(cardW: cardW))
+        }
+        .padding(12)
+        .background(Comic.containerBG)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Comic.containerBorder, lineWidth: Comic.borderWidth)
+        )
+        .shadow(color: Comic.black.opacity(0.5), radius: 0, x: Comic.shadowOffset, y: Comic.shadowOffset)
     }
 }

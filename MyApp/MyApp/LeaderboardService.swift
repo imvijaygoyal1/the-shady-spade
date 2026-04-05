@@ -1,10 +1,42 @@
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
+import Network
 import SwiftUI
 import OSLog
 
 private let lbLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "Leaderboard")
+
+// MARK: - Score Save Status
+
+enum ScoreSaveStatus: Equatable {
+    case idle
+    case saving
+    case saved
+    case pending        // queued locally, will sync when online
+    case failed(String)
+}
+
+// MARK: - Pending Record (persisted offline)
+
+struct PendingGameRecord: Codable {
+    var id: UUID = UUID()
+    var gameMode: String
+    var playerNames: [String]
+    var finalScores: [Int]
+    var winnerIndex: Int
+    var aiSeats: [Int]
+    var bid: Int
+    var bidMade: Bool
+    var bidderIndex: Int
+    var partner1Index: Int
+    var partner2Index: Int
+    var defensePointsCaught: Int
+    var roundCount: Int
+    var recordedAt: Date = Date()
+}
+
+// MARK: - Other models
 
 struct GameLogEntry: Identifiable {
     var id: String
@@ -54,6 +86,8 @@ struct PlayerStat: Identifiable {
     }
 }
 
+// MARK: - LeaderboardService
+
 @MainActor
 @Observable
 final class LeaderboardService {
@@ -63,17 +97,26 @@ final class LeaderboardService {
     var gameLog: [GameLogEntry] = []
     var isLoading = false
     var errorMessage: String? = nil
+    var scoreSaveStatus: ScoreSaveStatus = .idle
+    var hasPendingScore: Bool { !loadPendingRecords().isEmpty }
 
     private let db = Firestore.firestore()
     private var statsListener: ListenerRegistration?
     private var logListener: ListenerRegistration?
+    private var networkMonitor: NWPathMonitor?
+
+    private let pendingKey = "leaderboard_pending_records_v1"
+    private let cloudRunURL = URL(string: "https://us-central1-shadyspade-d6b84.cloudfunctions.net/recordGame")!
 
     private init() {}
+
+    // MARK: - Listeners
 
     func startListening() {
         guard statsListener == nil else { return }
         isLoading = true
         attachFirestoreListeners()
+        startNetworkMonitor()
     }
 
     private func attachFirestoreListeners() {
@@ -157,11 +200,30 @@ final class LeaderboardService {
         logListener = nil
     }
 
+    // MARK: - Network Monitor
+
+    private func startNetworkMonitor() {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard path.status == .satisfied else { return }
+            Task { @MainActor [weak self] in
+                await self?.flushPendingRecords()
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "com.vijaygoyal.theshadyspade.network"))
+        networkMonitor = monitor
+        // Flush any queued records that survived from a previous session
+        Task { await flushPendingRecords() }
+    }
+
+    // MARK: - Record Game
+
     func recordGame(
         gameMode: String,
         playerNames: [String],
         finalScores: [Int],
         winnerIndex: Int,
+        aiSeats: [Int] = [],
         rounds: [HistoryRound]
     ) async {
         lbLog.info("recordGame called mode=\(gameMode) names=\(playerNames.count) rounds=\(rounds.count) winner=\(winnerIndex)")
@@ -171,82 +233,144 @@ final class LeaderboardService {
             return
         }
 
-        let totalDefensePts = rounds.reduce(0) {
-            $0 + $1.defensePointsCaught
-        }
+        let totalDefensePts = rounds.reduce(0) { $0 + $1.defensePointsCaught }
 
-        // Explicitly cast all numeric values to Int to avoid SwiftData
-        // model proxy types that JSONSerialization can't handle correctly.
+        let pending = PendingGameRecord(
+            gameMode: gameMode,
+            playerNames: playerNames,
+            finalScores: finalScores.map { Int($0) },
+            winnerIndex: Int(winnerIndex),
+            aiSeats: aiSeats.map { Int($0) },
+            bid: Int(lastRound.bidAmount),
+            bidMade: !lastRound.isSet,
+            bidderIndex: Int(lastRound.bidderIndex),
+            partner1Index: Int(lastRound.partner1Index),
+            partner2Index: Int(lastRound.partner2Index),
+            defensePointsCaught: Int(totalDefensePts),
+            roundCount: Int(rounds.count)
+        )
+
+        scoreSaveStatus = .saving
+        let success = await sendRecord(pending)
+
+        if success {
+            scoreSaveStatus = .saved
+            errorMessage = nil
+        } else {
+            // Enqueue for automatic retry when connectivity returns
+            enqueue(pending)
+            scoreSaveStatus = .pending
+            errorMessage = nil  // not an error — it will sync
+            lbLog.info("record enqueued for offline retry — \(pending.id)")
+        }
+    }
+
+    // MARK: - HTTP send (shared by live + flush paths)
+
+    /// Returns true on success, false on network failure. Throws are swallowed internally.
+    private func sendRecord(_ record: PendingGameRecord) async -> Bool {
         let payload: [String: Any] = [
-            "gameMode":            gameMode,
-            "playerNames":         playerNames,
-            "winnerIndex":         Int(winnerIndex),
-            "bid":                 Int(lastRound.bidAmount),
-            "bidMade":             !lastRound.isSet,
-            "bidderIndex":         Int(lastRound.bidderIndex),
-            "partner1Index":       Int(lastRound.partner1Index),
-            "partner2Index":       Int(lastRound.partner2Index),
-            "defensePointsCaught": Int(totalDefensePts),
-            "roundCount":          Int(rounds.count)
+            "gameMode":            record.gameMode,
+            "playerNames":         record.playerNames,
+            "finalScores":         record.finalScores,
+            "aiSeats":             record.aiSeats,
+            "winnerIndex":         record.winnerIndex,
+            "bid":                 record.bid,
+            "bidMade":             record.bidMade,
+            "bidderIndex":         record.bidderIndex,
+            "partner1Index":       record.partner1Index,
+            "partner2Index":       record.partner2Index,
+            "defensePointsCaught": record.defensePointsCaught,
+            "roundCount":          record.roundCount
         ]
 
-        lbLog.info("sending HTTP request mode=\(gameMode) rounds=\(rounds.count)")
+        let maxAttempts = 3
+        for attempt in 1...maxAttempts {
+            do {
+                var request = URLRequest(url: cloudRunURL)
+                request.httpMethod = "POST"
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.httpBody = try JSONSerialization.data(withJSONObject: ["data": payload])
 
-        // Call Cloud Function via Cloud Run URL (onRequest, not onCall).
-        // Sends Authorization: Bearer <Firebase-ID-token> which the
-        // function verifies directly via admin.auth().verifyIdToken().
-        let cloudRunURL = URL(
-            string: "https://us-central1-shadyspade-d6b84.cloudfunctions.net/recordGame")!
-
-        do {
-            var request = URLRequest(url: cloudRunURL)
-            request.httpMethod = "POST"
-            request.setValue(
-                "application/json",
-                forHTTPHeaderField: "Content-Type")
-
-            // Firebase callable format: wrap payload in {"data":...}
-            request.httpBody = try JSONSerialization.data(
-                withJSONObject: ["data": payload])
-
-            // Attach Firebase ID token so Cloud Function can
-            // verify request.auth
-            if let user = Auth.auth().currentUser {
-                do {
-                    let token = try await user.getIDToken()
-                    request.setValue(
-                        "Bearer \(token)",
-                        forHTTPHeaderField: "Authorization")
-                    lbLog.info("auth token attached uid=\(user.uid)")
-                } catch {
-                    lbLog.error("getIDToken failed: \(error.localizedDescription)")
-                    errorMessage = "Score not saved: auth error."
-                    return
+                guard let user = Auth.auth().currentUser else {
+                    lbLog.error("no current user (attempt \(attempt))")
+                    if attempt < maxAttempts {
+                        try await Task.sleep(nanoseconds: 2_000_000_000)
+                        continue
+                    }
+                    return false
                 }
-            } else {
-                lbLog.error("no current user — not signed in")
-                errorMessage = "Score not saved: not signed in."
-                return
+
+                let token = try await user.getIDToken()
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+                let (data, response) = try await URLSession.shared.data(for: request)
+
+                if let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                    lbLog.info("record sent ✓ attempt=\(attempt)")
+                    return true
+                }
+
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                let body = String(data: data, encoding: .utf8) ?? "unknown"
+                lbLog.error("HTTP \(status) attempt=\(attempt): \(body)")
+
+                // Don't retry client errors — they won't succeed on retry
+                if status >= 400 && status < 500 {
+                    await MainActor.run { self.errorMessage = "Score not saved (HTTP \(status))." }
+                    return true  // treat as terminal, don't enqueue
+                }
+            } catch {
+                lbLog.error("request failed attempt=\(attempt): \(error.localizedDescription)")
             }
 
-            let (data, response) = try await
-                URLSession.shared.data(for: request)
-
-            if let http = response as? HTTPURLResponse,
-               http.statusCode == 200 {
-                lbLog.info("game recorded ✓")
-                errorMessage = nil
-            } else {
-                let body = String(data: data,
-                    encoding: .utf8) ?? "unknown"
-                let status = (response as? HTTPURLResponse)?
-                    .statusCode ?? 0
-                lbLog.error("HTTP \(status): \(body)")
-                errorMessage = "Score not saved (HTTP \(status))."
+            if attempt < maxAttempts {
+                let delay = UInt64(attempt) * 2_000_000_000
+                try? await Task.sleep(nanoseconds: delay)
             }
-        } catch {
-            lbLog.error("request failed: \(error.localizedDescription)")
-            errorMessage = "Score not saved: \(error.localizedDescription)"
+        }
+        return false
+    }
+
+    // MARK: - Pending Queue
+
+    private func enqueue(_ record: PendingGameRecord) {
+        var records = loadPendingRecords()
+        records.append(record)
+        savePendingRecords(records)
+    }
+
+    private func flushPendingRecords() async {
+        let records = loadPendingRecords()
+        guard !records.isEmpty else { return }
+        lbLog.info("flushing \(records.count) pending record(s)")
+
+        var remaining: [PendingGameRecord] = []
+        for record in records {
+            let success = await sendRecord(record)
+            if success {
+                lbLog.info("pending record flushed ✓ id=\(record.id)")
+            } else {
+                remaining.append(record)
+            }
+        }
+        savePendingRecords(remaining)
+
+        if remaining.isEmpty, case .pending = scoreSaveStatus {
+            scoreSaveStatus = .saved
+        }
+    }
+
+    private func loadPendingRecords() -> [PendingGameRecord] {
+        guard let data = UserDefaults.standard.data(forKey: pendingKey),
+              let records = try? JSONDecoder().decode([PendingGameRecord].self, from: data)
+        else { return [] }
+        return records
+    }
+
+    private func savePendingRecords(_ records: [PendingGameRecord]) {
+        if let data = try? JSONEncoder().encode(records) {
+            UserDefaults.standard.set(data, forKey: pendingKey)
         }
     }
 }

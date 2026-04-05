@@ -2,21 +2,19 @@ import SwiftUI
 import SwiftData
 import OSLog
 
-private let ogLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "OnlineGame")
+private let btLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "BluetoothGame")
 
 // MARK: - Root
 
-struct OnlineGameView: View {
+struct BluetoothGameView: View {
     @EnvironmentObject private var themeManager: ThemeManager
-    @Bindable var game: OnlineGameViewModel
+    @Bindable var game: BluetoothGameViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @State private var showRoundResultBanner = false
     @State private var showQuitConfirm = false
-    @State private var droppedPlayerAlert = false
-    @State private var droppedPlayerName = ""
-    @State private var showRemovedFromGameAlert = false
+    @State private var showRoundResultBanner = false
     @State private var gameHistorySaved = false
+    @State private var disconnectedAlert = false
 
     var body: some View {
         ZStack {
@@ -29,36 +27,36 @@ struct OnlineGameView: View {
                     playerNames: (0..<6).map { game.playerName($0) },
                     playerAvatars: (0..<6).map { game.playerAvatar($0) },
                     humanPlayerIndex: game.myPlayerIndex,
-                    onComplete: { }  // server controls the phase transition
+                    onComplete: { }
                 )
             case .lookingAtCards:
-                OnlineLookingAtCardsView(game: game)
+                BTLookingAtCardsView(game: game)
             case .bidding:
-                OnlineBiddingView(game: game)
+                BTBiddingView(game: game)
             case .calling:
-                OnlineCallingView(game: game)
+                BTCallingView(game: game)
             case .playing:
-                OnlinePlayingView(game: game)
+                BTPlayingView(game: game)
             case .roundComplete:
-                OnlineRoundCompleteView(game: game) {
+                BTRoundCompleteView(game: game) {
                     guard game.isHost else { return }
-                    saveOnlineGameHistory()
+                    saveBTGameHistory()
                     gameHistorySaved = false
                     Task { await game.startNextRound() }
                 } onQuit: {
-                    saveOnlineGameHistory()
+                    saveBTGameHistory()
                     game.cleanup()
                     dismiss()
                 }
             case .gameOver:
-                OnlineGameOverView(game: game) {
+                BTGameOverView(game: game) {
                     game.cleanup()
                     dismiss()
                 }
-                .onAppear { saveOnlineGameHistory() }
+                .onAppear { saveBTGameHistory() }
             }
 
-            // Bid winner banner — floats above all phase views
+            // Bid winner banner
             if let info = game.bidWinnerInfo {
                 BidWinnerBanner(
                     info: info,
@@ -68,7 +66,6 @@ struct OnlineGameView: View {
                 .transition(.opacity)
                 .zIndex(100)
             }
-
         }
         .animation(.easeInOut(duration: 0.3), value: game.bidWinnerInfo != nil)
         .confirmationDialog(
@@ -86,34 +83,6 @@ struct OnlineGameView: View {
                  ? "As the host, leaving will end the game for all players."
                  : "Other players will be notified that you left.")
         }
-        .task {
-            game.attachListener()
-            game.startPresenceTracking()
-            game.monitorPresence()
-            if game.isHost { await game.startGame() }
-        }
-        .onDisappear {
-            game.stopPresenceTracking()
-        }
-        .onChange(of: game.message) { _, newMsg in
-            if newMsg.contains("left. AI took over") {
-                droppedPlayerName = newMsg
-                droppedPlayerAlert = true
-            }
-        }
-        .alert("Player Left", isPresented: $droppedPlayerAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("\(droppedPlayerName)\nThe game will continue with an AI bot.")
-        }
-        .onChange(of: game.wasRemovedFromGame) { _, removed in
-            if removed { showRemovedFromGameAlert = true }
-        }
-        .alert("Removed from Game", isPresented: $showRemovedFromGameAlert) {
-            Button("OK") { dismiss() }
-        } message: {
-            Text("The host removed you from the game.")
-        }
         .onChange(of: game.phase) { _, newPhase in
             if newPhase == .roundComplete {
                 HapticManager.success()
@@ -126,20 +95,18 @@ struct OnlineGameView: View {
         }
         .task(id: game.phase) {
             if game.phase == .gameOver {
-                saveOnlineGameHistory()
+                saveBTGameHistory()
             }
         }
         .overlay {
-            // Guard: banner only valid while phase is roundComplete; stale state can't leak onto other screens
             if showRoundResultBanner && game.phase == .roundComplete {
-                OnlineRoundResultBanner(game: game) {
+                BTRoundResultBanner(game: game) {
                     withAnimation(.easeOut(duration: 0.25)) { showRoundResultBanner = false }
                 }
                 .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showRoundResultBanner)
-        // Quit button — top-right safe area, above all content
         .overlay(alignment: .topTrailing) {
             let activePhase = ![.roundComplete, .gameOver].contains(game.phase)
             if activePhase {
@@ -160,10 +127,23 @@ struct OnlineGameView: View {
                 .transition(.opacity)
             }
         }
+        .alert("Player Disconnected", isPresented: $disconnectedAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(game.errorMessage ?? "A player disconnected from the game.")
+        }
+        .onChange(of: game.errorMessage) { _, newError in
+            if let error = newError, error.contains("disconnected") {
+                disconnectedAlert = true
+            }
+        }
         .onDisappear { game.cleanup() }
+        .task {
+            if game.isHost { await game.startGame() }
+        }
     }
 
-    private func saveOnlineGameHistory() {
+    private func saveBTGameHistory() {
         guard !gameHistorySaved else { return }
         let finalScores = game.runningScores
         guard game.highBidderIndex >= 0,
@@ -174,13 +154,12 @@ struct OnlineGameView: View {
         let winnerIndex = (0..<6).max(by: {
             finalScores[$0] < finalScores[$1]
         }) ?? 0
-        let mode = game.aiSeats.isEmpty ? "Online" : "Multiplayer"
         let history = GameHistory(
             date: Date(),
             playerNames: names,
             finalScores: finalScores,
             winnerIndex: winnerIndex,
-            gameMode: mode
+            gameMode: "Bluetooth"
         )
         modelContext.insert(history)
         let descriptor = FetchDescriptor<GameHistory>(
@@ -206,7 +185,7 @@ struct OnlineGameView: View {
         let capturedAISeats = game.aiSeats
         Task {
             await LeaderboardService.shared.recordGame(
-                gameMode:    mode,
+                gameMode:    "Bluetooth",
                 playerNames: names,
                 finalScores: finalScores,
                 winnerIndex: winnerIndex,
@@ -219,15 +198,14 @@ struct OnlineGameView: View {
 
 // MARK: - Looking At Cards
 
-private struct OnlineLookingAtCardsView: View {
-    @Bindable var game: OnlineGameViewModel
+private struct BTLookingAtCardsView: View {
+    @Bindable var game: BluetoothGameViewModel
     @State private var appeared = false
 
     private var handPoints: Int { game.myHand.map(\.pointValue).reduce(0, +) }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             VStack(spacing: 6) {
                 Text("Round \(game.roundNumber)")
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
@@ -246,7 +224,6 @@ private struct OnlineLookingAtCardsView: View {
 
             Spacer()
 
-            // Cards
             VStack(spacing: 12) {
                 GeometryReader { geo in
                     let sorted = game.myHandSorted
@@ -279,15 +256,13 @@ private struct OnlineLookingAtCardsView: View {
 
             Spacer()
 
-            // CTA
             if game.isHost {
                 Button {
                     HapticManager.impact(.medium)
                     Task { await game.startBidding() }
                 } label: {
                     HStack(spacing: 8) {
-                        Text("Start Bidding")
-                            .fontWeight(.black)
+                        Text("Start Bidding").fontWeight(.black)
                         Image(systemName: "arrow.right")
                     }
                     .font(.title3)
@@ -317,14 +292,9 @@ private struct OnlineLookingAtCardsView: View {
 }
 
 // MARK: - Bidding
-// SHARED VIEW — used by Solo, Multiplayer (Online + Custom).
-// Never create mode-specific duplicates of this view.
-// Pass mode-specific behaviour via callbacks/closures only.
 
-private struct OnlineBiddingView: View {
-    @Bindable var game: OnlineGameViewModel
-    @State private var isSubmittingBid = false
-    @State private var removeTargetIndex: Int? = nil
+struct BTBiddingView: View {
+    @Bindable var game: BluetoothGameViewModel
     @Environment(\.verticalSizeClass) private var vSizeClass
 
     var body: some View {
@@ -357,7 +327,7 @@ private struct OnlineBiddingView: View {
                 humanMinBid: game.humanMinBid,
                 humanCanPass: game.humanCanPass,
                 humanMustPass: game.humanMustPass,
-                isHumanTurn: game.isMyTurn,
+                isHumanTurn: game.currentActionPlayer == game.myPlayerIndex && game.phase == .bidding,
                 handCards: game.myHandSorted,
                 onBid: { amount in Task { await game.placeBid(amount) } },
                 onPass: { Task { await game.pass() } },
@@ -369,8 +339,8 @@ private struct OnlineBiddingView: View {
 
 // MARK: - Calling
 
-private struct OnlineCallingView: View {
-    @Bindable var game: OnlineGameViewModel
+struct BTCallingView: View {
+    @Bindable var game: BluetoothGameViewModel
     @State private var isBlinking = false
     @Environment(\.verticalSizeClass) private var vSizeClass
     private var isMyCall: Bool { game.myPlayerIndex == game.highBidderIndex }
@@ -378,7 +348,6 @@ private struct OnlineCallingView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: vSizeClass == .compact ? 14 : 22) {
-                // Header
                 VStack(spacing: 6) {
                     Text(isMyCall ? "You won the bid!" : "\(game.playerName(game.highBidderIndex)) won the bid")
                         .font(.system(size: 22, weight: .black, design: .rounded))
@@ -423,9 +392,9 @@ private struct OnlineCallingView: View {
                     // Called cards
                     VStack(spacing: 14) {
                         SectionHeader(title: "Call Cards (must not be in your hand)")
-                        callCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit)
+                        btCallCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit)
                         Divider().overlay(Comic.containerBorder)
-                        callCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit)
+                        btCallCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit)
 
                         if !game.callingValid {
                             let c1 = game.calledCard1Rank + game.calledCard1Suit
@@ -444,7 +413,7 @@ private struct OnlineCallingView: View {
                         SectionHeader(title: "Your Hand")
                         let cards = game.myHandSorted
                         GeometryReader { geo in
-                            let cardW = onlineAdaptiveCardWidth(available: geo.size.width, count: cards.count)
+                            let cardW = btAdaptiveCardWidth(available: geo.size.width, count: cards.count)
                             let sp = cards.count > 1
                                 ? (geo.size.width - CGFloat(cards.count) * cardW) / CGFloat(cards.count - 1)
                                 : 0
@@ -457,7 +426,6 @@ private struct OnlineCallingView: View {
                         .frame(height: 106)
                     }
                 } else {
-                    // Waiting for bidder to call
                     Text("\(game.playerName(game.highBidderIndex)) is choosing trump and cards…")
                         .font(.system(size: 15, weight: .heavy, design: .rounded))
                         .foregroundStyle(Comic.yellow)
@@ -470,12 +438,11 @@ private struct OnlineCallingView: View {
                         .comicContainer(cornerRadius: 20)
                         .padding(.horizontal, 32)
 
-                    // Show your hand while waiting
                     VStack(spacing: 10) {
                         SectionHeader(title: "Your Hand")
                         let cards = game.myHandSorted
                         GeometryReader { geo in
-                            let cardW = onlineAdaptiveCardWidth(available: geo.size.width, count: cards.count)
+                            let cardW = btAdaptiveCardWidth(available: geo.size.width, count: cards.count)
                             let sp = cards.count > 1
                                 ? (geo.size.width - CGFloat(cards.count) * cardW) / CGFloat(cards.count - 1)
                                 : 0
@@ -501,7 +468,7 @@ private struct OnlineCallingView: View {
                     Divider()
                     Button {
                         HapticManager.success()
-                        Task { await game.confirmCalling() }
+                        Task { await game.callTrumpAndCards() }
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: "checkmark.seal.fill")
@@ -526,9 +493,8 @@ private struct OnlineCallingView: View {
         }
     }
 
-    private func callCardRow(label: String, rank: Binding<String>, suit: Binding<String>) -> some View {
+    private func btCallCardRow(label: String, rank: Binding<String>, suit: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Top row: label + rank menu + combined preview
             HStack(spacing: 12) {
                 Text(label)
                     .font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(.secondary)
@@ -563,7 +529,6 @@ private struct OnlineCallingView: View {
                 }
             }
 
-            // Suit row — full width so suits are never cropped
             HStack(spacing: 8) {
                 ForEach(cardSuits, id: \.self) { s in
                     let isRed = s == "♥" || s == "♦"
@@ -573,8 +538,7 @@ private struct OnlineCallingView: View {
                         suit.wrappedValue = s
                     } label: {
                         VStack(spacing: 3) {
-                            Text(s)
-                                .font(.system(size: 28))
+                            Text(s).font(.system(size: 28))
                                 .foregroundStyle(isRed ? Color.defenseRose : Color.adaptivePrimary)
                         }
                         .frame(maxWidth: .infinity)
@@ -596,67 +560,44 @@ private struct OnlineCallingView: View {
 
 // MARK: - Playing
 
-private struct OnlinePlayingView: View {
-    var game: OnlineGameViewModel
+struct BTPlayingView: View {
+    var game: BluetoothGameViewModel
     @State private var turnTextPulse = false
     @State private var waitPulse = false
-    @State private var removeTargetIndex: Int? = nil
     @State private var showingTrickHistory = false
 
     var body: some View {
         GeometryReader { geo in
             let isLandscape = geo.size.width > geo.size.height
             if isLandscape {
-                onlineLandscapeLayout(geo: geo)
+                btLandscapeLayout(geo: geo)
             } else {
-                onlinePortraitLayout(geo: geo)
+                btPortraitLayout(geo: geo)
             }
         }
         .ignoresSafeArea(edges: .bottom)
         .overlay(alignment: .top) {
             if let msg = game.partnerRevealMessage {
-                OnlinePartnerRevealBanner(message: msg)
+                BTPartnerRevealBanner(message: msg)
                     .padding(.top, 136)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: game.partnerRevealMessage != nil)
-        .turnNudge(isMyTurn: game.isMyTurn && game.phase == .playing)
+        .turnNudge(isMyTurn: game.isMyTurn)
         .sheet(isPresented: $showingTrickHistory) {
-            OnlineTrickHistoryView(game: game)
-        }
-        .confirmationDialog(
-            removeTargetIndex.map { "Remove \(game.playerName($0))?" } ?? "",
-            isPresented: Binding(
-                get: { removeTargetIndex != nil },
-                set: { if !$0 { removeTargetIndex = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Remove Player", role: .destructive) {
-                if let idx = removeTargetIndex {
-                    Task { await game.removePlayerMidGame(atIndex: idx) }
-                }
-                removeTargetIndex = nil
-            }
-            Button("Cancel", role: .cancel) { removeTargetIndex = nil }
-        } message: {
-            Text("They will be replaced by an AI bot and the game will continue.")
+            BTTrickHistoryView(game: game)
         }
     }
 
-    // MARK: - Portrait Layout
+    // MARK: - Portrait
 
-    private func onlinePortraitLayout(geo: GeometryProxy) -> some View {
+    private func btPortraitLayout(geo: GeometryProxy) -> some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 10) {
-                // Player role cards row
                 HStack(spacing: 5) {
                     ForEach(0..<6, id: \.self) { i in
                         let isActive = i == game.currentActionPlayer
-                        let canRemove = game.isHost
-                            && i != game.myPlayerIndex
-                            && !game.aiSeats.contains(i)
                         ZStack(alignment: .top) {
                             AvatarRoleCard(
                                 avatar: game.playerAvatar(i),
@@ -685,25 +626,17 @@ private struct OnlinePlayingView: View {
                                     .offset(y: -8)
                             }
                         }
-                        .onLongPressGesture {
-                            if canRemove { removeTargetIndex = i }
-                        }
                     }
                 }
-                .id("avatars-\(game.revealedPartner1Index)-\(game.revealedPartner2Index)")
-                .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
-                .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
                 .animation(.easeInOut(duration: 0.2), value: game.currentActionPlayer)
                 .padding(.horizontal, 8)
                 .padding(.top, 44)
 
-                // Waiting banner
                 if !game.isMyTurn && game.currentActionPlayer >= 0 {
-                    onlineWaitingBanner(name: game.playerName(game.currentActionPlayer))
+                    btWaitingBanner(name: game.playerName(game.currentActionPlayer))
                         .padding(.horizontal, 12)
                 }
 
-                // Info pills
                 GameInfoPillsRow(
                     trumpSuit: game.trumpSuit.rawValue + " " + game.trumpSuit.displayName,
                     calledCards: game.calledCard1 + " · " + game.calledCard2,
@@ -712,19 +645,16 @@ private struct OnlinePlayingView: View {
                 )
                 .padding(.horizontal, 12)
 
-                // Current hand box
-                onlineCurrentHandBox(geo: geo)
+                btCurrentHandBox(geo: geo)
                     .padding(.horizontal, 12)
 
-                // Last hand strip
                 if !game.lastCompletedTrick.isEmpty && game.lastTrickWinnerIndex >= 0 {
-                    onlineLastHandStrip()
+                    btLastHandStrip()
                         .padding(.horizontal, 12)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                         .animation(.easeInOut(duration: 0.3), value: game.lastTrickWinnerIndex)
                 }
 
-                // Winner message
                 if !game.message.isEmpty {
                     Text(game.message)
                         .font(.system(size: 13, weight: .heavy, design: .rounded))
@@ -734,7 +664,6 @@ private struct OnlinePlayingView: View {
                         .animation(.easeInOut, value: game.message)
                 }
 
-                // Trick history button
                 if !game.completedTricks.isEmpty {
                     HStack {
                         Spacer()
@@ -750,19 +679,17 @@ private struct OnlinePlayingView: View {
                     }
                 }
 
-                // Your hand box
-                onlineYourHandBox(geo: geo)
+                btYourHandBox(geo: geo)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 24)
             }
         }
     }
 
-    // MARK: - Landscape Layout
+    // MARK: - Landscape
 
-    private func onlineLandscapeLayout(geo: GeometryProxy) -> some View {
+    private func btLandscapeLayout(geo: GeometryProxy) -> some View {
         HStack(spacing: 0) {
-            // Left column — player list (~22%)
             let leftW = geo.size.width * 0.22
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 4) {
@@ -792,9 +719,6 @@ private struct OnlinePlayingView: View {
                             case .unknown: return Comic.textSecondary
                             }
                         }()
-                        let canRemove = game.isHost
-                            && i != game.myPlayerIndex
-                            && !game.aiSeats.contains(i)
                         LandscapePlayerRow(
                             avatar: game.playerAvatar(i),
                             name: game.playerName(i),
@@ -803,9 +727,6 @@ private struct OnlinePlayingView: View {
                             isActive: i == game.currentActionPlayer,
                             isBidder: i == game.highBidderIndex
                         )
-                        .onLongPressGesture {
-                            if canRemove { removeTargetIndex = i }
-                        }
                     }
                 }
                 .padding(.horizontal, 8)
@@ -814,7 +735,6 @@ private struct OnlinePlayingView: View {
             .frame(width: leftW)
             .background(Comic.containerBG.opacity(0.4))
 
-            // Center column — info + trick
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 10) {
                     GameInfoPillsRow(
@@ -826,11 +746,11 @@ private struct OnlinePlayingView: View {
                     .padding(.horizontal, 10)
 
                     if !game.isMyTurn && game.currentActionPlayer >= 0 {
-                        onlineWaitingBanner(name: game.playerName(game.currentActionPlayer))
+                        btWaitingBanner(name: game.playerName(game.currentActionPlayer))
                             .padding(.horizontal, 10)
                     }
 
-                    onlineCurrentHandBox(geo: geo)
+                    btCurrentHandBox(geo: geo)
                         .padding(.horizontal, 10)
 
                     if !game.message.isEmpty {
@@ -861,16 +781,15 @@ private struct OnlinePlayingView: View {
             }
             .frame(maxWidth: .infinity)
 
-            // Right column — last hand + your hand (~26%)
             let rightW = geo.size.width * 0.26
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 10) {
                     if !game.lastCompletedTrick.isEmpty && game.lastTrickWinnerIndex >= 0 {
-                        onlineLastHandStrip()
+                        btLastHandStrip()
                             .transition(.opacity.combined(with: .move(edge: .top)))
                             .animation(.easeInOut(duration: 0.3), value: game.lastTrickWinnerIndex)
                     }
-                    onlineYourHandBox(geo: geo)
+                    btYourHandBox(geo: geo)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 12)
@@ -882,7 +801,7 @@ private struct OnlinePlayingView: View {
 
     // MARK: - Shared Sub-views
 
-    private func onlineWaitingBanner(name: String) -> some View {
+    private func btWaitingBanner(name: String) -> some View {
         HStack(spacing: 6) {
             Circle()
                 .fill(Color(red: 0.22, green: 0.74, blue: 0.97))
@@ -904,7 +823,7 @@ private struct OnlinePlayingView: View {
         .animation(.easeInOut(duration: 0.3), value: game.currentActionPlayer)
     }
 
-    private func onlineCurrentHandBox(geo: GeometryProxy) -> some View {
+    private func btCurrentHandBox(geo: GeometryProxy) -> some View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
                 LiveDot()
@@ -977,7 +896,7 @@ private struct OnlinePlayingView: View {
         .currentHandStage()
     }
 
-    private func onlineLastHandStrip() -> some View {
+    private func btLastHandStrip() -> some View {
         LastHandView(
             cards: game.lastCompletedTrick.map { entry in
                 (card: entry.card,
@@ -989,7 +908,7 @@ private struct OnlinePlayingView: View {
         )
     }
 
-    private func onlineYourHandBox(geo: GeometryProxy) -> some View {
+    private func btYourHandBox(geo: GeometryProxy) -> some View {
         let validCards = game.validCardsToPlay
         let handCards = game.myHandSorted
 
@@ -1014,7 +933,7 @@ private struct OnlinePlayingView: View {
             }
 
             GeometryReader { handGeo in
-                let cardW = onlineAdaptiveCardWidth(available: handGeo.size.width - 32, count: handCards.count)
+                let cardW = btAdaptiveCardWidth(available: handGeo.size.width - 32, count: handCards.count)
                 let sp = handCards.count > 1
                     ? (handGeo.size.width - 32 - CGFloat(handCards.count) * cardW) / CGFloat(handCards.count - 1)
                     : 0
@@ -1042,86 +961,16 @@ private struct OnlinePlayingView: View {
                 .animation(.spring(response: 0.4, dampingFraction: 0.75), value: handCards.count)
                 .padding(.horizontal, 16)
             }
-            .frame(height: onlineAdaptiveHandHeight())
+            .frame(height: 74 * (106.0 / 74.0))
         }
         .playerTurnGlow(isActive: game.isMyTurn)
     }
 }
 
-// MARK: - Offense Team Strip (online)
-
-private struct OnlineOffenseTeamStrip: View {
-    var game: OnlineGameViewModel
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Text("Bidding Team:")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            OnlineOffenseChip(
-                name: game.playerName(game.highBidderIndex),
-                isBidder: true
-            )
-
-            let p1Name: String? = game.revealedPartner1Index >= 0
-                ? game.playerName(game.revealedPartner1Index)
-                : nil
-            let p2Name: String? = game.revealedPartner2Index >= 0
-                ? game.playerName(game.revealedPartner2Index)
-                : nil
-
-            OnlineOffenseChip(name: p1Name)
-            OnlineOffenseChip(name: p2Name)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
-    }
-}
-
-private struct OnlineOffenseChip: View {
-    let name: String?
-    var isBidder: Bool = false
-
-    private var revealed: Bool { name != nil }
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ZStack {
-                Circle()
-                    .fill(revealed ? Color.masterGold.opacity(0.22) : Color.adaptiveDivider)
-                    .frame(width: 28, height: 28)
-                Text(revealed ? String((name ?? "").prefix(1)).uppercased() : "?")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(revealed ? .masterGold : .secondary)
-            }
-            Text(name ?? "Partner?")
-                .font(.system(size: 15, weight: revealed ? .semibold : .regular))
-                .foregroundStyle(revealed ? .adaptivePrimary : .secondary)
-                .lineLimit(1)
-            if isBidder {
-                Image(systemName: "crown.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.masterGold)
-            }
-        }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
-        .background(revealed ? Color.masterGold.opacity(0.08) : Color.adaptiveDivider)
-        .clipShape(Capsule())
-        .overlay(Capsule().strokeBorder(
-            revealed ? Color.masterGold.opacity(0.3) : Color.adaptiveDivider,
-            lineWidth: 0.8))
-        .transition(.scale.combined(with: .opacity))
-    }
-}
-
 // MARK: - Round Result Banner
 
-private struct OnlineRoundResultBanner: View {
-    var game: OnlineGameViewModel
+private struct BTRoundResultBanner: View {
+    var game: BluetoothGameViewModel
     let onContinue: () -> Void
 
     @State private var appeared = false
@@ -1137,22 +986,16 @@ private struct OnlineRoundResultBanner: View {
     var body: some View {
         ZStack {
             Color.darkBG.ignoresSafeArea()
-
             ScrollView {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 32)
-
-                    // Icon + headline
                     VStack(spacing: 12) {
-                        Text(isSet ? "😵" : "🏆")
-                            .font(.system(size: 80))
+                        Text(isSet ? "😵" : "🏆").font(.system(size: 80))
                             .scaleEffect(appeared ? 1.0 : 0.3)
                             .animation(.spring(response: 0.5, dampingFraction: 0.6).delay(0.05), value: appeared)
-
                         Text(isSet ? "SET!" : "BID MADE!")
                             .font(.system(size: 48, weight: .black))
                             .foregroundStyle(isSet ? .defenseRose : .masterGold)
-
                         Text(isSet
                              ? "\(game.playerName(game.highBidderIndex)) needed \(game.highBid), only got \(game.offensePoints)"
                              : "\(game.playerName(game.highBidderIndex)) made the bid of \(game.highBid)!")
@@ -1163,31 +1006,24 @@ private struct OnlineRoundResultBanner: View {
                     }
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : 24)
-
                     Spacer().frame(height: 28)
 
-                    // Offense team box
                     let offenseTint: Color = isSet ? .defenseRose : .masterGold
                     VStack(spacing: 14) {
                         Text(isSet ? "Bidding Team — SET" : "Winning Team")
                             .font(.system(size: 11, weight: .heavy, design: .rounded))
                             .foregroundStyle(offenseTint)
-
                         HStack(spacing: 24) {
                             ForEach(offenseTeam, id: \.self) { i in
                                 VStack(spacing: 6) {
                                     ZStack {
-                                        Circle()
-                                            .fill(offenseTint.opacity(0.18))
-                                            .frame(width: 60, height: 60)
+                                        Circle().fill(offenseTint.opacity(0.18)).frame(width: 60, height: 60)
                                             .overlay(Circle().strokeBorder(offenseTint.opacity(0.5), lineWidth: 1.5))
-                                        Text(game.playerAvatar(i))
-                                            .font(.system(size: 26))
+                                        Text(game.playerAvatar(i)).font(.system(size: 26))
                                     }
                                     Text(game.playerName(i))
                                         .font(.system(size: 13, weight: .heavy, design: .rounded))
-                                        .foregroundStyle(.adaptivePrimary)
-                                        .lineLimit(1)
+                                        .foregroundStyle(.adaptivePrimary).lineLimit(1)
                                     Text(i == game.highBidderIndex ? "Bidder" : "Partner")
                                         .font(.system(size: 9, weight: .heavy, design: .rounded))
                                         .foregroundStyle(.secondary)
@@ -1195,42 +1031,32 @@ private struct OnlineRoundResultBanner: View {
                                 .frame(maxWidth: 80)
                             }
                         }
-
                         Text(isSet ? "Scored \(game.offensePoints) pts" : "Winning team scored \(game.offensePoints) pts")
                             .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(offenseTint.opacity(0.9))
                     }
-                    .padding(22)
-                    .glassmorphic(cornerRadius: 20)
-                    .padding(.horizontal, 24)
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 16)
+                    .padding(22).glassmorphic(cornerRadius: 20).padding(.horizontal, 24)
+                    .opacity(appeared ? 1 : 0).offset(y: appeared ? 0 : 16)
                     .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.15), value: appeared)
 
                     Spacer().frame(height: 12)
 
-                    // Defense team box
                     let defenseTint: Color = isSet ? .masterGold : .defenseRose
                     VStack(spacing: 14) {
                         Text(isSet ? "Defense Team — WON" : "Defense Team")
                             .font(.system(size: 11, weight: .heavy, design: .rounded))
                             .foregroundStyle(defenseTint)
-
                         HStack(spacing: 24) {
                             ForEach(defenseTeam, id: \.self) { i in
                                 VStack(spacing: 6) {
                                     ZStack {
-                                        Circle()
-                                            .fill(defenseTint.opacity(0.18))
-                                            .frame(width: 60, height: 60)
+                                        Circle().fill(defenseTint.opacity(0.18)).frame(width: 60, height: 60)
                                             .overlay(Circle().strokeBorder(defenseTint.opacity(0.5), lineWidth: 1.5))
-                                        Text(game.playerAvatar(i))
-                                            .font(.system(size: 26))
+                                        Text(game.playerAvatar(i)).font(.system(size: 26))
                                     }
                                     Text(game.playerName(i))
                                         .font(.system(size: 13, weight: .heavy, design: .rounded))
-                                        .foregroundStyle(.adaptivePrimary)
-                                        .lineLimit(1)
+                                        .foregroundStyle(.adaptivePrimary).lineLimit(1)
                                     Text("Defense")
                                         .font(.system(size: 9, weight: .heavy, design: .rounded))
                                         .foregroundStyle(.secondary)
@@ -1238,37 +1064,28 @@ private struct OnlineRoundResultBanner: View {
                                 .frame(maxWidth: 80)
                             }
                         }
-
                         Text(isSet ? "Defense team blocked the bid!" : "Defense team scored 0 pts")
                             .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(defenseTint.opacity(0.9))
                     }
-                    .padding(22)
-                    .glassmorphic(cornerRadius: 20)
-                    .padding(.horizontal, 24)
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 16)
+                    .padding(22).glassmorphic(cornerRadius: 20).padding(.horizontal, 24)
+                    .opacity(appeared ? 1 : 0).offset(y: appeared ? 0 : 16)
                     .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.2), value: appeared)
 
                     Spacer().frame(height: 32)
-
-                    // CTA
                     Button(action: onContinue) {
                         HStack(spacing: 8) {
-                            Text("See Full Results")
-                                .fontWeight(.bold)
+                            Text("See Full Results").fontWeight(.bold)
                             Image(systemName: "arrow.right")
                         }
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
                         .foregroundStyle(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 18)
+                        .frame(maxWidth: .infinity).padding(.vertical, 18)
                         .background(isSet ? Color.defenseRose : Color.masterGold)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
                     .buttonStyle(BouncyButton())
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 54)
+                    .padding(.horizontal, 32).padding(.bottom, 54)
                     .opacity(appeared ? 1 : 0)
                     .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.25), value: appeared)
                 }
@@ -1282,15 +1099,15 @@ private struct OnlineRoundResultBanner: View {
 
 // MARK: - Round Complete
 
-private struct OnlineRoundCompleteView: View {
+struct BTRoundCompleteView: View {
     @EnvironmentObject var themeManager: ThemeManager
-    var game: OnlineGameViewModel
+    var game: BluetoothGameViewModel
     let onNext: () -> Void
     let onQuit: () -> Void
     @State private var lbService = LeaderboardService.shared
 
     private var isSet: Bool { game.offensePoints < game.highBid }
-    private let targetScore = OnlineGameViewModel.winningScore
+    private let targetScore = BluetoothGameViewModel.winningScore
 
     var body: some View {
         let scoring = ScoringEngine.calculateRoundScores(
@@ -1330,21 +1147,13 @@ private struct OnlineRoundCompleteView: View {
                 ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
                     .padding(.horizontal, 20)
 
-                // Award breakdown
                 HStack(spacing: 8) {
-                    OnlineAwardPill(label: "Bidder",
-                                    points: scoring.bidderScore,
-                                    color: isSet ? .defenseRose : .masterGold)
-                    OnlineAwardPill(label: "Each Partner",
-                                    points: scoring.eachPartnerScore,
-                                    color: isSet ? .defenseRose : .offenseBlue)
-                    OnlineAwardPill(label: "Defense",
-                                    points: 0,
-                                    color: .secondary)
+                    BTAwardPill(label: "Bidder", points: scoring.bidderScore, color: isSet ? .defenseRose : .masterGold)
+                    BTAwardPill(label: "Each Partner", points: scoring.eachPartnerScore, color: isSet ? .defenseRose : .offenseBlue)
+                    BTAwardPill(label: "Defense", points: 0, color: .secondary)
                 }
                 .padding(.horizontal, 20)
 
-                // Per-player this round
                 VStack(spacing: 0) {
                     ForEach(0..<6, id: \.self) { i in
                         let isOff = game.offenseSet.contains(i)
@@ -1360,10 +1169,8 @@ private struct OnlineRoundCompleteView: View {
                                 role: resolveAvatarRole(
                                     playerIndex: i,
                                     bidderIndex: game.highBidderIndex,
-                                    revealedPartner1: game.partner1Index >= 0
-                                        ? game.partner1Index : nil,
-                                    revealedPartner2: game.partner2Index >= 0
-                                        ? game.partner2Index : nil,
+                                    revealedPartner1: game.partner1Index >= 0 ? game.partner1Index : nil,
+                                    revealedPartner2: game.partner2Index >= 0 ? game.partner2Index : nil,
                                     isRoundComplete: true
                                 ),
                                 width: 48,
@@ -1380,13 +1187,11 @@ private struct OnlineRoundCompleteView: View {
                                 .foregroundStyle(pts > 0 ? Comic.yellow : (pts == 0 ? Color.secondary : Color.defenseRose))
                         }
                         .padding(.horizontal, 16).padding(.vertical, 12)
-
                         if i < 5 { Divider().overlay(Comic.black.opacity(0.15)) }
                     }
                 }
                 .comicContainer(cornerRadius: 18).padding(.horizontal, 16)
 
-                // Bar chart — replaces old running scores leaderboard
                 PlayerScoreBarChart(
                     players: sortedEntries,
                     title: "GAME SCORE",
@@ -1395,10 +1200,8 @@ private struct OnlineRoundCompleteView: View {
                 .environmentObject(themeManager)
                 .padding(.horizontal, 16)
 
-                // Action buttons — explicit host/non-host split, never merge into one disabled button
                 VStack(spacing: 12) {
                     if game.isHost {
-                        // Host: active gold button
                         Button {
                             HapticManager.success()
                             onNext()
@@ -1412,7 +1215,6 @@ private struct OnlineRoundCompleteView: View {
                         }
                         .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
                     } else {
-                        // Non-host: grey non-interactive row + waiting text directly below
                         VStack(spacing: 6) {
                             HStack(spacing: 10) {
                                 Text("Next Round").fontWeight(.bold)
@@ -1428,9 +1230,6 @@ private struct OnlineRoundCompleteView: View {
                                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                                         .strokeBorder(Comic.black.opacity(0.25), lineWidth: 2))
                             )
-
-                            // ⚠️ WAITING TEXT — belongs HERE only, directly below the greyed Next Round row.
-                            // NEVER render this as a standalone element elsewhere on result or game screens.
                             Text("Waiting for host to start next round…")
                                 .font(.caption)
                                 .foregroundStyle(Comic.textSecondary)
@@ -1450,23 +1249,7 @@ private struct OnlineRoundCompleteView: View {
     }
 }
 
-private struct OnlineScorePill: View {
-    let label: String
-    let points: Int
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(label).font(.caption.uppercaseSmallCaps()).foregroundStyle(color)
-            Text("\(points)").font(.system(size: 38, weight: .black, design: .rounded))
-                .foregroundStyle(Comic.textPrimary).contentTransition(.numericText())
-            Text("pts").font(.caption2).foregroundStyle(Comic.textSecondary)
-        }
-        .frame(maxWidth: .infinity).padding(.vertical, 18).comicContainer(cornerRadius: 16)
-    }
-}
-
-private struct OnlineAwardPill: View {
+private struct BTAwardPill: View {
     let label: String
     let points: Int
     let color: Color
@@ -1488,9 +1271,10 @@ private struct OnlineAwardPill: View {
 
 // MARK: - Game Over
 
-private struct OnlineGameOverView: View {
-    var game: OnlineGameViewModel
+private struct BTGameOverView: View {
+    var game: BluetoothGameViewModel
     let onQuit: () -> Void
+    @State private var lbService = LeaderboardService.shared
 
     private var sortedIndices: [Int] { (0..<6).sorted { game.runningScores[$0] > game.runningScores[$1] } }
     private let medals = ["🥇", "🥈", "🥉"]
@@ -1508,6 +1292,9 @@ private struct OnlineGameOverView: View {
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
                 .padding(.top, 52)
+
+                ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                    .padding(.horizontal, 20)
 
                 VStack(spacing: 0) {
                     ForEach(Array(sortedIndices.enumerated()), id: \.element) { rank, i in
@@ -1554,28 +1341,9 @@ private struct OnlineGameOverView: View {
     }
 }
 
-// MARK: - Waiting Overlay
-
-private struct WaitingOverlay: View {
-    let name: String
-
-    var body: some View {
-        ZStack {
-            Comic.black.opacity(0.55).ignoresSafeArea()
-            VStack(spacing: 16) {
-                ProgressView().scaleEffect(1.4).tint(Comic.yellow)
-                Text("Waiting for \(name)…")
-                    .font(.subheadline.bold()).foregroundStyle(Comic.textPrimary)
-                    .padding(.horizontal, 20).padding(.vertical, 12)
-                    .comicContainer(cornerRadius: 24)
-            }
-        }
-    }
-}
-
 // MARK: - Partner Reveal Banner
 
-private struct OnlinePartnerRevealBanner: View {
+private struct BTPartnerRevealBanner: View {
     let message: String
 
     var body: some View {
@@ -1592,42 +1360,23 @@ private struct OnlinePartnerRevealBanner: View {
     }
 }
 
+// MARK: - Trick History
 
-// MARK: - Adaptive sizing helpers (Online)
-
-private func onlineAdaptiveCardWidth(available: CGFloat, count: Int) -> CGFloat {
-    guard count > 0 else { return 74 }
-    let minGap: CGFloat = 3
-    let ideal: CGFloat = 74
-    let needed = ideal * CGFloat(count) + minGap * CGFloat(count - 1)
-    if needed <= available { return ideal }
-    return max(44, (available - minGap * CGFloat(count - 1)) / CGFloat(count))
-}
-
-private func onlineAdaptiveHandHeight() -> CGFloat {
-    74 * (106.0 / 74.0)
-}
-
-
-// MARK: - Online Trick History
-
-private struct OnlineTrickHistoryView: View {
-    var game: OnlineGameViewModel
+private struct BTTrickHistoryView: View {
+    var game: BluetoothGameViewModel
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             ZStack {
                 Color.darkBG.ignoresSafeArea()
-
                 if game.completedTricks.isEmpty {
-                    Text("No hands completed yet")
-                        .foregroundStyle(.secondary)
+                    Text("No hands completed yet").foregroundStyle(.secondary)
                 } else {
                     ScrollView {
                         VStack(spacing: 12) {
                             ForEach(game.completedTricks.indices.reversed(), id: \.self) { idx in
-                                OnlineTrickHistoryRow(
+                                BTTrickHistoryRow(
                                     trickNumber: idx + 1,
                                     plays: game.completedTricks[idx],
                                     winnerIndex: game.trickWinners[idx],
@@ -1643,19 +1392,18 @@ private struct OnlineTrickHistoryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(.masterGold)
+                    Button("Done") { dismiss() }.foregroundStyle(.masterGold)
                 }
             }
         }
     }
 }
 
-private struct OnlineTrickHistoryRow: View {
+private struct BTTrickHistoryRow: View {
     let trickNumber: Int
     let plays: [(playerIndex: Int, card: Card)]
     let winnerIndex: Int
-    var game: OnlineGameViewModel
+    var game: BluetoothGameViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1673,7 +1421,6 @@ private struct OnlineTrickHistoryRow: View {
                         .foregroundStyle(.masterGold)
                 }
             }
-
             GeometryReader { geo in
                 let gap: CGFloat = 5
                 let cardW = (geo.size.width - gap * CGFloat(plays.count - 1)) / CGFloat(plays.count)
@@ -1701,24 +1448,17 @@ private struct OnlineTrickHistoryRow: View {
             .frame(height: 100)
         }
         .padding(12)
-        .background(Comic.containerBG)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Comic.containerBorder, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .glassmorphic(cornerRadius: 16)
     }
 }
 
-// MARK: - ViewModel extension for card count helper
+// MARK: - Sizing helpers
 
-extension OnlineGameViewModel {
-    /// Approximate card count for other players (derived from trickNumber and known plays).
-    /// Since we don't track other hands locally, we infer from trick progress.
-    func allHandCountFor(_ playerIndex: Int) -> Int {
-        // Each player starts with 8 cards and plays one per trick.
-        // trickNumber = completed tricks. currentTrick has cards being played now.
-        let played = trickNumber + currentTrick.filter { $0.playerIndex == playerIndex }.count
-        return max(0, 8 - played)
-    }
+private func btAdaptiveCardWidth(available: CGFloat, count: Int) -> CGFloat {
+    guard count > 0 else { return 74 }
+    let minGap: CGFloat = 3
+    let ideal: CGFloat = 74
+    let needed = ideal * CGFloat(count) + minGap * CGFloat(count - 1)
+    if needed <= available { return ideal }
+    return max(44, (available - minGap * CGFloat(count - 1)) / CGFloat(count))
 }
