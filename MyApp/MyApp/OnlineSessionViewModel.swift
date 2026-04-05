@@ -138,11 +138,12 @@ enum SessionStatus: String {
         var slots: [[String: Any]] = (0..<6).map { _ in ["uid": "", "name": "", "avatar": "", "joined": false] }
         slots[0] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
 
-        // Pre-fill AI slots
+        // Pre-fill AI slots with unique random avatars (exclude host's avatar)
         let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
         let shuffledAINames = Array(aiNamePool.shuffled().prefix(newAISeats.count))
+        let aiAvatars = Comic.randomAIAvatars(count: newAISeats.count, excluding: [avatar])
         for (n, i) in newAISeats.enumerated() {
-            slots[i] = ["uid": "AI-\(i)", "name": shuffledAINames[n], "avatar": "🤖", "joined": true]
+            slots[i] = ["uid": "AI-\(i)", "name": shuffledAINames[n], "avatar": aiAvatars[safe: n] ?? "🤖", "joined": true]
         }
 
         let data: [String: Any] = [
@@ -187,11 +188,12 @@ enum SessionStatus: String {
 
         let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
         let shuffledNames = Array(aiNamePool.shuffled().prefix(newAISeats.count))
+        let aiAvatars = Comic.randomAIAvatars(count: newAISeats.count, excluding: [avatar])
         var slots = (0..<6).map { SessionPlayer.empty(at: $0) }
         slots[0] = SessionPlayer(slotIndex: 0, uid: uid, name: name, avatar: avatar, joined: true)
         for (n, i) in newAISeats.enumerated() {
             slots[i] = SessionPlayer(slotIndex: i, uid: "AI-\(i)",
-                                     name: shuffledNames[n], avatar: "🤖", joined: true)
+                                     name: shuffledNames[n], avatar: aiAvatars[safe: n] ?? "🤖", joined: true)
         }
         playerSlots = slots
         return code
@@ -304,11 +306,13 @@ enum SessionStatus: String {
                               "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
             let usedNames = slotsData.compactMap { $0["name"] as? String }
             let aiName = aiNamePool.filter { !usedNames.contains($0) }.first ?? "Bot"
+            let usedAvatars = Set(slotsData.compactMap { $0["avatar"] as? String }.filter { !$0.isEmpty })
+            let aiAvatar = Comic.randomAIAvatars(count: 1, excluding: usedAvatars).first ?? "🤖"
 
             slotsData[slotIndex] = [
                 "uid": "AI-\(slotIndex)",
                 "name": aiName,
-                "avatar": "🤖",
+                "avatar": aiAvatar,
                 "joined": true
             ]
             currentAISeats.append(slotIndex)
@@ -334,12 +338,17 @@ enum SessionStatus: String {
             let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan",
                               "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
             var changed = false
+            // Pre-compute available avatars once; remove as we assign to keep each AI unique
+            var usedAvatars = Set(slotsData.compactMap { $0["avatar"] as? String }.filter { !$0.isEmpty })
+            var availableAvatars = Comic.randomAIAvatars(count: 6, excluding: usedAvatars)
             for i in 1..<6 {
                 let joined = slotsData[i]["joined"] as? Bool ?? false
                 if !joined {
                     let usedNames = slotsData.compactMap { $0["name"] as? String }
                     let aiName = aiNamePool.filter { !usedNames.contains($0) }.first ?? "Bot\(i)"
-                    slotsData[i] = ["uid": "AI-\(i)", "name": aiName, "avatar": "🤖", "joined": true]
+                    let aiAvatar = availableAvatars.isEmpty ? "🤖" : availableAvatars.removeFirst()
+                    usedAvatars.insert(aiAvatar)
+                    slotsData[i] = ["uid": "AI-\(i)", "name": aiName, "avatar": aiAvatar, "joined": true]
                     if !currentAISeats.contains(i) { currentAISeats.append(i) }
                     changed = true
                 }

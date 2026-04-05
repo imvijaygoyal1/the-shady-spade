@@ -75,10 +75,8 @@ final class ComputerGameViewModel {
     var _allPlayerNames: [String] = []
     var _allPlayerAvatars: [String] = []
 
-    static let namePool  = ["Alex", "Jordan", "Sam", "Riley", "Morgan",
-                             "Casey", "Taylor", "Jamie", "Drew", "Avery"]
-    static let avatarPool = ["🦁", "🐯", "🦊", "🐺", "🦅",
-                              "🐻", "🦈", "🐉", "🧙", "🥷"]
+    static let namePool = ["Alex", "Jordan", "Sam", "Riley", "Morgan",
+                            "Casey", "Taylor", "Jamie", "Drew", "Avery"]
 
     // MARK: Hands & Phase
     var hands: [[Card]] = Array(repeating: [], count: 6)
@@ -147,11 +145,9 @@ final class ComputerGameViewModel {
         self.humanAvatar = humanAvatar
         self.dealerIndex = dealerIndex
         self.roundNumber = roundNumber
-        // Random unique names & avatars for AI opponents
-        let names   = Self.namePool.shuffled().prefix(5)
-        let avatars = Self.avatarPool.shuffled().prefix(5)
-        self.aiNames   = Array(names)
-        self.aiAvatars = Array(avatars)
+        // Random unique names & avatars for AI opponents (exclude the human's avatar)
+        self.aiNames   = Array(Self.namePool.shuffled().prefix(5))
+        self.aiAvatars = Comic.randomAIAvatars(count: 5, excluding: [humanAvatar])
     }
 
     /// Custom game init — 1–5 human seats share one device; AI auto-fills remaining.

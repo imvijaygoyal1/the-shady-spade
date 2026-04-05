@@ -184,26 +184,47 @@ extension Comic {
     }
 }
 
-// MARK: - Comic Characters (replaces animal emoji set)
+// MARK: - Comic Characters
 extension Comic {
-    /// The 12 comic characters available as avatars
+    /// All 24 comic characters available as avatars
     static let comicCharacters: [(emoji: String, name: String, bg: Color)] = [
-        ("🦸", "HERO",    Color(red: 0.145, green: 0.388, blue: 0.922)), // blue
-        ("🦹", "VILLAIN", Color(red: 0.486, green: 0.227, blue: 0.929)), // purple
-        ("🧙", "WIZARD",  Color(red: 0.427, green: 0.157, blue: 0.851)), // deep purple
-        ("🤖", "ROBOT",   Color(red: 0.278, green: 0.341, blue: 0.404)), // slate
-        ("👽", "ALIEN",   Color(red: 0.024, green: 0.580, blue: 0.412)), // emerald
-        ("🥷", "NINJA",   Color(red: 0.122, green: 0.161, blue: 0.216)), // dark
-        ("🤡", "CLOWN",   Color(red: 0.863, green: 0.149, blue: 0.149)), // red
-        ("🤠", "COWBOY",  Color(red: 0.573, green: 0.251, blue: 0.035)), // brown
-        ("🧟", "ZOMBIE",  Color(red: 0.302, green: 0.486, blue: 0.051)), // green
-        ("🧛", "VAMPIRE", Color(red: 0.533, green: 0.075, blue: 0.216)), // dark red
-        ("🧞", "GENIE",   Color(red: 0.012, green: 0.404, blue: 0.631)), // ocean blue
-        ("🧑‍🚀", "ASTRO",  Color(red: 0.180, green: 0.443, blue: 0.694)), // space blue
+        // Fantasy / Sci-fi
+        ("🦸", "HERO",     Color(red: 0.145, green: 0.388, blue: 0.922)), // blue
+        ("🦹", "VILLAIN",  Color(red: 0.486, green: 0.227, blue: 0.929)), // purple
+        ("🧙", "WIZARD",   Color(red: 0.427, green: 0.157, blue: 0.851)), // deep purple
+        ("🧛", "VAMPIRE",  Color(red: 0.533, green: 0.075, blue: 0.216)), // dark red
+        ("🧟", "ZOMBIE",   Color(red: 0.302, green: 0.486, blue: 0.051)), // green
+        ("🧞", "GENIE",    Color(red: 0.012, green: 0.404, blue: 0.631)), // ocean blue
+        ("🧑‍🚀", "ASTRO",   Color(red: 0.180, green: 0.443, blue: 0.694)), // space blue
+        ("🤖", "ROBOT",    Color(red: 0.278, green: 0.341, blue: 0.404)), // slate
+        ("👽", "ALIEN",    Color(red: 0.024, green: 0.580, blue: 0.412)), // emerald
+        ("🐉", "DRAGON",   Color(red: 0.600, green: 0.082, blue: 0.082)), // deep red
+        ("👹", "DEMON",    Color(red: 0.780, green: 0.200, blue: 0.000)), // dark orange
+        // Rogues / Characters
+        ("🥷", "NINJA",    Color(red: 0.122, green: 0.161, blue: 0.216)), // dark
+        ("🤠", "COWBOY",   Color(red: 0.573, green: 0.251, blue: 0.035)), // brown
+        ("🤡", "CLOWN",    Color(red: 0.863, green: 0.149, blue: 0.149)), // red
+        ("🎩", "MAGICIAN", Color(red: 0.173, green: 0.173, blue: 0.173)), // charcoal
+        ("🤴", "KING",     Color(red: 0.722, green: 0.588, blue: 0.047)), // gold
+        ("👸", "QUEEN",    Color(red: 0.918, green: 0.345, blue: 0.588)), // pink
+        // Animals
+        ("🦁", "LION",     Color(red: 0.820, green: 0.600, blue: 0.050)), // amber
+        ("🐯", "TIGER",    Color(red: 0.800, green: 0.320, blue: 0.060)), // orange
+        ("🦊", "FOX",      Color(red: 0.800, green: 0.267, blue: 0.000)), // burnt orange
+        ("🐺", "WOLF",     Color(red: 0.290, green: 0.435, blue: 0.647)), // steel blue
+        ("🦅", "EAGLE",    Color(red: 0.055, green: 0.500, blue: 0.760)), // sky blue
+        ("🦈", "SHARK",    Color(red: 0.051, green: 0.420, blue: 0.533)), // teal
+        ("🐻", "BEAR",     Color(red: 0.420, green: 0.220, blue: 0.075)), // bark brown
     ]
 
     static func characterName(for emoji: String) -> String {
         comicCharacters.first(where: { $0.emoji == emoji })?.name ?? ""
+    }
+
+    /// Returns `count` unique avatar emojis from `comicCharacters`, excluding `usedAvatars`.
+    static func randomAIAvatars(count: Int, excluding usedAvatars: Set<String> = []) -> [String] {
+        let pool = comicCharacters.map(\.emoji).filter { !usedAvatars.contains($0) }.shuffled()
+        return Array(pool.prefix(count))
     }
 }
 

@@ -233,13 +233,17 @@ final class BluetoothGameViewModel: NSObject {
         let humanSlots = Set(peerToPlayerIndex.values)
         let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley", "Jordan", "Alex", "Sam"]
         var newAISeats: [Int] = []
+        // Pre-compute unique AI avatars, excluding all human avatars already assigned
+        let usedAvatars = Set(humanSlots.map { playerAvatars[safe: $0] ?? "" }.filter { !$0.isEmpty })
+        var availableAvatars = Comic.randomAIAvatars(count: 6, excluding: usedAvatars)
         for i in 1..<6 {
             if !humanSlots.contains(i) {
                 let usedNames = playerNames.filter { !$0.isEmpty }
                 let aiName = aiNamePool.first { !usedNames.contains($0) } ?? "Bot\(i)"
+                let aiAvatar = availableAvatars.isEmpty ? "🤖" : availableAvatars.removeFirst()
                 playerNames[i] = aiName
-                playerAvatars[i] = "🤖"
-                connectedPlayerSlots[i] = BTPlayerSlot(slotIndex: i, name: aiName, avatar: "🤖", joined: true)
+                playerAvatars[i] = aiAvatar
+                connectedPlayerSlots[i] = BTPlayerSlot(slotIndex: i, name: aiName, avatar: aiAvatar, joined: true)
                 newAISeats.append(i)
             }
         }
