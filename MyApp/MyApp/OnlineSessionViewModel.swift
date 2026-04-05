@@ -139,7 +139,7 @@ enum SessionStatus: String {
         slots[0] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
 
         // Pre-fill AI slots with unique random avatars (exclude host's avatar)
-        let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
+        let aiNamePool = Comic.aiNamePool
         let shuffledAINames = Array(aiNamePool.shuffled().prefix(newAISeats.count))
         let aiAvatars = Comic.randomAIAvatars(count: newAISeats.count, excluding: [avatar])
         for (n, i) in newAISeats.enumerated() {
@@ -186,7 +186,7 @@ enum SessionStatus: String {
         pendingName = name
         pendingAvatar = avatar
 
-        let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
+        let aiNamePool = Comic.aiNamePool
         let shuffledNames = Array(aiNamePool.shuffled().prefix(newAISeats.count))
         let aiAvatars = Comic.randomAIAvatars(count: newAISeats.count, excluding: [avatar])
         var slots = (0..<6).map { SessionPlayer.empty(at: $0) }
@@ -302,8 +302,7 @@ enum SessionStatus: String {
             ])
         } else {
             // Removing a human player — replace with AI bot
-            let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan",
-                              "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
+            let aiNamePool = Comic.aiNamePool
             let usedNames = slotsData.compactMap { $0["name"] as? String }
             let aiName = aiNamePool.filter { !usedNames.contains($0) }.first ?? "Bot"
             let usedAvatars = Set(slotsData.compactMap { $0["avatar"] as? String }.filter { !$0.isEmpty })
@@ -335,8 +334,7 @@ enum SessionStatus: String {
             var currentAISeats = (data["aiSeats"] as? [Any] ?? []).compactMap {
                 ($0 as? Int) ?? ($0 as? Int64).map(Int.init)
             }
-            let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan",
-                              "Riley", "Jordan", "Alex", "Sam", "Taylor", "Avery"]
+            let aiNamePool = Comic.aiNamePool
             var changed = false
             // Pre-compute available avatars once; remove as we assign to keep each AI unique
             var usedAvatars = Set(slotsData.compactMap { $0["avatar"] as? String }.filter { !$0.isEmpty })

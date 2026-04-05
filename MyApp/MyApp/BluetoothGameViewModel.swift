@@ -231,7 +231,7 @@ final class BluetoothGameViewModel: NSObject {
         // AI slots from previous rounds aren't mistaken for humans (connectedPlayerSlots.joined
         // stays true once set, causing aiSeats to be empty in round 2+).
         let humanSlots = Set(peerToPlayerIndex.values)
-        let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley", "Jordan", "Alex", "Sam"]
+        let aiNamePool = Comic.aiNamePool
         var newAISeats: [Int] = []
         // Pre-compute unique AI avatars, excluding all human avatars already assigned
         let usedAvatars = Set(humanSlots.map { playerAvatars[safe: $0] ?? "" }.filter { !$0.isEmpty })

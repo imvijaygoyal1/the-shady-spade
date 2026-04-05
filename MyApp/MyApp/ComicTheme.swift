@@ -226,6 +226,27 @@ extension Comic {
         let pool = comicCharacters.map(\.emoji).filter { !usedAvatars.contains($0) }.shuffled()
         return Array(pool.prefix(count))
     }
+
+    /// Shared pool of 110 names used for AI bots across all game modes.
+    static let aiNamePool: [String] = [
+        // Classic / neutral
+        "Alex", "Jordan", "Sam", "Riley", "Morgan", "Casey", "Taylor", "Jamie", "Drew", "Avery",
+        "Blake", "Quinn", "Reese", "Logan", "Parker", "Hayden", "Cameron", "Peyton", "Dylan", "Skyler",
+        // Bold / action
+        "Phoenix", "River", "Sage", "Storm", "Blaze", "Ace", "Rex", "Scout", "Nova", "Zara",
+        "Hunter", "Chase", "Cruz", "Duke", "Jett", "Rio", "Fox", "Hawk", "Blade", "Flint",
+        // Short punchy
+        "Max", "Leo", "Ivy", "Kai", "Mia", "Eli", "Finn", "Zoe", "Ash", "Cole",
+        "Reed", "Lane", "Flynn", "Wren", "Dex", "Remy", "Nico", "Luca", "Gus", "Bo",
+        // International flair
+        "Marco", "Ivan", "Omar", "Raja", "Kenji", "Sora", "Zion", "Diego", "Rafe", "Theo",
+        "Bruno", "Felix", "Hugo", "Nero", "Dante", "Leon", "Cyrus", "Vince", "Otto", "Kane",
+        // Celestial / mythic
+        "Atlas", "Orion", "Vega", "Lyra", "Comet", "Sirius", "Echo", "Cleo", "Cain", "Tex",
+        // Classic feminine
+        "Aria", "Luna", "Stella", "Ruby", "Violet", "Amber", "Ember", "Faye", "Eve", "Jade",
+        "Roxy", "Vera", "Lena", "Nina", "Tara", "Kira", "Maya", "Noa", "Nora", "Isla",
+    ]
 }
 
 // MARK: - Player Turn Animation Modifiers

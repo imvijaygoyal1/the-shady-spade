@@ -75,8 +75,7 @@ final class ComputerGameViewModel {
     var _allPlayerNames: [String] = []
     var _allPlayerAvatars: [String] = []
 
-    static let namePool = ["Alex", "Jordan", "Sam", "Riley", "Morgan",
-                            "Casey", "Taylor", "Jamie", "Drew", "Avery"]
+    static var namePool: [String] { Comic.aiNamePool }
 
     // MARK: Hands & Phase
     var hands: [[Card]] = Array(repeating: [], count: 6)
