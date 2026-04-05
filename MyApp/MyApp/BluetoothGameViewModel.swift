@@ -1,0 +1,1318 @@
+import SwiftUI
+import Observation
+import MultipeerConnectivity
+import OSLog
+
+private let aiLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "AI")
+
+// MARK: - BTSessionState
+
+enum BTSessionState: Equatable {
+    case idle
+    case hosting
+    case browsing
+    case connected
+    case playing
+}
+
+// MARK: - BidWinnerInfo (reuse from Online if not already defined)
+// Note: BidWinnerInfo is defined in OnlineGameViewModel.swift already
+
+// MARK: - ViewModel
+
+@Observable @MainActor
+final class BluetoothGameViewModel: NSObject {
+
+    static let serviceType = "shady-spade"
+    static let winningScore = 500
+
+    // MARK: Identity
+    var myPlayerIndex: Int = 0
+    var isHost: Bool = false
+    var playerNames: [String] = Array(repeating: "", count: 6)
+    var playerAvatars: [String] = Array(repeating: "🃏", count: 6)
+
+    // MARK: Phase / Game State
+    var phase: OnlineGamePhase = .dealing
+    var roundNumber: Int = 1
+    var dealerIndex: Int = 0
+    var currentActionPlayer: Int = -1
+    var bids: [Int] = Array(repeating: -1, count: 6)
+    var highBid: Int = 0
+    var highBidderIndex: Int = -1
+    var trumpSuit: TrumpSuit = .spades
+    var calledCard1: String = ""
+    var calledCard2: String = ""
+    var partner1Index: Int = -1
+    var partner2Index: Int = -1
+    var currentTrick: [(playerIndex: Int, card: Card)] = []
+    var currentLeaderIndex: Int = 0
+    var trickNumber: Int = 0
+    var lastCompletedTrick: [(playerIndex: Int, card: Card)] = []
+    var lastTrickWinnerIndex: Int = -1
+    var lastTrickPoints: Int = 0
+    var completedTricks: [[(playerIndex: Int, card: Card)]] = []
+    var trickWinners: [Int] = []
+    var wonPointsPerPlayer: [Int] = Array(repeating: 0, count: 6)
+    var runningScores: [Int] = Array(repeating: 0, count: 6)
+    var message: String = ""
+    var myHand: [Card] = []
+    var myHandSorted: [Card] { myHand.sortedBySuit() }
+
+    // MARK: Bidding
+    var playerHasPassed: [Bool] = Array(repeating: false, count: 6)
+    var bidHistory: [(playerIndex: Int, amount: Int)] = []
+    var bidHistoryOrdered: [(playerIndex: Int, amount: Int)] { bidHistory }
+
+    // MARK: Partner reveal
+    var revealedPartner1Index: Int = -1
+    var revealedPartner2Index: Int = -1
+    var partnerRevealMessage: String? = nil
+
+    // MARK: UI state
+    var trumpSuitSelection: TrumpSuit = .spades
+    var calledCard1Rank: String = "A"
+    var calledCard1Suit: String = "♥"
+    var calledCard2Rank: String = "K"
+    var calledCard2Suit: String = "♦"
+    var humanBidAmount: Double = 130
+    var bidWinnerInfo: BidWinnerInfo? = nil
+    var errorMessage: String? = nil
+    var wasRemovedFromGame = false
+
+    // MARK: AI seats (filled if < 6 humans)
+    var aiSeats: [Int] = []
+
+    // MARK: Current trick winner
+    var currentTrickWinnerIndex: Int {
+        guard !currentTrick.isEmpty else { return -1 }
+        return trickWinnerIndex(trick: currentTrick)
+    }
+
+    // MARK: Session state (lobby)
+    var sessionState: BTSessionState = .idle
+    var foundSessions: [(peerID: MCPeerID, info: [String: String])] = []
+    var connectedPlayerSlots: [BTPlayerSlot] = (0..<6).map { BTPlayerSlot.empty(at: $0) }
+
+    // MARK: MC infrastructure (private)
+    private var peerID: MCPeerID!
+    private var session: MCSession!
+    private var advertiser: MCNearbyServiceAdvertiser?
+    private var browser: MCNearbyServiceBrowser?
+
+    // host: peer → player index mapping
+    private var peerToPlayerIndex: [MCPeerID: Int] = [:]
+    private var playerIndexToPeer: [Int: MCPeerID] = [:]
+
+    // Temp storage for peer info received in advertiser callback,
+    // consumed in session:didChange:connected to avoid double slot assignment
+    private var pendingPeerInfo: [MCPeerID: [String: String]] = [:]
+
+    // MARK: Host-only state
+    private var allHands: [[Card]] = Array(repeating: [], count: 6)
+    private var hostPartner1: Int = -1
+    private var hostPartner2: Int = -1
+    private var hostCalledCard1: String = ""
+    private var hostCalledCard2: String = ""
+
+    private var hasInitializedCalling = false
+    private var lastProcessedActionId: String = ""
+
+    // MARK: - Computed
+
+    var isMyTurn: Bool { myPlayerIndex == currentActionPlayer && phase == .playing }
+
+    var humanMinBid: Int { max(130, highBid + 5) }
+    var humanMustPass: Bool { humanMinBid > 250 }
+    var humanCanPass: Bool { highBid > 0 }
+
+    var offenseSet: Set<Int> {
+        Set([highBidderIndex, partner1Index, partner2Index].filter { $0 >= 0 })
+    }
+
+    var callingValid: Bool {
+        let c1 = calledCard1Rank + calledCard1Suit
+        let c2 = calledCard2Rank + calledCard2Suit
+        guard c1 != c2 else { return false }
+        let handIds = Set(myHand.map(\.id))
+        return !handIds.contains(c1) && !handIds.contains(c2)
+    }
+
+    var validCardsToPlay: Set<String> {
+        if currentTrick.isEmpty { return Set(myHand.map(\.id)) }
+        let ledSuit = currentTrick[0].card.suit
+        let canFollow = myHand.filter { $0.suit == ledSuit }
+        return Set((canFollow.isEmpty ? myHand : canFollow).map(\.id))
+    }
+
+    var offensePoints: Int {
+        (0..<6).filter { offenseSet.contains($0) }.map { wonPointsPerPlayer[$0] }.reduce(0, +)
+    }
+
+    var defensePoints: Int {
+        (0..<6).filter { !offenseSet.contains($0) }.map { wonPointsPerPlayer[$0] }.reduce(0, +)
+    }
+
+    // MARK: - Player info helpers
+
+    func playerName(_ index: Int) -> String {
+        guard index >= 0 && index < playerNames.count else { return "Player \(index + 1)" }
+        let n = playerNames[index]
+        return n.isEmpty ? "Player \(index + 1)" : n
+    }
+
+    func playerAvatar(_ index: Int) -> String {
+        guard index >= 0 && index < playerAvatars.count else { return "🃏" }
+        let a = playerAvatars[index]
+        return a.isEmpty ? "🃏" : a
+    }
+
+    func allHandCountFor(_ index: Int) -> Int {
+        guard isHost && index >= 0 && index < allHands.count else { return 8 }
+        return allHands[index].count
+    }
+
+    // MARK: - Lobby: Host
+
+    func startHosting(playerName: String, avatar: String) {
+        cleanup()
+        peerID = MCPeerID(displayName: playerName)
+        session = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .required)
+        session.delegate = self
+
+        // Slot 0 = host
+        myPlayerIndex = 0
+        isHost = true
+        playerNames[0] = playerName
+        playerAvatars[0] = avatar
+        connectedPlayerSlots[0] = BTPlayerSlot(slotIndex: 0, name: playerName, avatar: avatar, joined: true)
+
+        let info: [String: String] = ["hostName": playerName, "avatar": avatar, "slots": "1"]
+        advertiser = MCNearbyServiceAdvertiser(peer: peerID, discoveryInfo: info, serviceType: Self.serviceType)
+        advertiser?.delegate = self
+        advertiser?.startAdvertisingPeer()
+        sessionState = .hosting
+    }
+
+    // MARK: - Lobby: Client
+
+    func startBrowsing(playerName: String, avatar: String) {
+        cleanup()
+        peerID = MCPeerID(displayName: playerName)
+        session = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .required)
+        session.delegate = self
+
+        isHost = false
+        playerNames[0] = playerName   // temp, will be updated by assignSlot
+        playerAvatars[0] = avatar
+
+        browser = MCNearbyServiceBrowser(peer: peerID, serviceType: Self.serviceType)
+        browser?.delegate = self
+        browser?.startBrowsingForPeers()
+        sessionState = .browsing
+    }
+
+    func connectTo(peerID remotePeerID: MCPeerID) {
+        guard let browser else { return }
+        let context = try? JSONSerialization.data(withJSONObject: [
+            "name": playerNames[0],
+            "avatar": playerAvatars[0]
+        ])
+        browser.invitePeer(remotePeerID, to: session, withContext: context, timeout: 30)
+    }
+
+    // MARK: - Host: Start Game
+
+    func startGame() async {
+        guard isHost else { return }
+
+        // Fill remaining slots with AI.
+        // Use peerToPlayerIndex (actual connected peers) to identify human slots so that
+        // AI slots from previous rounds aren't mistaken for humans (connectedPlayerSlots.joined
+        // stays true once set, causing aiSeats to be empty in round 2+).
+        let humanSlots = Set(peerToPlayerIndex.values)
+        let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley", "Jordan", "Alex", "Sam"]
+        var newAISeats: [Int] = []
+        for i in 1..<6 {
+            if !humanSlots.contains(i) {
+                let usedNames = playerNames.filter { !$0.isEmpty }
+                let aiName = aiNamePool.first { !usedNames.contains($0) } ?? "Bot\(i)"
+                playerNames[i] = aiName
+                playerAvatars[i] = "🤖"
+                connectedPlayerSlots[i] = BTPlayerSlot(slotIndex: i, name: aiName, avatar: "🤖", joined: true)
+                newAISeats.append(i)
+            }
+        }
+        aiSeats = newAISeats
+
+        // Broadcast updated player list to all peers
+        let slotMsg: [String: Any] = [
+            "type": "playerList",
+            "names": playerNames,
+            "avatars": playerAvatars,
+            "aiSeats": aiSeats
+        ]
+        sendToAll(slotMsg)
+
+        sessionState = .playing
+        phase = .dealing
+
+        // Send dealing phase to all peers
+        broadcastGameState()
+
+        // Wait for dealing animation
+        try? await Task.sleep(nanoseconds: 3_000_000_000)
+
+        // Deal cards
+        let deck = freshDeck().shuffled()
+        allHands = (0..<6).map { i in Array(deck[(i * 8)..<((i + 1) * 8)]) }
+
+        // Reset host tracking
+        hostPartner1 = -1; hostPartner2 = -1
+        hostCalledCard1 = ""; hostCalledCard2 = ""
+
+        // Send each peer their hand
+        for (peerID, playerIndex) in peerToPlayerIndex {
+            let hand = allHands[playerIndex]
+            let handMsg: [String: Any] = [
+                "type": "hand",
+                "cards": hand.map { ["rank": $0.rank, "suit": $0.suit] }
+            ]
+            send(handMsg, to: peerID)
+        }
+        // Host's own hand
+        myHand = allHands[myPlayerIndex]
+
+        let firstBidder = (dealerIndex + 1) % 6
+        currentActionPlayer = firstBidder
+        currentLeaderIndex = firstBidder
+        bids = Array(repeating: -1, count: 6)
+        highBid = 0
+        highBidderIndex = -1
+        playerHasPassed = Array(repeating: false, count: 6)
+        bidHistory = []
+        trumpSuit = .spades
+        calledCard1 = ""; calledCard2 = ""
+        partner1Index = -1; partner2Index = -1
+        currentTrick = []
+        trickNumber = 0
+        wonPointsPerPlayer = Array(repeating: 0, count: 6)
+        completedTricks = []
+        trickWinners = []
+        lastCompletedTrick = []
+        lastTrickWinnerIndex = -1
+        lastTrickPoints = 0
+        revealedPartner1Index = -1
+        revealedPartner2Index = -1
+        phase = .lookingAtCards
+        message = "Study your cards, then start bidding."
+
+        broadcastGameState()
+    }
+
+    func startNextRound() async {
+        guard isHost else { return }
+        dealerIndex = (dealerIndex + 1) % 6
+        roundNumber += 1
+        await startGame()
+    }
+
+    func startBidding() async {
+        guard isHost else { return }
+        let firstBidder = (dealerIndex + 1) % 6
+        bids = Array(repeating: -1, count: 6)
+        highBid = 0
+        highBidderIndex = -1
+        playerHasPassed = Array(repeating: false, count: 6)
+        bidHistory = []
+        currentActionPlayer = firstBidder
+        phase = .bidding
+        message = "\(playerName(firstBidder)) starts the bid!"
+        broadcastGameState()
+        await processAITurnIfNeeded()
+    }
+
+    // MARK: - Player Actions
+
+    func placeBid(_ amount: Int) async {
+        if isHost {
+            await processBid(playerIndex: myPlayerIndex, amount: amount)
+        } else {
+            let msg: [String: Any] = [
+                "type": "action",
+                "action": "bid",
+                "amount": amount,
+                "actionId": UUID().uuidString
+            ]
+            sendToHost(msg)
+        }
+    }
+
+    func pass() async {
+        if isHost {
+            await processPass(playerIndex: myPlayerIndex)
+        } else {
+            let msg: [String: Any] = [
+                "type": "action",
+                "action": "pass",
+                "actionId": UUID().uuidString
+            ]
+            sendToHost(msg)
+        }
+    }
+
+    func callTrumpAndCards() async {
+        let c1 = calledCard1Rank + calledCard1Suit
+        let c2 = calledCard2Rank + calledCard2Suit
+        if isHost {
+            await processCallCards(playerIndex: myPlayerIndex, trump: trumpSuitSelection, c1: c1, c2: c2)
+        } else {
+            let msg: [String: Any] = [
+                "type": "action",
+                "action": "callTrump",
+                "suit": trumpSuitSelection.rawValue,
+                "card1": c1,
+                "card2": c2,
+                "actionId": UUID().uuidString
+            ]
+            sendToHost(msg)
+        }
+    }
+
+    func playCard(_ card: Card) async {
+        if isHost {
+            await processPlayCard(playerIndex: myPlayerIndex, cardId: card.id)
+        } else {
+            let msg: [String: Any] = [
+                "type": "action",
+                "action": "playCard",
+                "cardId": card.id,
+                "actionId": UUID().uuidString
+            ]
+            sendToHost(msg)
+        }
+    }
+
+    func proceedFromBidWinner() {
+        bidWinnerInfo = nil
+    }
+
+    // MARK: - Cleanup
+
+    func cleanup() {
+        advertiser?.stopAdvertisingPeer()
+        advertiser = nil
+        browser?.stopBrowsingForPeers()
+        browser = nil
+        session?.disconnect()
+        session = nil
+        peerToPlayerIndex = [:]
+        playerIndexToPeer = [:]
+        sessionState = .idle
+        foundSessions = []
+    }
+
+    // MARK: - Host Game Logic: Process Actions
+
+    private func processBid(playerIndex: Int, amount: Int) async {
+        guard isHost else { return }
+        var newBids = bids
+        newBids[playerIndex] = amount
+        var newHighBid = highBid
+        var newHighBidder = highBidderIndex
+        if amount > newHighBid { newHighBid = amount; newHighBidder = playerIndex }
+        var newHistory = bidHistory
+        newHistory.append((playerIndex: playerIndex, amount: amount))
+
+        let activePlayers = (0..<6).filter { !playerHasPassed[$0] }
+        if activePlayers.count <= 1 {
+            await concludeBidding(bids: newBids, highBid: newHighBid, highBidder: newHighBidder)
+        } else {
+            var next = (playerIndex + 1) % 6
+            while playerHasPassed[next] { next = (next + 1) % 6 }
+            bids = newBids
+            highBid = newHighBid
+            highBidderIndex = newHighBidder
+            bidHistory = newHistory
+            currentActionPlayer = next
+            message = "\(playerName(playerIndex)) bid \(amount)"
+            broadcastGameState()
+            await processAITurnIfNeeded()
+        }
+    }
+
+    private func processPass(playerIndex: Int) async {
+        guard isHost else { return }
+        var newBids = bids
+        newBids[playerIndex] = 0
+        var newPassed = playerHasPassed
+        newPassed[playerIndex] = true
+        var newHistory = bidHistory
+        newHistory.append((playerIndex: playerIndex, amount: 0))
+
+        let activePlayers = (0..<6).filter { !newPassed[$0] }
+        if activePlayers.count <= 1 {
+            await concludeBidding(bids: newBids, highBid: highBid, highBidder: highBidderIndex)
+        } else {
+            var next = (playerIndex + 1) % 6
+            while newPassed[next] { next = (next + 1) % 6 }
+            bids = newBids
+            playerHasPassed = newPassed
+            bidHistory = newHistory
+            currentActionPlayer = next
+            message = "\(playerName(playerIndex)) passed"
+            broadcastGameState()
+            await processAITurnIfNeeded()
+        }
+    }
+
+    private func concludeBidding(bids newBids: [Int], highBid newHigh: Int, highBidder newBidder: Int) async {
+        var finalBids = newBids
+        var finalHigh = newHigh
+        var finalBidder = newBidder
+
+        if finalBidder == -1 {
+            finalBidder = dealerIndex
+            finalHigh = 130
+            finalBids[dealerIndex] = 130
+            message = "\(playerName(finalBidder)) is forced to bid 130"
+        } else {
+            message = "\(playerName(finalBidder)) won the bid with \(finalHigh)!"
+        }
+
+        bids = finalBids
+        highBid = finalHigh
+        highBidderIndex = finalBidder
+        currentActionPlayer = finalBidder
+        calledCard1 = ""; calledCard2 = ""
+        partner1Index = -1; partner2Index = -1
+        currentTrick = []
+        trickNumber = 0
+        wonPointsPerPlayer = Array(repeating: 0, count: 6)
+        phase = .calling
+        broadcastGameState()
+        await processAITurnIfNeeded()
+    }
+
+    private func processCallCards(playerIndex: Int, trump: TrumpSuit, c1: String, c2: String) async {
+        guard isHost else { return }
+        let (p1, p2) = resolvePartners(c1: c1, c2: c2)
+        hostPartner1 = p1; hostPartner2 = p2
+        hostCalledCard1 = c1; hostCalledCard2 = c2
+
+        trumpSuit = trump
+        calledCard1 = c1
+        calledCard2 = c2
+        partner1Index = -1
+        partner2Index = -1
+        currentLeaderIndex = highBidderIndex
+        currentActionPlayer = highBidderIndex
+        currentTrick = []
+        trickNumber = 0
+        wonPointsPerPlayer = Array(repeating: 0, count: 6)
+        phase = .playing
+        message = "\(playerName(highBidderIndex)) called — play begins!"
+        broadcastGameState()
+        await processAITurnIfNeeded()
+    }
+
+    private func processPlayCard(playerIndex: Int, cardId: String) async {
+        guard isHost else { return }
+        guard let card = parseCard(cardId),
+              allHands[playerIndex].contains(where: { $0.id == cardId }) else {
+            // Card is invalid or not in hand (e.g. stale action). If it's now an AI's
+            // turn, keep the chain alive so the game doesn't stall.
+            await processAITurnIfNeeded()
+            return
+        }
+
+        allHands[playerIndex].removeAll { $0.id == cardId }
+
+        // Send updated hand to the player (or keep host's own hand)
+        if playerIndex == myPlayerIndex {
+            myHand = allHands[myPlayerIndex]
+        } else if let peer = playerIndexToPeer[playerIndex] {
+            let handMsg: [String: Any] = [
+                "type": "hand",
+                "cards": allHands[playerIndex].map { ["rank": $0.rank, "suit": $0.suit] }
+            ]
+            send(handMsg, to: peer)
+        }
+
+        var newTrick = currentTrick
+        newTrick.append((playerIndex: playerIndex, card: card))
+
+        // Check partner reveal
+        var newP1 = partner1Index
+        var newP2 = partner2Index
+        if cardId == hostCalledCard1 && newP1 == -1 { newP1 = hostPartner1 }
+        if cardId == hostCalledCard2 && newP2 == -1 { newP2 = hostPartner2 }
+
+        if newTrick.count == 6 {
+            // Show the completed trick first
+            currentTrick = newTrick
+            partner1Index = newP1
+            partner2Index = newP2
+            message = "\(playerName(playerIndex)) played \(card.rank)\(card.suit)"
+            broadcastGameState()
+
+            // 1 second pause for clients to render
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+            let winner = trickWinnerIndex(trick: newTrick)
+            let pts = newTrick.map(\.card.pointValue).reduce(0, +)
+            var newWon = wonPointsPerPlayer
+            newWon[winner] += pts
+            let newTrickNum = trickNumber + 1
+
+            // Capture trick for history
+            lastCompletedTrick = newTrick
+            lastTrickWinnerIndex = winner
+            lastTrickPoints = pts
+            completedTricks.append(newTrick)
+            trickWinners.append(winner)
+
+            if newTrickNum == 8 {
+                let offSet = Set([highBidderIndex, hostPartner1, hostPartner2].filter { $0 >= 0 })
+                let offPts = (0..<6).filter { offSet.contains($0) }.map { newWon[$0] }.reduce(0, +)
+                let defPts = (0..<6).filter { !offSet.contains($0) }.map { newWon[$0] }.reduce(0, +)
+                let bidMade = offPts >= highBid
+
+                let scoring = ScoringEngine.calculateRoundScores(
+                    bidAmount: highBid,
+                    bidderIndex: highBidderIndex,
+                    offenseIndices: offSet,
+                    bidMade: bidMade
+                )
+                var newRS = runningScores
+                for i in 0..<6 { newRS[i] += scoring.playerDeltas[i] }
+
+                wonPointsPerPlayer = newWon
+                runningScores = newRS
+                currentTrick = []
+                trickNumber = newTrickNum
+                currentLeaderIndex = winner
+                partner1Index = hostPartner1
+                partner2Index = hostPartner2
+                message = "\(playerName(winner)) wins! \(bidMade ? "Bid made!" : "SET!")"
+
+                let nextPhase: OnlineGamePhase = (newRS.max() ?? 0) >= Self.winningScore ? .gameOver : .roundComplete
+                phase = nextPhase
+                broadcastGameState()
+            } else {
+                wonPointsPerPlayer = newWon
+                currentTrick = []
+                trickNumber = newTrickNum
+                currentLeaderIndex = winner
+                currentActionPlayer = winner
+                partner1Index = newP1
+                partner2Index = newP2
+                message = "\(playerName(winner)) wins the hand!"
+                broadcastGameState()
+                await processAITurnIfNeeded()
+            }
+        } else {
+            // Trick in progress — advance to next player
+            let trickOrder = (0..<6).map { (currentLeaderIndex + $0) % 6 }
+            let pos = trickOrder.firstIndex(of: playerIndex) ?? 0
+            let nextPlayer = trickOrder[min(pos + 1, 5)]
+
+            currentTrick = newTrick
+            currentActionPlayer = nextPlayer
+            partner1Index = newP1
+            partner2Index = newP2
+            message = "\(playerName(playerIndex)) played \(card.rank)\(card.suit)"
+            broadcastGameState()
+            await processAITurnIfNeeded()
+        }
+    }
+
+    // MARK: - Host: Broadcast Game State
+
+    private func broadcastGameState() {
+        guard isHost else { return }
+        let gs = buildGameStateDict()
+        let msg: [String: Any] = ["type": "gameState", "state": gs]
+        sendToAll(msg)
+        // Apply state locally for host
+        applyGameState(gs)
+    }
+
+    private func buildGameStateDict() -> [String: Any] {
+        [
+            "phase": phase.rawValue,
+            "roundNumber": roundNumber,
+            "dealerIndex": dealerIndex,
+            "currentActionPlayer": currentActionPlayer,
+            "bids": bids,
+            "highBid": highBid,
+            "highBidderIndex": highBidderIndex,
+            "playerHasPassed": playerHasPassed,
+            "bidHistory": bidHistory.map { ["pi": $0.playerIndex, "amt": $0.amount] as [String: Any] },
+            "trumpSuit": trumpSuit.rawValue,
+            "calledCard1": calledCard1,
+            "calledCard2": calledCard2,
+            "partner1Index": partner1Index,
+            "partner2Index": partner2Index,
+            "currentTrick": currentTrick.map { e -> [String: Any] in ["pi": e.playerIndex, "card": e.card.id] },
+            "currentLeaderIndex": currentLeaderIndex,
+            "trickNumber": trickNumber,
+            "wonPointsPerPlayer": wonPointsPerPlayer,
+            "runningScores": runningScores,
+            "message": message,
+            "playerNames": playerNames,
+            "playerAvatars": playerAvatars,
+            "aiSeats": aiSeats
+        ]
+    }
+
+    // MARK: - Apply Game State (non-host)
+
+    func applyGameState(_ gs: [String: Any]) {
+        func i(_ key: String) -> Int { (gs[key] as? Int) ?? (gs[key] as? Int64).map(Int.init) ?? 0 }
+        func iDef(_ key: String, _ def: Int) -> Int { (gs[key] as? Int) ?? (gs[key] as? Int64).map(Int.init) ?? def }
+
+        let newPhase = OnlineGamePhase(rawValue: gs["phase"] as? String ?? "") ?? .dealing
+        let newRoundNumber = i("roundNumber")
+        let newCurrentActionPlayer = iDef("currentActionPlayer", -1)
+        let newP1 = iDef("partner1Index", -1)
+        let newP2 = iDef("partner2Index", -1)
+
+        // Partner reveal detection
+        if newPhase == .playing || newPhase == .roundComplete || newPhase == .gameOver {
+            if newP1 >= 0 && revealedPartner1Index == -1 {
+                revealedPartner1Index = newP1
+                let name = playerName(newP1)
+                let isSelf = newP1 == myPlayerIndex
+                partnerRevealMessage = isSelf ? "You are a partner!" : "\(name) is a partner!"
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_500_000_000)
+                    self.partnerRevealMessage = nil
+                }
+            }
+            if newP2 >= 0 && revealedPartner2Index == -1 {
+                revealedPartner2Index = newP2
+                let name = playerName(newP2)
+                let isSelf = newP2 == myPlayerIndex
+                let msg = isSelf ? "You are a partner!" : "\(name) is a partner!"
+                if msg != partnerRevealMessage {
+                    Task {
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        self.partnerRevealMessage = msg
+                        try? await Task.sleep(nanoseconds: 2_500_000_000)
+                        self.partnerRevealMessage = nil
+                    }
+                }
+            }
+        }
+        if newP1 == -1 { revealedPartner1Index = -1 }
+        if newP2 == -1 { revealedPartner2Index = -1 }
+
+        // Bid winner announcement
+        if newPhase == .calling && phase == .bidding {
+            let winnerIdx = iDef("highBidderIndex", -1)
+            let winnerBid = i("highBid")
+            if winnerIdx >= 0 {
+                bidWinnerInfo = BidWinnerInfo(name: playerName(winnerIdx), avatar: "", bid: winnerBid)
+                if winnerIdx != myPlayerIndex {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                        self?.bidWinnerInfo = nil
+                    }
+                }
+            }
+        }
+        // If the calling phase ended before the 2.5s auto-dismiss fired, the banner
+        // would remain on-screen during play, absorbing all card taps. Clear it now.
+        if newPhase == .playing || newPhase == .roundComplete || newPhase == .gameOver {
+            bidWinnerInfo = nil
+        }
+
+        // Update names/avatars if host sends them
+        if let names = gs["playerNames"] as? [String], names.count == 6 {
+            playerNames = names
+        }
+        if let avatars = gs["playerAvatars"] as? [String], avatars.count == 6 {
+            playerAvatars = avatars
+        }
+        if let aiSeatsAny = gs["aiSeats"] as? [Any] {
+            aiSeats = aiSeatsAny.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
+        }
+
+        phase = newPhase
+        roundNumber = newRoundNumber
+        dealerIndex = i("dealerIndex")
+        currentActionPlayer = newCurrentActionPlayer
+
+        if let bidsAny = gs["bids"] as? [Any] {
+            bids = bidsAny.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? -1 }
+        }
+        if let passedAny = gs["playerHasPassed"] as? [Any] {
+            playerHasPassed = passedAny.map { ($0 as? Bool) ?? false }
+        }
+        if let histArr = gs["bidHistory"] as? [[String: Any]] {
+            let parsed = histArr.compactMap { entry -> (playerIndex: Int, amount: Int)? in
+                guard let pi  = (entry["pi"]  as? Int) ?? (entry["pi"]  as? Int64).map(Int.init),
+                      let amt = (entry["amt"] as? Int) ?? (entry["amt"] as? Int64).map(Int.init)
+                else { return nil }
+                return (playerIndex: pi, amount: amt)
+            }
+            var seen = Set<Int>()
+            bidHistory = parsed.filter { seen.insert($0.playerIndex).inserted }
+        }
+        highBid = i("highBid")
+        highBidderIndex = iDef("highBidderIndex", -1)
+
+        if newPhase != .calling {
+            if let ts = gs["trumpSuit"] as? String, let suit = TrumpSuit(rawValue: ts) {
+                trumpSuit = suit
+            }
+        }
+        calledCard1 = gs["calledCard1"] as? String ?? ""
+        calledCard2 = gs["calledCard2"] as? String ?? ""
+        partner1Index = newP1
+        partner2Index = newP2
+
+        let prevTrickNumber = trickNumber
+        let newTrickNumber = i("trickNumber")
+        currentLeaderIndex = i("currentLeaderIndex")
+        trickNumber = newTrickNumber
+
+        // Trick just completed
+        if newTrickNumber > prevTrickNumber && !currentTrick.isEmpty {
+            lastCompletedTrick = currentTrick
+            lastTrickWinnerIndex = currentLeaderIndex
+            lastTrickPoints = currentTrick.map { $0.card.pointValue }.reduce(0, +)
+            completedTricks.append(currentTrick)
+            trickWinners.append(currentLeaderIndex)
+        }
+        if newTrickNumber == 0 {
+            lastCompletedTrick = []
+            lastTrickWinnerIndex = -1
+            lastTrickPoints = 0
+            completedTricks = []
+            trickWinners = []
+        }
+
+        if let wpp = gs["wonPointsPerPlayer"] as? [Any] {
+            wonPointsPerPlayer = wpp.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? 0 }
+        }
+        if let rs = gs["runningScores"] as? [Any] {
+            runningScores = rs.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? 0 }
+        }
+        message = gs["message"] as? String ?? ""
+
+        if let trickArr = gs["currentTrick"] as? [[String: Any]] {
+            currentTrick = trickArr.compactMap { entry in
+                guard let pi = (entry["pi"] as? Int) ?? (entry["pi"] as? Int64).map(Int.init),
+                      let cardId = entry["card"] as? String,
+                      let card = parseCard(cardId) else { return nil }
+                return (playerIndex: pi, card: card)
+            }
+        }
+
+        // Calling defaults
+        if newPhase == .calling && newCurrentActionPlayer == myPlayerIndex && !hasInitializedCalling {
+            hasInitializedCalling = true
+            setSmartCallingDefaults()
+        }
+        if newPhase != .calling { hasInitializedCalling = false }
+
+        if newPhase == .bidding && newCurrentActionPlayer == myPlayerIndex {
+            humanBidAmount = Double(max(130, highBid + 5))
+        }
+    }
+
+    // MARK: - MC Send Helpers
+
+    private func sendToAll(_ dict: [String: Any]) {
+        guard let session, !session.connectedPeers.isEmpty else { return }
+        guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return }
+        try? session.send(data, toPeers: session.connectedPeers, with: .reliable)
+    }
+
+    private func send(_ dict: [String: Any], to peer: MCPeerID) {
+        guard let session else { return }
+        guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return }
+        try? session.send(data, toPeers: [peer], with: .reliable)
+    }
+
+    private func sendToHost(_ dict: [String: Any]) {
+        // Find the host peer (player index 0)
+        guard let hostPeer = playerIndexToPeer[0] else { return }
+        send(dict, to: hostPeer)
+    }
+
+    // MARK: - Handle Incoming Messages
+
+    private func handleMessage(_ dict: [String: Any], from peer: MCPeerID) {
+        guard let type = dict["type"] as? String else { return }
+        switch type {
+        case "gameState":
+            guard !isHost, let state = dict["state"] as? [String: Any] else { return }
+            applyGameState(state)
+
+        case "hand":
+            guard let cardsAny = dict["cards"] as? [[String: Any]] else { return }
+            let cards = cardsAny.compactMap { d -> Card? in
+                guard let rank = d["rank"] as? String,
+                      let suit = d["suit"] as? String else { return nil }
+                return Card(rank: rank, suit: suit)
+            }
+            myHand = cards
+
+        case "assignSlot":
+            guard let slotIndex = (dict["playerIndex"] as? Int) ?? (dict["playerIndex"] as? Int64).map(Int.init),
+                  let names = dict["playerNames"] as? [String],
+                  let avatars = dict["playerAvatars"] as? [String] else { return }
+            myPlayerIndex = slotIndex
+            playerNames = names
+            playerAvatars = avatars
+            if let aiSeatsAny = dict["aiSeats"] as? [Any] {
+                aiSeats = aiSeatsAny.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
+            }
+            sessionState = .connected
+
+        case "playerList":
+            guard let names = dict["names"] as? [String],
+                  let avatars = dict["avatars"] as? [String] else { return }
+            playerNames = names
+            playerAvatars = avatars
+            if let aiSeatsAny = dict["aiSeats"] as? [Any] {
+                aiSeats = aiSeatsAny.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
+            }
+            // Update slot cards for lobby display
+            for i in 0..<6 {
+                let name = names[safe: i] ?? ""
+                let avatar = avatars[safe: i] ?? "🃏"
+                connectedPlayerSlots[i] = BTPlayerSlot(slotIndex: i, name: name, avatar: avatar, joined: !name.isEmpty)
+            }
+
+        case "action":
+            guard isHost else { return }
+            guard let playerIndex = peerToPlayerIndex[peer] else { return }
+            let actionId = dict["actionId"] as? String ?? ""
+            guard actionId != lastProcessedActionId, !actionId.isEmpty else { return }
+            lastProcessedActionId = actionId
+
+            let action = dict["action"] as? String ?? ""
+            Task {
+                switch action {
+                case "bid":
+                    let amount = (dict["amount"] as? Int) ?? (dict["amount"] as? Int64).map(Int.init) ?? 0
+                    await self.processBid(playerIndex: playerIndex, amount: amount)
+                case "pass":
+                    await self.processPass(playerIndex: playerIndex)
+                case "callTrump":
+                    let suitStr = dict["suit"] as? String ?? TrumpSuit.spades.rawValue
+                    let suit = TrumpSuit(rawValue: suitStr) ?? .spades
+                    let c1 = dict["card1"] as? String ?? ""
+                    let c2 = dict["card2"] as? String ?? ""
+                    await self.processCallCards(playerIndex: playerIndex, trump: suit, c1: c1, c2: c2)
+                case "playCard":
+                    let cardId = dict["cardId"] as? String ?? ""
+                    await self.processPlayCard(playerIndex: playerIndex, cardId: cardId)
+                default:
+                    break
+                }
+            }
+
+        case "lobbyUpdate":
+            // Client receives info about who else joined
+            if let names = dict["playerNames"] as? [String],
+               let avatars = dict["playerAvatars"] as? [String] {
+                playerNames = names
+                playerAvatars = avatars
+                for i in 0..<6 {
+                    let n = names[safe: i] ?? ""
+                    connectedPlayerSlots[i] = BTPlayerSlot(slotIndex: i, name: n, avatar: avatars[safe: i] ?? "🃏", joined: !n.isEmpty)
+                }
+            }
+
+        default:
+            break
+        }
+    }
+
+    // MARK: - AI Auto-play
+
+    private func processAITurnIfNeeded() async {
+        guard isHost else {
+            aiLog.debug("bail: not host")
+            return
+        }
+        guard !aiSeats.isEmpty else {
+            aiLog.error("bail: aiSeats EMPTY cap=\(self.currentActionPlayer) phase=\(self.phase.rawValue)")
+            return
+        }
+        guard aiSeats.contains(currentActionPlayer) else {
+            aiLog.error("bail: player\(self.currentActionPlayer) NOT AI aiSeats=\(self.aiSeats) phase=\(self.phase.rawValue)")
+            return
+        }
+        let delay = UInt64.random(in: 800_000_000...1_200_000_000)
+        aiLog.debug("sleeping seat=\(self.currentActionPlayer) phase=\(self.phase.rawValue)")
+        try? await Task.sleep(nanoseconds: delay)
+        // Re-read state after sleep — another task may have advanced the turn.
+        // Use whatever AI is currently up; bail only if it's now a human's turn.
+        let seat = currentActionPlayer
+        let activePhase = phase
+        aiLog.debug("woke seat=\(seat) phase=\(activePhase.rawValue) aiSeats=\(self.aiSeats)")
+        guard aiSeats.contains(seat) else {
+            aiLog.error("bail after sleep: seat \(seat) not AI anymore aiSeats=\(self.aiSeats)")
+            return
+        }
+        switch activePhase {
+        case .bidding:
+            let amount = aiComputeBid(seat: seat)
+            aiLog.debug("seat=\(seat) bid amount=\(amount)")
+            if amount == 0 {
+                await processPass(playerIndex: seat)
+            } else {
+                await processBid(playerIndex: seat, amount: amount)
+            }
+        case .calling:
+            let result = aiComputeCalling(seat: seat)
+            aiLog.debug("seat=\(seat) calling")
+            await processCallCards(playerIndex: seat, trump: result.trump, c1: result.c1, c2: result.c2)
+        case .playing:
+            let cardId = aiComputeCard(seat: seat)
+            aiLog.debug("seat=\(seat) playing \(cardId)")
+            await processPlayCard(playerIndex: seat, cardId: cardId)
+        default:
+            aiLog.error("bail: unexpected phase \(activePhase.rawValue) seat=\(seat) aiSeats=\(self.aiSeats)")
+            break
+        }
+    }
+
+    private func aiComputeBid(seat: Int) -> Int {
+        let hand = allHands[seat]
+        let myPoints = hand.map(\.pointValue).reduce(0, +)
+        let myIds = Set(hand.map(\.id))
+        let topExternal = freshDeck()
+            .filter { !myIds.contains($0.id) }
+            .sorted { lhs, rhs in
+                lhs.pointValue != rhs.pointValue
+                    ? lhs.pointValue > rhs.pointValue
+                    : (Card.rankOrder[lhs.rank] ?? 0) > (Card.rankOrder[rhs.rank] ?? 0)
+            }
+        let call1Pts = topExternal.first?.pointValue ?? 0
+        let call2Pts = topExternal.dropFirst().first?.pointValue ?? 0
+        let partnerBonus = Int(Double(max(0, 250 - myPoints - call1Pts - call2Pts)) * 0.30)
+        let estimated = myPoints + call1Pts + call2Pts + partnerBonus
+        let canPass = highBid > 0
+        let minBid = max(130, highBid + 5)
+        if !canPass {
+            let rounded = (max(estimated, minBid) / 5) * 5
+            return min(max(rounded, minBid), 250)
+        }
+        guard estimated >= minBid else { return 0 }
+        let rounded = (estimated / 5) * 5
+        return min(max(rounded, minBid), 250)
+    }
+
+    private func aiComputeCalling(seat: Int) -> (trump: TrumpSuit, c1: String, c2: String) {
+        let hand = allHands[seat]
+        let suitScores = TrumpSuit.allCases.map { suit -> (TrumpSuit, Int) in
+            let pts = hand.filter { $0.suit == suit.rawValue }.map(\.pointValue).reduce(0, +)
+            return (suit, pts)
+        }
+        let trump = suitScores.max(by: { $0.1 < $1.1 })?.0 ?? .spades
+        let handIds = Set(hand.map(\.id))
+        let candidates = freshDeck()
+            .filter { !handIds.contains($0.id) }
+            .sorted { lhs, rhs in
+                lhs.pointValue != rhs.pointValue
+                    ? lhs.pointValue > rhs.pointValue
+                    : (Card.rankOrder[lhs.rank] ?? 0) > (Card.rankOrder[rhs.rank] ?? 0)
+            }
+        let c1 = candidates.count > 0 ? candidates[0].id : "A♥"
+        let c2 = candidates.count > 1 ? candidates[1].id : "K♥"
+        return (trump: trump, c1: c1, c2: c2)
+    }
+
+    private func aiComputeCard(seat: Int) -> String {
+        let hand = allHands[seat]
+        guard !hand.isEmpty else { return "A♠" }
+        let isOffense = hostOffenseSet.contains(seat)
+        let isBidder  = seat == highBidderIndex
+
+        func rankScore(_ c: Card) -> Int  { Card.rankOrder[c.rank] ?? 0 }
+        func valueScore(_ c: Card) -> Int { c.pointValue * 100 + rankScore(c) }
+        let trumpRaw = trumpSuit.rawValue
+
+        if currentTrick.isEmpty {
+            if isBidder {
+                let trumpCards = hand.filter { $0.suit == trumpRaw }
+                if let highTrump = trumpCards.max(by: { rankScore($0) < rankScore($1) }),
+                   rankScore(highTrump) >= (Card.rankOrder["Q"] ?? 0) {
+                    return highTrump.id
+                }
+            }
+            let nonTrump = hand.filter { $0.suit != trumpRaw }
+            if let best = nonTrump.max(by: { rankScore($0) < rankScore($1) }) { return best.id }
+            return (hand.min(by: { rankScore($0) < rankScore($1) }) ?? hand[0]).id
+        }
+
+        let ledSuit  = currentTrick[0].card.suit
+        let sameSuit = hand.filter { $0.suit == ledSuit }
+
+        guard let winnerEntry = currentTrick.max(by: { (a, b) in
+            let aTrump = a.card.suit == trumpRaw
+            let bTrump = b.card.suit == trumpRaw
+            if aTrump != bTrump { return bTrump }
+            if a.card.suit == b.card.suit { return rankScore(a.card) < rankScore(b.card) }
+            return true
+        }) else { return hand[0].id }
+
+        let winner = winnerEntry
+        let winnerIsOffense = hostOffenseSet.contains(winner.playerIndex)
+        let teammateWinning = isOffense ? winnerIsOffense : !winnerIsOffense
+
+        if !sameSuit.isEmpty {
+            if teammateWinning {
+                return (sameSuit.max(by: { valueScore($0) < valueScore($1) }) ?? sameSuit[0]).id
+            }
+            if winner.card.suit == ledSuit {
+                let canBeat = sameSuit.filter { rankScore($0) > rankScore(winner.card) }
+                if let best = canBeat.max(by: { rankScore($0) < rankScore($1) }) { return best.id }
+            }
+            return (sameSuit.min(by: { valueScore($0) < valueScore($1) }) ?? sameSuit[0]).id
+        }
+
+        if teammateWinning {
+            let nonTrump = hand.filter { $0.suit != trumpRaw }
+            if let best = nonTrump.max(by: { valueScore($0) < valueScore($1) }) { return best.id }
+        }
+        let trumpCards = hand.filter { $0.suit == trumpRaw }
+        if let lowest = trumpCards.min(by: { rankScore($0) < rankScore($1) }) { return lowest.id }
+        return (hand.min(by: { valueScore($0) < valueScore($1) }) ?? hand[0]).id
+    }
+
+    private var hostOffenseSet: Set<Int> {
+        Set([highBidderIndex, hostPartner1, hostPartner2].filter { $0 >= 0 })
+    }
+
+    // MARK: - Card & Game Helpers
+
+    private func trickWinnerIndex(trick: [(playerIndex: Int, card: Card)]) -> Int {
+        let ledSuit = trick[0].card.suit
+        let trumpRaw = trumpSuit.rawValue
+        let trumpPlays = trick.filter { $0.card.suit == trumpRaw }
+        if !trumpPlays.isEmpty {
+            return trumpPlays.max(by: {
+                (Card.rankOrder[$0.card.rank] ?? 0) < (Card.rankOrder[$1.card.rank] ?? 0)
+            })!.playerIndex
+        }
+        let ledPlays = trick.filter { $0.card.suit == ledSuit }
+        return ledPlays.max(by: {
+            (Card.rankOrder[$0.card.rank] ?? 0) < (Card.rankOrder[$1.card.rank] ?? 0)
+        })!.playerIndex
+    }
+
+    private func resolvePartners(c1: String, c2: String) -> (Int, Int) {
+        var p1 = -1, p2 = -1
+        for (i, hand) in allHands.enumerated() where i != highBidderIndex {
+            if hand.contains(where: { $0.id == c1 }) { p1 = i }
+            if hand.contains(where: { $0.id == c2 }) { p2 = i }
+        }
+        return (p1, p2)
+    }
+
+    private func parseCard(_ id: String) -> Card? {
+        guard !id.isEmpty, let lastChar = id.last else { return nil }
+        let rank = String(id.dropLast())
+        guard !rank.isEmpty else { return nil }
+        return Card(rank: rank, suit: String(lastChar))
+    }
+
+    private func freshDeck() -> [Card] {
+        cardRanks.flatMap { rank in cardSuits.map { suit in Card(rank: rank, suit: suit) } }
+    }
+
+    private func setSmartCallingDefaults() {
+        let hand = myHand
+        let suitScores = TrumpSuit.allCases.map { suit -> (TrumpSuit, Int) in
+            let pts = hand.filter { $0.suit == suit.rawValue }.map(\.pointValue).reduce(0, +)
+            return (suit, pts)
+        }
+        trumpSuitSelection = suitScores.max(by: { $0.1 < $1.1 })?.0 ?? .spades
+
+        let handIds = Set(hand.map(\.id))
+        let candidates = freshDeck()
+            .filter { !handIds.contains($0.id) }
+            .sorted { lhs, rhs in
+                if lhs.pointValue != rhs.pointValue { return lhs.pointValue > rhs.pointValue }
+                return (Card.rankOrder[lhs.rank] ?? 0) > (Card.rankOrder[rhs.rank] ?? 0)
+            }
+        if candidates.count >= 2 {
+            calledCard1Rank = candidates[0].rank
+            calledCard1Suit = candidates[0].suit
+            calledCard2Rank = candidates[1].rank
+            calledCard2Suit = candidates[1].suit
+        }
+    }
+
+    func buildRound(nextRoundNumber: Int) -> Round {
+        Round(
+            roundNumber: nextRoundNumber,
+            dealerIndex: dealerIndex,
+            bidderIndex: max(0, highBidderIndex),
+            bidAmount: max(130, highBid),
+            trumpSuit: trumpSuit,
+            callCard1: calledCard1,
+            callCard2: calledCard2,
+            partner1Index: max(0, partner1Index),
+            partner2Index: max(0, partner2Index),
+            offensePointsCaught: offensePoints,
+            defensePointsCaught: defensePoints
+        )
+    }
+}
+
+// MARK: - MCSessionDelegate
+
+extension BluetoothGameViewModel: MCSessionDelegate {
+
+    nonisolated func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
+        Task { @MainActor in
+            switch state {
+            case .connected:
+                if self.isHost {
+                    // Assign a slot to the new peer
+                    let nextSlot = (1..<6).first { !self.connectedPlayerSlots[$0].joined } ?? -1
+                    guard nextSlot >= 0 else { return }
+
+                    self.peerToPlayerIndex[peerID] = nextSlot
+                    self.playerIndexToPeer[nextSlot] = peerID
+
+                    // Use name/avatar from invitation context if available, else fall back to peerID displayName
+                    let info = self.pendingPeerInfo.removeValue(forKey: peerID)
+                    let name = info?["name"] ?? peerID.displayName
+                    let avatar = info?["avatar"] ?? "🃏"
+                    self.playerNames[nextSlot] = name
+                    self.playerAvatars[nextSlot] = avatar
+                    self.connectedPlayerSlots[nextSlot] = BTPlayerSlot(slotIndex: nextSlot, name: name, avatar: avatar, joined: true)
+
+                    // Send slot assignment
+                    let assignMsg: [String: Any] = [
+                        "type": "assignSlot",
+                        "playerIndex": nextSlot,
+                        "playerNames": self.playerNames,
+                        "playerAvatars": self.playerAvatars,
+                        "aiSeats": self.aiSeats
+                    ]
+                    self.send(assignMsg, to: peerID)
+
+                    // Broadcast updated lobby to all
+                    let lobbyMsg: [String: Any] = [
+                        "type": "lobbyUpdate",
+                        "playerNames": self.playerNames,
+                        "playerAvatars": self.playerAvatars
+                    ]
+                    self.sendToAll(lobbyMsg)
+                } else {
+                    // Find if peer is at index 0 (host)
+                    self.playerIndexToPeer[0] = peerID
+                    self.peerToPlayerIndex[peerID] = 0
+                    self.sessionState = .connected
+                }
+
+            case .notConnected:
+                self.pendingPeerInfo.removeValue(forKey: peerID)
+                if let playerIdx = self.peerToPlayerIndex[peerID] {
+                    if self.sessionState == .playing || self.phase != .dealing {
+                        self.errorMessage = "\(self.playerName(playerIdx)) disconnected."
+                    }
+                    if self.isHost {
+                        self.peerToPlayerIndex.removeValue(forKey: peerID)
+                        self.playerIndexToPeer.removeValue(forKey: playerIdx)
+                    }
+                }
+
+            default:
+                break
+            }
+        }
+    }
+
+    nonisolated func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
+        guard let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        Task { @MainActor in
+            self.handleMessage(dict, from: peerID)
+        }
+    }
+
+    nonisolated func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
+    nonisolated func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {}
+    nonisolated func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
+}
+
+// MARK: - MCNearbyServiceAdvertiserDelegate
+
+extension BluetoothGameViewModel: MCNearbyServiceAdvertiserDelegate {
+
+    nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
+        Task { @MainActor in
+            // Auto-accept if there's an open slot
+            let hasSlot = (1..<6).contains { !self.connectedPlayerSlots[$0].joined }
+            guard hasSlot else {
+                invitationHandler(false, nil)
+                return
+            }
+            // Store peer's name/avatar for use in session:didChange:connected
+            // Do NOT touch slots here — session:didChange:connected is the single
+            // place that assigns slots, preventing the double-join bug.
+            if let context,
+               let info = try? JSONSerialization.jsonObject(with: context) as? [String: String] {
+                self.pendingPeerInfo[peerID] = info
+            }
+            invitationHandler(true, self.session)
+        }
+    }
+
+    nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
+        Task { @MainActor in
+            self.errorMessage = "Could not start hosting: \(error.localizedDescription)"
+        }
+    }
+}
+
+// MARK: - MCNearbyServiceBrowserDelegate
+
+extension BluetoothGameViewModel: MCNearbyServiceBrowserDelegate {
+
+    nonisolated func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String: String]?) {
+        Task { @MainActor in
+            let info = info ?? [:]
+            // Avoid duplicates
+            if !self.foundSessions.contains(where: { $0.peerID == peerID }) {
+                self.foundSessions.append((peerID: peerID, info: info))
+            }
+        }
+    }
+
+    nonisolated func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
+        Task { @MainActor in
+            self.foundSessions.removeAll { $0.peerID == peerID }
+        }
+    }
+
+    nonisolated func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Error) {
+        Task { @MainActor in
+            self.errorMessage = "Could not browse for games: \(error.localizedDescription)"
+        }
+    }
+}
+
+// MARK: - BTPlayerSlot
+
+struct BTPlayerSlot {
+    var slotIndex: Int
+    var name: String
+    var avatar: String
+    var joined: Bool
+
+    static func empty(at index: Int) -> BTPlayerSlot {
+        BTPlayerSlot(slotIndex: index, name: "", avatar: "", joined: false)
+    }
+}
+

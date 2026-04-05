@@ -41,6 +41,8 @@ final class OnlineGameViewModel {
     var lastCompletedTrick: [(playerIndex: Int, card: Card)] = []
     var lastTrickWinnerIndex: Int = -1
     var lastTrickPoints: Int = 0
+    var completedTricks: [[(playerIndex: Int, card: Card)]] = []
+    var trickWinners: [Int] = []
     var wonPointsPerPlayer: [Int] = Array(repeating: 0, count: 6)
     var runningScores: [Int] = Array(repeating: 0, count: 6)
     var message: String = ""
@@ -489,6 +491,11 @@ final class OnlineGameViewModel {
                 // Human winner: banner stays until they tap Continue (proceedFromBidWinner)
             }
         }
+        // If the calling phase ended before the 2.5s auto-dismiss fired, the banner
+        // would remain on-screen during play, absorbing all card taps. Clear it now.
+        if newPhase == .playing || newPhase == .roundComplete || newPhase == .gameOver {
+            bidWinnerInfo = nil
+        }
 
         // Update published props
         phase = newPhase
@@ -541,12 +548,16 @@ final class OnlineGameViewModel {
             lastCompletedTrick = currentTrick
             lastTrickWinnerIndex = currentLeaderIndex
             lastTrickPoints = currentTrick.map { $0.card.pointValue }.reduce(0, +)
+            completedTricks.append(currentTrick)
+            trickWinners.append(currentLeaderIndex)
         }
         // New round — reset
         if newTrickNumber == 0 {
             lastCompletedTrick = []
             lastTrickWinnerIndex = -1
             lastTrickPoints = 0
+            completedTricks = []
+            trickWinners = []
         }
 
         if let wpp = gs["wonPointsPerPlayer"] as? [Any] {
@@ -737,7 +748,12 @@ final class OnlineGameViewModel {
         case "playCard":
             let cardId = actionData["cardId"] as? String ?? ""
             guard let card = parseCard(cardId),
-                  allHands[playerIndex].contains(where: { $0.id == cardId }) else { return }
+                  allHands[playerIndex].contains(where: { $0.id == cardId }) else {
+                // Card invalid or already played (stale action). If it's an AI's turn,
+                // restart the chain so the game doesn't stall.
+                await processAITurnIfNeeded()
+                return
+            }
 
             allHands[playerIndex].removeAll { $0.id == cardId }
 
@@ -766,14 +782,21 @@ final class OnlineGameViewModel {
                 showGs["partner2Index"] = newP2
                 try? await ref.updateData(["gameState": showGs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
 
+                // Capture accumulated state before sleeping — a Firestore snapshot
+                // arriving during the sleep triggers handleSnapshot on the host which
+                // calls parseGameState, potentially overwriting these instance properties.
+                let capturedWonPoints = wonPointsPerPlayer
+                let capturedTrickNumber = trickNumber
+                let capturedRunningScores = runningScores
+
                 // 1 second for clients to render the 6th card
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
 
                 let winner = trickWinnerIndex(trick: newTrick)
                 let pts = newTrick.map(\.card.pointValue).reduce(0, +)
-                var newWon = wonPointsPerPlayer
+                var newWon = capturedWonPoints
                 newWon[winner] += pts
-                let newTrickNum = trickNumber + 1
+                let newTrickNum = capturedTrickNumber + 1
 
                 if newTrickNum == 8 {
                     let offSet = Set([highBidderIndex, hostPartner1, hostPartner2].filter { $0 >= 0 })
@@ -787,7 +810,7 @@ final class OnlineGameViewModel {
                         offenseIndices: offSet,
                         bidMade: bidMade
                     )
-                    var newRS = runningScores
+                    var newRS = capturedRunningScores
                     for i in 0..<6 { newRS[i] += scoring.playerDeltas[i] }
 
                     let nextPhase: OnlineGamePhase = (newRS.max() ?? 0) >= Self.winningScore ? .gameOver : .roundComplete
@@ -930,10 +953,14 @@ final class OnlineGameViewModel {
 
     private func processAITurnIfNeeded() async {
         guard isHost, !aiSeats.isEmpty, aiSeats.contains(currentActionPlayer) else { return }
+        let seat = currentActionPlayer
+        let capturedPhase = phase
         let delay = UInt64.random(in: 1_000_000_000...1_500_000_000)
         try? await Task.sleep(nanoseconds: delay)
-        let seat = currentActionPlayer
-        switch phase {
+        // Verify state hasn't changed during the sleep — another snapshot may have
+        // advanced the turn to a different player or a different phase.
+        guard currentActionPlayer == seat, phase == capturedPhase else { return }
+        switch capturedPhase {
         case .bidding:
             let canPass = highBid > 0
             let amount = aiComputeBid(seat: seat, canPass: canPass)
