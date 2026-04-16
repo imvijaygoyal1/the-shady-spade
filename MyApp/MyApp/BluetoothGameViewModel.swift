@@ -83,9 +83,13 @@ final class BluetoothGameViewModel: NSObject {
     // MARK: AI seats (filled if < 6 humans)
     var aiSeats: [Int] = []
 
+    // MARK: Local web dashboard (host only)
+    var localServerURL: String = ""
+    private var localServer: LocalGameServer?
+
     // MARK: Current trick winner
-    var currentTrickWinnerIndex: Int {
-        guard !currentTrick.isEmpty else { return -1 }
+    var currentTrickWinnerIndex: Int? {
+        guard !currentTrick.isEmpty else { return nil }
         return trickWinnerIndex(trick: currentTrick)
     }
 
@@ -117,6 +121,7 @@ final class BluetoothGameViewModel: NSObject {
 
     private var hasInitializedCalling = false
     private var lastProcessedActionId: String = ""
+    private var lastActionSentAt: Date = .distantPast
 
     // MARK: - Computed
 
@@ -192,6 +197,16 @@ final class BluetoothGameViewModel: NSObject {
         advertiser?.delegate = self
         advertiser?.startAdvertisingPeer()
         sessionState = .hosting
+
+        // Start the local web dashboard server
+        let server = LocalGameServer()
+        server.onReady = { [weak self] url in
+            Task { @MainActor [weak self] in
+                self?.localServerURL = url
+            }
+        }
+        server.start()
+        localServer = server
     }
 
     // MARK: - Lobby: Client
@@ -339,6 +354,8 @@ final class BluetoothGameViewModel: NSObject {
     // MARK: - Player Actions
 
     func placeBid(_ amount: Int) async {
+        guard Date().timeIntervalSince(lastActionSentAt) > 0.3 else { return }
+        lastActionSentAt = Date()
         if isHost {
             await processBid(playerIndex: myPlayerIndex, amount: amount)
         } else {
@@ -353,6 +370,8 @@ final class BluetoothGameViewModel: NSObject {
     }
 
     func pass() async {
+        guard Date().timeIntervalSince(lastActionSentAt) > 0.3 else { return }
+        lastActionSentAt = Date()
         if isHost {
             await processPass(playerIndex: myPlayerIndex)
         } else {
@@ -366,6 +385,8 @@ final class BluetoothGameViewModel: NSObject {
     }
 
     func callTrumpAndCards() async {
+        guard Date().timeIntervalSince(lastActionSentAt) > 0.3 else { return }
+        lastActionSentAt = Date()
         let c1 = calledCard1Rank + calledCard1Suit
         let c2 = calledCard2Rank + calledCard2Suit
         if isHost {
@@ -384,6 +405,8 @@ final class BluetoothGameViewModel: NSObject {
     }
 
     func playCard(_ card: Card) async {
+        guard Date().timeIntervalSince(lastActionSentAt) > 0.3 else { return }
+        lastActionSentAt = Date()
         if isHost {
             await processPlayCard(playerIndex: myPlayerIndex, cardId: card.id)
         } else {
@@ -414,12 +437,16 @@ final class BluetoothGameViewModel: NSObject {
         playerIndexToPeer = [:]
         sessionState = .idle
         foundSessions = []
+        localServer?.stop()
+        localServer = nil
+        localServerURL = ""
     }
 
     // MARK: - Host Game Logic: Process Actions
 
     private func processBid(playerIndex: Int, amount: Int) async {
         guard isHost else { return }
+        guard playerIndex == currentActionPlayer else { return }
         var newBids = bids
         newBids[playerIndex] = amount
         var newHighBid = highBid
@@ -447,6 +474,7 @@ final class BluetoothGameViewModel: NSObject {
 
     private func processPass(playerIndex: Int) async {
         guard isHost else { return }
+        guard playerIndex == currentActionPlayer else { return }
         var newBids = bids
         newBids[playerIndex] = 0
         var newPassed = playerHasPassed
@@ -500,6 +528,11 @@ final class BluetoothGameViewModel: NSObject {
 
     private func processCallCards(playerIndex: Int, trump: TrumpSuit, c1: String, c2: String) async {
         guard isHost else { return }
+        guard playerIndex == currentActionPlayer else { return }
+        let validIds = Set(freshDeck().map(\.id))
+        guard validIds.contains(c1), validIds.contains(c2), c1 != c2,
+              !allHands[playerIndex].map(\.id).contains(c1),
+              !allHands[playerIndex].map(\.id).contains(c2) else { return }
         let (p1, p2) = resolvePartners(c1: c1, c2: c2)
         hostPartner1 = p1; hostPartner2 = p2
         hostCalledCard1 = c1; hostCalledCard2 = c2
@@ -522,6 +555,7 @@ final class BluetoothGameViewModel: NSObject {
 
     private func processPlayCard(playerIndex: Int, cardId: String) async {
         guard isHost else { return }
+        guard playerIndex == currentActionPlayer else { return }
         guard let card = parseCard(cardId),
               allHands[playerIndex].contains(where: { $0.id == cardId }) else {
             // Card is invalid or not in hand (e.g. stale action). If it's now an AI's
@@ -561,13 +595,18 @@ final class BluetoothGameViewModel: NSObject {
             broadcastGameState()
 
             // 1 second pause for clients to render
+            // Capture mutable state before sleep — a reentrant applyGameState call during
+            // the sleep could overwrite these properties on the host.
+            let capturedWonPoints = wonPointsPerPlayer
+            let capturedTrickNumber = trickNumber
+            let capturedRunningScores = runningScores
             try? await Task.sleep(nanoseconds: 1_000_000_000)
 
             let winner = trickWinnerIndex(trick: newTrick)
             let pts = newTrick.map(\.card.pointValue).reduce(0, +)
-            var newWon = wonPointsPerPlayer
+            var newWon = capturedWonPoints
             newWon[winner] += pts
-            let newTrickNum = trickNumber + 1
+            let newTrickNum = capturedTrickNumber + 1
 
             // Capture trick for history
             lastCompletedTrick = newTrick
@@ -588,7 +627,7 @@ final class BluetoothGameViewModel: NSObject {
                     offenseIndices: offSet,
                     bidMade: bidMade
                 )
-                var newRS = runningScores
+                var newRS = capturedRunningScores
                 for i in 0..<6 { newRS[i] += scoring.playerDeltas[i] }
 
                 wonPointsPerPlayer = newWon
@@ -640,6 +679,19 @@ final class BluetoothGameViewModel: NSObject {
         sendToAll(msg)
         // Apply state locally for host
         applyGameState(gs)
+        // Push to web dashboard
+        pushToLocalServer(gs)
+    }
+
+    private func pushToLocalServer(_ gs: [String: Any]) {
+        guard let server = localServer else { return }
+        var augmented = gs
+        augmented["currentTrickWinnerIndex"] = currentTrickWinnerIndex ?? -1
+        augmented["offensePoints"] = offensePoints
+        augmented["defensePoints"] = defensePoints
+        guard let data = try? JSONSerialization.data(withJSONObject: augmented),
+              let json = String(data: data, encoding: .utf8) else { return }
+        server.stateJSON = json
     }
 
     private func buildGameStateDict() -> [String: Any] {
@@ -743,6 +795,17 @@ final class BluetoothGameViewModel: NSObject {
         }
 
         phase = newPhase
+
+        // Signal clients to transition out of the lobby when any active game phase arrives.
+        // Using sessionState (which IS read in BTClientLobbyView.body) ensures @Observable
+        // triggers a re-render and the onChange fires reliably.
+        if !isHost && sessionState == .connected {
+            let activePhases: [OnlineGamePhase] = [.lookingAtCards, .bidding, .calling, .playing, .roundComplete, .gameOver]
+            if activePhases.contains(newPhase) {
+                sessionState = .playing
+            }
+        }
+
         roundNumber = newRoundNumber
         dealerIndex = i("dealerIndex")
         currentActionPlayer = newCurrentActionPlayer
@@ -756,7 +819,8 @@ final class BluetoothGameViewModel: NSObject {
         if let histArr = gs["bidHistory"] as? [[String: Any]] {
             let parsed = histArr.compactMap { entry -> (playerIndex: Int, amount: Int)? in
                 guard let pi  = (entry["pi"]  as? Int) ?? (entry["pi"]  as? Int64).map(Int.init),
-                      let amt = (entry["amt"] as? Int) ?? (entry["amt"] as? Int64).map(Int.init)
+                      let amt = (entry["amt"] as? Int) ?? (entry["amt"] as? Int64).map(Int.init),
+                      pi >= 0 && pi < 6
                 else { return nil }
                 return (playerIndex: pi, amount: amt)
             }
@@ -808,6 +872,7 @@ final class BluetoothGameViewModel: NSObject {
         if let trickArr = gs["currentTrick"] as? [[String: Any]] {
             currentTrick = trickArr.compactMap { entry in
                 guard let pi = (entry["pi"] as? Int) ?? (entry["pi"] as? Int64).map(Int.init),
+                      pi >= 0 && pi < 6,
                       let cardId = entry["card"] as? String,
                       let card = parseCard(cardId) else { return nil }
                 return (playerIndex: pi, card: card)
@@ -852,11 +917,15 @@ final class BluetoothGameViewModel: NSObject {
         guard let type = dict["type"] as? String else { return }
         switch type {
         case "gameState":
-            guard !isHost, let state = dict["state"] as? [String: Any] else { return }
+            guard !isHost,
+                  let hostPeer = playerIndexToPeer[0], peer == hostPeer,
+                  let state = dict["state"] as? [String: Any] else { return }
             applyGameState(state)
 
         case "hand":
-            guard let cardsAny = dict["cards"] as? [[String: Any]] else { return }
+            // Only accept hand messages from the host
+            guard let hostPeer = playerIndexToPeer[0], peer == hostPeer,
+                  let cardsAny = dict["cards"] as? [[String: Any]] else { return }
             let cards = cardsAny.compactMap { d -> Card? in
                 guard let rank = d["rank"] as? String,
                       let suit = d["suit"] as? String else { return nil }
@@ -865,7 +934,10 @@ final class BluetoothGameViewModel: NSObject {
             myHand = cards
 
         case "assignSlot":
-            guard let slotIndex = (dict["playerIndex"] as? Int) ?? (dict["playerIndex"] as? Int64).map(Int.init),
+            // Only accept slot assignments from the host
+            guard let hostPeer = playerIndexToPeer[0], peer == hostPeer,
+                  let slotIndex = (dict["playerIndex"] as? Int) ?? (dict["playerIndex"] as? Int64).map(Int.init),
+                  slotIndex >= 0 && slotIndex < 6,
                   let names = dict["playerNames"] as? [String],
                   let avatars = dict["playerAvatars"] as? [String] else { return }
             myPlayerIndex = slotIndex
@@ -877,7 +949,9 @@ final class BluetoothGameViewModel: NSObject {
             sessionState = .connected
 
         case "playerList":
-            guard let names = dict["names"] as? [String],
+            // Only accept from the host
+            guard let hostPeer = playerIndexToPeer[0], peer == hostPeer,
+                  let names = dict["names"] as? [String],
                   let avatars = dict["avatars"] as? [String] else { return }
             playerNames = names
             playerAvatars = avatars
@@ -903,6 +977,7 @@ final class BluetoothGameViewModel: NSObject {
                 switch action {
                 case "bid":
                     let amount = (dict["amount"] as? Int) ?? (dict["amount"] as? Int64).map(Int.init) ?? 0
+                    guard amount >= 130 && amount <= 250 else { return }
                     await self.processBid(playerIndex: playerIndex, amount: amount)
                 case "pass":
                     await self.processPass(playerIndex: playerIndex)
@@ -921,7 +996,8 @@ final class BluetoothGameViewModel: NSObject {
             }
 
         case "lobbyUpdate":
-            // Client receives info about who else joined
+            // Client receives info about who else joined — only trust the host
+            guard let hostPeer = playerIndexToPeer[0], peer == hostPeer else { return }
             if let names = dict["playerNames"] as? [String],
                let avatars = dict["playerAvatars"] as? [String] {
                 playerNames = names
@@ -952,18 +1028,25 @@ final class BluetoothGameViewModel: NSObject {
             aiLog.error("bail: player\(self.currentActionPlayer) NOT AI aiSeats=\(self.aiSeats) phase=\(self.phase.rawValue)")
             return
         }
-        let delay = UInt64.random(in: 800_000_000...1_200_000_000)
-        aiLog.debug("sleeping seat=\(self.currentActionPlayer) phase=\(self.phase.rawValue)")
-        try? await Task.sleep(nanoseconds: delay)
-        // Re-read state after sleep — another task may have advanced the turn.
-        // Use whatever AI is currently up; bail only if it's now a human's turn.
+        // Capture seat and phase BEFORE sleep — the action player or phase may change
+        // during suspension (e.g. a human plays out of turn or a disconnect triggers cleanup).
         let seat = currentActionPlayer
-        let activePhase = phase
-        aiLog.debug("woke seat=\(seat) phase=\(activePhase.rawValue) aiSeats=\(self.aiSeats)")
-        guard aiSeats.contains(seat) else {
-            aiLog.error("bail after sleep: seat \(seat) not AI anymore aiSeats=\(self.aiSeats)")
+        let capturedPhase = phase
+        let delay = UInt64.random(in: 800_000_000...1_200_000_000)
+        aiLog.debug("sleeping seat=\(seat) phase=\(capturedPhase.rawValue)")
+        try? await Task.sleep(nanoseconds: delay)
+        aiLog.debug("woke seat=\(seat) phase=\(capturedPhase.rawValue) aiSeats=\(self.aiSeats)")
+        guard aiSeats.contains(seat), phase == capturedPhase, currentActionPlayer == seat else {
+            aiLog.error("bail after sleep: seat=\(seat) capturedPhase=\(capturedPhase.rawValue) currentPhase=\(self.phase.rawValue) currentAction=\(self.currentActionPlayer)")
+            // Recovery: if the current state still calls for an AI move, re-trigger.
+            // This mirrors the Online model's Firestore-snapshot failsafe.
+            let activePhases: [OnlineGamePhase] = [.bidding, .calling, .playing]
+            if aiSeats.contains(currentActionPlayer) && activePhases.contains(phase) {
+                await processAITurnIfNeeded()
+            }
             return
         }
+        let activePhase = capturedPhase
         switch activePhase {
         case .bidding:
             let amount = aiComputeBid(seat: seat)
@@ -1229,6 +1312,20 @@ extension BluetoothGameViewModel: MCSessionDelegate {
                     if self.isHost {
                         self.peerToPlayerIndex.removeValue(forKey: peerID)
                         self.playerIndexToPeer.removeValue(forKey: playerIdx)
+
+                        // If a human disconnects mid-game, replace them with an AI bot so
+                        // the game can continue rather than freeze waiting for their turn.
+                        if self.phase == .playing || self.phase == .bidding ||
+                           self.phase == .calling || self.phase == .lookingAtCards {
+                            if !self.aiSeats.contains(playerIdx) {
+                                self.aiSeats.append(playerIdx)
+                                self.aiSeats.sort()
+                                self.broadcastGameState()
+                                if self.currentActionPlayer == playerIdx {
+                                    Task { await self.processAITurnIfNeeded() }
+                                }
+                            }
+                        }
                     }
                 }
 

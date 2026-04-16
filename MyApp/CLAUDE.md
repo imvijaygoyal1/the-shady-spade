@@ -1,12 +1,30 @@
 # The Shady Spade — Claude Code Context
 
 > **IMPORTANT FOR CLAUDE:** After every code change to this project, update this file to reflect the change. New file → add to File Map. New component → add to Styles section. Changed pattern → update Key Patterns. Version bump → update App Identity. This file must always stay current.
+> **RELEASE TRACKING:** v1.5 is submitted and under App Store review. Log all new changes under the **v1.6 Changelog** section below. Do not increment the version number until the user confirms v1.6 is ready to submit.
+
+## v1.6 Changelog
+> Changes made after v1.5 App Store submission (April 5, 2026). Add entries here as changes are implemented.
+
+<!-- TEMPLATE: - [YYYY-MM-DD] Short description of change (`FileChanged.swift`) -->
+
+- [2026-04-16] BT AI stall fix — added `guard playerIndex == currentActionPlayer` to `processBid`, `processPass`, `processCallCards`, and `processPlayCard` in `BluetoothGameViewModel`; stale/delayed human action messages could advance the turn past an AI's slot. Added recovery call in `processAITurnIfNeeded` bail path: when the guard-after-sleep fires, if it's still an AI's turn in an active phase, re-trigger to mirror Online mode's Firestore-snapshot failsafe (`BluetoothGameViewModel.swift`)
+- [2026-04-05] Universal links — full implementation via Firebase Hosting: AASA at root domain with correct Team ID/bundle ID; `DeepLinkManager` singleton stores pending join code across cold-start navigation; `ModeSelectionView` watches `DeepLinkManager` and auto-navigates to join screen; `CreateOrJoinView` passes code directly to `JoinByCodeView` via `initialCode` param (not notification, which fires before view is mounted); `onContinueUserActivity(NSUserActivityTypeBrowsingWeb)` handles https universal links; QR encodes full universal link URL; share messages use `https://` link (`MyAppApp.swift`, `MyApp.entitlements`, `ModeSelectionView.swift`, `OnlineSessionView.swift`)
+- [2026-04-05] Bluetooth leaderboard fix — Cloud Function `validModes` array was missing `"Bluetooth"` and `"PassAndPlay"`; BT games received HTTP 400 which `sendRecord()` treated as terminal, silently dropping records; fixed by adding both modes to `validModes` in `functions/index.js` and deploying
+- [2026-04-08] Leaderboard save fix (BT + Online) — `saveBTGameHistory()` / `saveOnlineGameHistory()` were being called (1) from the "Next Round" handler on every intermediate round, creating bogus Cloud Function records, and (2) on all 6 client devices independently, inflating every stat 6x. Fix: added `guard game.isHost else { return }` so only the host submits; removed save calls from "Next Round" handler and `onQuit` in `BTRoundCompleteView` / `OnlineRoundCompleteView` (non-game-over quits no longer create partial records); the `.task(id: game.phase)` + `.onAppear` on `GameOverView` remain as the sole save triggers (`BluetoothGameView.swift`, `OnlineGameView.swift`)
+- [2026-04-06] Remove score-500 UI references — removed "Target: 500" row from TV scoreboard (`TVGameView.swift`); removed `targetScore: Int = 500` from `PlayerScoreBarChart` — bars now scale against highest current score; removed `targetScore` from `GameOverView` progress bar (same relative-to-leader scaling); removed `const WIN=500` from web dashboard (`LocalGameServer.swift`) replaced with dynamic max-score scaling (`PlayerScoreBarChart.swift`, `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `TVGameView.swift`, `LocalGameServer.swift`)
+- [2026-04-07] Portrait overflow fix (all game modes) — avatar strip and current-trick card row were overflowing right edge in portrait. Fix: (1) avatar strip converted from bare `HStack` to `GeometryReader { chipW = (width-32)/6 }` with `frame(maxWidth: chipW).clipped()` per chip in `ComputerGameView.swift` and `OnlineGameView.swift`; (2) current-trick card row converted from hardcoded-width HStack to inner `GeometryReader` using `adaptiveCardWidth(available: inner.size.width - 28)` so cards always fit regardless of device or padding — `currentHandBox(geo:)` → `currentHandBox()` and `onlineCurrentHandBox(geo:)` → `onlineCurrentHandBox()` (both files). `LastHandView` and your-hand boxes were already using GeometryReader correctly.
+- [2026-04-06] BT client stuck fix — clients were permanently stuck on "waiting for host to start" because `BTClientLobbyView` used `onChange(of: vm.phase)` but `vm.phase` defaulted to `.dealing` (same as first broadcast) and wasn't read in body so `@Observable` didn't track it. Fix: `applyGameState` now sets `sessionState = .playing` on non-host clients when any active phase (`.lookingAtCards` or later) arrives; `BTClientLobbyView.onChange` now watches `vm.sessionState` (which IS tracked since it's read in body) instead of `vm.phase` (`BluetoothGameViewModel.swift`, `BluetoothSessionView.swift`)
+- [2026-04-06] TV web dashboard redesign — full-screen TV-optimized layout with fixed left scoreboard (all 6 players with role badges + score bars), fixed right info panel (trick points with offense/defense bars, bid target countdown, called cards), and center content area; playing phase shows 6-seat card table (top row: seats 5-4-3, center felt strip, bottom row: seats 0-1-2) with large card visuals, gold glow on winning card, blue pulse animation on next-to-play seat; bidding phase shows 6-seat bid grid with large amounts; all sizes in vh/vw for TV scaling; polling reduced from 2000ms to 500ms (`LocalGameServer.swift`)
+- [2026-04-05] TV web dashboard (Approach B) — `LocalGameServer.swift` (new) runs a minimal HTTP server on the host iPhone using `Network.framework`; serves a live-polling HTML dashboard at `http://<local-ip>:<port>/` and JSON game state at `/state`; `BluetoothGameViewModel` starts the server in `startHosting()`, pushes updated state JSON after every `broadcastGameState()` call, and stops it in `cleanup()`; `BTHostLobbyView` shows the URL and a QR code (Core Image `CIQRCodeGenerator`) so the TV operator can open the dashboard in any browser on the same Wi-Fi; works with AirPlay mirroring since no special iOS display API is required
+- [2026-04-05] TV external display (Approach A) — BT games now show a shared game board on AirPlay/HDMI external screen: `TVDisplayManager.swift` (new) manages secondary `UIWindow` lifecycle using `UIScreen.didConnectNotification`; `TVGameView.swift` (new) renders phase-aware game board (no private hand cards); `MyAppApp.swift` calls `TVDisplayManager.shared.startMonitoring()` at launch; `BTEntryView` in `ModeSelectionView.swift` sets/clears `TVDisplayManager.shared.activeGame`; `BTHostLobbyView` in `BluetoothSessionView.swift` shows "TV Connected" indicator when external screen detected
 
 ## App Identity
 - **Name:** The Shady Spade
 - **Bundle ID:** `com.vijaygoyal.theshadyspade`
 - **Platform:** iOS (SwiftUI, supports portrait + landscape)
-- **Current version:** 1.4 (build 5)
+- **Current version:** 1.5 (build 6) — submitted to App Store for review on April 5, 2026
+- **Next version:** 1.6 (build 7) — in development
 - **Swift:** SwiftUI + SwiftData + Firebase + MultipeerConnectivity
 - **Project path:** `/Users/vijaygoyal/MyiOSApp/MyApp`
 
@@ -17,7 +35,7 @@
 - 6 players always (indices 0–5)
 - 8 cards per hand
 - Bid range: 130–250 (must be higher than previous bid, or pass)
-- Winning score: 500
+- Winning score: 500 (internal only — not shown in UI)
 
 ## Firebase
 - **Project:** `shadyspade-d6b84`
@@ -43,7 +61,7 @@
 - `MyAppApp.swift` — App entry, Firebase init, anonymous auth, SwiftData model container (`Round`, `GameHistory`, `HistoryRound`), `LeaderboardService.shared.startListening()`, URL handler for `shadyspade://join/ROOMCODE`
 
 ### Navigation
-- `ModeSelectionView.swift` — Root after setup; user picks Solo, Multiplayer, or Local / Bluetooth. Contains `BTEntryView` (private, handles BT lobby → game transition) and `OnlineEntryView` (private, handles online lobby → game transition).
+- `ModeSelectionView.swift` — Root after setup; user picks Solo, Multiplayer, Local / Bluetooth, or **Join a Game** (direct shortcut to code-entry). Contains `BTEntryView` (private, handles BT lobby → game transition) and `OnlineEntryView` (private, handles online lobby → game transition). `OnlineEntryView` accepts `autoShowJoin: Bool` — when true, the join-by-code sheet opens immediately, bypassing the host/join picker screen.
 - `SplashView.swift` — First-launch onboarding
 - `MainView.swift` — Legacy tab view (Leaderboard / History / Settings) — still present but not primary
 
@@ -114,6 +132,17 @@
   - `BiddingTwoColumnLayout` — shared bidding UI (portrait + landscape, used by both game modes)
   - `currentHandStage()` modifier — container styling for current trick box
 
+### TV Display
+
+#### Approach A — External display (HDMI/AirPlay extended display only)
+- `TVDisplayManager.swift` — `@Observable @MainActor` singleton managing the secondary `UIWindow` on AirPlay/HDMI screens. Monitors `UIScreen.didConnectNotification` / `didDisconnectNotification`. Set `TVDisplayManager.shared.activeGame` to a `BluetoothGameViewModel` to show the TV view; nil it to tear down. Prefers `UIWindowScene`-based window (iOS 16+), falls back to `UIWindow.screen`.
+- `TVGameView.swift` — Phase-aware SwiftUI view rendered on the external screen during BT games. Shows: waiting screen during deal/look phase; bidder row during bidding; trump/called-cards info during calling; 3-column playing layout (scores | 6-seat table | bid info) during playing; standings on round-complete/game-over. Never shows any player's private hand cards.
+
+#### Approach B — Local web dashboard (works with AirPlay mirroring)
+- `LocalGameServer.swift` — `final class LocalGameServer: @unchecked Sendable`. Minimal HTTP server via `NWListener`. Serves HTML at `/` and JSON at `/state` (polled every 2 s). Thread-safe via `NSLock`. `onReady((String)->Void)` fires from background thread when URL is ready. `makeQRCode(from:size:)` uses Core Image `CIQRCodeGenerator`.
+- `BluetoothGameViewModel.localServerURL: String` — observable URL shown in lobby. Server starts in `startHosting()`, state pushed in `broadcastGameState()` (augmented with `currentTrickWinnerIndex`/`offensePoints`/`defensePoints`), stopped in `cleanup()`.
+- `BTHostLobbyView` shows QR code + URL when `vm.localServerURL` is non-empty. QR generated via `LocalGameServer.makeQRCode`.
+
 ### Other
 - `AuthView.swift` / `AuthViewModel.swift` — Sign-in (email/Google), links anonymous account
 - `SettingsView.swift` — App settings
@@ -170,9 +199,33 @@
 - In `OnlineGameViewModel.parseGameState` and `BluetoothGameViewModel.applyGameState`, `bidWinnerInfo` is forcibly cleared when `newPhase` is `.playing`, `.roundComplete`, or `.gameOver`.
 - Reason: the banner has a full-screen `Color.black.opacity(0.55).onTapGesture {}` that absorbs all taps. If the bid winner calls trump quickly (< 2.5s), the game enters playing phase while the non-bid-winner's auto-dismiss timer is still pending, freezing card play for those players.
 
-### Concurrent Snapshot State Capture (Online)
-- In `OnlineGameViewModel.processPendingAction` (playCard, 6th card path), `wonPointsPerPlayer`, `trickNumber`, and `runningScores` are captured into local `let` constants **before** `Task.sleep(1_000_000_000)`.
-- Reason: the Firestore show-state write triggers `handleSnapshot` on the host during the sleep, which calls `parseGameState` and overwrites those instance properties. The resolve-state logic now reads from captured locals, not `self`.
+### Concurrent Snapshot State Capture (Online + BT)
+- In `OnlineGameViewModel.processPendingAction` and `BluetoothGameViewModel.processPlayCard` (playCard, 6th card path), `wonPointsPerPlayer`, `trickNumber`, and `runningScores` are captured into local `let` constants **before** `Task.sleep`.
+- Reason: the show-state write triggers a re-entrant state parse on the host during the sleep (Firestore snapshot or MC message), which can overwrite those instance properties. The resolve-state logic reads from captured locals, not `self`.
+
+### BT/Online Divergence Fixes (applied)
+1. **BT trick resolution race** — `wonPointsPerPlayer`, `trickNumber`, `runningScores` captured before sleep in `BluetoothGameViewModel.processPlayCard`.
+2. **BT AI phase guard** — `seat` and `capturedPhase` now captured BEFORE sleep in `processAITurnIfNeeded`. Guard after sleep verifies `aiSeats.contains(seat)`, `phase == capturedPhase`, and `currentActionPlayer == seat`.
+3. **`currentTrickWinnerIndex` type** — `BluetoothGameViewModel` now returns `Int?` (nil when no trick), matching `OnlineGameViewModel`. `BluetoothGameView` comparison `entry.playerIndex == game.currentTrickWinnerIndex` still compiles via Swift Optional Equatable.
+4. **BT mid-game disconnect → AI replacement** — In `case .notConnected:`, when host + game in active phase, disconnected human slot is added to `aiSeats`, state is broadcast, and `processAITurnIfNeeded()` is triggered if it was their turn.
+5. **Online `startNextRound()` host guard** — Added `guard isHost else { return }` to prevent non-host clients from advancing the round.
+6. **AI delay standardized** — Both BT and Online now use `800_000_000...1_200_000_000` ns (was `1_000_000_000...1_500_000_000` in Online).
+
+### Security Fixes (applied)
+1. **BT gameState host forgery** — `case "gameState"` in `handleMessage` now verifies `playerIndexToPeer[0] == peer` before applying state; only the host peer is trusted.
+2. **BT assignSlot bounds check** — `slotIndex` extracted from `dict["playerIndex"]` in `case "assignSlot"` is now guarded `>= 0 && < 6`.
+3. **BT bid amount validation** — In `case "action"/"bid"`, `amount` is checked `>= 130 && <= 250` before calling `processBid`.
+4. **BT currentTrick pi bounds** — `applyGameState` currentTrick parsing checks `pi >= 0 && pi < 6` before constructing tuple.
+5. **BT called cards validation** — `processCallCards` validates both card IDs exist in a fresh deck, are distinct, and are not already in the bidder's hand.
+6. **Online playerIndex spoof** — `processPendingAction` adds `guard playerIndex >= 0 && playerIndex < 6` and `guard playerIndex == currentActionPlayer` after extracting playerIndex.
+7. **Online currentTrick pi bounds** — `parseGameState` currentTrick parsing checks `pi >= 0 && pi < 6`.
+8. **joinSession bounds check** — `OnlineSessionViewModel.joinSession` checks `firstAI >= 0 && firstAI < slotsData.count` before using AI seat as array index.
+9. **Deep link sanitization** — `handleIncomingURL` in `MyAppApp.swift` validates room code is exactly 6 alphanumeric chars.
+10. **Rate limiting** — `placeBid`, `pass`, `callTrumpAndCards`/`confirmCalling`, `playCard` in both `BluetoothGameViewModel` and `OnlineGameViewModel` enforce a 300ms minimum interval via `lastActionSentAt: Date`.
+11. **Online bid amount validation** — `processPendingAction` case `"bid"` now guards `amount >= 130 && amount <= 250` before using the value.
+12. **Online called cards validation** — `processPendingAction` case `"callCards"` validates both card IDs against a full deck set, are distinct, and not in the bidder's hand (mirrors BT fix).
+13. **BT host-only message types** — `case "hand"`, `case "assignSlot"`, `case "playerList"`, `case "lobbyUpdate"` in `handleMessage` now all verify `playerIndexToPeer[0] == peer`; a rogue non-host peer can no longer inject fake hands, slot assignments, or lobby state.
+14. **BT bidHistory pi bounds** — `applyGameState` bidHistory parsing checks `pi >= 0 && pi < 6` before constructing tuples.
 
 ### Bluetooth Game Architecture
 - Uses `MultipeerConnectivity` framework; service type `"shady-spade"` (matches `NSBonjourServices` in Info.plist)
@@ -224,5 +277,11 @@ Shared component in Styles.swift. Portrait: vertical scroll with bidder cards + 
 - Source: `git@github.com:imvijaygoyal1/shadyspade-privacy.git` (local clone at `/tmp/shadyspade-privacy`)
 
 ## Deep Link / QR
-- URL scheme: `shadyspade://join/{ROOMCODE}`
-- Web fallback: `https://imvijaygoyal1.github.io/shadyspade/join/{ROOMCODE}`
+- Custom URL scheme: `shadyspade://join/{ROOMCODE}` (fallback, used if app not installed)
+- Universal link: `https://shadyspade-d6b84.web.app/shadyspade/join/{ROOMCODE}` — served via Firebase Hosting
+- AASA: `https://shadyspade-d6b84.web.app/.well-known/apple-app-site-association` (correct Team ID + bundle ID, `application/json`)
+- Join redirect page: `/shadyspade/join/index.html` — auto-triggers app open, falls back to App Store after 2s
+- Firebase Hosting config: `/tmp/shadyspade-hosting/` (deploy with `firebase deploy --only hosting`)
+- Associated domains entitlement: `applinks:shadyspade-d6b84.web.app`, `applinks:shadyspade-d6b84.firebaseapp.com`
+- QR codes encode the full universal link URL (not just the room code)
+- Share messages include the `https://` universal link
