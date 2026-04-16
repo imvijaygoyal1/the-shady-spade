@@ -381,9 +381,16 @@ private struct JoinByCodeView: View {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if let url = URL(string: trimmed),
            let comps = URLComponents(url: url, resolvingAgainstBaseURL: true) {
-            let parts = comps.path.split(separator: "/").map(String.init)
+            // Lowercase the path before splitting — generateQRCode calls .uppercased()
+            // on the full URL before encoding, so the QR contains
+            // "HTTPS://…/JOIN/ABCD12" not "https://…/join/ABCD12".
+            // Case-insensitive search ensures "JOIN" matches "join".
+            let parts = comps.path.lowercased().split(separator: "/").map(String.init)
             if let joinIdx = parts.firstIndex(of: "join"), joinIdx + 1 < parts.count {
-                return String(parts[joinIdx + 1].prefix(6).uppercased())
+                // Extract from the original (non-lowercased) path so the room code
+                // retains its original casing, then uppercase for normalisation.
+                let originalParts = comps.path.split(separator: "/").map(String.init)
+                return String(originalParts[joinIdx + 1].prefix(6).uppercased())
             }
         }
         return String(trimmed.prefix(6).uppercased())
