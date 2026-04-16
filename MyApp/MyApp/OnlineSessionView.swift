@@ -12,6 +12,8 @@ struct OnlineSessionView: View {
     /// When provided, skip CreateOrJoinView and go straight to lobby with this pre-created session
     var prebuiltSessionVM: OnlineSessionViewModel? = nil
     var prebuiltPlayerUID: String? = nil
+    /// When true, automatically open the join-by-code sheet on first appear
+    var autoShowJoin: Bool = false
     var onGameReady: ((Int, Bool, String, [String], [String]) -> Void)? = nil
 
     @State private var ownedSessionVM = OnlineSessionViewModel()
@@ -30,7 +32,8 @@ struct OnlineSessionView: View {
                     sessionVM: sessionVM,
                     playerName: playerName,
                     playerAvatar: playerAvatar,
-                    playerUID: playerUID
+                    playerUID: playerUID,
+                    autoShowJoin: autoShowJoin
                 )
                 .overlay(alignment: .topLeading) {
                     Button {
@@ -76,6 +79,7 @@ private struct CreateOrJoinView: View {
     let playerName: String
     let playerAvatar: String
     let playerUID: String
+    var autoShowJoin: Bool = false
 
     @State private var showingJoin = false
 
@@ -172,12 +176,24 @@ private struct CreateOrJoinView: View {
         }
         .adaptiveContentFrame()
         .padding()
+        .onAppear {
+            if autoShowJoin { showingJoin = true }
+            // Handle deep link cold-start: code stored before this view existed
+            if DeepLinkManager.shared.pendingJoinCode != nil {
+                showingJoin = true
+            }
+        }
         .sheet(isPresented: $showingJoin) {
             JoinByCodeView(
                 sessionVM: sessionVM,
                 playerUID: playerUID,
                 playerName: playerName,
-                playerAvatar: playerAvatar
+                playerAvatar: playerAvatar,
+                initialCode: {
+                    let code = DeepLinkManager.shared.pendingJoinCode
+                    DeepLinkManager.shared.pendingJoinCode = nil
+                    return code
+                }()
             )
             .presentationDetents([.medium])
         }
@@ -191,6 +207,7 @@ private struct JoinByCodeView: View {
     let playerUID: String
     let playerName: String
     let playerAvatar: String
+    var initialCode: String? = nil
 
     @ObservedObject private var themeManager = ThemeManager.shared
     @Environment(\.dismiss) private var dismiss
@@ -198,6 +215,7 @@ private struct JoinByCodeView: View {
     @State private var isJoining = false
     @State private var joinError: String? = nil
     @State private var showScanner = false
+    @State private var scanError: String? = nil
     @FocusState private var fieldFocused: Bool
 
     var body: some View {
@@ -302,13 +320,47 @@ private struct JoinByCodeView: View {
             }
             .padding()
         }
-        .onAppear { fieldFocused = true }
+        .onAppear {
+            fieldFocused = true
+            if let c = initialCode {
+                code = String(c.trimmingCharacters(in: .whitespacesAndNewlines).prefix(6).uppercased())
+            }
+        }
         .sheet(isPresented: $showScanner) {
-            QRScannerView { scannedCode in
-                let cleaned = String(scannedCode.trimmingCharacters(in: .whitespacesAndNewlines).prefix(6).uppercased())
-                code = cleaned
-                showScanner = false
-                // Don't auto-join — let the player verify the code then tap Join
+            VStack(spacing: 0) {
+                QRScannerView { scannedCode in
+                    // Issue #1 fix: QR encodes the full universal link URL
+                    // (https://shadyspade-d6b84.web.app/shadyspade/join/ABCD12).
+                    // The old code did .prefix(6) on the raw URL, yielding "HTTPS:"
+                    // instead of the room code. Parse the path component after "join".
+                    let extracted = Self.extractRoomCode(from: scannedCode)
+                    let isValid = extracted.count == 6 &&
+                        extracted.allSatisfy { $0.isLetter || $0.isNumber }
+                    guard isValid else {
+                        // Issue #5 fix: reject scan → QRScannerView auto-restarts camera
+                        scanError = "Couldn't read a valid room code. Try again."
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { scanError = nil }
+                        return false
+                    }
+                    scanError = nil
+                    code = extracted
+                    showScanner = false
+                    return true   // accept — scanner stops
+                }
+
+                // Issue #5 fix: brief error banner inside the scanner sheet
+                if let err = scanError {
+                    Text(err)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.defenseRose.opacity(0.85))
+                        .clipShape(Capsule())
+                        .padding(.bottom, 24)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .animation(.easeInOut(duration: 0.25), value: scanError)
+                }
             }
             .presentationDetents([.large])
         }
@@ -318,6 +370,23 @@ private struct JoinByCodeView: View {
                 // Don't auto-join — let the player verify and tap Join
             }
         }
+    }
+
+    /// Issue #1 fix: QR codes encode the full universal link URL
+    /// (https://shadyspade-d6b84.web.app/shadyspade/join/ABCD12).
+    /// This extracts the 6-char room code from the path segment after "join",
+    /// mirroring the logic in MyAppApp.handleIncomingURL.
+    /// Falls back to treating the raw string as a code (future plain-code QRs).
+    private static func extractRoomCode(from raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: trimmed),
+           let comps = URLComponents(url: url, resolvingAgainstBaseURL: true) {
+            let parts = comps.path.split(separator: "/").map(String.init)
+            if let joinIdx = parts.firstIndex(of: "join"), joinIdx + 1 < parts.count {
+                return String(parts[joinIdx + 1].prefix(6).uppercased())
+            }
+        }
+        return String(trimmed.prefix(6).uppercased())
     }
 
     private func joinSession() {
@@ -466,7 +535,7 @@ private struct SessionLobbyView: View {
                                 item: """
 Join my Shady Spade game! 🃏
 Room Code: \(sessionVM.sessionCode ?? "")
-Tap to join: shadyspade://join/\(sessionVM.sessionCode ?? "")
+Tap to join: https://shadyspade-d6b84.web.app/shadyspade/join/\(sessionVM.sessionCode ?? "")
 """,
                                 preview: SharePreview(
                                     "Shady Spade — Room \(sessionVM.sessionCode ?? "")"
@@ -476,7 +545,7 @@ Tap to join: shadyspade://join/\(sessionVM.sessionCode ?? "")
                                     Image(systemName:
                                         "square.and.arrow.up")
                                         .font(.subheadline.bold())
-                                    Text("Share Code")
+                                    Text("Share")
                                         .font(.subheadline.bold())
                                 }
                                 .foregroundStyle(sessionVM.isConnecting
@@ -689,9 +758,9 @@ Tap to join: shadyspade://join/\(sessionVM.sessionCode ?? "")
             if let code = sessionVM.sessionCode {
                 QRCodeSheetView(
                     roomCode: code,
-                    qrImage: generateQRCode(from: code)
+                    qrImage: generateQRCode(from: "https://shadyspade-d6b84.web.app/shadyspade/join/\(code)")
                 )
-                .presentationDetents([.medium])
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
         }
@@ -709,90 +778,107 @@ struct QRCodeSheetView: View {
         ZStack {
             Color.darkBG.ignoresSafeArea()
 
-            VStack(spacing: 20) {
-                Spacer().frame(height: 4)
+            VStack(spacing: 0) {
+                // Scrollable top section
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 20) {
+                        // Title
+                        Text("Scan to Join")
+                            .font(.title2.bold())
+                            .foregroundStyle(.adaptivePrimary)
+                            .padding(.top, 8)
 
-                Text("Scan to Join")
-                    .font(.title2.bold())
-                    .foregroundStyle(.adaptivePrimary)
+                        // Room code — large mono display
+                        Text(roomCode)
+                            .font(.system(size: 32, weight: .black, design: .monospaced))
+                            .foregroundStyle(.masterGold)
+                            .tracking(8)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, 8)
 
-                Text("ROOM CODE: \(roomCode)")
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.masterGold)
-                    .tracking(2)
+                        // QR code — fixed size, no GeometryReader
+                        Image(uiImage: qrImage)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 220, height: 220)
+                            .padding(16)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(Color.masterGold.opacity(0.5), lineWidth: 1.5)
+                            )
+                            .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 4)
 
-                // QR Code — always white background for scanner readability
-                Image(uiImage: qrImage)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 220, height: 220)
-                    .padding(16)
-                    .background(Color.white)
-                    .cornerRadius(16)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(Color.masterGold.opacity(0.5), lineWidth: 1.5)
-                    )
-                    .shadow(color: Color.black.opacity(0.3), radius: 8, x: 0, y: 4)
-
-                VStack(spacing: 5) {
-                    Text("Scan with your iPhone camera")
-                        .font(.subheadline)
-                        .foregroundStyle(.adaptivePrimary)
-                    Text("Open The Shady Spade → Multiplayer → Join a Game → enter the code")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .multilineTextAlignment(.center)
-
-                ShareLink(
-                    item: Image(uiImage: qrImage),
-                    preview: SharePreview(
-                        "Join my Shady Spade game — Room: \(roomCode)",
-                        image: Image(uiImage: qrImage)
-                    )
-                ) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "square.and.arrow.up")
-                        Text("Share QR Code").fontWeight(.bold)
+                        // Hint
+                        VStack(spacing: 4) {
+                            Text("Scan with your iPhone camera")
+                                .font(.subheadline)
+                                .foregroundStyle(.adaptivePrimary)
+                            Text("or tap \"Join a Game\" and enter the code")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .multilineTextAlignment(.center)
                     }
-                    .foregroundStyle(.black)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.masterGold)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
                 }
-                .buttonStyle(BouncyButton())
-                .padding(.horizontal, 24)
 
-                ShareLink(
-                    item: """
+                // Buttons — always pinned at bottom, never scroll away
+                Divider().background(Color.adaptiveDivider)
+
+                VStack(spacing: 10) {
+                    ShareLink(
+                        item: Image(uiImage: qrImage),
+                        preview: SharePreview(
+                            "Join my Shady Spade game — Room: \(roomCode)",
+                            image: Image(uiImage: qrImage)
+                        )
+                    ) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("Share QR Code").fontWeight(.bold)
+                        }
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.masterGold)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(BouncyButton())
+
+                    ShareLink(
+                        item: """
 Join my Shady Spade game! 🃏
 Room Code: \(roomCode)
-Tap to join: shadyspade://join/\(roomCode)
+Tap to join: https://shadyspade-d6b84.web.app/shadyspade/join/\(roomCode)
 """,
-                    preview: SharePreview(
-                        "Shady Spade — Room \(roomCode)",
-                        image: Image(uiImage: qrImage)
-                    )
-                ) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "text.bubble")
-                        Text("Share Room Code").fontWeight(.bold)
+                        preview: SharePreview(
+                            "Shady Spade — Room \(roomCode)",
+                            image: Image(uiImage: qrImage)
+                        )
+                    ) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "text.bubble")
+                            Text("Share Room Code").fontWeight(.bold)
+                        }
+                        .foregroundStyle(.adaptivePrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.adaptiveSubtle)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
-                    .foregroundStyle(.adaptivePrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.adaptiveSubtle)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .buttonStyle(BouncyButton())
                 }
-                .buttonStyle(BouncyButton())
                 .padding(.horizontal, 24)
-
-                Spacer()
+                .padding(.top, 16)
+                .padding(.bottom, 24)
+                .background(Color.darkBG)
             }
-            .padding(.horizontal, 24)
         }
     }
 }

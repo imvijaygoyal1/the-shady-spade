@@ -2,7 +2,9 @@ import SwiftUI
 import AVFoundation
 
 struct QRScannerView: UIViewControllerRepresentable {
-    let onScan: (String) -> Void
+    /// Called on the main thread when a QR code is detected.
+    /// Return `true` to accept the scan and stop; return `false` to reject and auto-restart.
+    let onScan: (String) -> Bool
 
     func makeUIViewController(context: Context) -> QRScannerViewController {
         let vc = QRScannerViewController()
@@ -10,14 +12,19 @@ struct QRScannerView: UIViewControllerRepresentable {
         return vc
     }
 
-    func updateUIViewController(_ uiViewController: QRScannerViewController, context: Context) {}
+    // Issue #4 fix: keep onScan closure current across SwiftUI rebuilds.
+    func updateUIViewController(_ uiViewController: QRScannerViewController, context: Context) {
+        uiViewController.onScan = onScan
+    }
 }
 
 final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
-    var onScan: ((String) -> Void)?
+    // Issue #4 fix: Bool-returning closure so caller can reject and trigger restart.
+    var onScan: ((String) -> Bool)?
 
     private let session = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var isConfigured = false   // Issue #2 fix: track whether session was fully set up
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -27,16 +34,24 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        if !session.isRunning {
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.session.startRunning()
-            }
+        // Issue #2 fix: only start if the session has been fully configured.
+        // Without this guard, calling startRunning() before inputs/outputs are added
+        // (e.g. when camera permission is .notDetermined on first launch) results in
+        // a blank preview that never detects QR codes.
+        guard isConfigured, !session.isRunning else { return }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.session.startRunning()
         }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        session.stopRunning()
+        // Issue #3 fix: stop on background thread (synchronous on main blocks UI).
+        if session.isRunning {
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                self?.session.stopRunning()
+            }
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -61,16 +76,20 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
 
     private func startCapture() {
         guard let device = AVCaptureDevice.default(for: .video),
-              let input = try? AVCaptureDeviceInput(device: device),
-              session.canAddInput(input) else { return }
+              let input = try? AVCaptureDeviceInput(device: device) else { return }
 
+        // Issue #2 fix: wrap in beginConfiguration/commitConfiguration so inputs and
+        // outputs can be added safely even if startRunning() was called prematurely.
+        session.beginConfiguration()
+        guard session.canAddInput(input) else { session.commitConfiguration(); return }
         session.addInput(input)
 
         let output = AVCaptureMetadataOutput()
-        guard session.canAddOutput(output) else { return }
+        guard session.canAddOutput(output) else { session.commitConfiguration(); return }
         session.addOutput(output)
         output.setMetadataObjectsDelegate(self, queue: .main)
         output.metadataObjectTypes = [.qr]
+        session.commitConfiguration()
 
         let preview = AVCaptureVideoPreviewLayer(session: session)
         preview.videoGravity = .resizeAspectFill
@@ -79,6 +98,16 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
         previewLayer = preview
 
         addOverlay()
+        isConfigured = true  // Issue #2 fix: mark session as ready before starting
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.session.startRunning()
+        }
+    }
+
+    // Issue #5 fix: allow restarting after a rejected scan without dismissing the sheet.
+    func restartScanning() {
+        guard isConfigured, !session.isRunning else { return }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.session.startRunning()
         }
@@ -127,8 +156,21 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
               let value = object.stringValue,
               !value.isEmpty else { return }
 
-        session.stopRunning()
+        // Issue #3 fix: stop on a background thread — stopRunning() is synchronous
+        // and blocks the calling thread; calling it on main freezes the UI.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.session.stopRunning()
+        }
+
         HapticManager.success()
-        onScan?(value)
+
+        // Issue #5 fix: if the caller rejects the scan (returns false), restart the
+        // session after a short delay so the user can try again without closing the sheet.
+        let accepted = onScan?(value) ?? true
+        if !accepted {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                self?.restartScanning()
+            }
+        }
     }
 }
