@@ -63,7 +63,6 @@ function isValidName(name) {
   if (!name || typeof name !== "string") return false;
   const trimmed = name.trim();
   if (trimmed.length === 0) return false;
-  if (/^Player\s*\d+$/i.test(trimmed)) return false;
   return true;
 }
 
@@ -119,9 +118,11 @@ exports.recordGame = onRequest(
         defensePointsCaught,
         roundCount,
       } = payload;
+      const finalScores = payload.finalScores || Array(PLAYER_COUNT).fill(0);
+      const aiSeats = new Set(payload.aiSeats || []);
 
       // ── Validate gameMode ──────────────────────────────────
-      const validModes = ["Solo", "Online", "Multiplayer"];
+      const validModes = ["Solo", "Online", "Multiplayer", "Bluetooth", "PassAndPlay"];
       if (!validModes.includes(gameMode)) {
         return sendError(res, 400,
             `Invalid game mode: "${gameMode}". ` +
@@ -178,6 +179,14 @@ exports.recordGame = onRequest(
             `(max ${250 * roundCount} for ${roundCount} rounds).`);
       }
 
+      // ── Validate finalScores ────────────────────────────────
+      if (!Array.isArray(finalScores) ||
+          finalScores.length !== PLAYER_COUNT ||
+          !finalScores.every(Number.isInteger)) {
+        return sendError(res, 400,
+            `finalScores must be an array of ${PLAYER_COUNT} integers.`);
+      }
+
       // ── Server-side score calculation ──────────────────────
       const roundScores = calculateScores(
           bid, bidMade, bidderIndex, partner1Index, partner2Index,
@@ -217,10 +226,11 @@ exports.recordGame = onRequest(
       for (let i = 0; i < PLAYER_COUNT; i++) {
         const name = (playerNames[i] || "").trim();
         if (!isValidName(name)) continue;
+        if (aiSeats.has(i)) continue;
 
         const isWinner = i === winnerIndex;
         const isBidder = i === bidderIndex;
-        const score = Math.max(0, roundScores[i]);
+        const score = Math.max(0, finalScores[i]);
 
         const ref = db.collection("player_stats").doc(name);
         const update = {

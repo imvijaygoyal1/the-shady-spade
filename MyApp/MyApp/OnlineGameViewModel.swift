@@ -79,6 +79,7 @@ final class OnlineGameViewModel {
     private var hostCalledCard2: String = ""
     private var listener: ListenerRegistration?
     private var lastProcessedNonce: String = ""
+    private var lastActionSentAt: Date = .distantPast
 
     // MARK: Presence tracking
     private var presenceTimer: Timer?
@@ -163,9 +164,9 @@ final class OnlineGameViewModel {
     }
 
     func playerName(_ index: Int) -> String {
-        guard index >= 0 && index < playerNames.count else { return "Player \(index + 1)" }
+        guard index >= 0 && index < playerNames.count else { return "Guest \(index + 1)" }
         let n = playerNames[index]
-        return n.isEmpty ? "Player \(index + 1)" : n
+        return n.isEmpty ? "Guest \(index + 1)" : n
     }
 
     func playerAvatar(_ index: Int) -> String {
@@ -247,6 +248,7 @@ final class OnlineGameViewModel {
     }
 
     func startNextRound() async {
+        guard isHost else { return }
         dealerIndex = (dealerIndex + 1) % 6
         roundNumber += 1
         await startGame()
@@ -572,6 +574,7 @@ final class OnlineGameViewModel {
         if let trickArr = gs["currentTrick"] as? [[String: Any]] {
             currentTrick = trickArr.compactMap { entry in
                 guard let pi = (entry["pi"] as? Int) ?? (entry["pi"] as? Int64).map(Int.init),
+                      pi >= 0 && pi < 6,
                       let cardId = entry["card"] as? String,
                       let card = parseCard(cardId) else { return nil }
                 return (playerIndex: pi, card: card)
@@ -604,6 +607,8 @@ final class OnlineGameViewModel {
     // MARK: - Player Actions
 
     func placeBid(_ amount: Int) async {
+        guard Date().timeIntervalSince(lastActionSentAt) > 0.3 else { return }
+        lastActionSentAt = Date()
         let db = Firestore.firestore()
         let ref = db.collection("sessions").document(sessionCode)
         let action: [String: Any] = [
@@ -616,6 +621,8 @@ final class OnlineGameViewModel {
     }
 
     func pass() async {
+        guard Date().timeIntervalSince(lastActionSentAt) > 0.3 else { return }
+        lastActionSentAt = Date()
         let db = Firestore.firestore()
         let ref = db.collection("sessions").document(sessionCode)
         let action: [String: Any] = [
@@ -632,6 +639,8 @@ final class OnlineGameViewModel {
 
 
     func confirmCalling() async {
+        guard Date().timeIntervalSince(lastActionSentAt) > 0.3 else { return }
+        lastActionSentAt = Date()
         let c1 = calledCard1Rank + calledCard1Suit
         let c2 = calledCard2Rank + calledCard2Suit
         let db = Firestore.firestore()
@@ -648,6 +657,8 @@ final class OnlineGameViewModel {
     }
 
     func playCard(_ card: Card) async {
+        guard Date().timeIntervalSince(lastActionSentAt) > 0.3 else { return }
+        lastActionSentAt = Date()
         let db = Firestore.firestore()
         let ref = db.collection("sessions").document(sessionCode)
         let action: [String: Any] = [
@@ -668,6 +679,9 @@ final class OnlineGameViewModel {
                   (actionData["playerIndex"] as? Int64).map(Int.init)
         else { return }
 
+        guard playerIndex >= 0 && playerIndex < 6 else { return }
+        guard playerIndex == currentActionPlayer else { return }
+
         lastProcessedNonce = nonce
 
         let db = Firestore.firestore()
@@ -677,6 +691,7 @@ final class OnlineGameViewModel {
         case "bid":
             let amount = (actionData["bidAmount"] as? Int) ??
                 (actionData["bidAmount"] as? Int64).map(Int.init) ?? 0
+            guard amount >= 130 && amount <= 250 else { return }
             var newBids = bids
             newBids[playerIndex] = amount
             var newHighBid = highBid
@@ -726,6 +741,15 @@ final class OnlineGameViewModel {
             let trumpStr = actionData["trump"] as? String ?? TrumpSuit.spades.rawValue
             let c1 = actionData["calledCard1"] as? String ?? ""
             let c2 = actionData["calledCard2"] as? String ?? ""
+            // Validate cards exist in the deck, are distinct, and the bidder doesn't hold them
+            let validCardIds: Set<String> = {
+                let ranks = ["A","K","Q","J","10","9","8","7","6","5","4","3","2"]
+                let suits = ["♠","♥","♦","♣"]
+                return Set(ranks.flatMap { r in suits.map { r + $0 } })
+            }()
+            guard validCardIds.contains(c1), validCardIds.contains(c2), c1 != c2,
+                  !allHands[playerIndex].map(\.id).contains(c1),
+                  !allHands[playerIndex].map(\.id).contains(c2) else { return }
             let (p1, p2) = resolvePartners(c1: c1, c2: c2)
             hostPartner1 = p1; hostPartner2 = p2
             hostCalledCard1 = c1; hostCalledCard2 = c2
@@ -955,7 +979,7 @@ final class OnlineGameViewModel {
         guard isHost, !aiSeats.isEmpty, aiSeats.contains(currentActionPlayer) else { return }
         let seat = currentActionPlayer
         let capturedPhase = phase
-        let delay = UInt64.random(in: 1_000_000_000...1_500_000_000)
+        let delay = UInt64.random(in: 800_000_000...1_200_000_000)
         try? await Task.sleep(nanoseconds: delay)
         // Verify state hasn't changed during the sleep — another snapshot may have
         // advanced the turn to a different player or a different phase.

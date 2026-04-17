@@ -1,13 +1,17 @@
 # The Shady Spade — Claude Code Context
 
 > **IMPORTANT FOR CLAUDE:** After every code change to this project, update this file to reflect the change. New file → add to File Map. New component → add to Styles section. Changed pattern → update Key Patterns. Version bump → update App Identity. This file must always stay current.
-> **RELEASE TRACKING:** v1.5 is submitted and under App Store review. Log all new changes under the **v1.6 Changelog** section below. Do not increment the version number until the user confirms v1.6 is ready to submit.
+> **RELEASE TRACKING:** v1.6 (build 7) submitted to App Store on April 16, 2026 — under review. Log all new changes under a **v1.7 Changelog** section. Do not increment the version number until the user confirms v1.7 is ready to submit.
 
 ## v1.6 Changelog
 > Changes made after v1.5 App Store submission (April 5, 2026). Add entries here as changes are implemented.
 
 <!-- TEMPLATE: - [YYYY-MM-DD] Short description of change (`FileChanged.swift`) -->
 
+- [2026-04-16] Leaderboard fix LB3 — Cloud Function `isValidName` had a `/^Player\s*\d+$/i` regex that silently dropped `player_stats` writes for any player using a default "Player N" name; this was the primary reason leaderboard never updated for games with unnamed players. Removed the regex from `isValidName` in `functions/index.js` and deployed. Changed iOS fallback name from `"Player N"` to `"Guest N"` across all 4 ViewModel files (`OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`, `ComputerGameViewModel.swift`, `GameViewModel.swift`) — also updated the default `playerNames` initial value in `GameViewModel`. This improves leaderboard readability and avoids any future name-pattern conflicts.
+- [2026-04-16] Leaderboard fix LB2 — `saveOnlineGameHistory`/`saveBTGameHistory` silently bailed when `partner1Index`/`partner2Index` were -1 at game-over with no retry mechanism. Added `.onChange(of: game.partner1Index)` and `.onChange(of: game.partner2Index)` in `OnlineGameView` and `BluetoothGameView` that re-attempt the save when the game is in `.gameOver` and an index becomes valid. `gameHistorySaved` was already set after the guard so it stays `false` on a bail, making the retry correct. Added `btLog.warning`/`ogLog.warning` to the guard bail for diagnostics (`OnlineGameView.swift`, `BluetoothGameView.swift`)
+- [2026-04-16] Leaderboard fix LB1 — `sendRecord` used to return `true` on HTTP 4xx, silently treating server rejections as success (`scoreSaveStatus = .saved`, `errorMessage = nil`). Introduced `SendResult` enum (`.success`, `.serverRejected(String)`, `.networkFailure`). 4xx now returns `.serverRejected` → `scoreSaveStatus = .failed(message)` + `errorMessage` shown to user, record discarded. `flushPendingRecords` discards enqueued records that get a server rejection instead of retrying forever. Network failures and 5xx still enqueue for offline retry as before (`LeaderboardService.swift`)
+- [2026-04-16] How to Play updated — added Pass & Play mode, TV Dashboard (Bluetooth) description, in-app QR scanner joining instructions, win condition (first to 500), and fixed score chart description to not reference removed 500-target UI (`SettingsView.swift`)
 - [2026-04-16] QR code scan fix — 5 issues resolved in `QRScannerView.swift` + `OnlineSessionView.swift`: (1) **Primary**: `onScan` was calling `.prefix(6)` on the full universal link URL, extracting `"HTTPS:"` instead of the room code; fixed by parsing the path component after `"join"` via `extractRoomCode(from:)` helper mirroring `handleIncomingURL`; (2) first-launch camera permission race fixed with `isConfigured` flag + `beginConfiguration`/`commitConfiguration`; (3) `stopRunning()` moved to background thread in `metadataOutput` and `viewWillDisappear`; (4) `updateUIViewController` now propagates updated `onScan` closure to VC; (5) `onScan` changed to `(String) -> Bool` — returning `false` auto-restarts the scanner; error banner shown in scanner sheet for invalid scans (`QRScannerView.swift`, `OnlineSessionView.swift`)
 - [2026-04-16] BT AI stall fix — added `guard playerIndex == currentActionPlayer` to `processBid`, `processPass`, `processCallCards`, and `processPlayCard` in `BluetoothGameViewModel`; stale/delayed human action messages could advance the turn past an AI's slot. Added recovery call in `processAITurnIfNeeded` bail path: when the guard-after-sleep fires, if it's still an AI's turn in an active phase, re-trigger to mirror Online mode's Firestore-snapshot failsafe (`BluetoothGameViewModel.swift`)
 - [2026-04-05] Universal links — full implementation via Firebase Hosting: AASA at root domain with correct Team ID/bundle ID; `DeepLinkManager` singleton stores pending join code across cold-start navigation; `ModeSelectionView` watches `DeepLinkManager` and auto-navigates to join screen; `CreateOrJoinView` passes code directly to `JoinByCodeView` via `initialCode` param (not notification, which fires before view is mounted); `onContinueUserActivity(NSUserActivityTypeBrowsingWeb)` handles https universal links; QR encodes full universal link URL; share messages use `https://` link (`MyAppApp.swift`, `MyApp.entitlements`, `ModeSelectionView.swift`, `OnlineSessionView.swift`)
@@ -24,8 +28,8 @@
 - **Name:** The Shady Spade
 - **Bundle ID:** `com.vijaygoyal.theshadyspade`
 - **Platform:** iOS (SwiftUI, supports portrait + landscape)
-- **Current version:** 1.5 (build 6) — submitted to App Store for review on April 5, 2026
-- **Next version:** 1.6 (build 7) — in development
+- **Current version:** 1.6 (build 7) — submitted to App Store April 16, 2026, under review
+- **Previous version:** 1.5 (build 6) — approved on App Store
 - **Swift:** SwiftUI + SwiftData + Firebase + MultipeerConnectivity
 - **Project path:** `/Users/vijaygoyal/MyiOSApp/MyApp`
 

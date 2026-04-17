@@ -750,7 +750,7 @@ final class ComputerGameViewModel {
     // MARK: - Helper
 
     func playerName(_ index: Int) -> String {
-        if !_allPlayerNames.isEmpty { return _allPlayerNames.indices.contains(index) ? _allPlayerNames[index] : "Player \(index+1)" }
+        if !_allPlayerNames.isEmpty { return _allPlayerNames.indices.contains(index) ? _allPlayerNames[index] : "Guest \(index+1)" }
         return index == humanPlayerIndex ? humanName : aiNames[index - 1]
     }
 }

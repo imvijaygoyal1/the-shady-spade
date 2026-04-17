@@ -161,9 +161,9 @@ final class BluetoothGameViewModel: NSObject {
     // MARK: - Player info helpers
 
     func playerName(_ index: Int) -> String {
-        guard index >= 0 && index < playerNames.count else { return "Player \(index + 1)" }
+        guard index >= 0 && index < playerNames.count else { return "Guest \(index + 1)" }
         let n = playerNames[index]
-        return n.isEmpty ? "Player \(index + 1)" : n
+        return n.isEmpty ? "Guest \(index + 1)" : n
     }
 
     func playerAvatar(_ index: Int) -> String {

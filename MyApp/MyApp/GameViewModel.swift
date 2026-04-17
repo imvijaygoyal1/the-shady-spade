@@ -11,7 +11,7 @@ final class GameViewModel {
     var rounds: [Round] = []
 
     // MARK: Player names (UserDefaults)
-    var playerNames: [String] = (1...6).map { "Player \($0)" }
+    var playerNames: [String] = (1...6).map { "Guest \($0)" }
 
     // MARK: Player avatars (UserDefaults)
     var playerAvatars: [String] = Array(repeating: "person.fill", count: 6)
@@ -262,7 +262,7 @@ final class GameViewModel {
 
     func updatePlayerName(_ name: String, at index: Int) {
         let trimmed = String(name.trimmingCharacters(in: .whitespaces).prefix(30))
-        let resolved = trimmed.isEmpty ? "Player \(index + 1)" : trimmed
+        let resolved = trimmed.isEmpty ? "Guest \(index + 1)" : trimmed
         playerNames[index] = resolved
         UserDefaults.standard.set(resolved, forKey: "playerName_\(index)")
     }
