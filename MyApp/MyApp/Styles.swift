@@ -1825,3 +1825,52 @@ struct BiddingTwoColumnLayout: View {
         .shadow(color: Comic.black.opacity(0.5), radius: 0, x: Comic.shadowOffset, y: Comic.shadowOffset)
     }
 }
+
+// MARK: - Landscape Mode Selection Layout
+
+struct LandscapeModeSelectionLayout<Cards: View>: View {
+    let cards: Cards
+
+    init(@ViewBuilder cards: () -> Cards) {
+        self.cards = cards()
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // LEFT — branding
+            VStack(spacing: 10) {
+                Image(systemName: "suit.spade.fill")
+                    .font(.system(size: 42, weight: .black))
+                    .foregroundStyle(Comic.yellow)
+                    .shadow(color: Comic.black, radius: 0, x: 2, y: 2)
+                Text("The Shady Spade")
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .shadow(color: Comic.black.opacity(0.15), radius: 0, x: 1, y: 1)
+                Text("Choose a game mode")
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+
+            // Divider
+            Rectangle()
+                .fill(Comic.black.opacity(0.10))
+                .frame(width: 1.5)
+                .padding(.vertical, 16)
+
+            // RIGHT — cards
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 8) {
+                    cards
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}

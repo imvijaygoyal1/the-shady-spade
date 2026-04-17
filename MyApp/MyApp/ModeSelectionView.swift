@@ -15,6 +15,7 @@ struct ModeSelectionView: View {
     @State private var showingSolo = false
     @State private var showingOnline = false
     @State private var showingBluetooth = false
+    @State private var showingJoinGame = false
     @State private var showingSettings = false
     @State private var showingLeaderboard = false
     @State private var namePromptRequest: NamePromptRequest? = nil
@@ -23,8 +24,10 @@ struct ModeSelectionView: View {
     @State private var nameConfirmed = false
     @State private var confirmedIsOnline = false
     @State private var confirmedIsBluetooth = false
+    @State private var confirmedIsJoin = false
     @AppStorage("soloPlayerName") private var soloPlayerName = ""
     @AppStorage("soloPlayerAvatar") private var soloPlayerAvatar = "🦁"
+    @State private var deepLink = DeepLinkManager.shared
 
     var body: some View {
         ZStack {
@@ -47,7 +50,6 @@ struct ModeSelectionView: View {
                             .overlay(Circle().strokeBorder(
                                 Comic.yellow, lineWidth: 2))
                     }
-                    .padding(.top, 56)
                     .padding(.leading, 20)
 
                     Spacer()
@@ -64,86 +66,172 @@ struct ModeSelectionView: View {
                             .clipShape(Circle())
                             .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
                     }
-                    .padding(.top, 56)
                     .padding(.trailing, 20)
                 }
+                .padding(.top, 56)
                 Spacer()
             }
 
-            VStack(spacing: 0) {
-                Spacer()
+            GeometryReader { geo in
+                let isLandscape = geo.size.width > geo.size.height
 
-                VStack(spacing: 14) {
-                    Image(systemName: "suit.spade.fill")
-                        .font(.system(size: 72))
-                        .foregroundStyle(Comic.yellow)
-                        .shadow(color: Comic.black, radius: 0, x: 3, y: 3)
-                    Text("The Shady Spade")
-                        .font(.system(size: 34, weight: .black))
-                        .foregroundStyle(Comic.textPrimary)
-                        .shadow(color: Comic.black.opacity(0.18), radius: 0, x: 2, y: 2)
-                    Text("Choose a game mode")
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Comic.textSecondary)
+                if isLandscape {
+                    // LANDSCAPE — two-column layout
+                    VStack(spacing: 0) {
+                        LandscapeModeSelectionLayout {
+                            ModeCard(
+                                icon: "person.fill.badge.plus",
+                                title: "Play Solo",
+                                subtitle: "Face 5 AI opponents in a fully simulated game",
+                                color: Comic.yellow,
+                                iconBG: Comic.yellow
+                            ) {
+                                HapticManager.impact(.medium)
+                                pendingName = soloPlayerName
+                                pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                                namePromptRequest = NamePromptRequest(mode: "Solo Game", isOnline: false)
+                            }
+
+                            ModeCard(
+                                icon: "person.3.fill",
+                                title: "Multiplayer",
+                                subtitle: "Play with friends online — internet required",
+                                color: Comic.blue,
+                                iconBG: Comic.blue
+                            ) {
+                                HapticManager.impact(.medium)
+                                pendingName = soloPlayerName
+                                pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                                namePromptRequest = NamePromptRequest(mode: "Multiplayer", isOnline: true)
+                            }
+
+                            ModeCard(
+                                icon: "dot.radiowaves.left.and.right",
+                                title: "Local / Bluetooth",
+                                subtitle: "Play nearby — no internet needed",
+                                color: Comic.red,
+                                iconBG: Comic.red
+                            ) {
+                                HapticManager.impact(.medium)
+                                pendingName = soloPlayerName
+                                pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                                namePromptRequest = NamePromptRequest(mode: "Local / Bluetooth", isOnline: false)
+                            }
+
+                            ModeCard(
+                                icon: "arrow.right.circle.fill",
+                                title: "Join a Game",
+                                subtitle: "Have a room code? Jump straight in",
+                                color: Color(red: 0.09, green: 0.63, blue: 0.45),
+                                iconBG: Color(red: 0.09, green: 0.63, blue: 0.45)
+                            ) {
+                                HapticManager.impact(.medium)
+                                pendingName = soloPlayerName
+                                pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                                namePromptRequest = NamePromptRequest(mode: "Join a Game", isOnline: false)
+                            }
+                        }
+
+                        Text("© 2026 Vijay Goyal. All rights reserved.")
+                            .font(.system(size: 9, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.20))
+                            .padding(.bottom, 6)
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+
+                } else {
+                    // PORTRAIT — original layout, untouched
+                    VStack(spacing: 0) {
+                        Spacer()
+
+                        VStack(spacing: 14) {
+                            Image(systemName: "suit.spade.fill")
+                                .font(.system(size: 72))
+                                .foregroundStyle(Comic.yellow)
+                                .shadow(color: Comic.black, radius: 0, x: 3, y: 3)
+                            Text("The Shady Spade")
+                                .font(.system(size: 34, weight: .black))
+                                .foregroundStyle(Comic.textPrimary)
+                                .shadow(color: Comic.black.opacity(0.18), radius: 0, x: 2, y: 2)
+                            Text("Choose a game mode")
+                                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.textSecondary)
+                        }
+                        .padding(.bottom, 52)
+
+                        VStack(spacing: 16) {
+                            ModeCard(
+                                icon: "person.fill.badge.plus",
+                                title: "Play Solo",
+                                subtitle: "Face 5 AI opponents in a fully simulated game",
+                                color: Comic.yellow,
+                                iconBG: Comic.yellow
+                            ) {
+                                HapticManager.impact(.medium)
+                                pendingName = soloPlayerName
+                                pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                                namePromptRequest = NamePromptRequest(mode: "Solo Game", isOnline: false)
+                            }
+
+                            ModeCard(
+                                icon: "person.3.fill",
+                                title: "Multiplayer",
+                                subtitle: "Play with friends online — internet required",
+                                color: Comic.blue,
+                                iconBG: Comic.blue
+                            ) {
+                                HapticManager.impact(.medium)
+                                pendingName = soloPlayerName
+                                pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                                namePromptRequest = NamePromptRequest(mode: "Multiplayer", isOnline: true)
+                            }
+
+                            ModeCard(
+                                icon: "dot.radiowaves.left.and.right",
+                                title: "Local / Bluetooth",
+                                subtitle: "Play nearby — no internet needed",
+                                color: Comic.red,
+                                iconBG: Comic.red
+                            ) {
+                                HapticManager.impact(.medium)
+                                pendingName = soloPlayerName
+                                pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                                namePromptRequest = NamePromptRequest(mode: "Local / Bluetooth", isOnline: false)
+                            }
+
+                            ModeCard(
+                                icon: "arrow.right.circle.fill",
+                                title: "Join a Game",
+                                subtitle: "Have a room code? Jump straight in",
+                                color: Color(red: 0.09, green: 0.63, blue: 0.45),
+                                iconBG: Color(red: 0.09, green: 0.63, blue: 0.45)
+                            ) {
+                                HapticManager.impact(.medium)
+                                pendingName = soloPlayerName
+                                pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                                namePromptRequest = NamePromptRequest(mode: "Join a Game", isOnline: false)
+                            }
+                        }
+                        .adaptiveContentFrame()
+                        .padding(.horizontal, 20)
+
+                        Spacer()
+
+                        Text("© 2026 Vijay Goyal. All rights reserved.")
+                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.25))
+                            .padding(.bottom, 20)
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
                 }
-                .padding(.bottom, 52)
-
-                VStack(spacing: 16) {
-                    ModeCard(
-                        icon: "person.fill.badge.plus",
-                        title: "Play Solo",
-                        subtitle: "Face 5 AI opponents in a fully simulated game",
-                        color: Comic.yellow,
-                        iconBG: Comic.yellow
-                    ) {
-                        HapticManager.impact(.medium)
-                        pendingName = soloPlayerName
-                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        namePromptRequest = NamePromptRequest(mode: "Solo Game", isOnline: false)
-                    }
-
-                    ModeCard(
-                        icon: "person.3.fill",
-                        title: "Multiplayer",
-                        subtitle: "Play with friends online — internet required",
-                        color: Comic.blue,
-                        iconBG: Comic.blue
-                    ) {
-                        HapticManager.impact(.medium)
-                        pendingName = soloPlayerName
-                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        namePromptRequest = NamePromptRequest(mode: "Multiplayer", isOnline: true)
-                    }
-
-                    ModeCard(
-                        icon: "dot.radiowaves.left.and.right",
-                        title: "Local / Bluetooth",
-                        subtitle: "Play nearby — no internet needed",
-                        color: Comic.red,
-                        iconBG: Comic.red
-                    ) {
-                        HapticManager.impact(.medium)
-                        pendingName = soloPlayerName
-                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        namePromptRequest = NamePromptRequest(mode: "Local / Bluetooth", isOnline: false)
-                    }
-                }
-                .adaptiveContentFrame()
-                .padding(.horizontal, 20)
-
-                Spacer()
-
-                Text("© 2026 Vijay Goyal. All rights reserved.")
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.25))
-                    .padding(.bottom, 20)
             }
         }
         .onAppear { vm.setup(with: modelContext) }
         .sheet(item: $namePromptRequest, onDismiss: {
             if nameConfirmed {
                 nameConfirmed = false
-                if confirmedIsOnline { showingOnline = true }
+                if confirmedIsJoin { showingJoinGame = true }
+                else if confirmedIsOnline { showingOnline = true }
                 else if confirmedIsBluetooth { showingBluetooth = true }
                 else { showingSolo = true }
             }
@@ -156,6 +244,7 @@ struct ModeSelectionView: View {
                 let trimmed = pendingName.trimmingCharacters(in: .whitespaces)
                 soloPlayerName = trimmed.isEmpty ? "Player" : trimmed
                 soloPlayerAvatar = pendingAvatar
+                confirmedIsJoin = request.mode == "Join a Game"
                 confirmedIsOnline = request.isOnline
                 confirmedIsBluetooth = request.mode == "Local / Bluetooth"
                 nameConfirmed = true
@@ -178,6 +267,15 @@ struct ModeSelectionView: View {
             )
             .environmentObject(themeManager)
         }
+        .fullScreenCover(isPresented: $showingJoinGame) {
+            OnlineEntryView(
+                vm: vm,
+                playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
+                playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar,
+                autoShowJoin: true
+            )
+            .environmentObject(themeManager)
+        }
         .fullScreenCover(isPresented: $showingBluetooth) {
             BTEntryView(
                 playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
@@ -192,6 +290,11 @@ struct ModeSelectionView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
                 .environmentObject(themeManager)
+        }
+        .onChange(of: deepLink.pendingJoinCode) { _, code in
+            guard code != nil else { return }
+            // Auto-navigate to the join screen when a deep link arrives
+            showingJoinGame = true
         }
     }
 }
@@ -213,8 +316,12 @@ private struct BTEntryView: View {
                 playerAvatar: playerAvatar,
                 onGameReady: { vm in
                     btGame = vm
+                    TVDisplayManager.shared.activeGame = vm
                 }
             )
+            .onDisappear {
+                TVDisplayManager.shared.activeGame = nil
+            }
         }
     }
 }
@@ -225,6 +332,7 @@ private struct OnlineEntryView: View {
     @Bindable var vm: GameViewModel
     let playerName: String
     let playerAvatar: String
+    var autoShowJoin: Bool = false
     @State private var onlineGame: OnlineGameViewModel? = nil
 
     var body: some View {
@@ -235,6 +343,7 @@ private struct OnlineEntryView: View {
                 vm: vm,
                 playerName: playerName,
                 playerAvatar: playerAvatar,
+                autoShowJoin: autoShowJoin,
                 onGameReady: { myIndex, isHostVal, code, names, avatars in
                     onlineGame = OnlineGameViewModel(
                         myPlayerIndex: myIndex,
