@@ -42,11 +42,8 @@ struct OnlineGameView: View {
             case .roundComplete:
                 OnlineRoundCompleteView(game: game) {
                     guard game.isHost else { return }
-                    saveOnlineGameHistory()
-                    gameHistorySaved = false
                     Task { await game.startNextRound() }
                 } onQuit: {
-                    saveOnlineGameHistory()
                     game.cleanup()
                     dismiss()
                 }
@@ -129,6 +126,16 @@ struct OnlineGameView: View {
                 saveOnlineGameHistory()
             }
         }
+        // Re-attempt save if partner indices arrive after the gameOver phase transition.
+        // This covers the case where parseGameState publishes `phase` before `partner1Index`
+        // in the same @Observable batch, or where resolvePartners had stale allHands and
+        // the indices were later corrected by a follow-up snapshot.
+        .onChange(of: game.partner1Index) { _, newIdx in
+            if game.phase == .gameOver && newIdx >= 0 { saveOnlineGameHistory() }
+        }
+        .onChange(of: game.partner2Index) { _, newIdx in
+            if game.phase == .gameOver && newIdx >= 0 { saveOnlineGameHistory() }
+        }
         .overlay {
             // Guard: banner only valid while phase is roundComplete; stale state can't leak onto other screens
             if showRoundResultBanner && game.phase == .roundComplete {
@@ -164,11 +171,15 @@ struct OnlineGameView: View {
     }
 
     private func saveOnlineGameHistory() {
+        guard game.isHost else { return }
         guard !gameHistorySaved else { return }
         let finalScores = game.runningScores
         guard game.highBidderIndex >= 0,
               game.partner1Index >= 0,
-              game.partner2Index >= 0 else { return }
+              game.partner2Index >= 0 else {
+            ogLog.warning("saveOnlineGameHistory: deferred — bidder=\(game.highBidderIndex) p1=\(game.partner1Index) p2=\(game.partner2Index)")
+            return
+        }
         gameHistorySaved = true
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: {
@@ -189,21 +200,28 @@ struct OnlineGameView: View {
             for old in all.dropFirst(10) { modelContext.delete(old) }
         }
         try? modelContext.save()
-        let lastRound = HistoryRound(
-            roundNumber: game.roundNumber,
-            dealerIndex: game.dealerIndex,
-            bidderIndex: game.highBidderIndex,
-            bidAmount: game.highBid,
-            trumpSuit: game.trumpSuit,
-            callCard1: game.calledCard1,
-            callCard2: game.calledCard2,
-            partner1Index: game.partner1Index,
-            partner2Index: game.partner2Index,
-            offensePointsCaught: game.offensePoints,
-            defensePointsCaught: game.defensePoints,
-            runningScores: finalScores
-        )
         let capturedAISeats = game.aiSeats
+        // LB4: Use completedRounds which accumulates all rounds; fall back to a
+        // synthetic last-round record if the array is unexpectedly empty.
+        let roundsToSend: [HistoryRound]
+        if !game.completedRounds.isEmpty {
+            roundsToSend = game.completedRounds
+        } else {
+            roundsToSend = [HistoryRound(
+                roundNumber: game.roundNumber,
+                dealerIndex: game.dealerIndex,
+                bidderIndex: game.highBidderIndex,
+                bidAmount: game.highBid,
+                trumpSuit: game.trumpSuit,
+                callCard1: game.calledCard1,
+                callCard2: game.calledCard2,
+                partner1Index: game.partner1Index,
+                partner2Index: game.partner2Index,
+                offensePointsCaught: game.offensePoints,
+                defensePointsCaught: game.defensePoints,
+                runningScores: finalScores
+            )]
+        }
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    mode,
@@ -211,7 +229,7 @@ struct OnlineGameView: View {
                 finalScores: finalScores,
                 winnerIndex: winnerIndex,
                 aiSeats:     capturedAISeats,
-                rounds:      [lastRound]
+                rounds:      roundsToSend
             )
         }
     }
@@ -423,9 +441,10 @@ private struct OnlineCallingView: View {
                     // Called cards
                     VStack(spacing: 14) {
                         SectionHeader(title: "Call Cards (must not be in your hand)")
-                        callCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit)
+                        let handIds = Set(game.myHand.map(\.id))
+                        callCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit, handIds: handIds)
                         Divider().overlay(Comic.containerBorder)
-                        callCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit)
+                        callCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit, handIds: handIds)
 
                         if !game.callingValid {
                             let c1 = game.calledCard1Rank + game.calledCard1Suit
@@ -526,7 +545,7 @@ private struct OnlineCallingView: View {
         }
     }
 
-    private func callCardRow(label: String, rank: Binding<String>, suit: Binding<String>) -> some View {
+    private func callCardRow(label: String, rank: Binding<String>, suit: Binding<String>, handIds: Set<String>) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             // Top row: label + rank menu + combined preview
             HStack(spacing: 12) {
@@ -535,7 +554,8 @@ private struct OnlineCallingView: View {
                     .frame(width: 52, alignment: .leading)
 
                 Menu {
-                    ForEach(cardRanks, id: \.self) { r in
+                    // Exclude ranks whose combination with the current suit is in the bidder's hand
+                    ForEach(cardRanks.filter { !handIds.contains($0 + suit.wrappedValue) }, id: \.self) { r in
                         Button(r) { rank.wrappedValue = r }
                     }
                 } label: {
@@ -568,6 +588,7 @@ private struct OnlineCallingView: View {
                 ForEach(cardSuits, id: \.self) { s in
                     let isRed = s == "♥" || s == "♦"
                     let selected = suit.wrappedValue == s
+                    let blocked = handIds.contains(rank.wrappedValue + s)
                     Button {
                         HapticManager.impact(.light)
                         suit.wrappedValue = s
@@ -575,11 +596,12 @@ private struct OnlineCallingView: View {
                         VStack(spacing: 3) {
                             Text(s)
                                 .font(.system(size: 28))
-                                .foregroundStyle(isRed ? Color.defenseRose : Color.adaptivePrimary)
+                                .foregroundStyle((isRed ? Color.defenseRose : Color.adaptivePrimary)
+                                    .opacity(blocked ? 0.25 : 1.0))
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(selected ? Color.adaptiveSubtle : Color.adaptiveDivider)
+                        .background(blocked ? Color.adaptiveDivider.opacity(0.4) : (selected ? Color.adaptiveSubtle : Color.adaptiveDivider))
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -588,6 +610,7 @@ private struct OnlineCallingView: View {
                         .scaleEffect(selected ? 1.04 : 1.0)
                     }
                     .buttonStyle(BouncyButton())
+                    .disabled(blocked)
                 }
             }
         }
@@ -651,50 +674,56 @@ private struct OnlinePlayingView: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 10) {
                 // Player role cards row
-                HStack(spacing: 5) {
-                    ForEach(0..<6, id: \.self) { i in
-                        let isActive = i == game.currentActionPlayer
-                        let canRemove = game.isHost
-                            && i != game.myPlayerIndex
-                            && !game.aiSeats.contains(i)
-                        ZStack(alignment: .top) {
-                            AvatarRoleCard(
-                                avatar: game.playerAvatar(i),
-                                name: game.playerName(i),
-                                role: resolveAvatarRole(
-                                    playerIndex: i,
-                                    bidderIndex: game.highBidderIndex,
-                                    revealedPartner1: game.revealedPartner1Index >= 0
-                                        ? game.revealedPartner1Index : nil,
-                                    revealedPartner2: game.revealedPartner2Index >= 0
-                                        ? game.revealedPartner2Index : nil,
-                                    isRoundComplete: false
-                                )
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(
-                                        isActive ? Color(red: 0.29, green: 0.87, blue: 0.50) : Color.clear,
-                                        lineWidth: 2.5
+                GeometryReader { avatarGeo in
+                    let chipW = (avatarGeo.size.width - 32) / 6
+                    HStack(spacing: 0) {
+                        ForEach(0..<6, id: \.self) { i in
+                            let isActive = i == game.currentActionPlayer
+                            let canRemove = game.isHost
+                                && i != game.myPlayerIndex
+                                && !game.aiSeats.contains(i)
+                            ZStack(alignment: .top) {
+                                AvatarRoleCard(
+                                    avatar: game.playerAvatar(i),
+                                    name: game.playerName(i),
+                                    role: resolveAvatarRole(
+                                        playerIndex: i,
+                                        bidderIndex: game.highBidderIndex,
+                                        revealedPartner1: game.revealedPartner1Index >= 0
+                                            ? game.revealedPartner1Index : nil,
+                                        revealedPartner2: game.revealedPartner2Index >= 0
+                                            ? game.revealedPartner2Index : nil,
+                                        isRoundComplete: false
                                     )
-                            )
-                            if isActive {
-                                TurnArrow()
-                                    .fill(Color(red: 0.29, green: 0.87, blue: 0.50))
-                                    .frame(width: 8, height: 6)
-                                    .offset(y: -8)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .strokeBorder(
+                                            isActive ? Color(red: 0.29, green: 0.87, blue: 0.50) : Color.clear,
+                                            lineWidth: 2.5
+                                        )
+                                )
+                                if isActive {
+                                    TurnArrow()
+                                        .fill(Color(red: 0.29, green: 0.87, blue: 0.50))
+                                        .frame(width: 8, height: 6)
+                                        .offset(y: -8)
+                                }
+                            }
+                            .frame(maxWidth: chipW)
+                            .clipped()
+                            .onLongPressGesture {
+                                if canRemove { removeTargetIndex = i }
                             }
                         }
-                        .onLongPressGesture {
-                            if canRemove { removeTargetIndex = i }
-                        }
                     }
+                    .padding(.horizontal, 16)
+                    .id("avatars-\(game.revealedPartner1Index)-\(game.revealedPartner2Index)")
+                    .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
+                    .animation(.easeInOut(duration: 0.2), value: game.currentActionPlayer)
                 }
-                .id("avatars-\(game.revealedPartner1Index)-\(game.revealedPartner2Index)")
-                .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
-                .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
-                .animation(.easeInOut(duration: 0.2), value: game.currentActionPlayer)
-                .padding(.horizontal, 8)
+                .frame(height: 88)
                 .padding(.top, 44)
 
                 // Waiting banner
@@ -713,7 +742,7 @@ private struct OnlinePlayingView: View {
                 .padding(.horizontal, 12)
 
                 // Current hand box
-                onlineCurrentHandBox(geo: geo)
+                onlineCurrentHandBox()
                     .padding(.horizontal, 12)
 
                 // Last hand strip
@@ -830,7 +859,7 @@ private struct OnlinePlayingView: View {
                             .padding(.horizontal, 10)
                     }
 
-                    onlineCurrentHandBox(geo: geo)
+                    onlineCurrentHandBox()
                         .padding(.horizontal, 10)
 
                     if !game.message.isEmpty {
@@ -904,7 +933,7 @@ private struct OnlinePlayingView: View {
         .animation(.easeInOut(duration: 0.3), value: game.currentActionPlayer)
     }
 
-    private func onlineCurrentHandBox(geo: GeometryProxy) -> some View {
+    private func onlineCurrentHandBox() -> some View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
                 LiveDot()
@@ -933,45 +962,48 @@ private struct OnlinePlayingView: View {
                     .onAppear { waitPulse = true }
                     .onDisappear { waitPulse = false }
             } else {
-                let gap: CGFloat = 6
-                let availW = geo.size.width - 32
-                let cardWidth = (availW - 5 * gap) / 6
-                let cardHeight = cardWidth * (78.0 / 56.0)
-                let corner = cardWidth * (12.0 / 56.0)
-                HStack(spacing: gap) {
-                    ForEach(game.currentTrick, id: \.card.id) { entry in
-                        let isWinning = entry.playerIndex == game.currentTrickWinnerIndex
-                        VStack(spacing: 4) {
-                            PlayingCardView(card: entry.card, width: cardWidth)
-                                .overlay {
-                                    if isWinning {
-                                        RoundedRectangle(cornerRadius: corner, style: .continuous)
-                                            .strokeBorder(Color.masterGold, lineWidth: 2)
-                                            .shadow(color: .masterGold.opacity(0.7), radius: 8)
+                GeometryReader { inner in
+                    let count = max(1, game.currentTrick.count)
+                    let cardW = onlineAdaptiveCardWidth(available: inner.size.width - 28, count: count)
+                    let corner = cardW * (12.0 / 56.0)
+                    let spacing: CGFloat = count > 1
+                        ? (inner.size.width - 28 - CGFloat(count) * cardW) / CGFloat(count - 1)
+                        : 0
+                    HStack(spacing: spacing) {
+                        ForEach(game.currentTrick, id: \.card.id) { entry in
+                            let isWinning = entry.playerIndex == game.currentTrickWinnerIndex
+                            VStack(spacing: 4) {
+                                PlayingCardView(card: entry.card, width: cardW)
+                                    .overlay {
+                                        if isWinning {
+                                            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                                                .strokeBorder(Color.masterGold, lineWidth: 2)
+                                                .shadow(color: .masterGold.opacity(0.7), radius: 8)
+                                        }
                                     }
-                                }
-                                .scaleEffect(isWinning ? 1.06 : 1.0)
-                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isWinning)
-                            Text(String(game.playerName(entry.playerIndex).prefix(5)))
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundStyle(isWinning ? Color.masterGold : Color.white)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .frame(minWidth: 44)
-                                .background(Color.black.opacity(0.5))
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    .scaleEffect(isWinning ? 1.06 : 1.0)
+                                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isWinning)
+                                Text(String(game.playerName(entry.playerIndex).prefix(5)))
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(isWinning ? Color.masterGold : Color.white)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .frame(maxWidth: cardW)
+                                    .background(Color.black.opacity(0.5))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            }
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.4).combined(with: .opacity),
+                                removal: .opacity
+                            ))
                         }
-                        .frame(width: cardWidth)
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.4).combined(with: .opacity),
-                            removal: .opacity
-                        ))
                     }
+                    .padding(.horizontal, 14)
+                    .animation(.spring(response: 0.38, dampingFraction: 0.72), value: game.currentTrick.count)
                 }
-                .frame(height: cardHeight + 28)
-                .animation(.spring(response: 0.38, dampingFraction: 0.72), value: game.currentTrick.count)
+                .frame(height: onlineAdaptiveHandHeight() + 24)
             }
         }
         .currentHandStage()
@@ -1389,8 +1421,7 @@ private struct OnlineRoundCompleteView: View {
                 // Bar chart — replaces old running scores leaderboard
                 PlayerScoreBarChart(
                     players: sortedEntries,
-                    title: "GAME SCORE",
-                    targetScore: targetScore
+                    title: "GAME SCORE"
                 )
                 .environmentObject(themeManager)
                 .padding(.horizontal, 16)

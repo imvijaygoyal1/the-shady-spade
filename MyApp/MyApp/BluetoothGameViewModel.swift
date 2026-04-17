@@ -56,6 +56,9 @@ final class BluetoothGameViewModel: NSObject {
     var wonPointsPerPlayer: [Int] = Array(repeating: 0, count: 6)
     var runningScores: [Int] = Array(repeating: 0, count: 6)
     var message: String = ""
+    /// Accumulates one HistoryRound per completed round — used by LB4 fix so
+    /// multi-round games report all rounds to the leaderboard, not just the last.
+    var completedRounds: [HistoryRound] = []
     var myHand: [Card] = []
     var myHandSorted: [Card] { myHand.sortedBySuit() }
 
@@ -888,6 +891,26 @@ final class BluetoothGameViewModel: NSObject {
 
         if newPhase == .bidding && newCurrentActionPlayer == myPlayerIndex {
             humanBidAmount = Double(max(130, highBid + 5))
+        }
+
+        // LB4: Accumulate a HistoryRound whenever a round ends so the leaderboard
+        // receives stats for every round, not just the last one.
+        if (newPhase == .roundComplete || newPhase == .gameOver),
+           completedRounds.last?.roundNumber != roundNumber {
+            completedRounds.append(HistoryRound(
+                roundNumber: roundNumber,
+                dealerIndex: dealerIndex,
+                bidderIndex: highBidderIndex >= 0 ? highBidderIndex : 0,
+                bidAmount: highBid,
+                trumpSuit: trumpSuit,
+                callCard1: calledCard1,
+                callCard2: calledCard2,
+                partner1Index: partner1Index >= 0 ? partner1Index : 0,
+                partner2Index: partner2Index >= 0 ? partner2Index : 0,
+                offensePointsCaught: offensePoints,
+                defensePointsCaught: defensePoints,
+                runningScores: runningScores
+            ))
         }
     }
 

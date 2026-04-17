@@ -40,11 +40,8 @@ struct BluetoothGameView: View {
             case .roundComplete:
                 BTRoundCompleteView(game: game) {
                     guard game.isHost else { return }
-                    saveBTGameHistory()
-                    gameHistorySaved = false
                     Task { await game.startNextRound() }
                 } onQuit: {
-                    saveBTGameHistory()
                     game.cleanup()
                     dismiss()
                 }
@@ -98,6 +95,13 @@ struct BluetoothGameView: View {
                 saveBTGameHistory()
             }
         }
+        // Re-attempt save if partner indices arrive after the gameOver phase transition.
+        .onChange(of: game.partner1Index) { _, newIdx in
+            if game.phase == .gameOver && newIdx >= 0 { saveBTGameHistory() }
+        }
+        .onChange(of: game.partner2Index) { _, newIdx in
+            if game.phase == .gameOver && newIdx >= 0 { saveBTGameHistory() }
+        }
         .overlay {
             if showRoundResultBanner && game.phase == .roundComplete {
                 BTRoundResultBanner(game: game) {
@@ -144,11 +148,15 @@ struct BluetoothGameView: View {
     }
 
     private func saveBTGameHistory() {
+        guard game.isHost else { return }
         guard !gameHistorySaved else { return }
         let finalScores = game.runningScores
         guard game.highBidderIndex >= 0,
               game.partner1Index >= 0,
-              game.partner2Index >= 0 else { return }
+              game.partner2Index >= 0 else {
+            btLog.warning("saveBTGameHistory: deferred — bidder=\(game.highBidderIndex) p1=\(game.partner1Index) p2=\(game.partner2Index)")
+            return
+        }
         gameHistorySaved = true
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: {
@@ -168,21 +176,28 @@ struct BluetoothGameView: View {
             for old in all.dropFirst(10) { modelContext.delete(old) }
         }
         try? modelContext.save()
-        let lastRound = HistoryRound(
-            roundNumber: game.roundNumber,
-            dealerIndex: game.dealerIndex,
-            bidderIndex: game.highBidderIndex,
-            bidAmount: game.highBid,
-            trumpSuit: game.trumpSuit,
-            callCard1: game.calledCard1,
-            callCard2: game.calledCard2,
-            partner1Index: game.partner1Index,
-            partner2Index: game.partner2Index,
-            offensePointsCaught: game.offensePoints,
-            defensePointsCaught: game.defensePoints,
-            runningScores: finalScores
-        )
         let capturedAISeats = game.aiSeats
+        // LB4: Use completedRounds which accumulates all rounds; fall back to a
+        // synthetic last-round record if the array is unexpectedly empty.
+        let roundsToSend: [HistoryRound]
+        if !game.completedRounds.isEmpty {
+            roundsToSend = game.completedRounds
+        } else {
+            roundsToSend = [HistoryRound(
+                roundNumber: game.roundNumber,
+                dealerIndex: game.dealerIndex,
+                bidderIndex: game.highBidderIndex,
+                bidAmount: game.highBid,
+                trumpSuit: game.trumpSuit,
+                callCard1: game.calledCard1,
+                callCard2: game.calledCard2,
+                partner1Index: game.partner1Index,
+                partner2Index: game.partner2Index,
+                offensePointsCaught: game.offensePoints,
+                defensePointsCaught: game.defensePoints,
+                runningScores: finalScores
+            )]
+        }
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    "Bluetooth",
@@ -190,7 +205,7 @@ struct BluetoothGameView: View {
                 finalScores: finalScores,
                 winnerIndex: winnerIndex,
                 aiSeats:     capturedAISeats,
-                rounds:      [lastRound]
+                rounds:      roundsToSend
             )
         }
     }
@@ -392,9 +407,10 @@ struct BTCallingView: View {
                     // Called cards
                     VStack(spacing: 14) {
                         SectionHeader(title: "Call Cards (must not be in your hand)")
-                        btCallCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit)
+                        let handIds = Set(game.myHand.map(\.id))
+                        btCallCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit, handIds: handIds)
                         Divider().overlay(Comic.containerBorder)
-                        btCallCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit)
+                        btCallCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit, handIds: handIds)
 
                         if !game.callingValid {
                             let c1 = game.calledCard1Rank + game.calledCard1Suit
@@ -493,7 +509,7 @@ struct BTCallingView: View {
         }
     }
 
-    private func btCallCardRow(label: String, rank: Binding<String>, suit: Binding<String>) -> some View {
+    private func btCallCardRow(label: String, rank: Binding<String>, suit: Binding<String>, handIds: Set<String>) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 Text(label)
@@ -501,7 +517,7 @@ struct BTCallingView: View {
                     .frame(width: 52, alignment: .leading)
 
                 Menu {
-                    ForEach(cardRanks, id: \.self) { r in
+                    ForEach(cardRanks.filter { !handIds.contains($0 + suit.wrappedValue) }, id: \.self) { r in
                         Button(r) { rank.wrappedValue = r }
                     }
                 } label: {
@@ -533,6 +549,7 @@ struct BTCallingView: View {
                 ForEach(cardSuits, id: \.self) { s in
                     let isRed = s == "♥" || s == "♦"
                     let selected = suit.wrappedValue == s
+                    let blocked = handIds.contains(rank.wrappedValue + s)
                     Button {
                         HapticManager.impact(.light)
                         suit.wrappedValue = s
@@ -545,6 +562,7 @@ struct BTCallingView: View {
                         .padding(.vertical, 10)
                         .background(selected ? Color.adaptiveSubtle : Color.adaptiveDivider)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .opacity(blocked ? 0.25 : 1.0)
                         .overlay {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .strokeBorder(selected ? (isRed ? Color.defenseRose : Color.adaptivePrimary).opacity(0.65) : Color.clear, lineWidth: 1.5)
@@ -552,6 +570,7 @@ struct BTCallingView: View {
                         .scaleEffect(selected ? 1.04 : 1.0)
                     }
                     .buttonStyle(BouncyButton())
+                    .disabled(blocked)
                 }
             }
         }
@@ -853,7 +872,8 @@ struct BTPlayingView: View {
                     .onDisappear { waitPulse = false }
             } else {
                 let gap: CGFloat = 6
-                let availW = geo.size.width - 32
+                // Screen width minus: outer .padding(.horizontal,12)×2 + currentHandStage inner .padding(.horizontal,14)×2 = 52
+                let availW = geo.size.width - 52
                 let cardWidth = (availW - 5 * gap) / 6
                 let cardHeight = cardWidth * (78.0 / 56.0)
                 let corner = cardWidth * (12.0 / 56.0)
@@ -878,21 +898,25 @@ struct BTPlayingView: View {
                                 .truncationMode(.tail)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .frame(minWidth: 44)
+                                .frame(maxWidth: cardWidth)
                                 .background(Color.black.opacity(0.5))
                                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         }
                         .frame(width: cardWidth)
+                        .clipped()
                         .transition(.asymmetric(
                             insertion: .scale(scale: 0.4).combined(with: .opacity),
                             removal: .opacity
                         ))
                     }
                 }
-                .frame(height: cardHeight + 28)
+                // Hard-cap HStack width so spring animation overshoot can't push the container wider
+                .frame(maxWidth: availW, minHeight: cardHeight + 28, maxHeight: cardHeight + 28)
                 .animation(.spring(response: 0.38, dampingFraction: 0.72), value: game.currentTrick.count)
             }
         }
+        // Constrain VStack to available content width so it never stretches the comicContainer border
+        .frame(maxWidth: geo.size.width - 52)
         .currentHandStage()
     }
 
@@ -1194,8 +1218,7 @@ struct BTRoundCompleteView: View {
 
                 PlayerScoreBarChart(
                     players: sortedEntries,
-                    title: "GAME SCORE",
-                    targetScore: targetScore
+                    title: "GAME SCORE"
                 )
                 .environmentObject(themeManager)
                 .padding(.horizontal, 16)

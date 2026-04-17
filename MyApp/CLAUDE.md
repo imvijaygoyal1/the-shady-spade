@@ -3,6 +3,11 @@
 > **IMPORTANT FOR CLAUDE:** After every code change to this project, update this file to reflect the change. New file → add to File Map. New component → add to Styles section. Changed pattern → update Key Patterns. Version bump → update App Identity. This file must always stay current.
 > **RELEASE TRACKING:** v1.6 (build 7) submitted to App Store on April 16, 2026 — under review. Log all new changes under a **v1.7 Changelog** section. Do not increment the version number until the user confirms v1.7 is ready to submit.
 
+## v1.7 Changelog
+> Changes made after v1.6 App Store submission (April 16, 2026). Add entries here as changes are implemented.
+
+- [2026-04-16] Leaderboard fix LB4 — Online/BT always sent `roundCount = 1` (only the last round) because `saveOnlineGameHistory`/`saveBTGameHistory` built a single `HistoryRound` at game-over and passed `rounds: [lastRound]`. Added `var completedRounds: [HistoryRound] = []` to `OnlineGameViewModel` and `BluetoothGameViewModel`. In both `parseGameState` (Online) and `applyGameState` (BT), a `HistoryRound` is now appended each time `phase` transitions to `.roundComplete` or `.gameOver`, guarded by `completedRounds.last?.roundNumber != roundNumber` to prevent double-appends. Both save functions now pass `rounds: game.completedRounds` (with a single-round fallback if the array is empty). `completedRounds` is never reset between rounds — it accumulates for the lifetime of the game session. (`OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`)
+
 ## v1.6 Changelog
 > Changes made after v1.5 App Store submission (April 5, 2026). Add entries here as changes are implemented.
 
