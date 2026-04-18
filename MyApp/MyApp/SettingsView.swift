@@ -5,98 +5,10 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) var colorScheme
-    @State private var selectedMode: ColorScheme = .dark
 
     var body: some View {
         NavigationStack {
             List {
-
-                // ── APPEARANCE ────────────────────────────────────────
-                Section(header: Text("APPEARANCE")) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Swipe to explore themes")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(themeManager.availableThemes, id: \.id) { theme in
-                                    let isSelected = themeManager.currentTheme.id == theme.id
-                                    Button {
-                                        HapticManager.impact(.light)
-                                        themeManager.applyTheme(theme)
-                                        if theme.fixedColorScheme == nil {
-                                            selectedMode = themeManager.colorScheme
-                                        }
-                                    } label: {
-                                        VStack(spacing: 6) {
-                                            Text(theme.thumbnail)
-                                                .font(.system(size: 28))
-                                            Text(theme.name)
-                                                .font(.caption.weight(.medium))
-                                                .foregroundColor(isSelected ? .accentColor : .primary)
-                                                .multilineTextAlignment(.center)
-                                                .lineLimit(2)
-                                                .minimumScaleFactor(0.75)
-                                                .frame(width: 76)
-                                            if theme.id == "sunset_social" {
-                                                Text("FEATURED")
-                                                    .font(.system(size: 8, weight: .bold))
-                                                    .foregroundColor(.accentColor.opacity(0.7))
-                                                    .kerning(1.2)
-                                            }
-                                        }
-                                        .frame(width: 88, height: 96)
-                                        .background(Color(.secondarySystemGroupedBackground))
-                                        .cornerRadius(12)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(
-                                                    isSelected ? Color.accentColor : Color(.separator),
-                                                    lineWidth: isSelected ? 2 : 0.5
-                                                )
-                                        )
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: themeManager.currentTheme.id)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-                    .padding(.vertical, 8)
-                }
-
-                // ── DISPLAY MODE ──────────────────────────────────────
-                Section(header: Text("DISPLAY MODE")) {
-                    if themeManager.currentTheme.fixedColorScheme == nil {
-                        HStack(spacing: 14) {
-                            Image(systemName: selectedMode == .dark ? "moon.fill" : "sun.max.fill")
-                                .foregroundColor(.accentColor)
-                                .frame(width: 24)
-                            Text(selectedMode == .dark ? "Dark Mode" : "Light Mode")
-                                .foregroundColor(.primary)
-                            Spacer()
-                            Picker("", selection: $selectedMode) {
-                                Text("Dark").tag(ColorScheme.dark)
-                                Text("Light").tag(ColorScheme.light)
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(width: 120)
-                            .onChange(of: selectedMode) { _, newMode in
-                                themeManager.updateColorScheme(newMode)
-                            }
-                        }
-                    } else {
-                        HStack(spacing: 14) {
-                            Image(systemName: themeManager.effectiveScheme == .dark ? "moon.fill" : "sun.max.fill")
-                                .foregroundColor(.accentColor)
-                                .frame(width: 24)
-                            Text("Fixed colour mode")
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
 
                 // ── HOW TO PLAY ───────────────────────────────────────
                 Section(header: Text("HOW TO PLAY")) {
@@ -153,12 +65,6 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.large)
             .tint(themeManager.currentTheme.colours(for: colorScheme).accentColor)
         }
-        .onAppear {
-            selectedMode = themeManager.colorScheme
-        }
-        .onReceive(themeManager.$colorScheme) { scheme in
-            selectedMode = scheme
-        }
     }
 }
 
@@ -176,7 +82,7 @@ private struct HowToPlayView: View {
 
             The goal is to capture as many points as possible by winning hands (tricks). Each round one player wins the bid, declares trump, and secretly calls 2 partner cards to form their team.
 
-            The round ends when all 8 hands are played. Scores are calculated and the next round begins.
+            The round ends when all 8 hands are played. Scores are calculated and the next round begins. The first team whose bidder reaches 500 points wins the game.
             """
         ),
         HowToPlayTopic(
@@ -235,7 +141,7 @@ private struct HowToPlayView: View {
 
             2. Call 2 Cards — choose any 2 cards not in your own hand. The players holding those cards become your secret partners.
 
-            You cannot call a card that is already in your hand. Choose cards strategically — call high-value cards likely held by strong players.
+            Cards already in your hand are automatically hidden from the selection — the app prevents you from accidentally calling a card you already hold. Choose cards strategically — call high-value cards likely held by strong players.
 
             Partners are only revealed when they play their called card. Until then the teams remain secret from everyone.
             """
@@ -256,18 +162,26 @@ private struct HowToPlayView: View {
             · Each Defense player scores: 0 pts
             · Defense team display: 250 minus the bid amount (shown for reference only — not added to any player's total)
 
-            Scores accumulate across rounds. Tap any bar in the Game Score chart to see a player's full score history.
+            Scores accumulate across rounds. The first bidder to reach 500 points wins the game. Tap any bar in the score chart to see a player's round-by-round history.
             """
         ),
         HowToPlayTopic(
             emoji: "🎮",
             title: "Game Modes",
             content: """
-            Play Solo — Face 5 AI opponents. AI players are assigned unique character avatars (Card Bot, Brain Bot, The Gambler, Foxy, Shell Boss, Volt) automatically. Great for practice.
+            Solo — Face 5 AI opponents on your device. Great for practice. AI players are assigned unique character avatars (Card Bot, Brain Bot, The Gambler, Foxy, Shell Boss, Volt) automatically.
 
-            Multiplayer — Host a game and share the 6-character room code with up to 5 friends. AI players fill empty slots until humans join. Humans replace AI slots as they join via code or QR scan.
+            Online — Host a game and share the 6-character room code with up to 5 friends over the internet. AI players fill empty slots until humans join; they are replaced as real players join via code or QR scan.
 
-            Joining — Scan the QR code with your iPhone Camera app to join instantly, even when the app is closed. Or enter the room code manually on the Join screen.
+            Bluetooth / Local — Play with friends in the same room over Bluetooth or local Wi-Fi (no internet required). Uses Apple's Multipeer Connectivity. Host a game or join one nearby — no room code needed.
+
+            TV Dashboard (Bluetooth) — When hosting a Bluetooth game, tap the TV icon in the lobby to get a local web URL and QR code. Open that URL in any browser on the same Wi-Fi to display a live game board on a TV or shared screen. No internet connection required.
+
+            Pass & Play — Everyone shares one device, passing it around for their turn. Ideal when all players are in the same room and prefer not to use Bluetooth. Leaderboard stats are recorded at game end.
+
+            Join a Game — Have a room code? Tap "Join a Game" on the home screen to go straight to code entry.
+
+            Joining — In the join screen, tap the QR icon to open the in-app scanner and point it at the host's QR code. Or open your iPhone Camera app and scan the QR code to launch straight into the game — this works even when the app is closed. You can also type the 6-character room code manually.
 
             The host controls when each round starts. Non-host players see a "Waiting for host" indicator between rounds.
             """
@@ -280,15 +194,7 @@ private struct HowToPlayView: View {
 
             You can pick any avatar including AI character avatars for yourself during setup.
 
-            Themes — Choose from 6 visual themes in Settings:
-            · 🌅 Sunset Social — midnight gold (featured)
-            · 💥 Comic Book — bold and energetic
-            · 🌙 Minimal Dark — always dark
-            · ☀️ Minimal Light — always light
-            · 🎰 Casino Night — classic green felt
-            · 🎰 Casino Royale — dark green felt with gold serif style
-
-            Sunset Social and Comic Book support both dark and light display modes. The other 4 themes have fixed colour modes.
+            Theme — The app uses the Casino Night theme: classic casino green felt with gold accents. Dark mode only.
             """
         ),
     ]

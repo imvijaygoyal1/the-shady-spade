@@ -5,21 +5,11 @@ import SwiftUI
 final class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
 
-    @Published var currentTheme: any AppTheme = SunsetSocialTheme()
+    @Published var currentTheme: any AppTheme = ClassicGreenTheme()
     @Published var colorScheme: ColorScheme = .dark
 
     let availableThemes: [any AppTheme] = [
-        SunsetSocialTheme(),
-        ComicBookTheme(),
-        MinimalDarkTheme(),
-        MinimalLightTheme(),
         ClassicGreenTheme(),
-        CasinoRoyaleTheme(),
-        MidnightNoirTheme(),
-        RoyalCrimsonTheme(),
-        DiamondClubTheme(),
-        BaroqueGoldTheme(),
-        NeonUndergroundTheme(),
     ]
 
     // MARK: - Convenience accessors
@@ -81,8 +71,8 @@ final class ThemeManager: ObservableObject {
     }
 
     func loadSavedTheme() {
-        let savedId = UserDefaults.standard.string(forKey: "selectedTheme") ?? "sunset_social"
-        let theme = availableThemes.first { $0.id == savedId } ?? SunsetSocialTheme()
+        let savedId = UserDefaults.standard.string(forKey: "selectedTheme") ?? "classic_green"
+        let theme = availableThemes.first { $0.id == savedId } ?? ClassicGreenTheme()
         currentTheme = theme
 
         if let fixed = theme.fixedColorScheme {
