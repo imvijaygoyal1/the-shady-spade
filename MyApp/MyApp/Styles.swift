@@ -1826,51 +1826,158 @@ struct BiddingTwoColumnLayout: View {
     }
 }
 
-// MARK: - Landscape Mode Selection Layout
+// MARK: - LandscapeSplitLayout
 
-struct LandscapeModeSelectionLayout<Cards: View>: View {
-    let cards: Cards
+struct LandscapeSplitLayout<Left: View, Right: View>: View {
+    var leftFraction: CGFloat = 0.34
+    let left: Left
+    let right: Right
 
-    init(@ViewBuilder cards: () -> Cards) {
-        self.cards = cards()
+    init(
+        leftFraction: CGFloat = 0.34,
+        @ViewBuilder left: () -> Left,
+        @ViewBuilder right: () -> Right
+    ) {
+        self.leftFraction = leftFraction
+        self.left = left()
+        self.right = right()
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            // LEFT — branding
-            VStack(spacing: 10) {
-                Image(systemName: "suit.spade.fill")
-                    .font(.system(size: 42, weight: .black))
-                    .foregroundStyle(Comic.yellow)
-                    .shadow(color: Comic.black, radius: 0, x: 2, y: 2)
-                Text("The Shady Spade")
-                    .font(.system(size: 20, weight: .black, design: .rounded))
-                    .foregroundStyle(Comic.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .shadow(color: Comic.black.opacity(0.15), radius: 0, x: 1, y: 1)
-                Text("Choose a game mode")
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Comic.textSecondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 16)
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                left
+                    .frame(width: geo.size.width * leftFraction)
+                    .background(Comic.containerBG)
 
-            // Divider
-            Rectangle()
-                .fill(Comic.black.opacity(0.10))
-                .frame(width: 1.5)
-                .padding(.vertical, 16)
+                Rectangle()
+                    .fill(Comic.containerBorder)
+                    .frame(width: 1)
 
-            // RIGHT — cards
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 8) {
-                    cards
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                right
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Comic.bg)
             }
-            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - AdaptiveLayout
+
+struct AdaptiveLayout<Portrait: View, LandscapeLeft: View, LandscapeRight: View>: View {
+    let portrait: Portrait
+    let landscapeLeft: LandscapeLeft
+    let landscapeRight: LandscapeRight
+
+    init(
+        @ViewBuilder portrait: () -> Portrait,
+        @ViewBuilder landscapeLeft: () -> LandscapeLeft,
+        @ViewBuilder landscapeRight: () -> LandscapeRight
+    ) {
+        self.portrait = portrait()
+        self.landscapeLeft = landscapeLeft()
+        self.landscapeRight = landscapeRight()
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let isLandscape = geo.size.width > geo.size.height
+            let isWide = geo.size.width > 700
+            let leftFraction: CGFloat = isWide ? 0.28 : 0.34
+
+            if isLandscape {
+                LandscapeSplitLayout(
+                    leftFraction: leftFraction,
+                    left: { landscapeLeft },
+                    right: { landscapeRight }
+                )
+            } else {
+                portrait
+            }
+        }
+        .ignoresSafeArea()
+    }
+}
+
+// MARK: - BrandingPanel
+
+struct BrandingPanel: View {
+    var subtitle: String = "Choose a game mode"
+    var showButtons: Bool = true
+    var onTrophy: (() -> Void)? = nil
+    var onSettings: (() -> Void)? = nil
+
+    @ObservedObject private var theme = ThemeManager.shared
+
+    var body: some View {
+        GeometryReader { geo in
+            let isWide = geo.size.width > 240
+            let spadeSize: CGFloat = isWide ? 58 : 38
+            let titleSize: CGFloat = isWide ? 26 : 17
+            let subtitleSize: CGFloat = isWide ? 13 : 9.5
+            let buttonSize: CGFloat = isWide ? 40 : 30
+            let iconSize: CGFloat = isWide ? 17 : 13
+            let hPad: CGFloat = isWide ? 18 : 12
+            let vPad: CGFloat = isWide ? 16 : 10
+
+            ZStack(alignment: .top) {
+                VStack(spacing: isWide ? 10 : 6) {
+                    Spacer()
+
+                    Text("♠")
+                        .font(.system(size: spadeSize, weight: .black))
+                        .foregroundColor(Comic.yellow)
+                        .shadow(color: .black.opacity(0.6), radius: 0, x: 0, y: 3)
+
+                    Text("The Shady\nSpade")
+                        .font(.system(size: titleSize, weight: .black))
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(Comic.textPrimary)
+
+                    Text(subtitle)
+                        .font(.system(size: subtitleSize, weight: .bold))
+                        .foregroundColor(Comic.yellow)
+                        .opacity(0.85)
+
+                    Spacer()
+                }
+
+                Divider()
+                    .background(Comic.containerBorder)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+
+                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
+                    .font(.system(size: isWide ? 11 : 8.5))
+                    .foregroundColor(Comic.textSecondary.opacity(0.4))
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, isWide ? 10 : 7)
+
+                if showButtons {
+                    HStack {
+                        Button(action: { onTrophy?() }) {
+                            Image(systemName: "trophy.fill")
+                                .font(.system(size: iconSize))
+                                .foregroundColor(Comic.yellow)
+                                .frame(width: buttonSize, height: buttonSize)
+                                .background(Comic.containerBorder.opacity(0.4))
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Comic.containerBorder, lineWidth: 1))
+                        }
+                        Spacer()
+                        Button(action: { onSettings?() }) {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: iconSize))
+                                .foregroundColor(Comic.yellow)
+                                .frame(width: buttonSize, height: buttonSize)
+                                .background(Comic.containerBorder.opacity(0.4))
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Comic.containerBorder, lineWidth: 1))
+                        }
+                    }
+                    .padding(.horizontal, hPad)
+                    .padding(.top, vPad)
+                }
+            }
+        }
     }
 }
