@@ -128,7 +128,7 @@ final class BluetoothGameViewModel: NSObject {
 
     // MARK: - Computed
 
-    var isMyTurn: Bool { myPlayerIndex == currentActionPlayer && phase == .playing }
+    var isMyTurn: Bool { myPlayerIndex == currentActionPlayer }
 
     var humanMinBid: Int { max(130, highBid + 5) }
     var humanMustPass: Bool { humanMinBid > 250 }

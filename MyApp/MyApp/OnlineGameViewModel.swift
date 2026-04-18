@@ -1006,7 +1006,15 @@ final class OnlineGameViewModel {
         try? await Task.sleep(nanoseconds: delay)
         // Verify state hasn't changed during the sleep — another snapshot may have
         // advanced the turn to a different player or a different phase.
-        guard currentActionPlayer == seat, phase == capturedPhase else { return }
+        // If the guard fires but it's still an AI's turn in an active phase, re-trigger
+        // so a stale snapshot can't permanently freeze the AI (mirrors BT recovery path).
+        let activePhases: [OnlineGamePhase] = [.bidding, .calling, .playing]
+        guard currentActionPlayer == seat, phase == capturedPhase else {
+            if aiSeats.contains(currentActionPlayer) && activePhases.contains(phase) {
+                await processAITurnIfNeeded()
+            }
+            return
+        }
         switch capturedPhase {
         case .bidding:
             let canPass = highBid > 0
