@@ -67,6 +67,9 @@ final class ComputerGameViewModel {
     // Multi-human support
     var humanPlayerIndices: [Int] = [0]
     var currentHumanPlayerIndex: Int = 0
+    /// Set at init time — true only for Pass & Play games. Never inferred from
+    /// humanPlayerIndices.count at runtime to avoid the #2 branch-mismatch bug.
+    var isPassAndPlay: Bool = false
     var isPassingDevice: Bool = false
     var passingDeviceToIndex: Int = -1
     private var confirmDeviceContinuation: CheckedContinuation<Void, Never>?
@@ -152,6 +155,7 @@ final class ComputerGameViewModel {
     /// Custom game init — 1–5 human seats share one device; AI auto-fills remaining.
     init(humanSeats: [Int], allNames: [String], allAvatars: [String], dealerIndex: Int, roundNumber: Int) {
         self.humanPlayerIndices = humanSeats
+        self.isPassAndPlay = humanSeats.count > 1
         self.currentHumanPlayerIndex = humanSeats.first ?? 0
         self._allPlayerNames = allNames
         self._allPlayerAvatars = allAvatars
@@ -512,7 +516,7 @@ final class ComputerGameViewModel {
 
             // Brief pause so SwiftUI renders the 6th card before resolveTrick() fires.
             // Pass & Play uses 1s (multiple people at the table); solo uses 0.4s.
-            if humanPlayerIndices.count > 1 {
+            if isPassAndPlay {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             } else {
                 try? await Task.sleep(nanoseconds: 400_000_000)
@@ -530,16 +534,13 @@ final class ComputerGameViewModel {
         lastTrickPoints = completedTricks.last?.map(\.card.pointValue).reduce(0, +) ?? 0
         lastCompletedTrick = completedTricks.last ?? []
         waitingForNextHand = true
-        print("DEBUG waitForNextHand: humanPlayerIndices=\(humanPlayerIndices), count=\(humanPlayerIndices.count)")
 
-        if humanPlayerIndices.count > 1 {
-            print("DEBUG: multiplayer mode - auto advancing")
+        if isPassAndPlay {
             // Pass & Play — auto advance after 5 seconds
             // so all players at the table can see the cards
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             waitingForNextHand = false
         } else {
-            print("DEBUG: solo mode - waiting for tap")
             // Solo — wait for human to tap Next Hand
             await withCheckedContinuation { cont in
                 nextHandContinuation = cont
