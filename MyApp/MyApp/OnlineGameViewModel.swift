@@ -1,6 +1,9 @@
 import SwiftUI
 import Observation
 import FirebaseFirestore
+import OSLog
+
+private let ogVMLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "OnlineGameViewModel")
 
 // MARK: - Phase
 
@@ -1027,6 +1030,19 @@ final class OnlineGameViewModel {
             ]
             await processPendingAction(actionData)
         case .calling:
+            // Issue #5 fix: allHands[seat] may be stale if the startGame hands write
+            // failed silently (try?) and a later snapshot re-synced allHands from the
+            // previous round's Firestore data. A calling AI with the wrong hand calls
+            // invalid partners → resolvePartners returns (-1,-1) → point corruption.
+            // Guard: require exactly 8 cards. On mismatch, do a one-shot Firestore
+            // fetch to re-sync allHands before computing calling.
+            if allHands[seat].count != 8 {
+                await refetchAndSyncHands()
+            }
+            guard allHands[seat].count == 8 else {
+                ogVMLog.error("[AI Calling] seat \(seat) still has \(self.allHands[seat].count) cards after refetch — aborting calling")
+                return
+            }
             let result = aiComputeCalling(seat: seat)
             let actionData: [String: Any] = [
                 "nonce": UUID().uuidString,
@@ -1094,6 +1110,26 @@ final class OnlineGameViewModel {
         let c1 = candidates.count > 0 ? candidates[0].id : "A♥"
         let c2 = candidates.count > 1 ? candidates[1].id : "K♥"
         return (trump: trump, c1: c1, c2: c2)
+    }
+
+    /// One-shot Firestore read to re-sync allHands on the host.
+    /// Called when allHands[seat] has the wrong card count before AI calling —
+    /// this happens if the startGame hands write failed silently (try?) and a
+    /// later snapshot overwrote allHands with the previous round's Firestore data.
+    private func refetchAndSyncHands() async {
+        let ref = Firestore.firestore().collection("sessions").document(sessionCode)
+        guard let doc = try? await ref.getDocument(),
+              let data = doc.data(),
+              let handsData = data["hands"] as? [String: Any] else {
+            ogVMLog.warning("[refetchAndSyncHands] failed to fetch document or missing hands field")
+            return
+        }
+        for i in 0..<6 {
+            if let cards = handsData["\(i)"] as? [String] {
+                allHands[i] = cards.compactMap { parseCard($0) }
+            }
+        }
+        ogVMLog.info("[refetchAndSyncHands] re-synced allHands from Firestore")
     }
 
     private func aiComputeCard(seat: Int) -> String {
