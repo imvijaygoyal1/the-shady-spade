@@ -111,6 +111,20 @@ struct BluetoothGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showRoundResultBanner)
+        .overlay(alignment: .top) {
+            if game.isReconnecting {
+                Label("Reconnecting to host…", systemImage: "wifi.exclamationmark")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Comic.black)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Color.yellow.opacity(0.9))
+                    .clipShape(Capsule())
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: game.isReconnecting)
         .overlay(alignment: .topTrailing) {
             let activePhase = ![.roundComplete, .gameOver].contains(game.phase)
             if activePhase {

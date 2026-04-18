@@ -126,6 +126,11 @@ final class BluetoothGameViewModel: NSObject {
     private var lastProcessedActionId: String = ""
     private var lastActionSentAt: Date = .distantPast
 
+    // MARK: sendToHost retry state (client only)
+    var isReconnecting: Bool = false
+    private var pendingHostAction: [String: Any]? = nil
+    private var reconnectTask: Task<Void, Never>? = nil
+
     // MARK: - Computed
 
     var isMyTurn: Bool { myPlayerIndex == currentActionPlayer }
@@ -430,6 +435,10 @@ final class BluetoothGameViewModel: NSObject {
     // MARK: - Cleanup
 
     func cleanup() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        pendingHostAction = nil
+        isReconnecting = false
         advertiser?.stopAdvertisingPeer()
         advertiser = nil
         browser?.stopBrowsingForPeers()
@@ -929,9 +938,36 @@ final class BluetoothGameViewModel: NSObject {
     }
 
     private func sendToHost(_ dict: [String: Any]) {
-        // Find the host peer (player index 0)
-        guard let hostPeer = playerIndexToPeer[0] else { return }
-        send(dict, to: hostPeer)
+        if let hostPeer = playerIndexToPeer[0] {
+            send(dict, to: hostPeer)
+            return
+        }
+        // Issue #6 fix: host peer not yet mapped (peer reconnect, session teardown race).
+        // Queue the action and retry up to 3× at 500ms intervals instead of silently dropping.
+        // Only one retry chain runs at a time; a newer action replaces the queued one.
+        pendingHostAction = dict
+        guard reconnectTask == nil else { return }
+        isReconnecting = true
+        reconnectTask = Task { @MainActor in
+            for attempt in 1...3 {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard !Task.isCancelled else { break }
+                if let hostPeer = playerIndexToPeer[0], let action = pendingHostAction {
+                    send(action, to: hostPeer)
+                    pendingHostAction = nil
+                    isReconnecting = false
+                    reconnectTask = nil
+                    return
+                }
+                if attempt == 3 {
+                    aiLog.error("[sendToHost] host peer still nil after 3 retries — action dropped")
+                    errorMessage = "Lost connection to host. Please rejoin the game."
+                    pendingHostAction = nil
+                    isReconnecting = false
+                    reconnectTask = nil
+                }
+            }
+        }
     }
 
     // MARK: - Handle Incoming Messages
