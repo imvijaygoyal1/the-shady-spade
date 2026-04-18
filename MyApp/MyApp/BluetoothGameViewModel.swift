@@ -928,13 +928,23 @@ final class BluetoothGameViewModel: NSObject {
     private func sendToAll(_ dict: [String: Any]) {
         guard let session, !session.connectedPeers.isEmpty else { return }
         guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return }
-        try? session.send(data, toPeers: session.connectedPeers, with: .reliable)
+        do {
+            try session.send(data, toPeers: session.connectedPeers, with: .reliable)
+        } catch {
+            // MC .reliable errors indicate the session is broken; the didChange/notConnected
+            // delegate fires next and handles AI-replacement recovery — no retry needed here.
+            aiLog.error("[sendToAll] failed: \(error.localizedDescription)")
+        }
     }
 
     private func send(_ dict: [String: Any], to peer: MCPeerID) {
         guard let session else { return }
         guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return }
-        try? session.send(data, toPeers: [peer], with: .reliable)
+        do {
+            try session.send(data, toPeers: [peer], with: .reliable)
+        } catch {
+            aiLog.error("[send] to \(peer.displayName) failed: \(error.localizedDescription)")
+        }
     }
 
     private func sendToHost(_ dict: [String: Any]) {

@@ -262,8 +262,6 @@ final class OnlineGameViewModel {
 
     func startBidding() async {
         guard isHost else { return }
-        let db = Firestore.firestore()
-        let ref = db.collection("sessions").document(sessionCode)
         let firstBidder = (dealerIndex + 1) % 6
         let gs = buildGS(
             phase: .bidding,
@@ -275,7 +273,7 @@ final class OnlineGameViewModel {
             bidHistory: [],
             message: "\(playerName(firstBidder)) starts the bid!"
         )
-        try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
+        await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
     }
 
     // MARK: - Presence tracking
@@ -635,28 +633,24 @@ final class OnlineGameViewModel {
     func placeBid(_ amount: Int) async {
         guard Date().timeIntervalSince(lastActionSentAt) > 0.3 else { return }
         lastActionSentAt = Date()
-        let db = Firestore.firestore()
-        let ref = db.collection("sessions").document(sessionCode)
         let action: [String: Any] = [
             "nonce": UUID().uuidString,
             "playerIndex": myPlayerIndex,
             "type": "bid",
             "bidAmount": amount
         ]
-        try? await ref.updateData(["pendingAction": action])
+        await criticalWrite(["pendingAction": action])
     }
 
     func pass() async {
         guard Date().timeIntervalSince(lastActionSentAt) > 0.3 else { return }
         lastActionSentAt = Date()
-        let db = Firestore.firestore()
-        let ref = db.collection("sessions").document(sessionCode)
         let action: [String: Any] = [
             "nonce": UUID().uuidString,
             "playerIndex": myPlayerIndex,
             "type": "pass"
         ]
-        try? await ref.updateData(["pendingAction": action])
+        await criticalWrite(["pendingAction": action])
     }
 
     func proceedFromBidWinner() {
@@ -669,8 +663,6 @@ final class OnlineGameViewModel {
         lastActionSentAt = Date()
         let c1 = calledCard1Rank + calledCard1Suit
         let c2 = calledCard2Rank + calledCard2Suit
-        let db = Firestore.firestore()
-        let ref = db.collection("sessions").document(sessionCode)
         let action: [String: Any] = [
             "nonce": UUID().uuidString,
             "playerIndex": myPlayerIndex,
@@ -679,21 +671,19 @@ final class OnlineGameViewModel {
             "calledCard1": c1,
             "calledCard2": c2
         ]
-        try? await ref.updateData(["pendingAction": action])
+        await criticalWrite(["pendingAction": action])
     }
 
     func playCard(_ card: Card) async {
         guard Date().timeIntervalSince(lastActionSentAt) > 0.3 else { return }
         lastActionSentAt = Date()
-        let db = Firestore.firestore()
-        let ref = db.collection("sessions").document(sessionCode)
         let action: [String: Any] = [
             "nonce": UUID().uuidString,
             "playerIndex": myPlayerIndex,
             "type": "playCard",
             "cardId": card.id
         ]
-        try? await ref.updateData(["pendingAction": action])
+        await criticalWrite(["pendingAction": action])
     }
 
     // MARK: - Host: Process Pending Action
@@ -709,9 +699,6 @@ final class OnlineGameViewModel {
         guard playerIndex == currentActionPlayer else { return }
 
         lastProcessedNonce = nonce
-
-        let db = Firestore.firestore()
-        let ref = db.collection("sessions").document(sessionCode)
 
         switch type {
         case "bid":
@@ -730,7 +717,7 @@ final class OnlineGameViewModel {
             // End bidding when only one player hasn't passed; otherwise rotate clockwise
             let activePlayers = (0..<6).filter { !newPassed[$0] }
             if activePlayers.count <= 1 {
-                await concludeBidding(ref: ref, bids: newBids, highBid: newHighBid, highBidder: newHighBidder)
+                await concludeBidding(bids: newBids, highBid: newHighBid, highBidder: newHighBidder)
             } else {
                 var next = (playerIndex + 1) % 6
                 while newPassed[next] { next = (next + 1) % 6 }
@@ -738,7 +725,7 @@ final class OnlineGameViewModel {
                     bids: newBids, highBid: newHighBid, highBidderIndex: newHighBidder,
                     playerHasPassed: newPassed, bidHistory: newHistory,
                     message: "\(playerName(playerIndex)) bid \(amount)")
-                try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
+                await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
             }
 
         case "pass":
@@ -752,7 +739,7 @@ final class OnlineGameViewModel {
             // End bidding when only one active player remains
             let activePlayers = (0..<6).filter { !newPassed[$0] }
             if activePlayers.count <= 1 {
-                await concludeBidding(ref: ref, bids: newBids, highBid: highBid, highBidder: highBidderIndex)
+                await concludeBidding(bids: newBids, highBid: highBid, highBidder: highBidderIndex)
             } else {
                 var next = (playerIndex + 1) % 6
                 while newPassed[next] { next = (next + 1) % 6 }
@@ -760,7 +747,7 @@ final class OnlineGameViewModel {
                     bids: newBids, highBid: highBid, highBidderIndex: highBidderIndex,
                     playerHasPassed: newPassed, bidHistory: newHistory,
                     message: "\(playerName(playerIndex)) passed")
-                try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
+                await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
             }
 
         case "callCards":
@@ -793,7 +780,7 @@ final class OnlineGameViewModel {
             gs["trickNumber"] = 0
             gs["currentTrick"] = [] as [[String: Any]]
             gs["wonPointsPerPlayer"] = Array(repeating: 0, count: 6)
-            try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
+            await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
 
         case "playCard":
             let cardId = actionData["cardId"] as? String ?? ""
@@ -830,7 +817,7 @@ final class OnlineGameViewModel {
                 showGs["currentTrick"] = trickData
                 showGs["partner1Index"] = newP1
                 showGs["partner2Index"] = newP2
-                try? await ref.updateData(["gameState": showGs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
+                await criticalWrite(["gameState": showGs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
 
                 // Capture accumulated state before sleeping — a Firestore snapshot
                 // arriving during the sleep triggers handleSnapshot on the host which
@@ -874,7 +861,7 @@ final class OnlineGameViewModel {
                     gs["currentLeaderIndex"] = winner
                     gs["partner1Index"] = hostPartner1
                     gs["partner2Index"] = hostPartner2
-                    try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
+                    await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
                 } else {
                     var gs = buildGS(phase: .playing, currentActionPlayer: winner,
                         bids: bids, highBid: highBid, highBidderIndex: highBidderIndex,
@@ -885,7 +872,7 @@ final class OnlineGameViewModel {
                     gs["currentLeaderIndex"] = winner
                     gs["partner1Index"] = newP1
                     gs["partner2Index"] = newP2
-                    try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
+                    await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
                 }
             } else {
                 // Trick in progress — advance to next in order
@@ -899,7 +886,7 @@ final class OnlineGameViewModel {
                 gs["currentTrick"] = trickData
                 gs["partner1Index"] = newP1
                 gs["partner2Index"] = newP2
-                try? await ref.updateData(["gameState": gs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
+                await criticalWrite(["gameState": gs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
             }
 
         default:
@@ -909,7 +896,7 @@ final class OnlineGameViewModel {
 
     // MARK: - Host Helpers
 
-    private func concludeBidding(ref: DocumentReference, bids: [Int], highBid: Int, highBidder: Int) async {
+    private func concludeBidding(bids: [Int], highBid: Int, highBidder: Int) async {
         var finalBids = bids
         var finalHigh = highBid
         var finalBidder = highBidder
@@ -932,7 +919,29 @@ final class OnlineGameViewModel {
         gs["currentTrick"] = [] as [[String: Any]]
         gs["trickNumber"] = 0
         gs["wonPointsPerPlayer"] = Array(repeating: 0, count: 6)
-        try? await ref.updateData(["gameState": gs, "pendingAction": [:] as [String: Any]])
+        await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
+    }
+
+    /// Writes `update` to the session document with up to 3 attempts (2 s then 4 s backoff).
+    /// Sets `errorMessage` after all retries fail so the player knows the network is broken.
+    @discardableResult
+    private func criticalWrite(_ update: [String: Any]) async -> Bool {
+        let ref = Firestore.firestore().collection("sessions").document(sessionCode)
+        let delays: [UInt64] = [2_000_000_000, 4_000_000_000]
+        for attempt in 1...3 {
+            do {
+                try await ref.updateData(update)
+                return true
+            } catch {
+                ogVMLog.warning("[criticalWrite] attempt \(attempt)/3 failed: \(error.localizedDescription)")
+                if attempt - 1 < delays.count {
+                    try? await Task.sleep(nanoseconds: delays[attempt - 1])
+                }
+            }
+        }
+        ogVMLog.error("[criticalWrite] all retries failed — update dropped")
+        errorMessage = "Network error — couldn't save game state. Check your connection."
+        return false
     }
 
     private func buildGS(
