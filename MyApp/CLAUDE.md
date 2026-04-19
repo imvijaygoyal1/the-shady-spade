@@ -6,6 +6,10 @@
 ## v1.7 Changelog
 > Changes made after v1.6 App Store submission (April 16, 2026). Add entries here as changes are implemented.
 
+- [2026-04-19] Landscape for CallingCards/Calling phase — applied `GameAdaptiveLayout` to `CallingCardsView` (`ComputerGameView.swift`), `OnlineCallingView` (`OnlineGameView.swift`), and `BTCallingView` (`BluetoothGameView.swift`). In Solo: landscape left panel (`Comic.containerBG`) = mini header + trump 4-button grid + Confirm button (sticky at bottom via `Spacer()`); landscape right panel (`Comic.bg`) = `ScrollView` with callCardRow ×2 + error label + `HandCardView` hand reference. In Online/BT: the `isMyCall = true` branch wraps identically; the `!isMyCall` waiting branch (blinking text + hand reference) stays portrait-only. Confirm action: Solo = `game.humanConfirmCalling()`, Online = `Task { await game.confirmCalling() }`, BT = `Task { await game.callTrumpAndCards() }`.
+
+- [2026-04-19] Landscape for ViewingCards/LookingAtCards — added `GameAdaptiveLayout<Portrait, Landscape>` to `Styles.swift`: full-screen orientation switcher for gameplay phases (no branding panel, no split fraction — just portrait vs landscape full-screen). Applied to `ViewingCardsView` (`ComputerGameView.swift`), `OnlineLookingAtCardsView` (`OnlineGameView.swift`), and `BTLookingAtCardsView` (`BluetoothGameView.swift`). Landscape layout: left panel (`maxWidth: .infinity`, `Comic.containerBG`) shows round number + dealer + hand-points pill; 1pt `Comic.containerBorder` divider; right panel (`maxWidth: .infinity`, `Comic.bg`) shows full 8-card `HandCardView` row in GeometryReader + CTA button. Portrait body unchanged in all three files.
+
 - [2026-04-18] iPad + landscape layout — replaced `LandscapeModeSelectionLayout` (single-purpose) with three reusable layout primitives in `Styles.swift`: `LandscapeSplitLayout<Left, Right>` (two-column split with configurable left fraction + divider), `AdaptiveLayout<Portrait, LandscapeLeft, LandscapeRight>` (GeometryReader wrapper that picks portrait or landscape split; uses 28% left on wide screens >700pt, 34% on narrow), `BrandingPanel` (self-sizing left-column panel: spade icon, title, subtitle, optional trophy/settings buttons; scales all sizes based on available width). `ModeSelectionView` now uses `AdaptiveLayout`: portrait renders unchanged `portraitBody` (full ZStack with existing top bar + portrait card list); landscape left renders `BrandingPanel`, landscape right renders 2×2 `LazyVGrid` of mode cards. All `.sheet`, `.fullScreenCover`, `.onChange` modifiers moved to `AdaptiveLayout` call. Verified on iPhone 15 Pro Max (34/66 split) and iPad Pro 12.9" (28/72 split) — portrait unchanged. (`Styles.swift`, `ModeSelectionView.swift`)
 
 - [2026-04-17] Remove all themes except Casino Night — deleted SunsetSocialTheme, ComicBookTheme, MinimalDarkTheme, MinimalLightTheme from `Themes.swift` (kept only ClassicGreenTheme); emptied `PremiumThemes.swift` (MidnightNoir, RoyalCrimson, DiamondClub, BaroqueGold, NeonUnderground) and `CasinoRoyaleTheme.swift`. `ThemeManager.availableThemes` now contains only `ClassicGreenTheme()`, default and fallback both point to it. Removed APPEARANCE (theme picker) and DISPLAY MODE sections from `SettingsView` — both were useless with a single fixed-dark theme. Updated How To Play "Avatars & Themes" text to mention Casino Night only. (`Themes.swift`, `PremiumThemes.swift`, `CasinoRoyaleTheme.swift`, `ThemeManager.swift`, `SettingsView.swift`)
@@ -291,6 +295,123 @@ Shared component in Styles.swift. Portrait: vertical scroll with bidder cards + 
 - `HistoryRound` — round result with `runningScores: [Int]` (6-element array)
 - `GameHistory` — wrapper for a full game session
 - Container registered in `MyAppApp.swift`
+
+## Setup Screen Architecture (Pre-Game Flows)
+
+Every mode goes through `NamePromptSheet` first (avatar + name entry), then branches:
+
+### NamePromptSheet (shared, all 4 modes)
+- Presented as `.sheet(.large)` from `ModeSelectionView` on any mode tap
+- UI: large `AvatarPickerCard` preview · name `TextField` (profanity-validated) · horizontal avatar picker (`Comic.comicCharacters` emoji cards) · "Start Game" button
+- On confirm → dismisses → `onDismiss` sets `showingSolo` / `showingOnline` / `showingBluetooth` / `showingJoinGame`
+- No landscape handling
+
+### Solo (vs AI)
+`NamePromptSheet` → `.fullScreenCover` → `ComputerGameView` directly (no lobby)
+
+### Multiplayer / Online — Host side
+`NamePromptSheet` → `OnlineEntryView` → `OnlineSessionView` → `CreateOrJoinView` (host/join picker) → Firestore session created → `SessionLobbyView`
+
+**`CreateOrJoinView`:** Player identity display (avatar circle + name) · "Host a Game" (gold) · "Join a Game" (dark, opens `JoinByCodeView` sheet) · No landscape handling
+
+**`SessionLobbyView`:** "Game Lobby" title · room code display (large monospaced gold chars) · Share / Copy / QR buttons · `LazyVGrid` player slots (2-col portrait, 3-col on `.regular` hSizeClass) · "Start Game" button (host only) · "Waiting for host…" state for non-hosts · Partial landscape: hSizeClass changes grid columns only, no full layout branch
+
+### Join a Game (direct shortcut — online join side)
+`NamePromptSheet` → `OnlineEntryView(autoShowJoin: true)` → `JoinByCodeView` sheet (skips `CreateOrJoinView`)
+
+**`JoinByCodeView`:** "Enter Room Code" title · 6-box OTP-style input (invisible `TextField` + visual overlay) · "Join Game" button · "Scan QR Code" → `QRScannerView` sheet · No landscape handling
+
+### Local / Bluetooth — Host side
+`NamePromptSheet` → `BTEntryView` → `BluetoothSessionView` → `BTModePickerView`
+
+**`BTModePickerView`:** "Local / Bluetooth" title · player identity display · "Host a Game" (gold, starts MCNearbyServiceAdvertiser) · "Join a Game" (dark, starts MCNearbyServiceBrowser) · No landscape handling
+
+**`BTHostLobbyView`:** "Hosting Game" + LiveDot · player count (X/6) · optional TV Dashboard QR + URL · `LazyVGrid` 6× `BTPlayerSlotCard` (2-col compact, 3-col regular) · "Start Game" button · Partial landscape: hSizeClass changes grid columns only
+
+**`BTClientLobbyView`:** "Find a Game" + LiveDot · browsing: `ProgressView` + found sessions list (`BTFoundSessionRow` with "Join" button) · connected: "Connected!" + "Waiting for host…" + player list · No landscape handling
+
+### First-Launch Onboarding (`SplashView`) — one-time only
+3 pages: `SplashPage` (rules card, "Let's Play") → `PlayerSetupPage` (6× name TextFields in VStack, per-field profanity validation) → `DeckAndDealPage` (circular 6-seat layout via `cos/sin` GeometryReader, `DeckPhase` enum: `.ready` → `.shuffling` → `.shuffled` → `.dealing` → `.dealt`)
+
+---
+
+## Gameplay UI Architecture
+
+### Phase Enums
+
+**Solo/P&P** (`ComputerGamePhase` in `ComputerGameViewModel.swift:43`):
+```
+viewingCards → bidding/humanBidding → aiCalling/callingCards → playing/humanPlaying → roundComplete
+```
+- `bidding` = AI's turn to bid; `humanBidding` = human's turn
+- `playing` = AI's turn; `humanPlaying` = human's turn
+
+**Online + BT** (same `OnlineGamePhase` in `OnlineGameViewModel.swift:10`):
+```
+dealing → lookingAtCards → bidding → calling → playing → roundComplete → gameOver
+```
+BT uses identical enum (`var phase: OnlineGamePhase = .dealing` in `BluetoothGameViewModel`).
+
+### Root View Structure (all 3 game files)
+All three root views (`ComputerGameView`, `OnlineGameView`, `BluetoothGameView`) use the same pattern:
+```
+ZStack {
+    background
+    switch game.phase { ... }         // one full-screen view per phase
+    BidWinnerBanner (zIndex 100)      // floats above all phases
+}
+.overlay { RoundResultBanner }        // bid-made/set flash
+.overlay { PassDeviceView }           // P&P only
+.overlay(topTrailing) { X quit btn }
+```
+
+### Per-Phase UI Regions
+
+| Phase | Outermost | Key regions |
+|---|---|---|
+| viewingCards / lookingAtCards | `VStack` | Round/dealer header · `HandCardView` ×8 row (GeometryReader spacing) · hand-points pill · "Ready to Bid" CTA · **No landscape** |
+| bidding / humanBidding | `VStack` | "Bidding/Round N" header · `BiddingTwoColumnLayout` (handles landscape internally) |
+| aiCalling | centered `VStack` | ProgressView + "X is calling trump…" — no interaction |
+| callingCards / calling | `ScrollView` + sticky bottom | Trump 4-button grid · 2× callCard rows (rank `Menu` + suit buttons) · `HandCardView` hand reference · "Confirm" sticky button · **No landscape** · Non-bidder (Online/BT only): blinking wait text + hand reference |
+| playing / humanPlaying | `GeometryReader` | Portrait + landscape branch — see below |
+| roundComplete | `ScrollView` | "BID MADE!" / "SET!" · `AwardPill` ×3 · per-player list (`AvatarRoleCard` + ±score) · `PlayerScoreBarChart` · Next Round / Quit |
+| gameOver (Online/BT only) | `ScrollView` | Final standings + `ScoreSaveStatusRow` + Quit |
+
+### Playing Phase — Portrait (`ScrollView > VStack`)
+1. `AvatarRoleCard` ×6 strip — GeometryReader `chipW = (width-32)/6`, green border + `TurnArrow` on active player
+2. Waiting banner (when not human's turn)
+3. `GameInfoPillsRow` — trump badge · called cards · offense score / bid target
+4. Current trick box — `PlayingCardView` per played card, `.currentHandStage()` styling
+5. `LastHandView` — previous completed trick strip
+6. Message text + trick history clock button
+7. Your hand — `HandCardView` with `.shimmer()` on valid cards, `BouncyButton`
+
+### Playing Phase — Landscape (`HStack(spacing: 0)`)
+- **Left 22%:** `LandscapePlayerRow` ×6 in `ScrollView` · `Comic.containerBG.opacity(0.4)` background
+- **Center ~52%:** `GameInfoPillsRow` · waiting/`LiveDot` indicator · current trick box · message · trick history button
+- **Right 26%:** your hand column (`HandCardView` with shimmer)
+
+**Landscape detection** (playing phase only, all 3 files):
+```swift
+let isLandscape = geo.size.width > geo.size.height   // in GeometryReader
+```
+**All other phases have no landscape branch** — they render portrait-only regardless of orientation.
+
+### BT vs Online Playing Differences
+| Aspect | Online | Bluetooth |
+|---|---|---|
+| Avatar strip spacing | GeometryReader `chipW = (width-32)/6` | `HStack(spacing: 5)` — fixed, not width-constrained |
+| Remove player | Long-press avatar → `removePlayerMidGame` | Not present |
+| Reconnect banner | Not present | Yellow "Reconnecting to host…" capsule at `.overlay(alignment: .top)` |
+| Local banner variants | `OnlineRoundResultBanner`, `OnlinePartnerRevealBanner`, `OnlineTrickHistoryView`, `OnlineAwardPill` | `BTRoundResultBanner`, `BTPartnerRevealBanner`, `BTTrickHistoryView`, `BTAwardPill` |
+
+### Styles.swift Components Used in All 3 Game Files
+`HandCardView` · `PlayingCardView` · `AvatarRoleCard` · `GameInfoPillsRow` · `LandscapePlayerRow` · `BiddingTwoColumnLayout` · `TurnArrow` · `LastHandView` · `BidWinnerBanner` · `.shimmer(isActive:)` · `.currentHandStage()` · `ScoreSaveStatusRow` · `PlayerScoreBarChart` · `CardDealAnimationView` · `LiveDot` · `SectionHeader` · `ComicButtonStyle` · `BouncyButton` · `.glassmorphic()` · `.comicContainer()`
+
+Solo-only (from Styles.swift): `AwardPill` · `PartnerRevealBanner` · `TrickHistoryView` · `PassDeviceView`
+Online/BT define their own local equivalents for those four.
+
+---
 
 ## Privacy Policy
 - Hosted at: https://imvijaygoyal1.github.io/shadyspade-privacy/

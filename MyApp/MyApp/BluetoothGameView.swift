@@ -234,89 +234,177 @@ private struct BTLookingAtCardsView: View {
     private var handPoints: Int { game.myHand.map(\.pointValue).reduce(0, +) }
 
     var body: some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 6) {
-                Text("Round \(game.roundNumber)")
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.secondary)
-                Text("Your Hand")
-                    .font(.system(size: 22, weight: .black, design: .rounded))
-                    .foregroundStyle(.masterGold)
-                Text("Dealer: \(game.playerName(game.dealerIndex))")
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.top, 56)
-            .padding(.bottom, 24)
-            .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : -12)
+        GameAdaptiveLayout(
+            portrait: {
+                VStack(spacing: 0) {
+                    VStack(spacing: 6) {
+                        Text("Round \(game.roundNumber)")
+                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.secondary)
+                        Text("Your Hand")
+                            .font(.system(size: 22, weight: .black, design: .rounded))
+                            .foregroundStyle(.masterGold)
+                        Text("Dealer: \(game.playerName(game.dealerIndex))")
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 56)
+                    .padding(.bottom, 24)
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : -12)
 
-            Spacer()
+                    Spacer()
 
-            VStack(spacing: 12) {
-                GeometryReader { geo in
-                    let sorted = game.myHandSorted
-                    let sp = sorted.count > 1
-                        ? (geo.size.width - 32 - CGFloat(sorted.count) * 74) / CGFloat(sorted.count - 1)
-                        : 0
-                    HStack(spacing: sp) {
-                        ForEach(sorted) { card in
-                            HandCardView(card: card)
+                    VStack(spacing: 12) {
+                        GeometryReader { geo in
+                            let sorted = game.myHandSorted
+                            let sp = sorted.count > 1
+                                ? (geo.size.width - 32 - CGFloat(sorted.count) * 74) / CGFloat(sorted.count - 1)
+                                : 0
+                            HStack(spacing: sp) {
+                                ForEach(sorted) { card in
+                                    HandCardView(card: card)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                        }
+                        .frame(height: 106)
+
+                        HStack(spacing: 8) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                                .foregroundStyle(.masterGold)
+                            Text("\(handPoints) pts in your hand")
+                                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .glassmorphic(cornerRadius: 12)
+                    }
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : 20)
+
+                    Spacer()
+
+                    if game.isHost {
+                        Button {
+                            HapticManager.impact(.medium)
+                            Task { await game.startBidding() }
+                        } label: {
+                            HStack(spacing: 8) {
+                                Text("Start Bidding").fontWeight(.black)
+                                Image(systemName: "arrow.right")
+                            }
+                            .font(.title3)
+                            .foregroundStyle(Comic.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 18)
+                        }
+                        .buttonStyle(ComicButtonStyle())
+                        .padding(.horizontal, 32)
+                    } else {
+                        VStack(spacing: 6) {
+                            ProgressView().tint(.masterGold)
+                            Text("Waiting for host to start bidding…")
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.bottom, 8)
+                    }
+                }
+                .padding(.bottom, 54)
+                .onAppear {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.1)) {
+                        appeared = true
+                    }
+                }
+            },
+            landscape: {
+                HStack(spacing: 0) {
+                    // LEFT PANEL — round context + points pill
+                    VStack(spacing: 10) {
+                        Spacer()
+                        VStack(spacing: 6) {
+                            Text("Round \(game.roundNumber)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Comic.textSecondary)
+                            Text("Your Hand")
+                                .font(.system(size: 16, weight: .black))
+                                .foregroundStyle(Comic.yellow)
+                            Text("Dealer: \(game.playerName(game.dealerIndex))")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Comic.textSecondary)
+                        }
+                        HStack(spacing: 8) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                                .foregroundStyle(.masterGold)
+                            Text("\(handPoints) pts in your hand")
+                                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .glassmorphic(cornerRadius: 12)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .background(Comic.containerBG)
+
+                    Rectangle()
+                        .fill(Comic.containerBorder)
+                        .frame(width: 1)
+
+                    // RIGHT PANEL — hand cards + CTA
+                    VStack(spacing: 12) {
+                        Spacer()
+                        GeometryReader { geo in
+                            let sorted = game.myHandSorted
+                            let sp = sorted.count > 1
+                                ? (geo.size.width - 32 - CGFloat(sorted.count) * 74) / CGFloat(sorted.count - 1)
+                                : 0
+                            HStack(spacing: sp) {
+                                ForEach(sorted) { card in
+                                    HandCardView(card: card)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                        }
+                        .frame(height: 106)
+                        Spacer()
+                        if game.isHost {
+                            Button {
+                                HapticManager.impact(.medium)
+                                Task { await game.startBidding() }
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Text("Start Bidding").fontWeight(.black)
+                                    Image(systemName: "arrow.right")
+                                }
+                                .font(.title3)
+                                .foregroundStyle(Comic.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 18)
+                            }
+                            .buttonStyle(ComicButtonStyle())
+                            .padding(.horizontal, 32)
+                            .padding(.bottom, 24)
+                        } else {
+                            VStack(spacing: 6) {
+                                ProgressView().tint(.masterGold)
+                                Text("Waiting for host to start bidding…")
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.bottom, 24)
                         }
                     }
-                    .padding(.horizontal, 16)
-                }
-                .frame(height: 106)
-
-                HStack(spacing: 8) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.masterGold)
-                    Text("\(handPoints) pts in your hand")
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .glassmorphic(cornerRadius: 12)
-            }
-            .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 20)
-
-            Spacer()
-
-            if game.isHost {
-                Button {
-                    HapticManager.impact(.medium)
-                    Task { await game.startBidding() }
-                } label: {
-                    HStack(spacing: 8) {
-                        Text("Start Bidding").fontWeight(.black)
-                        Image(systemName: "arrow.right")
-                    }
-                    .font(.title3)
-                    .foregroundStyle(Comic.black)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
+                    .background(Comic.bg)
                 }
-                .buttonStyle(ComicButtonStyle())
-                .padding(.horizontal, 32)
-            } else {
-                VStack(spacing: 6) {
-                    ProgressView().tint(.masterGold)
-                    Text("Waiting for host to start bidding…")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.bottom, 8)
             }
-        }
-        .padding(.bottom, 54)
-        .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.1)) {
-                appeared = true
-            }
-        }
+        )
     }
 }
 
@@ -375,87 +463,256 @@ struct BTCallingView: View {
     private var isMyCall: Bool { game.myPlayerIndex == game.highBidderIndex }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: vSizeClass == .compact ? 14 : 22) {
-                VStack(spacing: 6) {
-                    Text(isMyCall ? "You won the bid!" : "\(game.playerName(game.highBidderIndex)) won the bid")
-                        .font(.system(size: 22, weight: .black, design: .rounded))
-                        .foregroundStyle(.masterGold)
-                    Text("Bid: \(game.highBid)\(isMyCall ? " — call trump and 2 cards" : " — calling trump and cards…")")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
+        if isMyCall {
+            GameAdaptiveLayout {
+                // PORTRAIT — isMyCall unchanged
+                ScrollView {
+                    VStack(spacing: vSizeClass == .compact ? 14 : 22) {
+                        VStack(spacing: 6) {
+                            Text("You won the bid!")
+                                .font(.system(size: 22, weight: .black, design: .rounded))
+                                .foregroundStyle(.masterGold)
+                            Text("Bid: \(game.highBid) — call trump and 2 cards")
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, vSizeClass == .compact ? 16 : 44)
+
+                        // Trump suit selection
+                        VStack(spacing: 12) {
+                            SectionHeader(title: "Trump Suit")
+                            HStack(spacing: 10) {
+                                ForEach(TrumpSuit.allCases, id: \.rawValue) { suit in
+                                    let sel = game.trumpSuitSelection == suit
+                                    Button {
+                                        HapticManager.impact(.light)
+                                        game.trumpSuitSelection = suit
+                                    } label: {
+                                        VStack(spacing: 6) {
+                                            Text(suit.rawValue).font(.system(size: 26))
+                                                .foregroundStyle(sel ? suit.displayColor : suit.displayColor.opacity(0.55))
+                                            Text(suit.displayName).font(.system(size: 10, weight: .black))
+                                                .foregroundStyle(sel ? Comic.textPrimary : Comic.textSecondary)
+                                        }
+                                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                        .background(sel ? Comic.yellow : Comic.containerBG)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .strokeBorder(sel ? Comic.black : Comic.containerBorder, lineWidth: sel ? Comic.borderWidth : 1.5)
+                                        }
+                                    }
+                                    .buttonStyle(BouncyButton())
+                                }
+                            }
+                        }
+                        .padding().comicContainer(cornerRadius: 18)
+
+                        // Called cards
+                        VStack(spacing: 14) {
+                            SectionHeader(title: "Call Cards (must not be in your hand)")
+                            let handIds = Set(game.myHand.map(\.id))
+                            btCallCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit, handIds: handIds)
+                            Divider().overlay(Comic.containerBorder)
+                            btCallCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit, handIds: handIds)
+
+                            if !game.callingValid {
+                                let c1 = game.calledCard1Rank + game.calledCard1Suit
+                                let c2 = game.calledCard2Rank + game.calledCard2Suit
+                                Label(
+                                    c1 == c2 ? "Cards must be different" : "Cards must not be in your hand",
+                                    systemImage: "exclamationmark.triangle.fill"
+                                )
+                                .font(.system(size: 13, weight: .heavy, design: .rounded)).foregroundStyle(.defenseRose)
+                            }
+                        }
+                        .padding().comicContainer(cornerRadius: 18)
+
+                        // Your hand reference
+                        VStack(spacing: 10) {
+                            SectionHeader(title: "Your Hand")
+                            let cards = game.myHandSorted
+                            GeometryReader { geo in
+                                let cardW = btAdaptiveCardWidth(available: geo.size.width, count: cards.count)
+                                let sp = cards.count > 1
+                                    ? (geo.size.width - CGFloat(cards.count) * cardW) / CGFloat(cards.count - 1)
+                                    : 0
+                                HStack(spacing: sp) {
+                                    ForEach(cards) { card in
+                                        HandCardView(card: card, width: cardW)
+                                    }
+                                }
+                            }
+                            .frame(height: 106)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 80)
+                    .adaptiveContentFrame()
                 }
-                .padding(.top, vSizeClass == .compact ? 16 : 44)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    VStack(spacing: 0) {
+                        Divider()
+                        Button {
+                            HapticManager.success()
+                            Task { await game.callTrumpAndCards() }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "checkmark.seal.fill")
+                                Text("Confirm").fontWeight(.black)
+                            }
+                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .foregroundStyle(game.callingValid ? Comic.black : Color.secondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                        }
+                        .buttonStyle(ComicButtonStyle(
+                            bg: game.callingValid ? Comic.yellow : Comic.containerBG,
+                            fg: game.callingValid ? Comic.black : .secondary,
+                            borderColor: Comic.black
+                        ))
+                        .disabled(!game.callingValid)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                    }
+                    .background(Comic.bg)
+                }
+            } landscape: {
+                // LANDSCAPE — left: header + trump + confirm | right: call cards + hand
+                HStack(spacing: 0) {
+                    // Left panel
+                    VStack(spacing: 16) {
+                        VStack(spacing: 6) {
+                            Text("You won the bid!")
+                                .font(.system(size: 18, weight: .black, design: .rounded))
+                                .foregroundStyle(.masterGold)
+                            Text("Bid: \(game.highBid)")
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 20)
 
-                if isMyCall {
-                    // Trump suit selection
-                    VStack(spacing: 12) {
-                        SectionHeader(title: "Trump Suit")
-                        HStack(spacing: 10) {
-                            ForEach(TrumpSuit.allCases, id: \.rawValue) { suit in
-                                let sel = game.trumpSuitSelection == suit
-                                Button {
-                                    HapticManager.impact(.light)
-                                    game.trumpSuitSelection = suit
-                                } label: {
-                                    VStack(spacing: 6) {
-                                        Text(suit.rawValue).font(.system(size: 26))
-                                            .foregroundStyle(sel ? suit.displayColor : suit.displayColor.opacity(0.55))
-                                        Text(suit.displayName).font(.system(size: 10, weight: .black))
-                                            .foregroundStyle(sel ? Comic.textPrimary : Comic.textSecondary)
+                        VStack(spacing: 10) {
+                            SectionHeader(title: "Trump Suit")
+                            HStack(spacing: 8) {
+                                ForEach(TrumpSuit.allCases, id: \.rawValue) { suit in
+                                    let sel = game.trumpSuitSelection == suit
+                                    Button {
+                                        HapticManager.impact(.light)
+                                        game.trumpSuitSelection = suit
+                                    } label: {
+                                        VStack(spacing: 4) {
+                                            Text(suit.rawValue).font(.system(size: 22))
+                                                .foregroundStyle(sel ? suit.displayColor : suit.displayColor.opacity(0.55))
+                                            Text(suit.displayName).font(.system(size: 9, weight: .black))
+                                                .foregroundStyle(sel ? Comic.textPrimary : Comic.textSecondary)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
+                                        .background(sel ? Comic.yellow : Comic.containerBG)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .strokeBorder(sel ? Comic.black : Comic.containerBorder, lineWidth: sel ? Comic.borderWidth : 1.5)
+                                        }
                                     }
-                                    .frame(maxWidth: .infinity).padding(.vertical, 10)
-                                    .background(sel ? Comic.yellow : Comic.containerBG)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .strokeBorder(sel ? Comic.black : Comic.containerBorder, lineWidth: sel ? Comic.borderWidth : 1.5)
-                                    }
+                                    .buttonStyle(BouncyButton())
                                 }
-                                .buttonStyle(BouncyButton())
                             }
                         }
-                    }
-                    .padding().comicContainer(cornerRadius: 18)
+                        .padding()
+                        .comicContainer(cornerRadius: 18)
 
-                    // Called cards
-                    VStack(spacing: 14) {
-                        SectionHeader(title: "Call Cards (must not be in your hand)")
-                        let handIds = Set(game.myHand.map(\.id))
-                        btCallCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit, handIds: handIds)
-                        Divider().overlay(Comic.containerBorder)
-                        btCallCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit, handIds: handIds)
+                        Spacer()
 
-                        if !game.callingValid {
-                            let c1 = game.calledCard1Rank + game.calledCard1Suit
-                            let c2 = game.calledCard2Rank + game.calledCard2Suit
-                            Label(
-                                c1 == c2 ? "Cards must be different" : "Cards must not be in your hand",
-                                systemImage: "exclamationmark.triangle.fill"
-                            )
-                            .font(.system(size: 13, weight: .heavy, design: .rounded)).foregroundStyle(.defenseRose)
+                        Button {
+                            HapticManager.success()
+                            Task { await game.callTrumpAndCards() }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "checkmark.seal.fill")
+                                Text("Confirm").fontWeight(.black)
+                            }
+                            .font(.system(size: 18, weight: .heavy, design: .rounded))
+                            .foregroundStyle(game.callingValid ? Comic.black : Color.secondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
                         }
+                        .buttonStyle(ComicButtonStyle(
+                            bg: game.callingValid ? Comic.yellow : Comic.containerBG,
+                            fg: game.callingValid ? Comic.black : .secondary,
+                            borderColor: Comic.black
+                        ))
+                        .disabled(!game.callingValid)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
                     }
-                    .padding().comicContainer(cornerRadius: 18)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity)
+                    .background(Comic.containerBG)
 
-                    // Your hand reference
-                    VStack(spacing: 10) {
-                        SectionHeader(title: "Your Hand")
-                        let cards = game.myHandSorted
-                        GeometryReader { geo in
-                            let cardW = btAdaptiveCardWidth(available: geo.size.width, count: cards.count)
-                            let sp = cards.count > 1
-                                ? (geo.size.width - CGFloat(cards.count) * cardW) / CGFloat(cards.count - 1)
-                                : 0
-                            HStack(spacing: sp) {
-                                ForEach(cards) { card in
-                                    HandCardView(card: card, width: cardW)
+                    Rectangle().fill(Comic.containerBorder).frame(width: 1)
+
+                    // Right panel
+                    ScrollView {
+                        VStack(spacing: 14) {
+                            VStack(spacing: 14) {
+                                SectionHeader(title: "Call Cards (must not be in your hand)")
+                                let handIds = Set(game.myHand.map(\.id))
+                                btCallCardRow(label: "Card 1", rank: $game.calledCard1Rank, suit: $game.calledCard1Suit, handIds: handIds)
+                                Divider().overlay(Comic.containerBorder)
+                                btCallCardRow(label: "Card 2", rank: $game.calledCard2Rank, suit: $game.calledCard2Suit, handIds: handIds)
+
+                                if !game.callingValid {
+                                    let c1 = game.calledCard1Rank + game.calledCard1Suit
+                                    let c2 = game.calledCard2Rank + game.calledCard2Suit
+                                    Label(
+                                        c1 == c2 ? "Cards must be different" : "Cards must not be in your hand",
+                                        systemImage: "exclamationmark.triangle.fill"
+                                    )
+                                    .font(.system(size: 13, weight: .heavy, design: .rounded)).foregroundStyle(.defenseRose)
                                 }
                             }
+                            .padding().comicContainer(cornerRadius: 18)
+
+                            VStack(spacing: 10) {
+                                SectionHeader(title: "Your Hand")
+                                let cards = game.myHandSorted
+                                GeometryReader { geo in
+                                    let cardW = btAdaptiveCardWidth(available: geo.size.width, count: cards.count)
+                                    let sp = cards.count > 1
+                                        ? (geo.size.width - CGFloat(cards.count) * cardW) / CGFloat(cards.count - 1)
+                                        : 0
+                                    HStack(spacing: sp) {
+                                        ForEach(cards) { card in
+                                            HandCardView(card: card, width: cardW)
+                                        }
+                                    }
+                                }
+                                .frame(height: 106)
+                            }
                         }
-                        .frame(height: 106)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 20)
                     }
-                } else {
+                    .frame(maxWidth: .infinity)
+                    .background(Comic.bg)
+                }
+            }
+        } else {
+            // !isMyCall — waiting branch, portrait-only (no landscape wrap)
+            ScrollView {
+                VStack(spacing: vSizeClass == .compact ? 14 : 22) {
+                    VStack(spacing: 6) {
+                        Text("\(game.playerName(game.highBidderIndex)) won the bid")
+                            .font(.system(size: 22, weight: .black, design: .rounded))
+                            .foregroundStyle(.masterGold)
+                        Text("Bid: \(game.highBid) — calling trump and cards…")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, vSizeClass == .compact ? 16 : 44)
+
                     Text("\(game.playerName(game.highBidderIndex)) is choosing trump and cards…")
                         .font(.system(size: 15, weight: .heavy, design: .rounded))
                         .foregroundStyle(Comic.yellow)
@@ -487,38 +744,9 @@ struct BTCallingView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 32)
                 }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 80)
-            .adaptiveContentFrame()
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if isMyCall {
-                VStack(spacing: 0) {
-                    Divider()
-                    Button {
-                        HapticManager.success()
-                        Task { await game.callTrumpAndCards() }
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "checkmark.seal.fill")
-                            Text("Confirm").fontWeight(.black)
-                        }
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
-                        .foregroundStyle(game.callingValid ? Comic.black : Color.secondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                    }
-                    .buttonStyle(ComicButtonStyle(
-                        bg: game.callingValid ? Comic.yellow : Comic.containerBG,
-                        fg: game.callingValid ? Comic.black : .secondary,
-                        borderColor: Comic.black
-                    ))
-                    .disabled(!game.callingValid)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                }
-                .background(Comic.bg)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 80)
+                .adaptiveContentFrame()
             }
         }
     }
