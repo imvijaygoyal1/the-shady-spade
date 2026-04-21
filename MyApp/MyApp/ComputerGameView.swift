@@ -1748,119 +1748,252 @@ private struct RoundCompleteView: View {
             )
         }.sorted { $0.score > $1.score }
 
-        ScrollView {
-            VStack(spacing: 24) {
-                // Result banner
-                VStack(spacing: 8) {
-                    Text(isSet ? "SET!" : "BID MADE!")
-                        .font(.system(size: 42, weight: .black))
-                        .foregroundStyle(isSet ? .defenseRose : .masterGold)
-                    Text(isSet
-                         ? "\(game.playerName(game.highBidderIndex)) set with \(game.offensePoints) pts (needed \(game.highBid))"
-                         : "\(game.playerName(game.highBidderIndex)) made the bid of \(game.highBid)!")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .adaptiveContentFrame(maxWidth: 500)
-                }
-                .padding(.top, 52)
+        GameAdaptiveLayout {
+            // PORTRAIT — unchanged
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Result banner
+                    VStack(spacing: 8) {
+                        Text(isSet ? "SET!" : "BID MADE!")
+                            .font(.system(size: 42, weight: .black))
+                            .foregroundStyle(isSet ? .defenseRose : .masterGold)
+                        Text(isSet
+                             ? "\(game.playerName(game.highBidderIndex)) set with \(game.offensePoints) pts (needed \(game.highBid))"
+                             : "\(game.playerName(game.highBidderIndex)) made the bid of \(game.highBid)!")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .adaptiveContentFrame(maxWidth: 500)
+                    }
+                    .padding(.top, 52)
 
-                // Award breakdown
-                HStack(spacing: 8) {
-                    AwardPill(label: "Bidder",
-                              points: isSet ? -game.highBid : game.highBid,
-                              color: isSet ? .defenseRose : .masterGold)
-                    AwardPill(label: "Each Partner",
-                              points: isSet ? -((game.highBid + 1) / 2) : game.highBid / 2,
-                              color: isSet ? .defenseRose : .offenseBlue)
-                    AwardPill(label: "Defense",
-                              points: 0,
-                              color: .secondary)
-                }
-                .padding(.horizontal, 20)
+                    // Award breakdown
+                    HStack(spacing: 8) {
+                        AwardPill(label: "Bidder",
+                                  points: isSet ? -game.highBid : game.highBid,
+                                  color: isSet ? .defenseRose : .masterGold)
+                        AwardPill(label: "Each Partner",
+                                  points: isSet ? -((game.highBid + 1) / 2) : game.highBid / 2,
+                                  color: isSet ? .defenseRose : .offenseBlue)
+                        AwardPill(label: "Defense",
+                                  points: 0,
+                                  color: .secondary)
+                    }
+                    .padding(.horizontal, 20)
 
-                // Per-player breakdown (this round)
-                VStack(spacing: 0) {
-                    ForEach(0..<6) { i in
-                        let role = builtRound.role(of: i)
-                        let pts = builtRound.score(for: i)
-                        HStack(spacing: 12) {
-                            AvatarRoleCard(
-                                avatar: game.playerAvatar(i),
-                                name: game.playerName(i),
-                                role: resolveAvatarRole(
-                                    playerIndex: i,
-                                    bidderIndex: builtRound.bidderIndex,
-                                    revealedPartner1: builtRound.partner1Index,
-                                    revealedPartner2: builtRound.partner2Index,
-                                    isRoundComplete: true
-                                ),
-                                width: 48,
-                                height: 68
-                            )
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(game.playerName(i))
-                                    .font(.system(size: 15, weight: .heavy, design: .rounded))
-                                    .foregroundStyle(Comic.textPrimary)
-                                Text(role.label)
-                                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                                    .foregroundStyle(role.color)
+                    // Per-player breakdown (this round)
+                    VStack(spacing: 0) {
+                        ForEach(0..<6) { i in
+                            let role = builtRound.role(of: i)
+                            let pts = builtRound.score(for: i)
+                            HStack(spacing: 12) {
+                                AvatarRoleCard(
+                                    avatar: game.playerAvatar(i),
+                                    name: game.playerName(i),
+                                    role: resolveAvatarRole(
+                                        playerIndex: i,
+                                        bidderIndex: builtRound.bidderIndex,
+                                        revealedPartner1: builtRound.partner1Index,
+                                        revealedPartner2: builtRound.partner2Index,
+                                        isRoundComplete: true
+                                    ),
+                                    width: 48,
+                                    height: 68
+                                )
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(game.playerName(i))
+                                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                        .foregroundStyle(Comic.textPrimary)
+                                    Text(role.label)
+                                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                                        .foregroundStyle(role.color)
+                                }
+                                Spacer()
+                                Text(pts >= 0 ? "+\(pts)" : "\(pts)")
+                                    .font(.system(size: 20, weight: .black, design: .rounded).monospacedDigit())
+                                    .foregroundStyle(pts > 0 ? Color.masterGold : (pts == 0 ? Color.secondary : Color.defenseRose))
                             }
-                            Spacer()
-                            Text(pts >= 0 ? "+\(pts)" : "\(pts)")
-                                .font(.system(size: 20, weight: .black, design: .rounded).monospacedDigit())
-                                .foregroundStyle(pts > 0 ? Color.masterGold : (pts == 0 ? Color.secondary : Color.defenseRose))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+
+                            if i < 5 { Divider().overlay(Comic.containerBorder) }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-
-                        if i < 5 { Divider().overlay(Comic.containerBorder) }
                     }
-                }
-                .comicContainer(cornerRadius: 18)
-                .padding(.horizontal, 16)
+                    .comicContainer(cornerRadius: 18)
+                    .padding(.horizontal, 16)
 
-                // Bar chart — replaces old score table
-                PlayerScoreBarChart(
-                    players: sortedEntries,
-                    title: "GAME SCORE"
-                )
-                .environmentObject(themeManager)
-                .adaptiveContentFrame()
-                .padding(.horizontal, 16)
+                    // Bar chart — replaces old score table
+                    PlayerScoreBarChart(
+                        players: sortedEntries,
+                        title: "GAME SCORE"
+                    )
+                    .environmentObject(themeManager)
+                    .adaptiveContentFrame()
+                    .padding(.horizontal, 16)
 
-                // Action buttons
-                VStack(spacing: 12) {
-                    Button {
-                        HapticManager.success()
-                        onNextRound()
-                    } label: {
-                        HStack(spacing: 10) {
-                            Text("Next Round").fontWeight(.black)
-                            Image(systemName: "arrow.right")
-                        }
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Comic.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 18)
-                    }
-                    .buttonStyle(ComicButtonStyle())
-
-                    Button {
-                        HapticManager.impact(.light)
-                        onQuit()
-                    } label: {
-                        Text("Quit to Menu")
-                            .font(.system(size: 15, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Comic.textSecondary)
+                    // Action buttons
+                    VStack(spacing: 12) {
+                        Button {
+                            HapticManager.success()
+                            onNextRound()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text("Next Round").fontWeight(.black)
+                                Image(systemName: "arrow.right")
+                            }
+                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Comic.black)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
+                            .padding(.vertical, 18)
+                        }
+                        .buttonStyle(ComicButtonStyle())
+
+                        Button {
+                            HapticManager.impact(.light)
+                            onQuit()
+                        } label: {
+                            Text("Quit to Menu")
+                                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.textSecondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                        }
+                        .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.textSecondary, borderColor: Comic.containerBorder))
                     }
-                    .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.textSecondary, borderColor: Comic.containerBorder))
+                    .adaptiveContentFrame(maxWidth: 480)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 40)
                 }
-                .adaptiveContentFrame(maxWidth: 480)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 40)
+            }
+        } landscape: {
+            HStack(spacing: 0) {
+                // LEFT PANEL — result + awards + action buttons
+                VStack(spacing: 0) {
+                    Spacer()
+
+                    VStack(spacing: 8) {
+                        Text(isSet ? "SET!" : "BID MADE!")
+                            .font(.system(size: 42, weight: .black))
+                            .foregroundStyle(isSet ? .defenseRose : .masterGold)
+                        Text(isSet
+                             ? "\(game.playerName(game.highBidderIndex)) set with \(game.offensePoints) pts (needed \(game.highBid))"
+                             : "\(game.playerName(game.highBidderIndex)) made the bid of \(game.highBid)!")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 14)
+
+                    HStack(spacing: 8) {
+                        AwardPill(label: "Bidder",
+                                  points: isSet ? -game.highBid : game.highBid,
+                                  color: isSet ? .defenseRose : .masterGold)
+                        AwardPill(label: "Each Partner",
+                                  points: isSet ? -((game.highBid + 1) / 2) : game.highBid / 2,
+                                  color: isSet ? .defenseRose : .offenseBlue)
+                        AwardPill(label: "Defense",
+                                  points: 0,
+                                  color: .secondary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 12)
+
+                    Spacer()
+
+                    Divider().background(Comic.containerBorder)
+
+                    VStack(spacing: 8) {
+                        Button {
+                            HapticManager.success()
+                            onNextRound()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text("Next Round").fontWeight(.black)
+                                Image(systemName: "arrow.right")
+                            }
+                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Comic.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 18)
+                        }
+                        .buttonStyle(ComicButtonStyle())
+
+                        Button {
+                            HapticManager.impact(.light)
+                            onQuit()
+                        } label: {
+                            Text("Quit to Menu")
+                                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.textSecondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                        }
+                        .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.textSecondary, borderColor: Comic.containerBorder))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                }
+                .frame(maxWidth: .infinity)
+                .background(Comic.containerBG)
+
+                Rectangle()
+                    .fill(Comic.containerBorder)
+                    .frame(width: 1)
+
+                // RIGHT PANEL — per-player list + score chart
+                ScrollView {
+                    VStack(spacing: 16) {
+                        VStack(spacing: 0) {
+                            ForEach(0..<6) { i in
+                                let role = builtRound.role(of: i)
+                                let pts = builtRound.score(for: i)
+                                HStack(spacing: 12) {
+                                    AvatarRoleCard(
+                                        avatar: game.playerAvatar(i),
+                                        name: game.playerName(i),
+                                        role: resolveAvatarRole(
+                                            playerIndex: i,
+                                            bidderIndex: builtRound.bidderIndex,
+                                            revealedPartner1: builtRound.partner1Index,
+                                            revealedPartner2: builtRound.partner2Index,
+                                            isRoundComplete: true
+                                        ),
+                                        width: 48,
+                                        height: 68
+                                    )
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(game.playerName(i))
+                                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                            .foregroundStyle(Comic.textPrimary)
+                                        Text(role.label)
+                                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                                            .foregroundStyle(role.color)
+                                    }
+                                    Spacer()
+                                    Text(pts >= 0 ? "+\(pts)" : "\(pts)")
+                                        .font(.system(size: 20, weight: .black, design: .rounded).monospacedDigit())
+                                        .foregroundStyle(pts > 0 ? Color.masterGold : (pts == 0 ? Color.secondary : Color.defenseRose))
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+
+                                if i < 5 { Divider().overlay(Comic.containerBorder) }
+                            }
+                        }
+                        .comicContainer(cornerRadius: 18)
+
+                        PlayerScoreBarChart(
+                            players: sortedEntries,
+                            title: "GAME SCORE"
+                        )
+                        .environmentObject(themeManager)
+                        .adaptiveContentFrame()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                }
+                .frame(maxWidth: .infinity)
+                .background(Comic.bg)
             }
         }
     }
