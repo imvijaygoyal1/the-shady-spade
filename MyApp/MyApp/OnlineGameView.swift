@@ -1127,7 +1127,7 @@ private struct OnlinePlayingView: View {
                             .transition(.opacity.combined(with: .move(edge: .top)))
                             .animation(.easeInOut(duration: 0.3), value: game.lastTrickWinnerIndex)
                     }
-                    onlineYourHandBox(geo: geo)
+                    onlineYourHandBoxLandscape(rightW: rightW)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 12)
@@ -1303,6 +1303,55 @@ private struct OnlinePlayingView: View {
                 .padding(.horizontal, 16)
             }
             .frame(height: onlineAdaptiveHandHeight())
+        }
+        .playerTurnGlow(isActive: game.isMyTurn)
+    }
+
+    private func onlineYourHandBoxLandscape(rightW: CGFloat) -> some View {
+        let validCards = game.validCardsToPlay
+        let handCards = game.myHandSorted
+        let cardW = (rightW - 16 - 8) / 2
+
+        return VStack(spacing: 6) {
+            if game.isMyTurn {
+                Text("Your turn")
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.yellow)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.4))
+                            .overlay(Capsule().strokeBorder(Comic.yellow, lineWidth: 2))
+                    )
+                    .opacity(turnTextPulse ? 1.0 : 0.0)
+                    .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: turnTextPulse)
+                    .onAppear { turnTextPulse = true }
+                    .onDisappear { turnTextPulse = false }
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                ForEach(Array(handCards.enumerated()), id: \.element.id) { _, card in
+                    let valid = validCards.contains(card.id)
+                    Button {
+                        if valid && game.isMyTurn {
+                            HapticManager.impact(.medium)
+                            Task { await game.playCard(card) }
+                        }
+                    } label: {
+                        HandCardView(card: card, width: cardW, isValid: !game.isMyTurn || valid)
+                            .shimmer(isActive: game.isMyTurn && valid)
+                    }
+                    .buttonStyle(BouncyButton())
+                    .disabled(!valid || !game.isMyTurn)
+                    .animation(.easeInOut(duration: 0.2), value: game.isMyTurn)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.5).combined(with: .opacity),
+                        removal: .scale(scale: 0.3).combined(with: .opacity)
+                    ))
+                }
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.75), value: handCards.count)
         }
         .playerTurnGlow(isActive: game.isMyTurn)
     }

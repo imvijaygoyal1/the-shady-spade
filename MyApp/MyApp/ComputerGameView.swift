@@ -1303,7 +1303,7 @@ private struct PlayingPhaseView: View {
                             .transition(.opacity.combined(with: .move(edge: .top)))
                             .animation(.easeInOut(duration: 0.3), value: game.lastTrickWinnerIndex)
                     }
-                    yourHandBox(geo: geo)
+                    yourHandBoxLandscape(rightW: rightW)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 12)
@@ -1479,6 +1479,56 @@ private struct PlayingPhaseView: View {
                 .padding(.horizontal, 16)
             }
             .frame(height: adaptiveHandHeight())
+        }
+        .playerTurnGlow(isActive: isMyTurn)
+    }
+
+    private func yourHandBoxLandscape(rightW: CGFloat) -> some View {
+        let validCards = game.validCardsToPlay()
+        let isHumanTurn = game.phase == .humanPlaying
+        let cards = game.hands[game.currentHumanPlayerIndex].sortedBySuit()
+        let cardW = (rightW - 16 - 8) / 2
+
+        return VStack(spacing: 6) {
+            if isMyTurn {
+                Text("Your turn")
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.yellow)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.4))
+                            .overlay(Capsule().strokeBorder(Comic.yellow, lineWidth: 2))
+                    )
+                    .opacity(turnTextPulse ? 1.0 : 0.0)
+                    .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: turnTextPulse)
+                    .onAppear { turnTextPulse = true }
+                    .onDisappear { turnTextPulse = false }
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                ForEach(Array(cards.enumerated()), id: \.element.id) { _, card in
+                    let valid = validCards.contains(card.id)
+                    Button {
+                        if valid && isHumanTurn {
+                            HapticManager.impact(.medium)
+                            game.humanPlayCard(card)
+                        }
+                    } label: {
+                        HandCardView(card: card, width: cardW, isValid: !isHumanTurn || valid)
+                            .shimmer(isActive: isHumanTurn && valid)
+                    }
+                    .buttonStyle(BouncyButton())
+                    .disabled(!valid || !isHumanTurn)
+                    .animation(.easeInOut(duration: 0.2), value: isHumanTurn)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.5).combined(with: .opacity),
+                        removal: .scale(scale: 0.3).combined(with: .opacity)
+                    ))
+                }
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.75), value: cards.count)
         }
         .playerTurnGlow(isActive: isMyTurn)
     }
