@@ -140,6 +140,13 @@ final class ComputerGameViewModel {
     private var bidContinuation: CheckedContinuation<Int, Never>?
     private var cardContinuation: CheckedContinuation<Card, Never>?
 
+    /// Set to true by cancelAllContinuationsIfNeeded(); checked after every blocking
+    /// await so the game loop exits cleanly instead of processing stale input.
+    private(set) var gameLoopCancelled = false
+    /// Dummy card used only to unblock cardContinuation on cancellation — never
+    /// processed because gameLoopCancelled is checked immediately after the await.
+    private static let cancelSentinelCard = Card(rank: "2", suit: "♣")
+
     // MARK: - Init
 
     init(humanName: String, humanAvatar: String = "🦁", dealerIndex: Int, roundNumber: Int) {
@@ -181,6 +188,8 @@ final class ComputerGameViewModel {
     }
 
     func deal() {
+        cancelAllContinuationsIfNeeded()
+        gameLoopCancelled = false       // reset for the new round
         let deck = Self.freshDeck().shuffled()
         hands = (0..<6).map { i in Array(deck[(i * 8)..<((i + 1) * 8)]) }
         bids = Array(repeating: -1, count: 6)
@@ -215,6 +224,7 @@ final class ComputerGameViewModel {
         await withCheckedContinuation { cont in
             viewCardsContinuation = cont
         }
+        // Guard is checked by startBiddingPhase() at its own entry point.
     }
 
     func humanReadyToBid() {
@@ -225,6 +235,7 @@ final class ComputerGameViewModel {
     // MARK: - Bidding Phase
 
     func startBiddingPhase() async {
+        guard !gameLoopCancelled else { return }
         phase = .bidding
         playerHasPassed = Array(repeating: false, count: 6)
 
@@ -266,6 +277,7 @@ final class ComputerGameViewModel {
                 let amount = await withCheckedContinuation { cont in
                     bidContinuation = cont
                 }
+                guard !gameLoopCancelled else { return }
                 bids[currentPlayer] = amount
                 bidHistory.append((playerIndex: currentPlayer, amount: amount))
                 var seenH = Set<Int>()
@@ -315,6 +327,7 @@ final class ComputerGameViewModel {
             if humanPlayerIndices.contains(highBidderIndex) {
                 // Human winner — wait until they tap Continue
                 await withCheckedContinuation { cont in bidWinnerContinuation = cont }
+                guard !gameLoopCancelled else { return }
             } else {
                 // AI winner — auto-proceed after 1.5 seconds
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -477,6 +490,7 @@ final class ComputerGameViewModel {
     // MARK: - Playing Phase
 
     func startPlayingPhase() async {
+        guard !gameLoopCancelled else { return }
         phase = .playing
         currentLeaderIndex = highBidderIndex
 
@@ -490,6 +504,7 @@ final class ComputerGameViewModel {
                         passingDeviceToIndex = playerIndex
                         isPassingDevice = true
                         await withCheckedContinuation { cont in confirmDeviceContinuation = cont }
+                        guard !gameLoopCancelled else { return }
                         currentHumanPlayerIndex = playerIndex
                         isPassingDevice = false
                     }
@@ -499,6 +514,7 @@ final class ComputerGameViewModel {
                     let card = await withCheckedContinuation { cont in
                         cardContinuation = cont
                     }
+                    guard !gameLoopCancelled else { return }
                     hands[playerIndex].removeAll { $0.id == card.id }
                     currentTrick.append((playerIndex: playerIndex, card: card))
                     checkPartnerReveal(card: card, playerIndex: playerIndex)
@@ -545,6 +561,7 @@ final class ComputerGameViewModel {
             await withCheckedContinuation { cont in
                 nextHandContinuation = cont
             }
+            guard !gameLoopCancelled else { return }
             waitingForNextHand = false
         }
     }
@@ -562,6 +579,30 @@ final class ComputerGameViewModel {
     func confirmDevicePass() {
         confirmDeviceContinuation?.resume()
         confirmDeviceContinuation = nil
+    }
+
+    /// Resumes any pending device-pass continuation so the game loop unblocks.
+    /// Prefer cancelAllContinuationsIfNeeded() for full teardown; this is kept
+    /// for callers that only need to unblock the pass-device overlay.
+    func cancelDevicePassIfNeeded() {
+        guard confirmDeviceContinuation != nil else { return }
+        confirmDeviceContinuation?.resume()
+        confirmDeviceContinuation = nil
+        isPassingDevice = false
+    }
+
+    /// Resumes every pending continuation with a sentinel/dummy value so all
+    /// blocked async tasks can exit their awaits and hit the gameLoopCancelled
+    /// guard, returning cleanly. Call from deal() (new round) and from the
+    /// view's onDisappear (quit/navigation away).
+    func cancelAllContinuationsIfNeeded() {
+        gameLoopCancelled = true
+        viewCardsContinuation?.resume();                              viewCardsContinuation = nil
+        bidContinuation?.resume(returning: 0);                        bidContinuation = nil
+        bidWinnerContinuation?.resume();                              bidWinnerContinuation = nil
+        cardContinuation?.resume(returning: Self.cancelSentinelCard); cardContinuation = nil
+        nextHandContinuation?.resume();                               nextHandContinuation = nil
+        cancelDevicePassIfNeeded()
     }
 
     private func checkPartnerReveal(card: Card, playerIndex: Int) {

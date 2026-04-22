@@ -154,6 +154,7 @@ struct ComputerGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: game.isPassingDevice)
+        .onDisappear { game.cancelAllContinuationsIfNeeded() }
         // Quit button — top-right safe area, above all content
         .overlay(alignment: .topTrailing) {
             let activePhase = !isGameOver && game.phase != .roundComplete

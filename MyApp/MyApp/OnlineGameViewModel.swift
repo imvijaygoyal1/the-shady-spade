@@ -1010,7 +1010,7 @@ final class OnlineGameViewModel {
         Set([highBidderIndex, hostPartner1, hostPartner2].filter { $0 >= 0 })
     }
 
-    private func processAITurnIfNeeded() async {
+    private func processAITurnIfNeeded(retriesRemaining: Int = 2) async {
         guard isHost, !aiSeats.isEmpty, aiSeats.contains(currentActionPlayer) else { return }
         let seat = currentActionPlayer
         let capturedPhase = phase
@@ -1023,7 +1023,7 @@ final class OnlineGameViewModel {
         let activePhases: [OnlineGamePhase] = [.bidding, .calling, .playing]
         guard currentActionPlayer == seat, phase == capturedPhase else {
             if aiSeats.contains(currentActionPlayer) && activePhases.contains(phase) {
-                await processAITurnIfNeeded()
+                await processAITurnIfNeeded(retriesRemaining: retriesRemaining)
             }
             return
         }
@@ -1049,7 +1049,16 @@ final class OnlineGameViewModel {
                 await refetchAndSyncHands()
             }
             guard allHands[seat].count == 8 else {
-                ogVMLog.error("[AI Calling] seat \(seat) still has \(self.allHands[seat].count) cards after refetch — aborting calling")
+                // RC-A fix: refetch failed or returned wrong count. Retry up to
+                // retriesRemaining times (default 2) with a 1s delay so transient
+                // Firestore failures don't permanently freeze the AI calling turn.
+                if retriesRemaining > 0 {
+                    ogVMLog.warning("[AI Calling] seat \(seat) has \(self.allHands[seat].count) cards after refetch — retrying (\(retriesRemaining) left)")
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    await processAITurnIfNeeded(retriesRemaining: retriesRemaining - 1)
+                } else {
+                    ogVMLog.error("[AI Calling] seat \(seat) still has \(self.allHands[seat].count) cards after all retries — giving up")
+                }
                 return
             }
             let result = aiComputeCalling(seat: seat)
