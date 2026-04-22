@@ -808,9 +808,13 @@ final class OnlineGameViewModel {
             let cardId = actionData["cardId"] as? String ?? ""
             guard let card = parseCard(cardId),
                   allHands[playerIndex].contains(where: { $0.id == cardId }) else {
-                // Card invalid or already played (stale action). If it's an AI's turn,
-                // restart the chain so the game doesn't stall.
-                await processAITurnIfNeeded()
+                // Card invalid or already played (stale action). Reset the AI lock flag
+                // first — a sleeping AI task may hold it, which would cause the re-trigger
+                // below to bail silently and leave the game frozen.
+                isProcessingAI = false
+                if aiSeats.contains(currentActionPlayer) {
+                    await processAITurnIfNeeded()
+                }
                 return
             }
 
@@ -839,7 +843,17 @@ final class OnlineGameViewModel {
                 showGs["currentTrick"] = trickData
                 showGs["partner1Index"] = newP1
                 showGs["partner2Index"] = newP2
-                await criticalWrite(["gameState": showGs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
+                let showOk = await criticalWrite(["gameState": showGs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
+                // Fix 5: if the show-state write fails, apply state locally so the host's
+                // trick display is consistent during the 1s pause. Clients will re-sync
+                // on the resolution write that follows.
+                if !showOk {
+                    ogVMLog.error("[playCard] 6th-card show-state write failed — applying locally")
+                    currentTrick = newTrick
+                    partner1Index = newP1
+                    partner2Index = newP2
+                    currentActionPlayer = -1
+                }
 
                 // Capture accumulated state before sleeping — a Firestore snapshot
                 // arriving during the sleep triggers handleSnapshot on the host which
@@ -927,7 +941,9 @@ final class OnlineGameViewModel {
                 // Trick in progress — advance to next in order
                 let trickOrder = (0..<6).map { (currentLeaderIndex + $0) % 6 }
                 let pos = trickOrder.firstIndex(of: playerIndex) ?? 0
-                let nextPlayer = trickOrder[min(pos + 1, 5)]
+                // Fix: use modulo instead of min() so a stale/defaulted pos=0 can't
+                // wrap back to trickOrder[5] and re-pick the same player (or skip anyone).
+                let nextPlayer = trickOrder[(pos + 1) % 6]
 
                 var gs = buildGS(phase: .playing, currentActionPlayer: nextPlayer,
                     bids: bids, highBid: highBid, highBidderIndex: highBidderIndex,
@@ -1146,6 +1162,15 @@ final class OnlineGameViewModel {
             guard let cardId = aiComputeCard(seat: seat) else {
                 ogVMLog.error("[AI Playing] seat \(seat) has empty hand — retrying in 1s")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
+                // Fix 2: state may have changed during the 1s sleep — only recurse if
+                // this seat is still the current action player in the playing phase.
+                // If a different AI now needs to act, the recovery re-triggers for them.
+                guard currentActionPlayer == seat, phase == .playing else {
+                    if aiSeats.contains(currentActionPlayer) && phase == .playing {
+                        await processAITurnIfNeeded(retriesRemaining: retriesRemaining)
+                    }
+                    return
+                }
                 await processAITurnIfNeeded(retriesRemaining: retriesRemaining)
                 return
             }
@@ -1174,8 +1199,38 @@ final class OnlineGameViewModel {
             }
         let call1Pts = topExternal.first?.pointValue ?? 0
         let call2Pts = topExternal.dropFirst().first?.pointValue ?? 0
-        let partnerBonus = Int(Double(max(0, 250 - myPoints - call1Pts - call2Pts)) * 0.30)
-        let estimated = myPoints + call1Pts + call2Pts + partnerBonus
+
+        // Phase 1a — Position-aware partner bonus
+        let position = (seat - dealerIndex + 6) % 6
+        let bonusFraction: Double
+        switch position {
+        case 1, 2: bonusFraction = 0.25
+        case 3:    bonusFraction = 0.33
+        case 4, 5: bonusFraction = 0.42
+        default:   bonusFraction = 0.38   // dealer
+        }
+        let remaining = max(0, 250 - myPoints - call1Pts - call2Pts)
+        let partnerBonus = Int(Double(remaining) * bonusFraction)
+
+        // Phase 1b — Suit-clustering bonus (2+ high cards in same suit)
+        var clusterBonus = 0
+        for suit in TrumpSuit.allCases {
+            let suitCards = hand.filter { $0.suit == suit.rawValue }
+            guard suitCards.count >= 2 else { continue }
+            let sortedRanks = suitCards.compactMap { Card.rankOrder[$0.rank] }.sorted(by: >)
+            if let top = sortedRanks.first, let second = sortedRanks.dropFirst().first,
+               top >= 10 && second >= 10 {
+                clusterBonus += suitCards.count * 4
+            }
+        }
+
+        // Phase 1c — Shortness penalty (3+ thin suits)
+        let thinSuits = TrumpSuit.allCases.filter { suit in
+            hand.filter { $0.suit == suit.rawValue }.count <= 1
+        }.count
+        let shortnessPenalty = max(0, thinSuits - 2) * 8
+
+        let estimated = myPoints + call1Pts + call2Pts + partnerBonus + clusterBonus - shortnessPenalty
         let minBid = max(130, highBid + 5)
         if !canPass {
             let rounded = (max(estimated, minBid) / 5) * 5
@@ -1188,11 +1243,24 @@ final class OnlineGameViewModel {
 
     private func aiComputeCalling(seat: Int) -> (trump: TrumpSuit, c1: String, c2: String) {
         let hand = allHands[seat]
-        let suitScores = TrumpSuit.allCases.map { suit -> (TrumpSuit, Int) in
-            let pts = hand.filter { $0.suit == suit.rawValue }.map(\.pointValue).reduce(0, +)
-            return (suit, pts)
+
+        // Phase 2a — Tier-based trump selection
+        func trumpTier(_ suit: TrumpSuit) -> Int {
+            let topRank = hand.filter { $0.suit == suit.rawValue }
+                .compactMap { Card.rankOrder[$0.rank] }.max() ?? 0
+            if topRank >= 12 { return 3 }
+            if topRank >= 11 { return 2 }
+            if topRank >= 10 { return 1 }
+            return 0
         }
-        let trump = suitScores.max(by: { $0.1 < $1.1 })?.0 ?? .spades
+        let suitRankings = TrumpSuit.allCases.map { suit -> (TrumpSuit, Int) in
+            let pts   = hand.filter { $0.suit == suit.rawValue }.map(\.pointValue).reduce(0, +)
+            let count = hand.filter { $0.suit == suit.rawValue }.count
+            return (suit, pts + trumpTier(suit) * 15 + count * 2)
+        }
+        let trump = suitRankings.max(by: { $0.1 < $1.1 })?.0 ?? .spades
+
+        // Phase 2b — Void-feeding called cards, diversified across suits
         let handIds = Set(hand.map(\.id))
         let candidates = ComputerGameViewModel.freshDeck()
             .filter { !handIds.contains($0.id) }
@@ -1201,8 +1269,27 @@ final class OnlineGameViewModel {
                     ? lhs.pointValue > rhs.pointValue
                     : (Card.rankOrder[lhs.rank] ?? 0) > (Card.rankOrder[rhs.rank] ?? 0)
             }
-        let c1 = candidates.count > 0 ? candidates[0].id : "A♥"
-        let c2 = candidates.count > 1 ? candidates[1].id : "K♥"
+        let voidSuits  = TrumpSuit.allCases.filter { suit in
+            suit != trump && hand.filter { $0.suit == suit.rawValue }.isEmpty
+        }
+        let shortSuits = TrumpSuit.allCases.filter { suit in
+            suit != trump && hand.filter { $0.suit == suit.rawValue }.count == 1
+        }
+        var ordered: [Card] = []
+        for suit in voidSuits {
+            if let top = candidates.first(where: { $0.suit == suit.rawValue }) { ordered.append(top) }
+        }
+        let coveredSuits = Set(ordered.map(\.suit))
+        for suit in shortSuits where !coveredSuits.contains(suit.rawValue) {
+            if let top = candidates.first(where: { $0.suit == suit.rawValue }) { ordered.append(top) }
+        }
+        let chosenIds = Set(ordered.map(\.id))
+        ordered += candidates.filter { !chosenIds.contains($0.id) }
+
+        let c1Card = ordered.first
+        let c2Card = ordered.first(where: { $0.suit != c1Card?.suit }) ?? ordered.dropFirst().first
+        let c1 = c1Card?.id ?? "A♥"
+        let c2 = c2Card?.id ?? (ordered.count > 1 ? ordered[1].id : "K♥")
         return (trump: trump, c1: c1, c2: c2)
     }
 
@@ -1236,24 +1323,52 @@ final class OnlineGameViewModel {
         }
         let isOffense = hostOffenseSet.contains(seat)
         let isBidder  = seat == highBidderIndex
+        let trumpRaw  = trumpSuit.rawValue
 
         func rankScore(_ c: Card) -> Int  { Card.rankOrder[c.rank] ?? 0 }
         func valueScore(_ c: Card) -> Int { c.pointValue * 100 + rankScore(c) }
-        let trumpRaw = trumpSuit.rawValue
 
+        // Phase 3 — Deficit tracking
+        let offensePts = hostOffenseSet.map { wonPointsPerPlayer[$0] }.reduce(0, +)
+        let totalPts   = wonPointsPerPlayer.reduce(0, +)
+        let remaining  = 250 - totalPts
+        let shortfall  = max(0, highBid - offensePts)
+        let isUrgent   = isOffense && remaining > 0 && shortfall * 10 > remaining * 6
+
+        // Phase 4 — Void memory from completed tricks
+        var knownVoids: [Int: Set<String>] = [:]
+        for trick in completedTricks {
+            guard let ledSuit = trick.first?.card.suit else { continue }
+            for entry in trick where entry.card.suit != ledSuit {
+                knownVoids[entry.playerIndex, default: []].insert(ledSuit)
+            }
+        }
+        let opponentIndices = (0..<6).filter { isOffense ? !hostOffenseSet.contains($0) : hostOffenseSet.contains($0) }
+
+        // ── LEADING ──────────────────────────────────────────────────────
         if currentTrick.isEmpty {
+            let nonTrump = hand.filter { $0.suit != trumpRaw }
             if isBidder {
+                let bidSecured = offensePts >= highBid
                 let trumpCards = hand.filter { $0.suit == trumpRaw }
-                if let highTrump = trumpCards.max(by: { rankScore($0) < rankScore($1) }),
-                   rankScore(highTrump) >= (Card.rankOrder["Q"] ?? 0) {
-                    return highTrump.id
+                if !bidSecured || trickNumber < 3 {
+                    if let highTrump = trumpCards.max(by: { rankScore($0) < rankScore($1) }),
+                       rankScore(highTrump) >= (Card.rankOrder["Q"] ?? 0) {
+                        return highTrump.id
+                    }
                 }
             }
-            let nonTrump = hand.filter { $0.suit != trumpRaw }
+            if isUrgent, let best = nonTrump.max(by: { valueScore($0) < valueScore($1) }) { return best.id }
+            let scored = nonTrump.map { card -> (Card, Int) in
+                let voidCount = opponentIndices.filter { knownVoids[$0]?.contains(card.suit) == true }.count
+                return (card, rankScore(card) + card.pointValue - voidCount * 4)
+            }
+            if let best = scored.max(by: { $0.1 < $1.1 })?.0 { return best.id }
             if let best = nonTrump.max(by: { rankScore($0) < rankScore($1) }) { return best.id }
             return (hand.min(by: { rankScore($0) < rankScore($1) }) ?? hand[0]).id
         }
 
+        // ── FOLLOWING ────────────────────────────────────────────────────
         let ledSuit  = currentTrick[0].card.suit
         let sameSuit = hand.filter { $0.suit == ledSuit }
 
@@ -1280,13 +1395,20 @@ final class OnlineGameViewModel {
             return (sameSuit.min(by: { valueScore($0) < valueScore($1) }) ?? sameSuit[0]).id
         }
 
+        // ── CAN'T FOLLOW ─────────────────────────────────────────────────
         if teammateWinning {
             let nonTrump = hand.filter { $0.suit != trumpRaw }
             if let best = nonTrump.max(by: { valueScore($0) < valueScore($1) }) { return best.id }
         }
-        let trumpCards = hand.filter { $0.suit == trumpRaw }
-        if let lowest = trumpCards.min(by: { rankScore($0) < rankScore($1) }) { return lowest.id }
-        return (hand.min(by: { valueScore($0) < valueScore($1) }) ?? hand[0]).id
+        // Phase 3: only trump in if points are at stake or offense is in urgent mode
+        let trickPoints = currentTrick.map(\.card.pointValue).reduce(0, +)
+        let trumpCards  = hand.filter { $0.suit == trumpRaw }
+        if !trumpCards.isEmpty && (trickPoints > 0 || isUrgent) {
+            return (trumpCards.min(by: { rankScore($0) < rankScore($1) }) ?? trumpCards[0]).id
+        }
+        let nonTrump = hand.filter { $0.suit != trumpRaw }
+        if let discard = nonTrump.min(by: { valueScore($0) < valueScore($1) }) { return discard.id }
+        return (trumpCards.min(by: { rankScore($0) < rankScore($1) }) ?? hand[0]).id
     }
 
     private func setSmartCallingDefaults() {

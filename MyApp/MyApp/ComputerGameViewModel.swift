@@ -394,7 +394,7 @@ final class ComputerGameViewModel {
         let hand = hands[playerIndex]
         let myPoints = hand.map(\.pointValue).reduce(0, +)
 
-        // Best 2 callable cards outside this hand — whoever holds them becomes partner(s)
+        // Best 2 callable cards outside this hand
         let myIds = Set(hand.map(\.id))
         let topExternal = Self.freshDeck()
             .filter { !myIds.contains($0.id) }
@@ -406,22 +406,53 @@ final class ComputerGameViewModel {
         let call1Pts = topExternal.first?.pointValue ?? 0
         let call2Pts = topExternal.dropFirst().first?.pointValue ?? 0
 
-        // Conservative 30% of remaining points — partner contributions beyond called cards
+        // Phase 1a — Position-aware partner bonus.
+        // Early bidders have less information and should be conservative;
+        // late bidders have seen more passes/bids and can estimate their hand's value better.
+        // Position: 1 = first after dealer, 5 = last before dealer wraps, 0 = dealer (forced).
+        let position = (playerIndex - dealerIndex + 6) % 6
+        let bonusFraction: Double
+        switch position {
+        case 1, 2: bonusFraction = 0.25   // early — conservative, limited info
+        case 3:    bonusFraction = 0.33   // middle
+        case 4, 5: bonusFraction = 0.42   // late — most info, bid more aggressively
+        default:   bonusFraction = 0.38   // dealer (position 0) — forced at 130 if all pass
+        }
         let remaining = max(0, 250 - myPoints - call1Pts - call2Pts)
-        let partnerBonus = Int(Double(remaining) * 0.30)
+        let partnerBonus = Int(Double(remaining) * bonusFraction)
 
-        let estimated = myPoints + call1Pts + call2Pts + partnerBonus
+        // Phase 1b — Suit-clustering bonus.
+        // A hand with A+K or A+Q in the same suit is structurally stronger than
+        // equal-point hands with scattered low cards. Reward high-card clustering.
+        var clusterBonus = 0
+        for suit in TrumpSuit.allCases {
+            let suitCards = hand.filter { $0.suit == suit.rawValue }
+            guard suitCards.count >= 2 else { continue }
+            let sortedRanks = suitCards.compactMap { Card.rankOrder[$0.rank] }.sorted(by: >)
+            // Both top-2 cards must be Queen or higher (rank >= 10)
+            if let top = sortedRanks.first, let second = sortedRanks.dropFirst().first,
+               top >= 10 && second >= 10 {
+                clusterBonus += suitCards.count * 4
+            }
+        }
+
+        // Phase 1c — Shortness penalty.
+        // 3+ singleton/void suits means you'll be weak in most suits and
+        // highly dependent on partners for coverage.
+        let thinSuits = TrumpSuit.allCases.filter { suit in
+            hand.filter { $0.suit == suit.rawValue }.count <= 1
+        }.count
+        let shortnessPenalty = max(0, thinSuits - 2) * 8
+
+        let estimated = myPoints + call1Pts + call2Pts + partnerBonus + clusterBonus - shortnessPenalty
         let minBid = max(130, highBid + 5)
 
         if !canPass {
-            // Must bid — use estimated or force minimum
             let rounded = (max(estimated, minBid) / 5) * 5
             return min(max(rounded, minBid), 250)
         }
 
         guard estimated >= minBid else { return 0 }
-
-        // Round down to nearest 5, clamp to [minBid, 250]
         let rounded = (estimated / 5) * 5
         return min(max(rounded, minBid), 250)
     }
@@ -432,28 +463,68 @@ final class ComputerGameViewModel {
         try? await Task.sleep(nanoseconds: 1_000_000_000)
 
         let hand = hands[highBidderIndex]
-
-        // Trump = suit with most point value in bidder's hand
-        let suitScores = TrumpSuit.allCases.map { suit -> (TrumpSuit, Int) in
-            let pts = hand.filter { $0.suit == suit.rawValue }.map(\.pointValue).reduce(0, +)
-            return (suit, pts)
-        }
-        trumpSuit = suitScores.max(by: { $0.1 < $1.1 })?.0 ?? .spades
-
-        // Call 2 highest-value cards NOT in bidder's hand
         let bidderIds = Set(hand.map(\.id))
+
+        // Phase 2a — Tier-based trump selection.
+        // Points alone are insufficient: Q♠ 5♠ 3♠ is risky trump (low cards get overtrumped).
+        // Score each suit by points + a tier bonus for high-card backing + card count.
+        func trumpTier(_ suit: TrumpSuit) -> Int {
+            let topRank = hand.filter { $0.suit == suit.rawValue }
+                .compactMap { Card.rankOrder[$0.rank] }.max() ?? 0
+            if topRank >= 12 { return 3 }   // Ace — safest trump
+            if topRank >= 11 { return 2 }   // King
+            if topRank >= 10 { return 1 }   // Queen — acceptable
+            return 0                         // J or below — risky, avoid
+        }
+        let suitRankings = TrumpSuit.allCases.map { suit -> (TrumpSuit, Int) in
+            let pts   = hand.filter { $0.suit == suit.rawValue }.map(\.pointValue).reduce(0, +)
+            let count = hand.filter { $0.suit == suit.rawValue }.count
+            return (suit, pts + trumpTier(suit) * 15 + count * 2)
+        }
+        trumpSuit = suitRankings.max(by: { $0.1 < $1.1 })?.0 ?? .spades
+
+        // Phase 2b — Void-feeding called cards.
+        // If the bidder is void in a suit, calling a high card in that suit means a partner
+        // holds it and can feed the bidder that suit (bidder can always trump or discard).
+        // Diversify across suits so both called cards don't come from the same suit.
         let candidates = Self.freshDeck()
             .filter { !bidderIds.contains($0.id) }
             .sorted { lhs, rhs in
-                if lhs.pointValue != rhs.pointValue { return lhs.pointValue > rhs.pointValue }
-                return (Card.rankOrder[lhs.rank] ?? 0) > (Card.rankOrder[rhs.rank] ?? 0)
+                lhs.pointValue != rhs.pointValue
+                    ? lhs.pointValue > rhs.pointValue
+                    : (Card.rankOrder[lhs.rank] ?? 0) > (Card.rankOrder[rhs.rank] ?? 0)
             }
 
-        if candidates.count >= 2 {
-            calledCard1Rank = candidates[0].rank
-            calledCard1Suit = candidates[0].suit
-            calledCard2Rank = candidates[1].rank
-            calledCard2Suit = candidates[1].suit
+        let voidSuits = TrumpSuit.allCases.filter { suit in
+            suit != trumpSuit && hand.filter { $0.suit == suit.rawValue }.isEmpty
+        }
+        let shortSuits = TrumpSuit.allCases.filter { suit in
+            suit != trumpSuit && hand.filter { $0.suit == suit.rawValue }.count == 1
+        }
+
+        var ordered: [Card] = []
+        for suit in voidSuits {
+            if let top = candidates.first(where: { $0.suit == suit.rawValue }) { ordered.append(top) }
+        }
+        let coveredSuits = Set(ordered.map(\.suit))
+        for suit in shortSuits where !coveredSuits.contains(suit.rawValue) {
+            if let top = candidates.first(where: { $0.suit == suit.rawValue }) { ordered.append(top) }
+        }
+        let chosenIds = Set(ordered.map(\.id))
+        ordered += candidates.filter { !chosenIds.contains($0.id) }
+
+        // Pick c1 and c2 from different suits when possible
+        let c1 = ordered.first
+        let c2 = ordered.first(where: { $0.suit != c1?.suit }) ?? ordered.dropFirst().first
+
+        if let card1 = c1, let card2 = c2 {
+            calledCard1Rank = card1.rank; calledCard1Suit = card1.suit
+            calledCard2Rank = card2.rank; calledCard2Suit = card2.suit
+        } else if let card1 = c1 {
+            calledCard1Rank = card1.rank; calledCard1Suit = card1.suit
+            if ordered.count > 1 {
+                calledCard2Rank = ordered[1].rank; calledCard2Suit = ordered[1].suit
+            }
         }
 
         resolvePartners()
@@ -661,60 +732,109 @@ final class ComputerGameViewModel {
 
         let isOffense = offenseSet.contains(playerIndex)
         let isBidder  = playerIndex == highBidderIndex
+        let trumpRaw  = trumpSuit.rawValue
 
         func rankScore(_ c: Card) -> Int  { Card.rankOrder[c.rank] ?? 0 }
         func valueScore(_ c: Card) -> Int { c.pointValue * 100 + rankScore(c) }
 
+        // Phase 3 — Deficit tracking.
+        // Offense urgency: does offense need more than 60% of remaining points?
+        let offensePts = offenseSet.map { wonTricks[$0].map(\.pointValue).reduce(0, +) }.reduce(0, +)
+        let totalPts   = wonTricks.flatMap { $0 }.map(\.pointValue).reduce(0, +)
+        let remaining  = 250 - totalPts
+        let shortfall  = max(0, highBid - offensePts)
+        // Urgent = we need a disproportionate share of remaining points
+        let isUrgent   = isOffense && remaining > 0 && shortfall * 10 > remaining * 6
+
+        // Phase 4 — Void memory from completed tricks.
+        // Any player who didn't follow the led suit is void in that suit.
+        // Uses only publicly visible information (all played cards are visible).
+        var knownVoids: [Int: Set<String>] = [:]
+        for trick in completedTricks {
+            guard let ledSuit = trick.first?.card.suit else { continue }
+            for entry in trick where entry.card.suit != ledSuit {
+                knownVoids[entry.playerIndex, default: []].insert(ledSuit)
+            }
+        }
+        let opponentIndices = (0..<6).filter { isOffense ? !offenseSet.contains($0) : offenseSet.contains($0) }
+
         // ── LEADING ──────────────────────────────────────────────────────
         if currentTrick.isEmpty {
+            let nonTrump = hand.filter { $0.suit != trumpRaw }
+
             if isBidder {
-                // Bidder leads high trump (Q+) to pull opponents' trump
-                let trumpCards = hand.filter { $0.suit == trumpSuit.rawValue }
-                if let highTrump = trumpCards.max(by: { rankScore($0) < rankScore($1) }),
-                   rankScore(highTrump) >= (Card.rankOrder["Q"] ?? 0) {
-                    return highTrump
+                // Lead high trump (Q+) to pull opponents' trump — but only when
+                // bid is not yet secured OR in early tricks (pull trump early when it counts).
+                let bidSecured = offensePts >= highBid
+                let trumpCards = hand.filter { $0.suit == trumpRaw }
+                if !bidSecured || trickNumber < 3 {
+                    if let highTrump = trumpCards.max(by: { rankScore($0) < rankScore($1) }),
+                       rankScore(highTrump) >= (Card.rankOrder["Q"] ?? 0) {
+                        return highTrump
+                    }
                 }
             }
-            // Everyone else: highest non-trump; if only trump left, lowest trump
-            let nonTrump = hand.filter { $0.suit != trumpSuit.rawValue }
+
+            // Phase 3: urgent offense — lead highest-value card to maximise points NOW
+            if isUrgent, let best = nonTrump.max(by: { valueScore($0) < valueScore($1) }) {
+                return best
+            }
+
+            // Phase 4: avoid suits where multiple opponents are void (they'll trump us).
+            // Score each non-trump card down by the number of void opponents in that suit.
+            let scoredNonTrump = nonTrump.map { card -> (Card, Int) in
+                let voidCount = opponentIndices.filter { knownVoids[$0]?.contains(card.suit) == true }.count
+                return (card, rankScore(card) + card.pointValue - voidCount * 4)
+            }
+            if let best = scoredNonTrump.max(by: { $0.1 < $1.1 })?.0 { return best }
+
+            // Fallback: highest non-trump; if only trump left, lowest trump
             if let best = nonTrump.max(by: { rankScore($0) < rankScore($1) }) { return best }
             return hand.min(by: { rankScore($0) < rankScore($1) }) ?? hand[0]
         }
 
         // ── FOLLOWING ────────────────────────────────────────────────────
         let ledSuit  = currentTrick[0].card.suit
-        let samesuit = hand.filter { $0.suit == ledSuit }
+        let sameSuit = hand.filter { $0.suit == ledSuit }
         let winner   = trickWinner(trick: currentTrick)
-        // True when current trick winner is on the same team as this player
-        let winnerIsOffense  = offenseSet.contains(winner.playerIndex)
-        let teammateWinning  = isOffense ? winnerIsOffense : !winnerIsOffense
+        let winnerIsOffense = offenseSet.contains(winner.playerIndex)
+        let teammateWinning = isOffense ? winnerIsOffense : !winnerIsOffense
 
-        if !samesuit.isEmpty {
+        if !sameSuit.isEmpty {
             if teammateWinning {
                 // Dump highest-point card of led suit onto teammate's winning trick
-                return samesuit.max(by: { valueScore($0) < valueScore($1) }) ?? samesuit[0]
+                return sameSuit.max(by: { valueScore($0) < valueScore($1) }) ?? sameSuit[0]
             }
-            // Opponent winning — try to beat with lowest winning card
+            // Opponent winning — try to beat with the lowest card that wins
             if winner.card.suit == ledSuit {
-                let canBeat = samesuit.filter { rankScore($0) > rankScore(winner.card) }
+                let canBeat = sameSuit.filter { rankScore($0) > rankScore(winner.card) }
                 if let best = canBeat.max(by: { rankScore($0) < rankScore($1) }) { return best }
             }
             // Can't beat — play lowest-value card of suit
-            return samesuit.min(by: { valueScore($0) < valueScore($1) }) ?? samesuit[0]
+            return sameSuit.min(by: { valueScore($0) < valueScore($1) }) ?? sameSuit[0]
         }
 
         // ── CAN'T FOLLOW ─────────────────────────────────────────────────
         if teammateWinning {
-            // Don't waste trump — dump highest-point non-trump card instead
-            let nonTrump = hand.filter { $0.suit != trumpSuit.rawValue }
+            // Don't waste trump — dump highest-point non-trump instead
+            let nonTrump = hand.filter { $0.suit != trumpRaw }
             if let best = nonTrump.max(by: { valueScore($0) < valueScore($1) }) { return best }
         }
-        // Opponent winning — play lowest trump to take the trick cheaply
-        let trumpCards = hand.filter { $0.suit == trumpSuit.rawValue }
-        if let lowest = trumpCards.min(by: { rankScore($0) < rankScore($1) }) { return lowest }
 
-        // No trump — discard lowest-value card
-        return hand.min(by: { valueScore($0) < valueScore($1) }) ?? hand[0]
+        // Opponent winning and we're void in led suit.
+        // Phase 3: only trump in if there are points at stake or we're in urgent mode —
+        // otherwise conserve trump by discarding a low card instead.
+        let trickPoints = currentTrick.map(\.card.pointValue).reduce(0, +)
+        let trumpCards  = hand.filter { $0.suit == trumpRaw }
+        if !trumpCards.isEmpty && (trickPoints > 0 || isUrgent) {
+            return trumpCards.min(by: { rankScore($0) < rankScore($1) }) ?? trumpCards[0]
+        }
+
+        // No points at stake — discard lowest-value non-trump to conserve trump
+        let nonTrump = hand.filter { $0.suit != trumpRaw }
+        if let discard = nonTrump.min(by: { valueScore($0) < valueScore($1) }) { return discard }
+        // Only trump left — play lowest
+        return trumpCards.min(by: { rankScore($0) < rankScore($1) }) ?? hand[0]
     }
 
     // MARK: - Trick Resolution
