@@ -522,6 +522,12 @@ final class ComputerGameViewModel {
 
                 } else {
                     try? await Task.sleep(nanoseconds: 600_000_000)
+                    // Fix 5: guard after AI-turn sleep so a cancellation during the delay
+                    // exits cleanly instead of continuing into stale game state.
+                    guard !gameLoopCancelled else { return }
+                    // Fix 1: safety guard — hand should always have cards here; if not,
+                    // something corrupted game state. Skip the card rather than inject a phantom.
+                    guard !hands[playerIndex].isEmpty else { continue }
                     let card = aiPlayCard(playerIndex: playerIndex)
                     hands[playerIndex].removeAll { $0.id == card.id }
                     currentTrick.append((playerIndex: playerIndex, card: card))
@@ -537,6 +543,8 @@ final class ComputerGameViewModel {
             } else {
                 try? await Task.sleep(nanoseconds: 400_000_000)
             }
+            // Fix 5: guard after post-trick sleep for the same reason.
+            guard !gameLoopCancelled else { return }
             resolveTrick()
             await waitForNextHand()
             currentTrick = []

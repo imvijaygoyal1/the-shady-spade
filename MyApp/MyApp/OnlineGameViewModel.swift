@@ -86,6 +86,10 @@ final class OnlineGameViewModel {
     private var listener: ListenerRegistration?
     private var lastProcessedNonce: String = ""
     private var lastActionSentAt: Date = .distantPast
+    /// Prevents two concurrent AI tasks from both passing the post-sleep guard and
+    /// double-playing. Reset to false before every recursive re-trigger so the next
+    /// processAITurnIfNeeded call can proceed.
+    private var isProcessingAI = false
 
     // MARK: Presence tracking
     private var presenceTimer: Timer?
@@ -386,12 +390,30 @@ final class OnlineGameViewModel {
     func attachListener() {
         let db = Firestore.firestore()
         listener = db.collection("sessions").document(sessionCode)
-            .addSnapshotListener { [weak self] snapshot, _ in
-                guard let self, let data = snapshot?.data() else { return }
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self else { return }
+                // Fix 7: handle listener errors — Firestore listeners can die silently on
+                // network failure or session expiry. Re-attach after a delay so the host
+                // continues receiving state updates and AI turns don't freeze permanently.
+                if let error = error {
+                    ogVMLog.error("[listener] Firestore error: \(error.localizedDescription) — reattaching in 3s")
+                    Task { @MainActor [weak self] in
+                        try? await Task.sleep(nanoseconds: 3_000_000_000)
+                        self?.reattachListener()
+                    }
+                    return
+                }
+                guard let data = snapshot?.data() else { return }
                 Task { @MainActor [weak self] in
                     await self?.handleSnapshot(data)
                 }
             }
+    }
+
+    private func reattachListener() {
+        listener?.remove()
+        listener = nil
+        attachListener()
     }
 
     private func handleSnapshot(_ data: [String: Any]) async {
@@ -861,7 +883,21 @@ final class OnlineGameViewModel {
                     gs["currentLeaderIndex"] = winner
                     gs["partner1Index"] = hostPartner1
                     gs["partner2Index"] = hostPartner2
-                    await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
+                    let writeOk = await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
+                    // Fix 3: if all Firestore retries failed, apply the resolved state locally
+                    // on the host so the game loop advances despite the network failure.
+                    // Clients will re-sync when connectivity is restored.
+                    if !writeOk {
+                        ogVMLog.error("[playCard] round-complete write failed — applying state locally")
+                        wonPointsPerPlayer = newWon
+                        runningScores = newRS
+                        currentTrick = []
+                        trickNumber = newTrickNum
+                        currentLeaderIndex = winner
+                        partner1Index = hostPartner1
+                        partner2Index = hostPartner2
+                        phase = nextPhase
+                    }
                 } else {
                     var gs = buildGS(phase: .playing, currentActionPlayer: winner,
                         bids: bids, highBid: highBid, highBidderIndex: highBidderIndex,
@@ -872,7 +908,20 @@ final class OnlineGameViewModel {
                     gs["currentLeaderIndex"] = winner
                     gs["partner1Index"] = newP1
                     gs["partner2Index"] = newP2
-                    await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
+                    let writeOk = await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
+                    // Fix 3: if all Firestore retries failed, apply state locally so the next
+                    // trick can begin on the host, then re-trigger the AI if the trick winner is AI.
+                    if !writeOk {
+                        ogVMLog.error("[playCard] trick-advance write failed — applying state locally")
+                        currentActionPlayer = winner
+                        currentTrick = []
+                        trickNumber = newTrickNum
+                        wonPointsPerPlayer = newWon
+                        currentLeaderIndex = winner
+                        partner1Index = newP1
+                        partner2Index = newP2
+                        await processAITurnIfNeeded()
+                    }
                 }
             } else {
                 // Trick in progress — advance to next in order
@@ -886,7 +935,17 @@ final class OnlineGameViewModel {
                 gs["currentTrick"] = trickData
                 gs["partner1Index"] = newP1
                 gs["partner2Index"] = newP2
-                await criticalWrite(["gameState": gs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
+                let writeOk = await criticalWrite(["gameState": gs, "hands": handsDict, "pendingAction": [:] as [String: Any]])
+                // Fix 3: if write fails, apply state locally and re-trigger so the trick
+                // doesn't freeze waiting for a Firestore snapshot that was never written.
+                if !writeOk {
+                    ogVMLog.error("[playCard] trick-in-progress write failed — applying state locally")
+                    currentActionPlayer = nextPlayer
+                    currentTrick = newTrick
+                    partner1Index = newP1
+                    partner2Index = newP2
+                    await processAITurnIfNeeded()
+                }
             }
 
         default:
@@ -1011,7 +1070,12 @@ final class OnlineGameViewModel {
     }
 
     private func processAITurnIfNeeded(retriesRemaining: Int = 2) async {
+        // Fix 2: prevent two concurrent tasks (from back-to-back Firestore snapshots) from
+        // both passing the post-sleep guard and double-playing the same seat. Reset to false
+        // before every recursive re-trigger so the next call can proceed normally.
+        guard !isProcessingAI else { return }
         guard isHost, !aiSeats.isEmpty, aiSeats.contains(currentActionPlayer) else { return }
+        isProcessingAI = true
         let seat = currentActionPlayer
         let capturedPhase = phase
         let delay = UInt64.random(in: 800_000_000...1_200_000_000)
@@ -1022,11 +1086,16 @@ final class OnlineGameViewModel {
         // so a stale snapshot can't permanently freeze the AI (mirrors BT recovery path).
         let activePhases: [OnlineGamePhase] = [.bidding, .calling, .playing]
         guard currentActionPlayer == seat, phase == capturedPhase else {
+            isProcessingAI = false  // reset before re-trigger
             if aiSeats.contains(currentActionPlayer) && activePhases.contains(phase) {
                 await processAITurnIfNeeded(retriesRemaining: retriesRemaining)
             }
             return
         }
+        // Reset flag before action — the action (processPendingAction) triggers a Firestore
+        // write and the resulting snapshot re-enters processAITurnIfNeeded. If the flag
+        // were still true, that next call would bail immediately and the chain would break.
+        isProcessingAI = false
         switch capturedPhase {
         case .bidding:
             let canPass = highBid > 0
@@ -1072,7 +1141,14 @@ final class OnlineGameViewModel {
             ]
             await processPendingAction(actionData)
         case .playing:
-            let cardId = aiComputeCard(seat: seat)
+            // Fix 1: aiComputeCard returns nil when hand is empty (stale state / sync lag).
+            // Retry after 1s rather than injecting a phantom card.
+            guard let cardId = aiComputeCard(seat: seat) else {
+                ogVMLog.error("[AI Playing] seat \(seat) has empty hand — retrying in 1s")
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                await processAITurnIfNeeded(retriesRemaining: retriesRemaining)
+                return
+            }
             let actionData: [String: Any] = [
                 "nonce": UUID().uuidString,
                 "playerIndex": seat,
@@ -1150,9 +1226,14 @@ final class OnlineGameViewModel {
         ogVMLog.info("[refetchAndSyncHands] re-synced allHands from Firestore")
     }
 
-    private func aiComputeCard(seat: Int) -> String {
+    // Fix 1: returns nil when hand is empty so the caller can retry rather than
+    // injecting a phantom "A♠" card that corrupts trick resolution.
+    private func aiComputeCard(seat: Int) -> String? {
         let hand = allHands[seat]
-        guard !hand.isEmpty else { return "A♠" }
+        guard !hand.isEmpty else {
+            ogVMLog.error("[aiComputeCard] seat=\(seat) has empty hand — returning nil")
+            return nil
+        }
         let isOffense = hostOffenseSet.contains(seat)
         let isBidder  = seat == highBidderIndex
 

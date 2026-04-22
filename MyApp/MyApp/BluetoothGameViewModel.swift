@@ -125,6 +125,11 @@ final class BluetoothGameViewModel: NSObject {
     private var hasInitializedCalling = false
     private var lastProcessedActionId: String = ""
     private var lastActionSentAt: Date = .distantPast
+    /// Prevents two concurrent AI tasks (from back-to-back MC messages) from both
+    /// passing the post-sleep guard and double-playing the same seat. Reset to false
+    /// before every recursive re-trigger and before each action so processPlayCard's
+    /// internal processAITurnIfNeeded calls can proceed.
+    private var isProcessingAI = false
 
     // MARK: sendToHost retry state (client only)
     var isReconnecting: Bool = false
@@ -1085,6 +1090,13 @@ final class BluetoothGameViewModel: NSObject {
     // MARK: - AI Auto-play
 
     private func processAITurnIfNeeded() async {
+        // Fix 2: prevent two concurrent tasks (from back-to-back MC messages) from both
+        // passing the post-sleep guard and double-playing. Reset before every re-trigger
+        // and before each action so processPlayCard's internal calls can proceed.
+        guard !isProcessingAI else {
+            aiLog.debug("bail: AI already processing")
+            return
+        }
         guard isHost else {
             aiLog.debug("bail: not host")
             return
@@ -1097,6 +1109,7 @@ final class BluetoothGameViewModel: NSObject {
             aiLog.error("bail: player\(self.currentActionPlayer) NOT AI aiSeats=\(self.aiSeats) phase=\(self.phase.rawValue)")
             return
         }
+        isProcessingAI = true
         // Capture seat and phase BEFORE sleep — the action player or phase may change
         // during suspension (e.g. a human plays out of turn or a disconnect triggers cleanup).
         let seat = currentActionPlayer
@@ -1108,13 +1121,17 @@ final class BluetoothGameViewModel: NSObject {
         guard aiSeats.contains(seat), phase == capturedPhase, currentActionPlayer == seat else {
             aiLog.error("bail after sleep: seat=\(seat) capturedPhase=\(capturedPhase.rawValue) currentPhase=\(self.phase.rawValue) currentAction=\(self.currentActionPlayer)")
             // Recovery: if the current state still calls for an AI move, re-trigger.
-            // This mirrors the Online model's Firestore-snapshot failsafe.
+            isProcessingAI = false  // reset before re-trigger
             let activePhases: [OnlineGamePhase] = [.bidding, .calling, .playing]
             if aiSeats.contains(currentActionPlayer) && activePhases.contains(phase) {
                 await processAITurnIfNeeded()
             }
             return
         }
+        // Reset flag before the action — processPlayCard calls broadcastGameState which
+        // calls processAITurnIfNeeded internally for the next player; if the flag were
+        // still true those calls would bail immediately, breaking the chain.
+        isProcessingAI = false
         let activePhase = capturedPhase
         switch activePhase {
         case .bidding:
@@ -1130,7 +1147,14 @@ final class BluetoothGameViewModel: NSObject {
             aiLog.debug("seat=\(seat) calling")
             await processCallCards(playerIndex: seat, trump: result.trump, c1: result.c1, c2: result.c2)
         case .playing:
-            let cardId = aiComputeCard(seat: seat)
+            // Fix 1: aiComputeCard returns nil when hand is empty (stale state / sync lag).
+            // Retry after 1s rather than injecting a phantom card.
+            guard let cardId = aiComputeCard(seat: seat) else {
+                aiLog.error("seat=\(seat) aiComputeCard returned nil (empty hand) — retrying in 1s")
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                await processAITurnIfNeeded()
+                return
+            }
             aiLog.debug("seat=\(seat) playing \(cardId)")
             await processPlayCard(playerIndex: seat, cardId: cardId)
         default:
@@ -1185,9 +1209,14 @@ final class BluetoothGameViewModel: NSObject {
         return (trump: trump, c1: c1, c2: c2)
     }
 
-    private func aiComputeCard(seat: Int) -> String {
+    // Fix 1: returns nil when hand is empty so the caller can retry rather than
+    // injecting a phantom "A♠" card that corrupts trick resolution.
+    private func aiComputeCard(seat: Int) -> String? {
         let hand = allHands[seat]
-        guard !hand.isEmpty else { return "A♠" }
+        guard !hand.isEmpty else {
+            aiLog.error("[aiComputeCard] seat=\(seat) has empty hand — returning nil")
+            return nil
+        }
         let isOffense = hostOffenseSet.contains(seat)
         let isBidder  = seat == highBidderIndex
 
@@ -1390,9 +1419,12 @@ extension BluetoothGameViewModel: MCSessionDelegate {
                                 self.aiSeats.append(playerIdx)
                                 self.aiSeats.sort()
                                 self.broadcastGameState()
-                                if self.currentActionPlayer == playerIdx {
-                                    Task { await self.processAITurnIfNeeded() }
-                                }
+                                // Fix 4: always re-trigger — don't gate on currentActionPlayer == playerIdx.
+                                // The disconnect can race with an in-flight AI sleep: currentActionPlayer
+                                // may have already advanced before this handler fires, making the old
+                                // conditional check false even when the replaced seat is now active.
+                                // processAITurnIfNeeded() bails immediately if no AI turn is needed.
+                                Task { await self.processAITurnIfNeeded() }
                             }
                         }
                     }
