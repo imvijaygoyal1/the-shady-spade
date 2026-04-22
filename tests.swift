@@ -232,6 +232,81 @@ do {
     test("loadSampleData allowed when offline",   sampleLoaded)
 }
 
+// ── 11. Per-turn watchdog logic (Issue #9) ────────────────────────────────────
+print("\n── 11. Per-turn watchdog logic (Issue #9) ──")
+do {
+    // Mirror the watchdog guard logic from startTurnWatchdog
+    enum Phase: String { case bidding, calling, playing, roundComplete, gameOver, dealing, lookingAtCards }
+    let activePhases: [Phase] = [.bidding, .calling, .playing]
+
+    // Simulate: watchdog fires, checks guard
+    func watchdogShouldFire(currentAction: Int, capturedSeat: Int,
+                            currentPhase: Phase, capturedPhase: Phase,
+                            aiSeats: [Int]) -> Bool {
+        currentAction == capturedSeat &&
+        currentPhase == capturedPhase &&
+        !aiSeats.contains(capturedSeat)
+    }
+
+    // Should fire: same seat, same phase, not AI
+    test("Watchdog fires when player still idle at same seat",
+         watchdogShouldFire(currentAction: 2, capturedSeat: 2,
+                            currentPhase: .bidding, capturedPhase: .bidding, aiSeats: []))
+
+    // Should not fire: player acted (currentActionPlayer advanced)
+    test("Watchdog skips when player already acted (seat advanced)",
+         !watchdogShouldFire(currentAction: 3, capturedSeat: 2,
+                             currentPhase: .bidding, capturedPhase: .bidding, aiSeats: []))
+
+    // Should not fire: phase changed (round ended, etc.)
+    test("Watchdog skips when phase changed",
+         !watchdogShouldFire(currentAction: 2, capturedSeat: 2,
+                             currentPhase: .roundComplete, capturedPhase: .bidding, aiSeats: []))
+
+    // Should not fire: player already in aiSeats (was converted by another path)
+    test("Watchdog skips if seat already in aiSeats",
+         !watchdogShouldFire(currentAction: 2, capturedSeat: 2,
+                             currentPhase: .bidding, capturedPhase: .bidding, aiSeats: [2, 5]))
+
+    // Simulate: parseGameState/applyGameState decides whether to start watchdog
+    func shouldStartWatchdog(phase: Phase, currentAction: Int, aiSeats: [Int]) -> Bool {
+        activePhases.contains(phase) && currentAction >= 0 && !aiSeats.contains(currentAction)
+    }
+
+    test("Watchdog started for human in .bidding",
+         shouldStartWatchdog(phase: .bidding, currentAction: 1, aiSeats: []))
+
+    test("Watchdog started for human in .calling",
+         shouldStartWatchdog(phase: .calling, currentAction: 3, aiSeats: [0, 5]))
+
+    test("Watchdog started for human in .playing",
+         shouldStartWatchdog(phase: .playing, currentAction: 4, aiSeats: []))
+
+    test("Watchdog NOT started when currentAction is AI seat",
+         !shouldStartWatchdog(phase: .playing, currentAction: 2, aiSeats: [2, 5]))
+
+    test("Watchdog NOT started in .roundComplete",
+         !shouldStartWatchdog(phase: .roundComplete, currentAction: 1, aiSeats: []))
+
+    test("Watchdog NOT started in .gameOver",
+         !shouldStartWatchdog(phase: .gameOver, currentAction: 0, aiSeats: []))
+
+    test("Watchdog NOT started when currentAction is -1",
+         !shouldStartWatchdog(phase: .playing, currentAction: -1, aiSeats: []))
+
+    // Simulate AI seat conversion on watchdog fire
+    var aiSeats = [5]
+    let timedOutSeat = 2
+    aiSeats.append(timedOutSeat)
+    aiSeats.sort()
+    test("aiSeats updated correctly after watchdog fires", aiSeats == [2, 5])
+
+    // After conversion, watchdog should not fire again for same seat
+    test("Watchdog skips on re-check after conversion (seat now in aiSeats)",
+         !watchdogShouldFire(currentAction: 2, capturedSeat: 2,
+                             currentPhase: .playing, capturedPhase: .playing, aiSeats: aiSeats))
+}
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 print("\n─────────────────────────────────")
 print("  \(passed + failed) tests   ✅ \(passed) passed   ❌ \(failed) failed")

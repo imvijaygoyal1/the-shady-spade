@@ -135,6 +135,9 @@ final class BluetoothGameViewModel: NSObject {
     var isReconnecting: Bool = false
     private var pendingHostAction: [String: Any]? = nil
     private var reconnectTask: Task<Void, Never>? = nil
+    /// Per-turn watchdog: cancellable Task started whenever a human player's turn begins.
+    /// Fires after 60s of inactivity to replace the idle player with AI.
+    private var turnWatchdogTask: Task<Void, Never>?
 
     // MARK: - Computed
 
@@ -440,6 +443,8 @@ final class BluetoothGameViewModel: NSObject {
     // MARK: - Cleanup
 
     func cleanup() {
+        turnWatchdogTask?.cancel()
+        turnWatchdogTask = nil
         reconnectTask?.cancel()
         reconnectTask = nil
         pendingHostAction = nil
@@ -932,6 +937,19 @@ final class BluetoothGameViewModel: NSObject {
                 runningScores: runningScores
             ))
         }
+
+        // Per-turn watchdog (host only): start a 60-second timer when a human player's
+        // turn begins. broadcastGameState calls applyGameState after every state write,
+        // so each turn advance naturally resets the timer for the new seat.
+        if isHost {
+            let activePhases: [OnlineGamePhase] = [.bidding, .calling, .playing]
+            if activePhases.contains(newPhase) && newCurrentActionPlayer >= 0
+                && !aiSeats.contains(newCurrentActionPlayer) {
+                startTurnWatchdog(seat: newCurrentActionPlayer, capturedPhase: newPhase)
+            } else {
+                cancelTurnWatchdog()
+            }
+        }
     }
 
     // MARK: - MC Send Helpers
@@ -1090,6 +1108,35 @@ final class BluetoothGameViewModel: NSObject {
 
         default:
             break
+        }
+    }
+
+    // MARK: - Per-turn watchdog
+
+    private func cancelTurnWatchdog() {
+        turnWatchdogTask?.cancel()
+        turnWatchdogTask = nil
+    }
+
+    /// Cancels any existing watchdog and starts a fresh 60-second timer for `seat`.
+    /// If the player still hasn't acted when the timer fires, the host adds them to
+    /// aiSeats, broadcasts updated state, and triggers processAITurnIfNeeded.
+    private func startTurnWatchdog(seat: Int, capturedPhase: OnlineGamePhase) {
+        guard isHost, seat >= 0 else { return }
+        turnWatchdogTask?.cancel()
+        turnWatchdogTask = Task { [weak self] in
+            do { try await Task.sleep(nanoseconds: 60_000_000_000) } catch { return }
+            guard let self else { return }
+            guard self.currentActionPlayer == seat,
+                  self.phase == capturedPhase,
+                  !self.aiSeats.contains(seat) else { return }
+            aiLog.warning("[watchdog] seat \(seat) idle 60s in \(capturedPhase.rawValue) — converting to AI")
+            let name = self.playerName(seat)
+            self.aiSeats.append(seat)
+            self.aiSeats.sort()
+            self.message = "\(name) is taking too long. AI took over."
+            self.broadcastGameState()
+            await self.processAITurnIfNeeded()
         }
     }
 
