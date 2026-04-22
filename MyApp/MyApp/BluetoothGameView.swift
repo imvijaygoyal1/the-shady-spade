@@ -826,10 +826,13 @@ struct BTPlayingView: View {
     @State private var turnTextPulse = false
     @State private var waitPulse = false
     @State private var showingTrickHistory = false
+    @Environment(\.horizontalSizeClass) private var hSizeClass
 
     var body: some View {
         GeometryReader { geo in
-            let isLandscape = geo.size.width > geo.size.height
+            // iPad (regular hSizeClass) uses the landscape multi-column layout even
+            // in portrait orientation — the wide canvas benefits from the 3-column layout.
+            let isLandscape = geo.size.width > geo.size.height || hSizeClass == .regular
             if isLandscape {
                 btLandscapeLayout(geo: geo)
             } else {
@@ -1736,64 +1739,145 @@ private struct BTGameOverView: View {
     private let medals = ["🥇", "🥈", "🥉"]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                VStack(spacing: 10) {
-                    Text("🏆").font(.system(size: 64))
-                    Text("Game Over!")
-                        .font(.system(size: 38, weight: .black)).foregroundStyle(.masterGold)
-                    let winner = sortedIndices[0]
-                    let isMe = winner == game.myPlayerIndex
-                    Text("\(isMe ? "You win" : "\(game.playerName(winner)) wins") with \(game.runningScores[winner]) pts!")
-                        .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                }
-                .padding(.top, 52)
-
-                ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
-                    .padding(.horizontal, 20)
-
-                VStack(spacing: 0) {
-                    ForEach(Array(sortedIndices.enumerated()), id: \.element) { rank, i in
-                        let score = game.runningScores[i]
-                        let isMe = i == game.myPlayerIndex
-                        HStack(spacing: 12) {
-                            Text(rank < 3 ? medals[rank] : "\(rank + 1).")
-                                .font(rank < 3 ? .title3 : .caption.bold())
-                                .frame(width: 30)
-                            ZStack {
-                                Circle()
-                                    .fill(rank == 0 ? Comic.yellow : Comic.black.opacity(0.08))
-                                    .frame(width: 32, height: 32)
-                                    .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
-                                Text(String((isMe ? "You" : game.playerName(i)).prefix(1)).uppercased())
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(rank == 0 ? Comic.black : Comic.textPrimary)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(isMe ? "You" : game.playerName(i))
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
-                            }
-                            Spacer()
-                            Text("\(max(score, 0))")
-                                .font(.title3.bold().monospacedDigit())
-                                .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
+        GameAdaptiveLayout(
+            portrait: {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        VStack(spacing: 10) {
+                            Text("🏆").font(.system(size: 64))
+                            Text("Game Over!")
+                                .font(.system(size: 38, weight: .black)).foregroundStyle(.masterGold)
+                            let winner = sortedIndices[0]
+                            let isMe = winner == game.myPlayerIndex
+                            Text("\(isMe ? "You win" : "\(game.playerName(winner)) wins") with \(game.runningScores[winner]) pts!")
+                                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         }
-                        .padding(.horizontal, 16).padding(.vertical, 12)
-                        if rank < 5 { Divider().overlay(Comic.black.opacity(0.15)) }
+                        .padding(.top, 52)
+
+                        ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                            .padding(.horizontal, 20)
+
+                        VStack(spacing: 0) {
+                            ForEach(Array(sortedIndices.enumerated()), id: \.element) { rank, i in
+                                let score = game.runningScores[i]
+                                let isMe = i == game.myPlayerIndex
+                                HStack(spacing: 12) {
+                                    Text(rank < 3 ? medals[rank] : "\(rank + 1).")
+                                        .font(rank < 3 ? .title3 : .caption.bold())
+                                        .frame(width: 30)
+                                    ZStack {
+                                        Circle()
+                                            .fill(rank == 0 ? Comic.yellow : Comic.black.opacity(0.08))
+                                            .frame(width: 32, height: 32)
+                                            .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
+                                        Text(String((isMe ? "You" : game.playerName(i)).prefix(1)).uppercased())
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundStyle(rank == 0 ? Comic.black : Comic.textPrimary)
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(isMe ? "You" : game.playerName(i))
+                                            .font(.subheadline.bold())
+                                            .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
+                                    }
+                                    Spacer()
+                                    Text("\(max(score, 0))")
+                                        .font(.title3.bold().monospacedDigit())
+                                        .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
+                                }
+                                .padding(.horizontal, 16).padding(.vertical, 12)
+                                if rank < 5 { Divider().overlay(Comic.black.opacity(0.15)) }
+                            }
+                        }
+                        .comicContainer(cornerRadius: 18).padding(.horizontal, 16)
+
+                        Button { HapticManager.impact(.medium); onQuit() } label: {
+                            Text("Quit to Menu")
+                                .font(.title3.bold())
+                                .frame(maxWidth: .infinity).padding(.vertical, 18)
+                        }
+                        .buttonStyle(ComicButtonStyle())
+                        .padding(.horizontal, 16).padding(.bottom, 40)
                     }
                 }
-                .comicContainer(cornerRadius: 18).padding(.horizontal, 16)
+            },
+            landscape: {
+                HStack(spacing: 0) {
+                    // LEFT PANEL — trophy + winner + Quit button
+                    VStack(spacing: 0) {
+                        Spacer()
 
-                Button { HapticManager.impact(.medium); onQuit() } label: {
-                    Text("Quit to Menu")
-                        .font(.title3.bold())
-                        .frame(maxWidth: .infinity).padding(.vertical, 18)
+                        VStack(spacing: 10) {
+                            Text("🏆").font(.system(size: 64))
+                            Text("Game Over!")
+                                .font(.system(size: 38, weight: .black)).foregroundStyle(.masterGold)
+                            let winner = sortedIndices[0]
+                            let isMe = winner == game.myPlayerIndex
+                            Text("\(isMe ? "You win" : "\(game.playerName(winner)) wins") with \(game.runningScores[winner]) pts!")
+                                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        }
+
+                        Spacer()
+
+                        Divider().background(Comic.containerBorder)
+
+                        Button { HapticManager.impact(.medium); onQuit() } label: {
+                            Text("Quit to Menu")
+                                .font(.title3.bold())
+                                .frame(maxWidth: .infinity).padding(.vertical, 18)
+                        }
+                        .buttonStyle(ComicButtonStyle())
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .background(Comic.containerBG)
+
+                    Rectangle()
+                        .fill(Comic.containerBorder)
+                        .frame(width: 1)
+
+                    // RIGHT PANEL — full standings list
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(Array(sortedIndices.enumerated()), id: \.element) { rank, i in
+                                let score = game.runningScores[i]
+                                let isMe = i == game.myPlayerIndex
+                                HStack(spacing: 12) {
+                                    Text(rank < 3 ? medals[rank] : "\(rank + 1).")
+                                        .font(rank < 3 ? .title3 : .caption.bold())
+                                        .frame(width: 30)
+                                    ZStack {
+                                        Circle()
+                                            .fill(rank == 0 ? Comic.yellow : Comic.black.opacity(0.08))
+                                            .frame(width: 32, height: 32)
+                                            .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
+                                        Text(String((isMe ? "You" : game.playerName(i)).prefix(1)).uppercased())
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundStyle(rank == 0 ? Comic.black : Comic.textPrimary)
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(isMe ? "You" : game.playerName(i))
+                                            .font(.subheadline.bold())
+                                            .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
+                                    }
+                                    Spacer()
+                                    Text("\(max(score, 0))")
+                                        .font(.title3.bold().monospacedDigit())
+                                        .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
+                                }
+                                .padding(.horizontal, 16).padding(.vertical, 12)
+                                if rank < 5 { Divider().overlay(Comic.black.opacity(0.15)) }
+                            }
+                        }
+                        .comicContainer(cornerRadius: 18)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .background(Comic.bg)
                 }
-                .buttonStyle(ComicButtonStyle())
-                .padding(.horizontal, 16).padding(.bottom, 40)
             }
-        }
+        )
     }
 }
 

@@ -461,6 +461,10 @@ final class ComputerGameViewModel {
 
     private func resolveAiCalling() async {
         try? await Task.sleep(nanoseconds: 1_000_000_000)
+        // RC-C fix: guard after sleep so a quit/new-round during the 1s delay
+        // does not continue into stale state. startPlayingPhase() already guards
+        // at its own entry, but stopping here is cleaner.
+        guard !gameLoopCancelled else { return }
 
         let hand = hands[highBidderIndex]
         let bidderIds = Set(hand.map(\.id))

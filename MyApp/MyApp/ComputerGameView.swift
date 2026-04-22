@@ -1067,7 +1067,9 @@ private struct PlayingPhaseView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let isLandscape = geo.size.width > geo.size.height
+            // iPad (regular hSizeClass) always uses the landscape multi-column layout
+            // regardless of physical orientation — the wide canvas benefits from it.
+            let isLandscape = geo.size.width > geo.size.height || hSizeClass == .regular
             if isLandscape {
                 landscapeLayout(geo: geo)
             } else {

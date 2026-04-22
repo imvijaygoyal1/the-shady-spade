@@ -1173,11 +1173,19 @@ final class BluetoothGameViewModel: NSObject {
         aiLog.debug("woke seat=\(seat) phase=\(capturedPhase.rawValue) aiSeats=\(self.aiSeats)")
         guard aiSeats.contains(seat), phase == capturedPhase, currentActionPlayer == seat else {
             aiLog.error("bail after sleep: seat=\(seat) capturedPhase=\(capturedPhase.rawValue) currentPhase=\(self.phase.rawValue) currentAction=\(self.currentActionPlayer)")
-            // Recovery: if the current state still calls for an AI move, re-trigger.
-            isProcessingAI = false  // reset before re-trigger
+            // RC-B fix: reset flag before any re-trigger or watchdog arm.
+            isProcessingAI = false
             let activePhases: [OnlineGamePhase] = [.bidding, .calling, .playing]
             if aiSeats.contains(currentActionPlayer) && activePhases.contains(phase) {
+                // Another AI seat is now active — re-trigger.
                 await processAITurnIfNeeded()
+            } else if activePhases.contains(phase) && !aiSeats.contains(currentActionPlayer) {
+                // State advanced to a human player's turn during our sleep.
+                // applyGameState normally arms the watchdog when state changes, but if the
+                // state update arrived while we held the CPU (no suspension point in
+                // applyGameState), the watchdog for this new player may have been missed.
+                // Re-arm defensively so the human's turn is always protected.
+                startTurnWatchdog(seat: currentActionPlayer, capturedPhase: phase)
             }
             return
         }

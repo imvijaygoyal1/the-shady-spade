@@ -86,6 +86,16 @@ struct PlayerStat: Identifiable {
     }
 }
 
+// MARK: - Send Result
+
+private enum SendResult {
+    case success
+    /// Server rejected the payload (4xx). Retrying will not help — discard the record.
+    case serverRejected(String)
+    /// Network error or 5xx. Safe to enqueue and retry later.
+    case networkFailure
+}
+
 // MARK: - LeaderboardService
 
 @MainActor
@@ -113,7 +123,11 @@ final class LeaderboardService {
     // MARK: - Listeners
 
     func startListening() {
-        guard statsListener == nil else { return }
+        // LB6 fix: do NOT gate on statsListener != nil. If a prior listener silently
+        // died (Firestore can drop a listener without calling remove()), this guard
+        // would prevent re-subscription. Instead, tear down any stale registration
+        // before attaching fresh listeners.
+        stopListening()
         isLoading = true
         attachFirestoreListeners()
         startNetworkMonitor()
@@ -126,7 +140,8 @@ final class LeaderboardService {
                 guard let self else { return }
                 self.isLoading = false
                 if let err {
-                    self.errorMessage = err.localizedDescription
+                    lbLog.error("stats listener error — reattaching in 3s: \(err.localizedDescription)")
+                    self.reattachListeners()
                     return
                 }
                 self.playerStats = snap?.documents.compactMap {
@@ -155,7 +170,8 @@ final class LeaderboardService {
             .addSnapshotListener { [weak self] snap, err in
                 guard let self else { return }
                 if let err {
-                    self.errorMessage = err.localizedDescription
+                    lbLog.error("log listener error — reattaching in 3s: \(err.localizedDescription)")
+                    self.reattachListeners()
                     return
                 }
                 self.gameLog = snap?.documents.compactMap {
@@ -191,6 +207,18 @@ final class LeaderboardService {
                     )
                 } ?? []
             }
+    }
+
+    /// Tears down existing listeners and re-subscribes after a 3-second delay.
+    /// Called automatically when a listener reports an error (e.g. silent death).
+    private func reattachListeners() {
+        stopListening()
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard let self else { return }
+            lbLog.info("reattachListeners: re-subscribing Firestore listeners")
+            self.attachFirestoreListeners()
+        }
     }
 
     func stopListening() {
@@ -251,13 +279,17 @@ final class LeaderboardService {
         )
 
         scoreSaveStatus = .saving
-        let success = await sendRecord(pending)
-
-        if success {
+        switch await sendRecord(pending) {
+        case .success:
             scoreSaveStatus = .saved
             errorMessage = nil
-        } else {
-            // Enqueue for automatic retry when connectivity returns
+        case .serverRejected(let reason):
+            // Server will keep rejecting this payload — do not enqueue, surface the error.
+            scoreSaveStatus = .failed("Score not saved: \(reason)")
+            errorMessage = "Score not saved: \(reason)"
+            lbLog.error("record permanently rejected by server: \(reason)")
+        case .networkFailure:
+            // Transient — enqueue for automatic retry when connectivity returns.
             enqueue(pending)
             scoreSaveStatus = .pending
             errorMessage = nil  // not an error — it will sync
@@ -267,8 +299,7 @@ final class LeaderboardService {
 
     // MARK: - HTTP send (shared by live + flush paths)
 
-    /// Returns true on success, false on network failure. Throws are swallowed internally.
-    private func sendRecord(_ record: PendingGameRecord) async -> Bool {
+    private func sendRecord(_ record: PendingGameRecord) async -> SendResult {
         let payload: [String: Any] = [
             "gameMode":            record.gameMode,
             "playerNames":         record.playerNames,
@@ -298,28 +329,31 @@ final class LeaderboardService {
                         try await Task.sleep(nanoseconds: 2_000_000_000)
                         continue
                     }
-                    return false
+                    return .networkFailure
                 }
 
                 let token = try await user.getIDToken()
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
                 let (data, response) = try await URLSession.shared.data(for: request)
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                let body   = String(data: data, encoding: .utf8) ?? "unknown"
 
-                if let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                if status == 200 {
                     lbLog.info("record sent ✓ attempt=\(attempt)")
-                    return true
+                    return .success
                 }
 
-                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                let body = String(data: data, encoding: .utf8) ?? "unknown"
                 lbLog.error("HTTP \(status) attempt=\(attempt): \(body)")
 
-                // Don't retry client errors — they won't succeed on retry
                 if status >= 400 && status < 500 {
-                    await MainActor.run { self.errorMessage = "Score not saved (HTTP \(status))." }
-                    return true  // treat as terminal, don't enqueue
+                    // Server explicitly rejected the payload — retrying will not help.
+                    // Surface the error to the caller instead of masking it.
+                    let reason = "HTTP \(status)"
+                    lbLog.error("server rejected record (terminal): \(body)")
+                    return .serverRejected(reason)
                 }
+                // 5xx or unexpected — fall through to retry
             } catch {
                 lbLog.error("request failed attempt=\(attempt): \(error.localizedDescription)")
             }
@@ -329,7 +363,7 @@ final class LeaderboardService {
                 try? await Task.sleep(nanoseconds: delay)
             }
         }
-        return false
+        return .networkFailure
     }
 
     // MARK: - Pending Queue
@@ -347,10 +381,14 @@ final class LeaderboardService {
 
         var remaining: [PendingGameRecord] = []
         for record in records {
-            let success = await sendRecord(record)
-            if success {
+            switch await sendRecord(record) {
+            case .success:
                 lbLog.info("pending record flushed ✓ id=\(record.id)")
-            } else {
+            case .serverRejected(let reason):
+                // Server will permanently reject this — discard it rather than
+                // retrying forever. Log for diagnostics.
+                lbLog.error("pending record discarded (server rejected): \(reason) id=\(record.id)")
+            case .networkFailure:
                 remaining.append(record)
             }
         }

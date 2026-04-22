@@ -263,15 +263,54 @@ exports.recordGame = onRequest(
     });
 
 // ── Scheduled: monthly leaderboard reset ─────────────────────
+// LB5 fix: archive to monthly_snapshots/{YYYY-MM}/ before deleting so stats
+// are never permanently lost. Archive happens first; deletes only run on success.
 exports.resetMonthlyLeaderboard = onSchedule(
     {schedule: "0 0 1 * *", timeZone: "America/New_York"},
     async () => {
+      const now = new Date();
+      // Label with the month just ended (subtract one day to get the prior month).
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const label = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}`;
+      console.log(`resetMonthlyLeaderboard: archiving to monthly_snapshots/${label}`);
+
       const collections = ["player_stats", "game_log"];
       for (const col of collections) {
         const snap = await db.collection(col).get();
-        const batch = db.batch();
-        snap.forEach((doc) => batch.delete(doc.ref));
-        if (!snap.empty) await batch.commit();
+        if (snap.empty) {
+          console.log(`resetMonthlyLeaderboard: ${col} is empty — skipping archive`);
+          continue;
+        }
+
+        // ── Archive docs to monthly_snapshots/{label}/{col}/ ──
+        // Firestore batches are limited to 500 operations; chunk for large collections.
+        const CHUNK = 400;
+        const docs = snap.docs;
+        for (let i = 0; i < docs.length; i += CHUNK) {
+          const archiveBatch = db.batch();
+          docs.slice(i, i + CHUNK).forEach((doc) => {
+            const archiveRef = db
+                .collection("monthly_snapshots")
+                .doc(label)
+                .collection(col)
+                .doc(doc.id);
+            archiveBatch.set(archiveRef, {
+              ...doc.data(),
+              _archivedAt: admin.firestore.FieldValue.serverTimestamp(),
+              _archiveLabel: label,
+            });
+          });
+          await archiveBatch.commit();
+        }
+        console.log(`resetMonthlyLeaderboard: archived ${docs.length} docs from ${col}`);
+
+        // ── Delete originals only after archive succeeded ──
+        for (let i = 0; i < docs.length; i += CHUNK) {
+          const deleteBatch = db.batch();
+          docs.slice(i, i + CHUNK).forEach((doc) => deleteBatch.delete(doc.ref));
+          await deleteBatch.commit();
+        }
+        console.log(`resetMonthlyLeaderboard: deleted ${docs.length} docs from ${col}`);
       }
-      console.log("Monthly leaderboard reset complete.");
+      console.log(`Monthly leaderboard reset complete. Archive label: ${label}`);
     });
