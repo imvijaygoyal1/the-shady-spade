@@ -280,8 +280,7 @@ final class ComputerGameViewModel {
                 guard !gameLoopCancelled else { return }
                 bids[currentPlayer] = amount
                 bidHistory.append((playerIndex: currentPlayer, amount: amount))
-                var seenH = Set<Int>()
-                bidHistory = bidHistory.filter { seenH.insert($0.playerIndex).inserted }
+                bidHistory = latestBidPerPlayer(bidHistory)
                 if amount > 0 {
                     if amount > highBid { highBid = amount; highBidderIndex = currentPlayer }
                     message = "\(playerName(currentPlayer)) bid \(amount)"
@@ -295,8 +294,7 @@ final class ComputerGameViewModel {
                 let amount = aiBidAmount(for: currentPlayer, canPass: canPassThisTurn)
                 bids[currentPlayer] = amount
                 bidHistory.append((playerIndex: currentPlayer, amount: amount))
-                var seenH = Set<Int>()
-                bidHistory = bidHistory.filter { seenH.insert($0.playerIndex).inserted }
+                bidHistory = latestBidPerPlayer(bidHistory)
                 if amount > 0 {
                     if amount > highBid { highBid = amount; highBidderIndex = currentPlayer }
                     message = "\(playerName(currentPlayer)) bid \(amount)"
@@ -316,8 +314,7 @@ final class ComputerGameViewModel {
             highBid = 130
             bids[dealerIndex] = 130
             bidHistory.append((playerIndex: dealerIndex, amount: 130))
-            var seenH = Set<Int>()
-            bidHistory = bidHistory.filter { seenH.insert($0.playerIndex).inserted }
+            bidHistory = latestBidPerPlayer(bidHistory)
             message = "\(playerName(dealerIndex)) is forced to bid 130"
             try? await Task.sleep(nanoseconds: 500_000_000)
         } else {
@@ -342,6 +339,20 @@ final class ComputerGameViewModel {
         } else {
             phase = .aiCalling
             await resolveAiCalling()
+        }
+    }
+
+    /// Returns bid history keeping one entry per player in first-appearance order,
+    /// using each player's LATEST bid amount (not their first).
+    private func latestBidPerPlayer(
+        _ history: [(playerIndex: Int, amount: Int)]
+    ) -> [(playerIndex: Int, amount: Int)] {
+        var latest: [Int: Int] = [:]
+        for e in history { latest[e.playerIndex] = e.amount }
+        var seen = Set<Int>()
+        return history.compactMap { e in
+            guard seen.insert(e.playerIndex).inserted else { return nil }
+            return (playerIndex: e.playerIndex, amount: latest[e.playerIndex] ?? e.amount)
         }
     }
 

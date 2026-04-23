@@ -486,7 +486,7 @@ final class BluetoothGameViewModel: NSObject {
             bids = newBids
             highBid = newHighBid
             highBidderIndex = newHighBidder
-            bidHistory = newHistory
+            bidHistory = latestBidPerPlayer(newHistory)
             currentActionPlayer = next
             message = "\(playerName(playerIndex)) bid \(amount)"
             broadcastGameState()
@@ -512,7 +512,7 @@ final class BluetoothGameViewModel: NSObject {
             while newPassed[next] { next = (next + 1) % 6 }
             bids = newBids
             playerHasPassed = newPassed
-            bidHistory = newHistory
+            bidHistory = latestBidPerPlayer(newHistory)
             currentActionPlayer = next
             message = "\(playerName(playerIndex)) passed"
             broadcastGameState()
@@ -852,8 +852,7 @@ final class BluetoothGameViewModel: NSObject {
                 else { return nil }
                 return (playerIndex: pi, amount: amt)
             }
-            var seen = Set<Int>()
-            bidHistory = parsed.filter { seen.insert($0.playerIndex).inserted }
+            bidHistory = latestBidPerPlayer(parsed)
         }
         highBid = i("highBid")
         highBidderIndex = iDef("highBidderIndex", -1)
@@ -1137,6 +1136,22 @@ final class BluetoothGameViewModel: NSObject {
             self.message = "\(name) is taking too long. AI took over."
             self.broadcastGameState()
             await self.processAITurnIfNeeded()
+        }
+    }
+
+    // MARK: - Bid History Helper
+
+    /// Returns bid history keeping one entry per player in first-appearance order,
+    /// using each player's LATEST bid amount (not their first).
+    private func latestBidPerPlayer(
+        _ history: [(playerIndex: Int, amount: Int)]
+    ) -> [(playerIndex: Int, amount: Int)] {
+        var latest: [Int: Int] = [:]
+        for e in history { latest[e.playerIndex] = e.amount }
+        var seen = Set<Int>()
+        return history.compactMap { e in
+            guard seen.insert(e.playerIndex).inserted else { return nil }
+            return (playerIndex: e.playerIndex, amount: latest[e.playerIndex] ?? e.amount)
         }
     }
 

@@ -548,8 +548,7 @@ final class OnlineGameViewModel {
                 else { return nil }
                 return (playerIndex: pi, amount: amt)
             }
-            var seen = Set<Int>()
-            bidHistory = parsed.filter { seen.insert($0.playerIndex).inserted }
+            bidHistory = latestBidPerPlayer(parsed)
         }
         highBid = i("highBid")
         highBidderIndex = iDef("highBidderIndex", -1)
@@ -1069,6 +1068,22 @@ final class OnlineGameViewModel {
             "runningScores": runningScores,
             "message": message
         ]
+    }
+
+    // MARK: - Bid History Helper
+
+    /// Returns bid history keeping one entry per player in first-appearance order,
+    /// using each player's LATEST bid amount (not their first).
+    private func latestBidPerPlayer(
+        _ history: [(playerIndex: Int, amount: Int)]
+    ) -> [(playerIndex: Int, amount: Int)] {
+        var latest: [Int: Int] = [:]
+        for e in history { latest[e.playerIndex] = e.amount }
+        var seen = Set<Int>()
+        return history.compactMap { e in
+            guard seen.insert(e.playerIndex).inserted else { return nil }
+            return (playerIndex: e.playerIndex, amount: latest[e.playerIndex] ?? e.amount)
+        }
     }
 
     // MARK: - Game Logic Helpers
