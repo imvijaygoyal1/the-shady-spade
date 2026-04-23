@@ -1468,6 +1468,7 @@ struct BiddingTwoColumnLayout: View {
     let onSliderChange: (Double) -> Void
 
     @State private var isSubmittingBid = false
+    @State private var bidPulse = false
 
     var body: some View {
         GeometryReader { geo in
@@ -1708,6 +1709,7 @@ struct BiddingTwoColumnLayout: View {
                         guard !isSubmittingBid else { return }
                         HapticManager.impact(.medium)
                         isSubmittingBid = true
+                        bidPulse = false
                         onBid(Int(humanBidAmount))
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                             isSubmittingBid = false
@@ -1724,8 +1726,18 @@ struct BiddingTwoColumnLayout: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                     }
-                    .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
+                    .buttonStyle(ComicButtonStyle(
+                        bg: bidPulse ? Color(red: 0.29, green: 0.87, blue: 0.50) : Comic.yellow,
+                        fg: Comic.black,
+                        borderColor: bidPulse ? Color(red: 0.18, green: 0.62, blue: 0.34) : Comic.black))
+                    .shadow(color: Color(red: 0.29, green: 0.87, blue: 0.50).opacity(bidPulse ? 0.65 : 0),
+                            radius: 12, x: 0, y: 0)
                     .disabled(isSubmittingBid)
+                    .onAppear {
+                        withAnimation(.easeInOut(duration: 0.65).repeatForever(autoreverses: true)) {
+                            bidPulse = true
+                        }
+                    }
 
                     if humanCanPass {
                         Button {
@@ -1979,5 +1991,38 @@ struct BrandingPanel: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - GameAdaptiveLayout
+
+/// Full-screen orientation-aware wrapper for gameplay phases.
+/// Portrait → renders portraitContent unchanged.
+/// Landscape → renders landscapeContent with full screen width.
+/// Use this instead of AdaptiveLayout for gameplay screens — no
+/// left branding panel, no split fraction, just full-screen switching.
+
+struct GameAdaptiveLayout<Portrait: View, Landscape: View>: View {
+    let portrait: Portrait
+    let landscape: Landscape
+
+    init(
+        @ViewBuilder portrait: () -> Portrait,
+        @ViewBuilder landscape: () -> Landscape
+    ) {
+        self.portrait = portrait()
+        self.landscape = landscape()
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            if geo.size.width > geo.size.height {
+                landscape
+                    .frame(width: geo.size.width, height: geo.size.height)
+            } else {
+                portrait
+            }
+        }
+        .ignoresSafeArea()
     }
 }
