@@ -1732,12 +1732,9 @@ struct BiddingTwoColumnLayout: View {
                         borderColor: bidPulse ? Color(red: 0.18, green: 0.62, blue: 0.34) : Comic.black))
                     .shadow(color: Color(red: 0.29, green: 0.87, blue: 0.50).opacity(bidPulse ? 0.65 : 0),
                             radius: 12, x: 0, y: 0)
+                    .animation(.easeInOut(duration: 0.65).repeatForever(autoreverses: true), value: bidPulse)
                     .disabled(isSubmittingBid)
-                    .onAppear {
-                        withAnimation(.easeInOut(duration: 0.65).repeatForever(autoreverses: true)) {
-                            bidPulse = true
-                        }
-                    }
+                    .onAppear { bidPulse = true }
 
                     if humanCanPass {
                         Button {

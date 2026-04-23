@@ -1547,7 +1547,10 @@ private struct RoundResultBanner: View {
 
     private var isSet: Bool { game.offensePoints < game.highBid }
     private var offenseTeam: [Int] {
-        [game.highBidderIndex, game.partner1Index, game.partner2Index].compactMap { $0 }
+        var seen = Set<Int>()
+        return [game.highBidderIndex, game.partner1Index, game.partner2Index]
+            .compactMap { $0 }
+            .filter { seen.insert($0).inserted }
     }
     private var defenseTeam: [Int] {
         (0..<6).filter { !offenseTeam.contains($0) }
