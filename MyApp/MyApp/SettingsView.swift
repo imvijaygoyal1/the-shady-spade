@@ -151,25 +151,23 @@ private struct HowToPlayView: View {
             title: "Scoring",
             content: """
             BID MADE (bidding team reaches or exceeds their bid):
-            · Bidder scores: their full bid amount
-            · Each Partner scores: approximately half the bid amount
-            · Defense team display: 250 minus the bidder's score
-            · Each defense player individually: 0 pts
+            · Bidder gains: +bid amount (e.g. bid 150 → +150 pts)
+            · Each Partner gains: +bid amount ÷ 2, rounded down (e.g. +75 pts)
+            · Each Defense player: 0 pts (score unchanged)
 
-            BID FAILED (bidding team falls short of their bid):
-            · Bidder scores: 0 pts
-            · Each Partner scores: 0 pts
-            · Each Defense player scores: 0 pts
-            · Defense team display: 250 minus the bid amount (shown for reference only — not added to any player's total)
+            BID FAILED / SET (bidding team falls short of their bid):
+            · Bidder loses: −bid amount (e.g. bid 150 → −150 pts)
+            · Each Partner loses: −bid amount ÷ 2, rounded up (e.g. −75 pts)
+            · Each Defense player: 0 pts (score unchanged)
 
-            Scores accumulate across rounds. The first bidder to reach 500 points wins the game. Tap any bar in the score chart to see a player's round-by-round history.
+            Scores accumulate across rounds and can go negative. The first bidder to reach 500 points wins the game. Tap any bar in the score chart to see a player's round-by-round history.
             """
         ),
         HowToPlayTopic(
             emoji: "🎮",
             title: "Game Modes",
             content: """
-            Solo — Face 5 AI opponents on your device. Great for practice. AI players are assigned unique character avatars (Card Bot, Brain Bot, The Gambler, Foxy, Shell Boss, Volt) automatically.
+            Solo — Face 5 AI opponents on your device. Great for practice. AI players are automatically assigned unique names and avatars from the character roster.
 
             Online — Host a game and share the 6-character room code with up to 5 friends over the internet. AI players fill empty slots until humans join; they are replaced as real players join via code or QR scan.
 
@@ -190,9 +188,7 @@ private struct HowToPlayView: View {
             emoji: "🎨",
             title: "Avatars & Themes",
             content: """
-            Avatars — Choose from 12 emoji avatars or 6 custom AI character avatars. AI players are automatically assigned unique AI character avatars each game — no two AI players get the same avatar.
-
-            You can pick any avatar including AI character avatars for yourself during setup.
+            Avatars — Choose from 24 character avatars including heroes, villains, fantasy creatures, rogues, and animals. AI players are automatically assigned unique avatars each game — no two players ever share the same avatar.
 
             Theme — The app uses the Casino Night theme: classic casino green felt with gold accents. Dark mode only.
             """
