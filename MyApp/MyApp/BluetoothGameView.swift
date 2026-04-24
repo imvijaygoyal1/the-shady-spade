@@ -42,6 +42,7 @@ struct BluetoothGameView: View {
                     guard game.isHost else { return }
                     Task { await game.startNextRound() }
                 } onQuit: {
+                    saveOnQuit()   // save completed rounds before teardown
                     game.cleanup()
                     dismiss()
                 }
@@ -71,6 +72,7 @@ struct BluetoothGameView: View {
             titleVisibility: .visible
         ) {
             Button(game.isHost ? "End Game" : "Leave", role: .destructive) {
+                saveOnQuit()   // save completed rounds before teardown
                 game.cleanup()
                 dismiss()
             }
@@ -158,6 +160,44 @@ struct BluetoothGameView: View {
         .onDisappear { game.cleanup() }
         .task {
             if game.isHost { await game.startGame() }
+        }
+    }
+
+    /// Saves completed rounds when the player quits mid-game (X button or Quit to Menu).
+    /// Unlike saveBTGameHistory(), does not require highBidderIndex/partnerIndex to be
+    /// valid — it guards on completedRounds being non-empty instead.
+    private func saveOnQuit() {
+        guard game.isHost else { return }
+        guard !gameHistorySaved else { return }
+        guard !game.completedRounds.isEmpty else { return }
+        gameHistorySaved = true
+        let finalScores = game.runningScores
+        let names = game.playerNames
+        let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
+        let history = GameHistory(
+            date: Date(),
+            playerNames: names,
+            finalScores: finalScores,
+            winnerIndex: winnerIndex,
+            gameMode: "Bluetooth"
+        )
+        modelContext.insert(history)
+        let descriptor = FetchDescriptor<GameHistory>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+        if let all = try? modelContext.fetch(descriptor), all.count > 10 {
+            for old in all.dropFirst(10) { modelContext.delete(old) }
+        }
+        try? modelContext.save()
+        let capturedAISeats = game.aiSeats
+        let rounds = game.completedRounds
+        Task {
+            await LeaderboardService.shared.recordGame(
+                gameMode:    "Bluetooth",
+                playerNames: names,
+                finalScores: finalScores,
+                winnerIndex: winnerIndex,
+                aiSeats:     capturedAISeats,
+                rounds:      rounds
+            )
         }
     }
 

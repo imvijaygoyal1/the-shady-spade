@@ -6,6 +6,8 @@
 ## v1.8 Changelog
 > Changes made after v1.7 App Store submission (April 23, 2026). Add entries here as changes are implemented.
 
+- [2026-04-23] Fix leaderboard not updating when user quits mid-game — **Solo:** X-button confirmation dialog now calls `saveGameHistory(finalScores: runningScores)` before `dismiss()` if `savedHistoryRounds` is non-empty (i.e. at least one round was completed). **Online/BT:** Added `saveOnQuit()` private function that guards on `completedRounds.isEmpty` rather than on `highBidderIndex/partnerIndex >= 0` (those can be -1 mid-round if bidding hasn't concluded for the new round). `saveOnQuit()` is now called before `game.cleanup() + dismiss()` in two paths per mode: (1) X-button confirmation dialog, (2) "Quit to Menu" from `RoundCompleteView`. The `gameHistorySaved` flag prevents double-saves. Games with zero completed rounds still produce no record. (`ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`)
+
 ## v1.7 Changelog
 > Submitted to App Store April 23, 2026 — under review.
 

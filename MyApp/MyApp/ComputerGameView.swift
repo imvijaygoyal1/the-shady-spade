@@ -111,7 +111,14 @@ struct ComputerGameView: View {
                 .environmentObject(ThemeManager.shared)
         }
         .confirmationDialog("Quit Game?", isPresented: $showQuitConfirm, titleVisibility: .visible) {
-            Button("Quit", role: .destructive) { dismiss() }
+            Button("Quit", role: .destructive) {
+                // Save any completed rounds even if the game isn't over.
+                if !savedHistoryRounds.isEmpty {
+                    let mode = game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer"
+                    saveGameHistory(finalScores: runningScores, mode: mode)
+                }
+                dismiss()
+            }
             Button("Keep Playing", role: .cancel) { }
         } message: {
             Text("Your progress this round will be lost.")
