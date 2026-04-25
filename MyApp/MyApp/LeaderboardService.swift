@@ -278,19 +278,26 @@ final class LeaderboardService {
             roundCount: Int(rounds.count)
         )
 
+        // Enqueue before attempting the send so the record survives if the
+        // process is killed mid-flight. Removed from the queue on success or
+        // permanent server rejection; left in queue on network failure for
+        // automatic offline retry.
+        enqueue(pending)
         scoreSaveStatus = .saving
+
         switch await sendRecord(pending) {
         case .success:
+            removeFromQueue(id: pending.id)
             scoreSaveStatus = .saved
             errorMessage = nil
         case .serverRejected(let reason):
-            // Server will keep rejecting this payload — do not enqueue, surface the error.
+            // Server will keep rejecting this payload — remove from queue, surface the error.
+            removeFromQueue(id: pending.id)
             scoreSaveStatus = .failed("Score not saved: \(reason)")
             errorMessage = "Score not saved: \(reason)"
             lbLog.error("record permanently rejected by server: \(reason)")
         case .networkFailure:
-            // Transient — enqueue for automatic retry when connectivity returns.
-            enqueue(pending)
+            // Already in queue — will sync automatically when connectivity returns.
             scoreSaveStatus = .pending
             errorMessage = nil  // not an error — it will sync
             lbLog.info("record enqueued for offline retry — \(pending.id)")
