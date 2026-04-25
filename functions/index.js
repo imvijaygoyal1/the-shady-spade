@@ -119,7 +119,11 @@ exports.recordGame = onRequest(
         roundCount,
       } = payload;
       const finalScores = payload.finalScores || Array(PLAYER_COUNT).fill(0);
-      const aiSeats = new Set(payload.aiSeats || []);
+      const aiSeats = new Set(
+          (payload.aiSeats || []).filter(
+              (i) => Number.isInteger(i) && i >= 0 && i < PLAYER_COUNT,
+          ),
+      );
 
       // ── Validate gameMode ──────────────────────────────────
       const validModes = ["Solo", "Online", "Multiplayer", "Bluetooth", "PassAndPlay"];

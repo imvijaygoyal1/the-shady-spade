@@ -18,6 +18,7 @@ struct ComputerGameView: View {
     @State private var showGameHistory = false
     @State private var savedHistoryRounds: [HistoryRound] = []
     @State private var dealAnimDone = false
+    @State private var soloGameSaved = false
     private let targetScore = 500
 
     init(vm: GameViewModel, humanName: String, humanAvatar: String = "🦁") {
@@ -63,6 +64,12 @@ struct ComputerGameView: View {
                     onHistory: { showGameHistory = true },
                     onQuit: { dismiss() }
                 )
+                .onAppear {
+                    guard !soloGameSaved else { return }
+                    soloGameSaved = true
+                    let mode = game.isPassAndPlay ? "PassAndPlay" : (game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer")
+                    saveGameHistory(finalScores: runningScores, mode: mode)
+                }
             } else {
                 switch game.phase {
                 case .viewingCards:
@@ -113,8 +120,9 @@ struct ComputerGameView: View {
         .confirmationDialog("Quit Game?", isPresented: $showQuitConfirm, titleVisibility: .visible) {
             Button("Quit", role: .destructive) {
                 // Save any completed rounds even if the game isn't over.
-                if !savedHistoryRounds.isEmpty {
-                    let mode = game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer"
+                if !soloGameSaved && !savedHistoryRounds.isEmpty {
+                    soloGameSaved = true
+                    let mode = game.isPassAndPlay ? "PassAndPlay" : (game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer")
                     saveGameHistory(finalScores: runningScores, mode: mode)
                 }
                 dismiss()
@@ -211,8 +219,6 @@ struct ComputerGameView: View {
         savedHistoryRounds.append(hr)
 
         if updated.max() ?? 0 >= targetScore {
-            let mode = game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer"
-            saveGameHistory(finalScores: updated, mode: mode)
             isGameOver = true
             return
         }
@@ -310,7 +316,8 @@ struct ComputerGameView: View {
         )
         var allRounds = savedHistoryRounds
         allRounds.append(hr)
-        let mode = game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer"
+        let mode = game.isPassAndPlay ? "PassAndPlay" : (game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer")
+        soloGameSaved = true
         saveGameHistory(finalScores: updated, rounds: allRounds, mode: mode)
         dismiss()
     }
@@ -319,6 +326,7 @@ struct ComputerGameView: View {
         runningScores = Array(repeating: 0, count: 6)
         savedHistoryRounds = []
         isGameOver = false
+        soloGameSaved = false
         let newGame: ComputerGameViewModel
         if !game._allPlayerNames.isEmpty {
             newGame = ComputerGameViewModel(
@@ -616,6 +624,9 @@ private struct CallingCardsView: View {
     @Bindable var game: ComputerGameViewModel
     @Environment(\.verticalSizeClass) private var vSizeClass
 
+    private func isCardTrump(_ card: Card) -> Bool { card.suit == game.trumpSuit.rawValue }
+    private func isCardCalled(_ card: Card) -> Bool { card.id == game.calledCard1 || card.id == game.calledCard2 }
+
     var body: some View {
         GameAdaptiveLayout {
             // PORTRAIT — unchanged
@@ -697,7 +708,8 @@ private struct CallingCardsView: View {
                                 : 0
                             HStack(spacing: sp) {
                                 ForEach(cards) { card in
-                                    HandCardView(card: card, width: cardW)
+                                    HandCardView(card: card, width: cardW,
+                                                 isTrump: isCardTrump(card), isCalled: isCardCalled(card))
                                 }
                             }
                         }
@@ -845,7 +857,8 @@ private struct CallingCardsView: View {
                                     : 0
                                 HStack(spacing: sp) {
                                     ForEach(cards) { card in
-                                        HandCardView(card: card, width: cardW)
+                                        HandCardView(card: card, width: cardW,
+                                                     isTrump: isCardTrump(card), isCalled: isCardCalled(card))
                                     }
                                 }
                             }
@@ -1071,6 +1084,8 @@ private struct PlayingPhaseView: View {
     @Environment(\.horizontalSizeClass) private var hSizeClass
 
     private var isMyTurn: Bool { game.phase == .humanPlaying }
+    private func isCardTrump(_ card: Card) -> Bool { card.suit == game.trumpSuit.rawValue }
+    private func isCardCalled(_ card: Card) -> Bool { card.id == game.calledCard1 || card.id == game.calledCard2 }
 
     var body: some View {
         GeometryReader { geo in
@@ -1386,7 +1401,8 @@ private struct PlayingPhaseView: View {
                         ForEach(game.currentTrick, id: \.card.id) { entry in
                             let isWinning = entry.playerIndex == game.currentTrickWinnerIndex
                             VStack(spacing: 4) {
-                                PlayingCardView(card: entry.card, width: cardW)
+                                PlayingCardView(card: entry.card, width: cardW,
+                                               isTrump: isCardTrump(entry.card), isCalled: isCardCalled(entry.card))
                                     .overlay {
                                         if isWinning {
                                             RoundedRectangle(cornerRadius: corner, style: .continuous)
@@ -1430,7 +1446,10 @@ private struct PlayingPhaseView: View {
                  isWinner: entry.playerIndex == game.lastTrickWinnerIndex)
             },
             winnerName: game.playerName(game.lastTrickWinnerIndex),
-            pointsWon: game.lastTrickPoints
+            pointsWon: game.lastTrickPoints,
+            trumpSuit: game.trumpSuit.rawValue,
+            calledCard1: game.calledCard1,
+            calledCard2: game.calledCard2
         )
     }
 
@@ -1473,7 +1492,8 @@ private struct PlayingPhaseView: View {
                                 game.humanPlayCard(card)
                             }
                         } label: {
-                            HandCardView(card: card, width: cardW, isValid: !isHumanTurn || valid)
+                            HandCardView(card: card, width: cardW, isValid: !isHumanTurn || valid,
+                                         isTrump: isCardTrump(card), isCalled: isCardCalled(card))
                                 .shimmer(isActive: isHumanTurn && valid)
                         }
                         .buttonStyle(BouncyButton())
@@ -1526,7 +1546,8 @@ private struct PlayingPhaseView: View {
                             game.humanPlayCard(card)
                         }
                     } label: {
-                        HandCardView(card: card, width: cardW, isValid: !isHumanTurn || valid)
+                        HandCardView(card: card, width: cardW, isValid: !isHumanTurn || valid,
+                                     isTrump: isCardTrump(card), isCalled: isCardCalled(card))
                             .shimmer(isActive: isHumanTurn && valid)
                     }
                     .buttonStyle(BouncyButton())
