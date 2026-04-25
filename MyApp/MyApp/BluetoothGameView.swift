@@ -207,7 +207,9 @@ struct BluetoothGameView: View {
     /// Unlike saveBTGameHistory(), does not require highBidderIndex/partnerIndex to be
     /// valid — it guards on completedRounds being non-empty instead.
     private func saveOnQuit() {
-        guard game.isHost else { return }
+        // Non-hosts can save at game-over (full final state synced via MC).
+        // Mid-game quits are host-only — non-hosts don't drive game logic.
+        if !game.isHost && game.phase != .gameOver { return }
         guard !gameHistorySaved else { return }
         let finalScores = game.runningScores
         // Use accumulated rounds; fall back to synthetic round if an MC snapshot
@@ -250,6 +252,7 @@ struct BluetoothGameView: View {
         }
         try? modelContext.save()
         let capturedAISeats = game.aiSeats
+        let capturedCode = game.gameSessionId
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    "Bluetooth",
@@ -257,19 +260,40 @@ struct BluetoothGameView: View {
                 finalScores: finalScores,
                 winnerIndex: winnerIndex,
                 aiSeats:     capturedAISeats,
-                rounds:      rounds
+                rounds:      rounds,
+                sessionCode: capturedCode
             )
         }
     }
 
     private func saveBTGameHistory() {
-        guard game.isHost else { return }
         guard !gameHistorySaved else { return }
         let finalScores = game.runningScores
-        guard game.highBidderIndex >= 0,
-              game.partner1Index >= 0,
-              game.partner2Index >= 0 else {
-            btLog.warning("saveBTGameHistory: deferred — bidder=\(game.highBidderIndex) p1=\(game.partner1Index) p2=\(game.partner2Index)")
+        // Use completedRounds (accumulated across all rounds) as primary path.
+        // completedRounds is populated in applyGameState() for ALL clients when
+        // phase transitions to .roundComplete/.gameOver — partner indices -1 are
+        // already normalised to 0 there, so no hard guard needed here.
+        // Fall back to synthetic round from live state if completedRounds is empty.
+        let roundsToSend: [HistoryRound]
+        if !game.completedRounds.isEmpty {
+            roundsToSend = game.completedRounds
+        } else if game.highBidderIndex >= 0 {
+            roundsToSend = [HistoryRound(
+                roundNumber: game.roundNumber,
+                dealerIndex: game.dealerIndex,
+                bidderIndex: game.highBidderIndex,
+                bidAmount: game.highBid,
+                trumpSuit: game.trumpSuit,
+                callCard1: game.calledCard1,
+                callCard2: game.calledCard2,
+                partner1Index: max(0, game.partner1Index),
+                partner2Index: max(0, game.partner2Index),
+                offensePointsCaught: game.offensePoints,
+                defensePointsCaught: game.defensePoints,
+                runningScores: finalScores
+            )]
+        } else {
+            btLog.warning("saveBTGameHistory: no round data — bidder=\(game.highBidderIndex), skipping")
             return
         }
         gameHistorySaved = true
@@ -292,27 +316,7 @@ struct BluetoothGameView: View {
         }
         try? modelContext.save()
         let capturedAISeats = game.aiSeats
-        // LB4: Use completedRounds which accumulates all rounds; fall back to a
-        // synthetic last-round record if the array is unexpectedly empty.
-        let roundsToSend: [HistoryRound]
-        if !game.completedRounds.isEmpty {
-            roundsToSend = game.completedRounds
-        } else {
-            roundsToSend = [HistoryRound(
-                roundNumber: game.roundNumber,
-                dealerIndex: game.dealerIndex,
-                bidderIndex: game.highBidderIndex,
-                bidAmount: game.highBid,
-                trumpSuit: game.trumpSuit,
-                callCard1: game.calledCard1,
-                callCard2: game.calledCard2,
-                partner1Index: game.partner1Index,
-                partner2Index: game.partner2Index,
-                offensePointsCaught: game.offensePoints,
-                defensePointsCaught: game.defensePoints,
-                runningScores: finalScores
-            )]
-        }
+        let capturedCode = game.gameSessionId
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    "Bluetooth",
@@ -320,7 +324,8 @@ struct BluetoothGameView: View {
                 finalScores: finalScores,
                 winnerIndex: winnerIndex,
                 aiSeats:     capturedAISeats,
-                rounds:      roundsToSend
+                rounds:      roundsToSend,
+                sessionCode: capturedCode
             )
         }
     }

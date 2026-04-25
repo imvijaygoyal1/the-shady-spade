@@ -82,9 +82,17 @@ final class BluetoothGameViewModel: NSObject {
     var bidWinnerInfo: BidWinnerInfo? = nil
     var errorMessage: String? = nil
     var wasRemovedFromGame = false
+    // Set to true on non-host clients when the host explicitly ends the game
+    var hostEndedGame = false
 
     // MARK: AI seats (filled if < 6 humans)
     var aiSeats: [Int] = []
+
+    /// Stable identifier for this BT game session — generated once by the host in
+    /// startHosting() and broadcast to all peers via gameState. Used as sessionCode
+    /// so all 6 clients can submit leaderboard records independently; the Cloud
+    /// Function's transaction makes duplicate submissions silent no-ops.
+    var gameSessionId: String = ""
 
     // MARK: Local web dashboard (host only)
     var localServerURL: String = ""
@@ -204,6 +212,10 @@ final class BluetoothGameViewModel: NSObject {
         // Slot 0 = host
         myPlayerIndex = 0
         isHost = true
+        gameSessionId = UUID().uuidString
+            .filter { $0.isLetter || $0.isNumber }
+            .prefix(10)
+            .lowercased()
         playerNames[0] = playerName
         playerAvatars[0] = avatar
         connectedPlayerSlots[0] = BTPlayerSlot(slotIndex: 0, name: playerName, avatar: avatar, joined: true)
@@ -462,6 +474,13 @@ final class BluetoothGameViewModel: NSObject {
         localServer?.stop()
         localServer = nil
         localServerURL = ""
+    }
+
+    /// Broadcasts a "hostEndedGame" message to all connected peers so they can show a
+    /// farewell alert before the session disconnects. Call before cleanup() so peers
+    /// are still connected to receive it.
+    func notifyHostEndedGame() {
+        sendToAll(["type": "hostEndedGame"])
     }
 
     // MARK: - Host Game Logic: Process Actions
@@ -724,6 +743,7 @@ final class BluetoothGameViewModel: NSObject {
 
     private func buildGameStateDict() -> [String: Any] {
         [
+            "gameSessionId": gameSessionId,
             "phase": phase.rawValue,
             "roundNumber": roundNumber,
             "dealerIndex": dealerIndex,
@@ -820,6 +840,9 @@ final class BluetoothGameViewModel: NSObject {
         }
         if let aiSeatsAny = gs["aiSeats"] as? [Any] {
             aiSeats = aiSeatsAny.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
+        }
+        if let sid = gs["gameSessionId"] as? String, !sid.isEmpty {
+            gameSessionId = sid
         }
 
         phase = newPhase
@@ -1018,6 +1041,11 @@ final class BluetoothGameViewModel: NSObject {
                   let hostPeer = playerIndexToPeer[0], peer == hostPeer,
                   let state = dict["state"] as? [String: Any] else { return }
             applyGameState(state)
+
+        case "hostEndedGame":
+            // Only accept from the host; set flag so view can show a farewell alert
+            guard let hostPeer = playerIndexToPeer[0], peer == hostPeer, !isHost else { return }
+            hostEndedGame = true
 
         case "hand":
             // Only accept hand messages from the host
@@ -1586,7 +1614,8 @@ extension BluetoothGameViewModel: MCSessionDelegate {
             case .notConnected:
                 self.pendingPeerInfo.removeValue(forKey: peerID)
                 if let playerIdx = self.peerToPlayerIndex[peerID] {
-                    if self.sessionState == .playing || self.phase != .dealing {
+                    if (self.sessionState == .playing || self.phase != .dealing)
+                        && !self.hostEndedGame {
                         self.errorMessage = "\(self.playerName(playerIdx)) disconnected."
                     }
                     if self.isHost {
