@@ -198,7 +198,9 @@ struct OnlineGameView: View {
     /// Unlike saveOnlineGameHistory(), does not require highBidderIndex/partnerIndex to be
     /// valid — it guards on completedRounds being non-empty instead.
     private func saveOnQuit() {
-        guard game.isHost else { return }
+        // Non-hosts can save at game-over (all clients have full final state).
+        // Mid-game quits are host-only — non-hosts don't drive game logic.
+        if !game.isHost && game.phase != .gameOver { return }
         guard !gameHistorySaved else { return }
         let finalScores = game.runningScores
         // Use accumulated rounds; fall back to synthetic round if a Firestore snapshot
@@ -242,6 +244,7 @@ struct OnlineGameView: View {
         }
         try? modelContext.save()
         let capturedAISeats = game.aiSeats
+        let capturedCode = game.sessionCode
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    mode,
@@ -249,13 +252,13 @@ struct OnlineGameView: View {
                 finalScores: finalScores,
                 winnerIndex: winnerIndex,
                 aiSeats:     capturedAISeats,
-                rounds:      rounds
+                rounds:      rounds,
+                sessionCode: capturedCode
             )
         }
     }
 
     private func saveOnlineGameHistory() {
-        guard game.isHost else { return }
         guard !gameHistorySaved else { return }
         let finalScores = game.runningScores
         guard game.highBidderIndex >= 0,
@@ -306,6 +309,7 @@ struct OnlineGameView: View {
                 runningScores: finalScores
             )]
         }
+        let capturedCode = game.sessionCode
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    mode,
@@ -313,7 +317,8 @@ struct OnlineGameView: View {
                 finalScores: finalScores,
                 winnerIndex: winnerIndex,
                 aiSeats:     capturedAISeats,
-                rounds:      roundsToSend
+                rounds:      roundsToSend,
+                sessionCode: capturedCode
             )
         }
     }

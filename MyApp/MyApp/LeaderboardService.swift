@@ -21,6 +21,7 @@ enum ScoreSaveStatus: Equatable {
 
 struct PendingGameRecord: Codable {
     var id: UUID = UUID()
+    var sessionCode: String?       // nil for BT/Solo/P&P; set for Online games
     var gameMode: String
     var playerNames: [String]
     var finalScores: [Int]
@@ -38,7 +39,8 @@ struct PendingGameRecord: Codable {
     // Used by enqueue() to skip exact duplicate submissions (e.g. onChange retry
     // race). Not stored in JSON — computed from stable game-identifying fields.
     var deduplicationKey: String {
-        "\(gameMode)|\(playerNames.joined(separator: ","))|\(roundCount)|\(bid)|\(winnerIndex)"
+        if let code = sessionCode, !code.isEmpty { return code }
+        return "\(gameMode)|\(playerNames.joined(separator: ","))|\(roundCount)|\(bid)|\(winnerIndex)"
     }
 }
 
@@ -258,7 +260,8 @@ final class LeaderboardService {
         finalScores: [Int],
         winnerIndex: Int,
         aiSeats: [Int] = [],
-        rounds: [HistoryRound]
+        rounds: [HistoryRound],
+        sessionCode: String = ""
     ) async {
         lbLog.info("recordGame called mode=\(gameMode) names=\(playerNames.count) rounds=\(rounds.count) winner=\(winnerIndex)")
         guard playerNames.count == 6,
@@ -270,6 +273,7 @@ final class LeaderboardService {
         let totalDefensePts = rounds.reduce(0) { $0 + $1.defensePointsCaught }
 
         let pending = PendingGameRecord(
+            sessionCode: sessionCode.isEmpty ? nil : sessionCode,
             gameMode: gameMode,
             playerNames: playerNames,
             finalScores: finalScores.map { Int($0) },
@@ -314,6 +318,7 @@ final class LeaderboardService {
 
     private func sendRecord(_ record: PendingGameRecord) async -> SendResult {
         let payload: [String: Any] = [
+            "sessionCode":         record.sessionCode ?? "",
             "gameMode":            record.gameMode,
             "playerNames":         record.playerNames,
             "finalScores":         record.finalScores,

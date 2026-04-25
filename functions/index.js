@@ -124,6 +124,12 @@ exports.recordGame = onRequest(
               (i) => Number.isInteger(i) && i >= 0 && i < PLAYER_COUNT,
           ),
       );
+      // sessionCode: used as game_log doc ID for Online games so all 6 clients
+      // can submit independently — first write wins, duplicates are no-ops.
+      const rawCode = payload.sessionCode;
+      const sessionCode = (typeof rawCode === "string" &&
+          /^[A-Za-z0-9]{1,10}$/.test(rawCode.trim())) ?
+          rawCode.trim() : "";
 
       // ── Validate gameMode ──────────────────────────────────
       const validModes = ["Solo", "Online", "Multiplayer", "Bluetooth", "PassAndPlay"];
@@ -207,12 +213,8 @@ exports.recordGame = onRequest(
         name: playerNames[i] || "",
       }));
 
-      // ── Batch write ────────────────────────────────────────
-      const batch = db.batch();
-      const gameId = db.collection("game_log").doc().id;
-
-      const logRef = db.collection("game_log").doc(gameId);
-      batch.set(logRef, {
+      // ── Build log entry and player stat updates ────────────
+      const logData = {
         date: admin.firestore.FieldValue.serverTimestamp(),
         gameMode,
         bid,
@@ -225,8 +227,9 @@ exports.recordGame = onRequest(
         partner2Score: roundScores[partner2Index],
         defense: defensePlayers,
         defensePointsCaught,
-      });
+      };
 
+      const playerUpdates = [];
       for (let i = 0; i < PLAYER_COUNT; i++) {
         const name = (playerNames[i] || "").trim();
         if (!isValidName(name)) continue;
@@ -236,7 +239,6 @@ exports.recordGame = onRequest(
         const isBidder = i === bidderIndex;
         const score = Math.max(0, finalScores[i]);
 
-        const ref = db.collection("player_stats").doc(name);
         const update = {
           name,
           wins: admin.firestore.FieldValue.increment(isWinner ? 1 : 0),
@@ -252,13 +254,43 @@ exports.recordGame = onRequest(
               admin.firestore.FieldValue.increment(bidMade ? 1 : 0);
         }
 
-        batch.set(ref, update, {merge: true});
+        playerUpdates.push({name, update});
       }
 
+      // ── Write ──────────────────────────────────────────────
+      // Online games supply a sessionCode — use it as the game_log doc ID and
+      // wrap everything in a transaction so duplicate submissions (all 6 clients
+      // racing to submit) are silently ignored: first write wins.
+      // BT/Solo/P&P have no sessionCode — fall back to a plain batch write.
+      let gameId;
       try {
-        await batch.commit();
+        if (sessionCode) {
+          gameId = sessionCode;
+          const logRef = db.collection("game_log").doc(gameId);
+          await db.runTransaction(async (txn) => {
+            const existing = await txn.get(logRef);
+            if (existing.exists) {
+              console.log("recordGame: duplicate suppressed for session", gameId);
+              return; // idempotent — already recorded by another client
+            }
+            txn.set(logRef, logData);
+            for (const {name, update} of playerUpdates) {
+              txn.set(db.collection("player_stats").doc(name), update,
+                  {merge: true});
+            }
+          });
+        } else {
+          gameId = db.collection("game_log").doc().id;
+          const batch = db.batch();
+          batch.set(db.collection("game_log").doc(gameId), logData);
+          for (const {name, update} of playerUpdates) {
+            batch.set(db.collection("player_stats").doc(name), update,
+                {merge: true});
+          }
+          await batch.commit();
+        }
       } catch (e) {
-        console.error("recordGame: batch.commit failed —", e.message);
+        console.error("recordGame: write failed —", e.message);
         return sendError(res, 500, "Database write failed.");
       }
       console.log("recordGame: wrote game", gameId,
