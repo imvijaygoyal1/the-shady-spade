@@ -375,27 +375,55 @@ final class LeaderboardService {
     }
 
     private func flushPendingRecords() async {
+        // Ensure we have a valid Firebase user before sending. If auth failed at
+        // launch (fire-and-forget with no retry), records would receive 401 here and
+        // be permanently discarded from the queue — so sign in first.
+        await ensureAuthenticated()
+
         let records = loadPendingRecords()
         guard !records.isEmpty else { return }
         lbLog.info("flushing \(records.count) pending record(s)")
 
-        var remaining: [PendingGameRecord] = []
+        var allFlushed = true
         for record in records {
             switch await sendRecord(record) {
             case .success:
                 lbLog.info("pending record flushed ✓ id=\(record.id)")
+                removeFromQueue(id: record.id)
             case .serverRejected(let reason):
                 // Server will permanently reject this — discard it rather than
                 // retrying forever. Log for diagnostics.
                 lbLog.error("pending record discarded (server rejected): \(reason) id=\(record.id)")
+                removeFromQueue(id: record.id)
             case .networkFailure:
-                remaining.append(record)
+                allFlushed = false
             }
         }
-        savePendingRecords(remaining)
 
-        if remaining.isEmpty, case .pending = scoreSaveStatus {
+        if allFlushed, case .pending = scoreSaveStatus {
             scoreSaveStatus = .saved
+        }
+    }
+
+    /// Removes a single record from the persistent queue by ID.
+    /// Reads the live queue immediately before writing so that records enqueued
+    /// during an in-flight flush are never overwritten (TOCTOU fix).
+    private func removeFromQueue(id: UUID) {
+        var records = loadPendingRecords()
+        records.removeAll { $0.id == id }
+        savePendingRecords(records)
+    }
+
+    /// Ensures a Firebase anonymous user exists before attempting an HTTP send.
+    /// Called by flushPendingRecords so that records queued during an offline
+    /// session are not permanently discarded with a 401 on first flush.
+    private func ensureAuthenticated() async {
+        guard Auth.auth().currentUser == nil else { return }
+        do {
+            try await Auth.auth().signInAnonymously()
+            lbLog.info("ensureAuthenticated: signed in anonymously for pending flush")
+        } catch {
+            lbLog.error("ensureAuthenticated: sign-in failed: \(error.localizedDescription)")
         }
     }
 

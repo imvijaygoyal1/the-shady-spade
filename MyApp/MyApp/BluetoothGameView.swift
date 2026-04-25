@@ -15,6 +15,7 @@ struct BluetoothGameView: View {
     @State private var showRoundResultBanner = false
     @State private var gameHistorySaved = false
     @State private var disconnectedAlert = false
+    @State private var showHostEndedGameAlert = false
 
     var body: some View {
         ZStack {
@@ -43,13 +44,32 @@ struct BluetoothGameView: View {
                     Task { await game.startNextRound() }
                 } onQuit: {
                     saveOnQuit()   // save completed rounds before teardown
-                    game.cleanup()
-                    dismiss()
+                    if game.isHost {
+                        game.notifyHostEndedGame()
+                        Task {
+                            try? await Task.sleep(nanoseconds: 400_000_000)
+                            game.cleanup()
+                            dismiss()
+                        }
+                    } else {
+                        game.cleanup()
+                        dismiss()
+                    }
                 }
             case .gameOver:
                 BTGameOverView(game: game) {
-                    game.cleanup()
-                    dismiss()
+                    saveOnQuit()   // save completed rounds before teardown
+                    if game.isHost {
+                        game.notifyHostEndedGame()
+                        Task {
+                            try? await Task.sleep(nanoseconds: 400_000_000)
+                            game.cleanup()
+                            dismiss()
+                        }
+                    } else {
+                        game.cleanup()
+                        dismiss()
+                    }
                 }
                 .onAppear { saveBTGameHistory() }
             }
@@ -73,8 +93,17 @@ struct BluetoothGameView: View {
         ) {
             Button(game.isHost ? "End Game" : "Leave", role: .destructive) {
                 saveOnQuit()   // save completed rounds before teardown
-                game.cleanup()
-                dismiss()
+                if game.isHost {
+                    game.notifyHostEndedGame()
+                    Task {
+                        try? await Task.sleep(nanoseconds: 400_000_000)
+                        game.cleanup()
+                        dismiss()
+                    }
+                } else {
+                    game.cleanup()
+                    dismiss()
+                }
             }
             Button("Stay", role: .cancel) { }
         } message: {
@@ -156,6 +185,17 @@ struct BluetoothGameView: View {
             if let error = newError, error.contains("disconnected") {
                 disconnectedAlert = true
             }
+        }
+        .onChange(of: game.hostEndedGame) { _, ended in
+            if ended && !game.isHost { showHostEndedGameAlert = true }
+        }
+        .alert("Game Ended", isPresented: $showHostEndedGameAlert) {
+            Button("OK") {
+                game.cleanup()
+                dismiss()
+            }
+        } message: {
+            Text("The host has ended the game.")
         }
         .onDisappear { game.cleanup() }
         .task {
@@ -502,6 +542,9 @@ struct BTCallingView: View {
     @Environment(\.verticalSizeClass) private var vSizeClass
     private var isMyCall: Bool { game.myPlayerIndex == game.highBidderIndex }
 
+    private func isCardTrump(_ card: Card) -> Bool { card.suit == game.trumpSuit.rawValue }
+    private func isCardCalled(_ card: Card) -> Bool { card.id == game.calledCard1 || card.id == game.calledCard2 }
+
     var body: some View {
         if isMyCall {
             GameAdaptiveLayout {
@@ -579,7 +622,8 @@ struct BTCallingView: View {
                                     : 0
                                 HStack(spacing: sp) {
                                     ForEach(cards) { card in
-                                        HandCardView(card: card, width: cardW)
+                                        HandCardView(card: card, width: cardW,
+                                                     isTrump: isCardTrump(card), isCalled: isCardCalled(card))
                                     }
                                 }
                             }
@@ -867,6 +911,9 @@ struct BTPlayingView: View {
     @State private var waitPulse = false
     @State private var showingTrickHistory = false
     @Environment(\.horizontalSizeClass) private var hSizeClass
+
+    private func isCardTrump(_ card: Card) -> Bool { card.suit == game.trumpSuit.rawValue }
+    private func isCardCalled(_ card: Card) -> Bool { card.id == game.calledCard1 || card.id == game.calledCard2 }
 
     var body: some View {
         GeometryReader { geo in
@@ -1166,7 +1213,8 @@ struct BTPlayingView: View {
                     ForEach(game.currentTrick, id: \.card.id) { entry in
                         let isWinning = entry.playerIndex == game.currentTrickWinnerIndex
                         VStack(spacing: 4) {
-                            PlayingCardView(card: entry.card, width: cardWidth)
+                            PlayingCardView(card: entry.card, width: cardWidth,
+                                           isTrump: isCardTrump(entry.card), isCalled: isCardCalled(entry.card))
                                 .overlay {
                                     if isWinning {
                                         RoundedRectangle(cornerRadius: corner, style: .continuous)
@@ -1213,7 +1261,10 @@ struct BTPlayingView: View {
                  isWinner: entry.playerIndex == game.lastTrickWinnerIndex)
             },
             winnerName: game.playerName(game.lastTrickWinnerIndex),
-            pointsWon: game.lastTrickPoints
+            pointsWon: game.lastTrickPoints,
+            trumpSuit: game.trumpSuit.rawValue,
+            calledCard1: game.calledCard1,
+            calledCard2: game.calledCard2
         )
     }
 
@@ -1255,7 +1306,8 @@ struct BTPlayingView: View {
                                 Task { await game.playCard(card) }
                             }
                         } label: {
-                            HandCardView(card: card, width: cardW, isValid: !game.isMyTurn || valid)
+                            HandCardView(card: card, width: cardW, isValid: !game.isMyTurn || valid,
+                                         isTrump: isCardTrump(card), isCalled: isCardCalled(card))
                                 .shimmer(isActive: game.isMyTurn && valid)
                         }
                         .buttonStyle(BouncyButton())
