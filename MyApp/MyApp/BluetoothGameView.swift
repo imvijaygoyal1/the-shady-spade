@@ -209,9 +209,31 @@ struct BluetoothGameView: View {
     private func saveOnQuit() {
         guard game.isHost else { return }
         guard !gameHistorySaved else { return }
-        guard !game.completedRounds.isEmpty else { return }
-        gameHistorySaved = true
         let finalScores = game.runningScores
+        // Use accumulated rounds; fall back to synthetic round if an MC snapshot
+        // race caused .gameOver to arrive before completedRounds was populated.
+        let rounds: [HistoryRound]
+        if !game.completedRounds.isEmpty {
+            rounds = game.completedRounds
+        } else if game.highBidderIndex >= 0 {
+            rounds = [HistoryRound(
+                roundNumber: game.roundNumber,
+                dealerIndex: game.dealerIndex,
+                bidderIndex: game.highBidderIndex,
+                bidAmount: game.highBid,
+                trumpSuit: game.trumpSuit,
+                callCard1: game.calledCard1,
+                callCard2: game.calledCard2,
+                partner1Index: game.partner1Index,
+                partner2Index: game.partner2Index,
+                offensePointsCaught: game.offensePoints,
+                defensePointsCaught: game.defensePoints,
+                runningScores: finalScores
+            )]
+        } else {
+            return  // no round data at all, nothing to save
+        }
+        gameHistorySaved = true
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
         let history = GameHistory(
@@ -228,7 +250,6 @@ struct BluetoothGameView: View {
         }
         try? modelContext.save()
         let capturedAISeats = game.aiSeats
-        let rounds = game.completedRounds
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    "Bluetooth",

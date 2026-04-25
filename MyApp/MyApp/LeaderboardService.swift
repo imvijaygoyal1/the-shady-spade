@@ -34,6 +34,12 @@ struct PendingGameRecord: Codable {
     var defensePointsCaught: Int
     var roundCount: Int
     var recordedAt: Date = Date()
+
+    // Used by enqueue() to skip exact duplicate submissions (e.g. onChange retry
+    // race). Not stored in JSON — computed from stable game-identifying fields.
+    var deduplicationKey: String {
+        "\(gameMode)|\(playerNames.joined(separator: ","))|\(roundCount)|\(bid)|\(winnerIndex)"
+    }
 }
 
 // MARK: - Other models
@@ -327,6 +333,7 @@ final class LeaderboardService {
             do {
                 var request = URLRequest(url: cloudRunURL)
                 request.httpMethod = "POST"
+                request.timeoutInterval = 10
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 request.httpBody = try JSONSerialization.data(withJSONObject: ["data": payload])
 
@@ -377,7 +384,14 @@ final class LeaderboardService {
 
     private func enqueue(_ record: PendingGameRecord) {
         var records = loadPendingRecords()
+        // #10: skip exact duplicates (e.g. onChange retry race before gameHistorySaved is set)
+        guard !records.contains(where: { $0.deduplicationKey == record.deduplicationKey }) else {
+            lbLog.warning("enqueue: duplicate skipped id=\(record.id)")
+            return
+        }
         records.append(record)
+        // #9: cap queue to prevent unbounded UserDefaults growth; evict oldest
+        if records.count > 100 { records = Array(records.suffix(100)) }
         savePendingRecords(records)
     }
 
