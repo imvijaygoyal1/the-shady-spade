@@ -14,7 +14,7 @@ struct OnlineSessionView: View {
     var prebuiltPlayerUID: String? = nil
     /// When true, automatically open the join-by-code sheet on first appear
     var autoShowJoin: Bool = false
-    var onGameReady: ((Int, Bool, String, [String], [String]) -> Void)? = nil
+    var onGameReady: ((Int, Bool, String, [String], [String], [Int]) -> Void)? = nil
 
     @State private var ownedSessionVM = OnlineSessionViewModel()
     @State private var ownedPlayerUID = Auth.auth().currentUser?.uid ?? UUID().uuidString
@@ -430,7 +430,7 @@ private struct SessionLobbyView: View {
     var sessionVM: OnlineSessionViewModel
     var vm: GameViewModel
     let playerUID: String
-    var onGameReady: ((Int, Bool, String, [String], [String]) -> Void)? = nil
+    var onGameReady: ((Int, Bool, String, [String], [String], [Int]) -> Void)? = nil
     var onGameStart: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -758,7 +758,7 @@ Tap to join: https://shadyspade-d6b84.web.app/shadyspade/join/\(sessionVM.sessio
                     slot.name.isEmpty ? "Player \(slot.slotIndex + 1)" : slot.name
                 }
                 let avatars = sessionVM.playerSlots.map { $0.avatar }
-                onGameReady(myIndex, sessionVM.isHost, sessionVM.sessionCode ?? "", names, avatars)
+                onGameReady(myIndex, sessionVM.isHost, sessionVM.sessionCode ?? "", names, avatars, sessionVM.aiSeats)
             }
         }
         .sheet(isPresented: $showQRCode) {

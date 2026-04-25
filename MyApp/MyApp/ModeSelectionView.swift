@@ -360,7 +360,7 @@ private struct OnlineEntryView: View {
                 playerName: playerName,
                 playerAvatar: playerAvatar,
                 autoShowJoin: autoShowJoin,
-                onGameReady: { myIndex, isHostVal, code, names, avatars in
+                onGameReady: { myIndex, isHostVal, code, names, avatars, aiSeats in
                     onlineGame = OnlineGameViewModel(
                         myPlayerIndex: myIndex,
                         isHost: isHostVal,
@@ -368,7 +368,8 @@ private struct OnlineEntryView: View {
                         playerNames: names,
                         playerAvatars: avatars,
                         dealerIndex: 0,
-                        roundNumber: 1
+                        roundNumber: 1,
+                        aiSeats: aiSeats
                     )
                 }
             )

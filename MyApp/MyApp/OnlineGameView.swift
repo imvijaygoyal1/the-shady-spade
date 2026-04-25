@@ -16,6 +16,7 @@ struct OnlineGameView: View {
     @State private var droppedPlayerAlert = false
     @State private var droppedPlayerName = ""
     @State private var showRemovedFromGameAlert = false
+    @State private var showHostEndedGameAlert = false
     @State private var gameHistorySaved = false
 
     var body: some View {
@@ -45,13 +46,20 @@ struct OnlineGameView: View {
                     Task { await game.startNextRound() }
                 } onQuit: {
                     saveOnQuit()   // save completed rounds before teardown
-                    game.cleanup()
-                    dismiss()
+                    Task {
+                        if game.isHost { await game.notifyHostEndedGame() }
+                        game.cleanup()
+                        dismiss()
+                    }
                 }
             case .gameOver:
                 OnlineGameOverView(game: game) {
-                    game.cleanup()
-                    dismiss()
+                    saveOnQuit()   // save completed rounds before teardown
+                    Task {
+                        if game.isHost { await game.notifyHostEndedGame() }
+                        game.cleanup()
+                        dismiss()
+                    }
                 }
                 .onAppear { saveOnlineGameHistory() }
             }
@@ -76,8 +84,11 @@ struct OnlineGameView: View {
         ) {
             Button(game.isHost ? "End Game" : "Leave", role: .destructive) {
                 saveOnQuit()   // save completed rounds before teardown
-                game.cleanup()
-                dismiss()
+                Task {
+                    if game.isHost { await game.notifyHostEndedGame() }
+                    game.cleanup()
+                    dismiss()
+                }
             }
             Button("Stay", role: .cancel) { }
         } message: {
@@ -112,6 +123,17 @@ struct OnlineGameView: View {
             Button("OK") { dismiss() }
         } message: {
             Text("The host removed you from the game.")
+        }
+        .onChange(of: game.hostEndedGame) { _, ended in
+            if ended && !game.isHost { showHostEndedGameAlert = true }
+        }
+        .alert("Game Ended", isPresented: $showHostEndedGameAlert) {
+            Button("OK") {
+                game.cleanup()
+                dismiss()
+            }
+        } message: {
+            Text("The host has ended the game.")
         }
         .onChange(of: game.phase) { _, newPhase in
             if newPhase == .roundComplete {
@@ -523,6 +545,9 @@ private struct OnlineCallingView: View {
     @Environment(\.verticalSizeClass) private var vSizeClass
     private var isMyCall: Bool { game.myPlayerIndex == game.highBidderIndex }
 
+    private func isCardTrump(_ card: Card) -> Bool { card.suit == game.trumpSuit.rawValue }
+    private func isCardCalled(_ card: Card) -> Bool { card.id == game.calledCard1 || card.id == game.calledCard2 }
+
     var body: some View {
         if isMyCall {
             GameAdaptiveLayout {
@@ -600,7 +625,8 @@ private struct OnlineCallingView: View {
                                     : 0
                                 HStack(spacing: sp) {
                                     ForEach(cards) { card in
-                                        HandCardView(card: card, width: cardW)
+                                        HandCardView(card: card, width: cardW,
+                                                     isTrump: isCardTrump(card), isCalled: isCardCalled(card))
                                     }
                                 }
                             }
@@ -895,6 +921,9 @@ private struct OnlinePlayingView: View {
     @State private var removeTargetIndex: Int? = nil
     @State private var showingTrickHistory = false
     @Environment(\.horizontalSizeClass) private var hSizeClass
+
+    private func isCardTrump(_ card: Card) -> Bool { card.suit == game.trumpSuit.rawValue }
+    private func isCardCalled(_ card: Card) -> Bool { card.id == game.calledCard1 || card.id == game.calledCard2 }
 
     var body: some View {
         GeometryReader { geo in
@@ -1245,7 +1274,8 @@ private struct OnlinePlayingView: View {
                         ForEach(game.currentTrick, id: \.card.id) { entry in
                             let isWinning = entry.playerIndex == game.currentTrickWinnerIndex
                             VStack(spacing: 4) {
-                                PlayingCardView(card: entry.card, width: cardW)
+                                PlayingCardView(card: entry.card, width: cardW,
+                                               isTrump: isCardTrump(entry.card), isCalled: isCardCalled(entry.card))
                                     .overlay {
                                         if isWinning {
                                             RoundedRectangle(cornerRadius: corner, style: .continuous)
@@ -1289,7 +1319,10 @@ private struct OnlinePlayingView: View {
                  isWinner: entry.playerIndex == game.lastTrickWinnerIndex)
             },
             winnerName: game.playerName(game.lastTrickWinnerIndex),
-            pointsWon: game.lastTrickPoints
+            pointsWon: game.lastTrickPoints,
+            trumpSuit: game.trumpSuit.rawValue,
+            calledCard1: game.calledCard1,
+            calledCard2: game.calledCard2
         )
     }
 
@@ -1331,7 +1364,8 @@ private struct OnlinePlayingView: View {
                                 Task { await game.playCard(card) }
                             }
                         } label: {
-                            HandCardView(card: card, width: cardW, isValid: !game.isMyTurn || valid)
+                            HandCardView(card: card, width: cardW, isValid: !game.isMyTurn || valid,
+                                         isTrump: isCardTrump(card), isCalled: isCardCalled(card))
                                 .shimmer(isActive: game.isMyTurn && valid)
                         }
                         .buttonStyle(BouncyButton())
