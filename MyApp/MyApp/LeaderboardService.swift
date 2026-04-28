@@ -288,6 +288,7 @@ final class LeaderboardService {
             roundCount: Int(rounds.count)
         )
 
+        scoreSaveStatus = .idle
         // Enqueue before attempting the send so the record survives if the
         // process is killed mid-flight. Removed from the queue on success or
         // permanent server rejection; left in queue on network failure for

@@ -2222,120 +2222,254 @@ private struct GameOverView: View {
     private let medals = ["🥇", "🥈", "🥉"]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Trophy header
-                VStack(spacing: 10) {
-                    Text("🏆")
-                        .font(.system(size: 64))
-                    Text("Game Over!")
-                        .font(.system(size: 38, weight: .black))
-                        .foregroundStyle(.masterGold)
-                    let winner = sortedIndices[0]
-                    Text("\(playerNames[winner]) wins with \(runningScores[winner]) pts!")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 52)
+        GameAdaptiveLayout(
+            portrait: {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Trophy header
+                        VStack(spacing: 10) {
+                            Text("🏆")
+                                .font(.system(size: 64))
+                            Text("Game Over!")
+                                .font(.system(size: 38, weight: .black))
+                                .foregroundStyle(.masterGold)
+                            let winner = sortedIndices[0]
+                            Text("\(playerNames[winner]) wins with \(runningScores[winner]) pts!")
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.top, 52)
 
-                // Leaderboard save status
-                ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                        // Leaderboard save status
+                        ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
 
-                // Final leaderboard
-                VStack(spacing: 0) {
-                    ForEach(Array(sortedIndices.enumerated()), id: \.element) { rank, i in
-                        let score = runningScores[i]
-                        let progress = min(1.0, max(0.0, Double(max(0, score)) / Double(maxScore)))
+                        // Final leaderboard
+                        VStack(spacing: 0) {
+                            ForEach(Array(sortedIndices.enumerated()), id: \.element) { rank, i in
+                                let score = runningScores[i]
+                                let progress = min(1.0, max(0.0, Double(max(0, score)) / Double(maxScore)))
 
-                        HStack(spacing: 12) {
-                            Text(rank < 3 ? medals[rank] : "\(rank + 1).")
-                                .font(.system(size: rank < 3 ? 20 : 13, weight: .black, design: .rounded))
-                                .frame(width: 30)
+                                HStack(spacing: 12) {
+                                    Text(rank < 3 ? medals[rank] : "\(rank + 1).")
+                                        .font(.system(size: rank < 3 ? 20 : 13, weight: .black, design: .rounded))
+                                        .frame(width: 30)
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(playerNames[i])
-                                    .font(.system(size: 15, weight: .heavy, design: .rounded))
-                                    .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(playerNames[i])
+                                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                            .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
 
-                                GeometryReader { geo in
-                                    ZStack(alignment: .leading) {
-                                        Capsule().fill(Color.adaptiveDivider)
-                                        Capsule()
-                                            .fill(rank == 0 ? Color.masterGold
-                                                  : rank == 1 ? Color.offenseBlue
-                                                  : Color.adaptiveDivider)
-                                            .frame(width: geo.size.width * progress)
+                                        GeometryReader { geo in
+                                            ZStack(alignment: .leading) {
+                                                Capsule().fill(Color.adaptiveDivider)
+                                                Capsule()
+                                                    .fill(rank == 0 ? Color.masterGold
+                                                          : rank == 1 ? Color.offenseBlue
+                                                          : Color.adaptiveDivider)
+                                                    .frame(width: geo.size.width * progress)
+                                            }
+                                        }
+                                        .frame(height: 6)
                                     }
+
+                                    Spacer()
+
+                                    Text("\(score)")
+                                        .font(.system(size: 20, weight: .black, design: .rounded).monospacedDigit())
+                                        .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
                                 }
-                                .frame(height: 6)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 13)
+
+                                if rank < 5 { Divider().overlay(Color.adaptiveDivider) }
                             }
-
-                            Spacer()
-
-                            Text("\(score)")
-                                .font(.system(size: 20, weight: .black, design: .rounded).monospacedDigit())
-                                .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
                         }
+                        .glassmorphic(cornerRadius: 18)
+                        .adaptiveContentFrame()
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 13)
 
-                        if rank < 5 { Divider().overlay(Color.adaptiveDivider) }
+                        // Buttons
+                        VStack(spacing: 12) {
+                            Button {
+                                HapticManager.success()
+                                onPlayAgain()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "arrow.counterclockwise")
+                                    Text("Play Again").fontWeight(.black)
+                                }
+                                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 18)
+                            }
+                            .buttonStyle(ComicButtonStyle())
+
+                            Button {
+                                HapticManager.impact(.light)
+                                onHistory()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "clock.fill")
+                                    Text("Game History")
+                                }
+                                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.blue)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                            }
+                            .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.blue, borderColor: Comic.blue))
+
+                            Button {
+                                HapticManager.impact(.light)
+                                onQuit()
+                            } label: {
+                                Text("Quit to Menu")
+                                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(Comic.textSecondary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                            }
+                            .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.textSecondary, borderColor: Comic.containerBorder))
+                        }
+                        .adaptiveContentFrame(maxWidth: 480)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 40)
                     }
                 }
-                .glassmorphic(cornerRadius: 18)
-                .adaptiveContentFrame()
-                .padding(.horizontal, 16)
+            },
+            landscape: {
+                HStack(spacing: 0) {
+                    // LEFT PANEL — trophy + winner + save status + buttons
+                    VStack(spacing: 0) {
+                        Spacer()
 
-                // Buttons
-                VStack(spacing: 12) {
-                    Button {
-                        HapticManager.success()
-                        onPlayAgain()
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "arrow.counterclockwise")
-                            Text("Play Again").fontWeight(.black)
+                        VStack(spacing: 10) {
+                            Text("🏆").font(.system(size: 56))
+                            Text("Game Over!")
+                                .font(.system(size: 32, weight: .black))
+                                .foregroundStyle(.masterGold)
+                            let winner = sortedIndices[0]
+                            Text("\(playerNames[winner]) wins with \(runningScores[winner]) pts!")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
                         }
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Comic.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 18)
-                    }
-                    .buttonStyle(ComicButtonStyle())
+                        .padding(.horizontal, 14)
 
-                    Button {
-                        HapticManager.impact(.light)
-                        onHistory()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "clock.fill")
-                            Text("Game History")
+                        ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                            .padding(.horizontal, 14)
+                            .padding(.top, 8)
+
+                        Spacer()
+
+                        Divider().background(Comic.containerBorder)
+
+                        VStack(spacing: 8) {
+                            Button {
+                                HapticManager.success()
+                                onPlayAgain()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "arrow.counterclockwise")
+                                    Text("Play Again").fontWeight(.black)
+                                }
+                                .font(.system(size: 17, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                            }
+                            .buttonStyle(ComicButtonStyle())
+
+                            Button {
+                                HapticManager.impact(.light)
+                                onHistory()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "clock.fill")
+                                    Text("Game History")
+                                }
+                                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.blue)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                            }
+                            .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.blue, borderColor: Comic.blue))
+
+                            Button {
+                                HapticManager.impact(.light)
+                                onQuit()
+                            } label: {
+                                Text("Quit to Menu")
+                                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(Comic.textSecondary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                            }
+                            .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.textSecondary, borderColor: Comic.containerBorder))
                         }
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Comic.blue)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
                     }
-                    .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.blue, borderColor: Comic.blue))
+                    .frame(maxWidth: .infinity)
+                    .background(Comic.containerBG)
 
-                    Button {
-                        HapticManager.impact(.light)
-                        onQuit()
-                    } label: {
-                        Text("Quit to Menu")
-                            .font(.system(size: 15, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Comic.textSecondary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
+                    Rectangle()
+                        .fill(Comic.containerBorder)
+                        .frame(width: 1)
+
+                    // RIGHT PANEL — standings with score bars
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(Array(sortedIndices.enumerated()), id: \.element) { rank, i in
+                                let score = runningScores[i]
+                                let progress = min(1.0, max(0.0, Double(max(0, score)) / Double(maxScore)))
+
+                                HStack(spacing: 12) {
+                                    Text(rank < 3 ? medals[rank] : "\(rank + 1).")
+                                        .font(.system(size: rank < 3 ? 20 : 13, weight: .black, design: .rounded))
+                                        .frame(width: 30)
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(playerNames[i])
+                                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                            .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
+
+                                        GeometryReader { geo in
+                                            ZStack(alignment: .leading) {
+                                                Capsule().fill(Color.adaptiveDivider)
+                                                Capsule()
+                                                    .fill(rank == 0 ? Color.masterGold
+                                                          : rank == 1 ? Color.offenseBlue
+                                                          : Color.adaptiveDivider)
+                                                    .frame(width: geo.size.width * progress)
+                                            }
+                                        }
+                                        .frame(height: 6)
+                                    }
+
+                                    Spacer()
+
+                                    Text("\(score)")
+                                        .font(.system(size: 20, weight: .black, design: .rounded).monospacedDigit())
+                                        .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 13)
+
+                                if rank < 5 { Divider().overlay(Color.adaptiveDivider) }
+                            }
+                        }
+                        .glassmorphic(cornerRadius: 18)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
                     }
-                    .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.textSecondary, borderColor: Comic.containerBorder))
+                    .frame(maxWidth: .infinity)
+                    .background(Comic.bg)
                 }
-                .adaptiveContentFrame(maxWidth: 480)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 40)
             }
-        }
+        )
     }
 }
 

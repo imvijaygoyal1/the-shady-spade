@@ -1443,7 +1443,8 @@ private struct OnlinePlayingView: View {
                             Task { await game.playCard(card) }
                         }
                     } label: {
-                        HandCardView(card: card, width: cardW, isValid: !game.isMyTurn || valid)
+                        HandCardView(card: card, width: cardW, isValid: !game.isMyTurn || valid,
+                                     isTrump: isCardTrump(card), isCalled: isCardCalled(card))
                             .shimmer(isActive: game.isMyTurn && valid)
                     }
                     .buttonStyle(BouncyButton())
