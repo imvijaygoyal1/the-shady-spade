@@ -144,6 +144,11 @@ private struct HowToPlayView: View {
             Cards already in your hand are automatically hidden from the selection — the app prevents you from accidentally calling a card you already hold. Choose cards strategically — call high-value cards likely held by strong players.
 
             Partners are only revealed when they play their called card. Until then the teams remain secret from everyone.
+
+            Visual cues in your hand:
+            · Trump cards — warm yellow tint with gold border
+            · Called cards you hold — purple border with purple glow
+            · 3♠ The Shady Spade — always highlighted in gold regardless of trump or called status
             """
         ),
         HowToPlayTopic(
