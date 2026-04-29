@@ -1,10 +1,13 @@
 # The Shady Spade — Claude Code Context
 
 > **IMPORTANT FOR CLAUDE:** After every code change to this project, update this file to reflect the change. New file → add to File Map. New component → add to Styles section. Changed pattern → update Key Patterns. Version bump → update App Identity. This file must always stay current.
-> **RELEASE TRACKING:** v1.7 submitted to App Store on April 23, 2026 — under review. Log all new changes under a **v1.8 Changelog** section. Do not increment the version number until the user confirms v1.8 is ready to submit.
+> **RELEASE TRACKING:** v1.8 submitted to App Store on April 28, 2026 — under review. Log all new changes under a **v1.9 Changelog** section. Do not increment the version number until the user confirms v1.9 is ready to submit.
+
+## v1.9 Changelog
+> Changes made after v1.8 App Store submission (April 28, 2026). Add entries here as changes are implemented.
 
 ## v1.8 Changelog
-> Changes made after v1.7 App Store submission (April 23, 2026). Add entries here as changes are implemented.
+> Submitted to App Store April 28, 2026 — under review.
 
 - [2026-04-28] How to Play — Trump & Calling Cards: added visual cue descriptions (trump cards = yellow tint + gold border, called cards you hold = purple border + glow, 3♠ = gold regardless). No privacy policy changes needed — policy already accurately describes offline queuing and all-mode leaderboard recording; no new data collected in v1.8. (`SettingsView.swift`)
 
