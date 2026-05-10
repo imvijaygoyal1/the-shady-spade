@@ -129,6 +129,7 @@ struct OnlineGameView: View {
         }
         .alert("Game Ended", isPresented: $showHostEndedGameAlert) {
             Button("OK") {
+                saveOnQuit()   // save before listener is torn down
                 game.cleanup()
                 dismiss()
             }

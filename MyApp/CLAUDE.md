@@ -6,6 +6,8 @@
 ## v1.9 Changelog
 > Changes made after v1.8 App Store submission (April 28, 2026). Add entries here as changes are implemented.
 
+- [2026-05-10] Fix leaderboard not updating in 6-human online games — `OnlineGameView`'s "Game Ended" alert handler (shown on non-host clients when the host ends the game) was calling `game.cleanup()` without first calling `saveOnQuit()`. If `saveOnlineGameHistory()` had been deferred (partner indices not yet valid in the Firestore snapshot), `game.cleanup()` would remove the Firestore listener, preventing any `onChange` retry from ever firing, permanently losing the leaderboard record. Fix: added `saveOnQuit()` before `game.cleanup()` in the "Game Ended" alert OK handler. `saveOnQuit()` does not require `partner1Index >= 0` (it uses the accumulated `completedRounds` data). (`OnlineGameView.swift`)
+
 ## v1.8 Changelog
 > Submitted to App Store April 28, 2026 — under review.
 
