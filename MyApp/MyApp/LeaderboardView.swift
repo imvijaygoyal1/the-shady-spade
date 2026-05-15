@@ -154,6 +154,13 @@ private struct PlayerStatsTab: View {
     private let medals = ["🥇", "🥈", "🥉"]
 
     var body: some View {
+        if stats.isEmpty {
+            ContentUnavailableView(
+                "No Stats Yet",
+                systemImage: "chart.bar.xaxis",
+                description: Text("Play some games to see player statistics here.")
+            )
+        } else {
         VStack(spacing: 8) {
             HStack(spacing: 6) {
                 Text("Sort:")
@@ -273,6 +280,7 @@ private struct PlayerStatsTab: View {
                 .padding(.bottom, 32)
             }
         }
+        } // end else
     }
 }
 

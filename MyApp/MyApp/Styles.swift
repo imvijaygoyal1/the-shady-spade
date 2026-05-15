@@ -177,6 +177,8 @@ struct HandCardView: View {
     let card: Card
     var width: CGFloat = 74
     var isValid: Bool = true
+    var isTrump: Bool = false
+    var isCalled: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -193,6 +195,32 @@ struct HandCardView: View {
     private var suitColor: Color { cardSuitColor(rank: card.rank, suit: card.suit) }
     private var bgColor: Color    { cardBGColor(rank: card.rank, suit: card.suit) }
 
+    private var cardBackground: Color {
+        if isShadySpade { return Color(red: 0.08, green: 0.06, blue: 0.02) }
+        if isTrump      { return Color(red: 1.0, green: 0.97, blue: 0.80) }
+        return Comic.cardSurface
+    }
+
+    private var cardBorderColor: Color {
+        if isShadySpade { return Color.masterGold }
+        if isCalled     { return Color(red: 0.576, green: 0.200, blue: 0.918) }
+        if isTrump      { return Comic.yellow }
+        return Comic.cardBorder
+    }
+
+    private var cardBorderWidth: CGFloat {
+        if isCalled { return 3.5 }
+        if isTrump  { return 3.0 }
+        return Comic.borderWidth
+    }
+
+    private var cardGlow: Color? {
+        if isCalled {
+            return Color(red: 0.576, green: 0.200, blue: 0.918).opacity(0.75)
+        }
+        return nil
+    }
+
     private var badgeBG: Color {
         if isShadySpade { return Color.masterGold }
         return colorScheme == .light
@@ -204,18 +232,34 @@ struct HandCardView: View {
         return colorScheme == .light ? .white : .black
     }
 
+    private var rankName: String {
+        switch card.rank {
+        case "A": return "Ace"; case "K": return "King"
+        case "Q": return "Queen"; case "J": return "Jack"
+        default: return card.rank
+        }
+    }
+    private var suitName: String {
+        switch card.suit {
+        case "♠": return "Spades"; case "♥": return "Hearts"
+        case "♦": return "Diamonds"; case "♣": return "Clubs"
+        default: return card.suit
+        }
+    }
+    private var accessibilityDescription: String {
+        var parts = ["\(rankName) of \(suitName)"]
+        if card.pointValue > 0 { parts.append("\(card.pointValue) points") }
+        if isTrump { parts.append("trump") }
+        if isCalled { parts.append("called") }
+        if !isValid { parts.append("not playable") }
+        return parts.joined(separator: ", ")
+    }
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(bgColor)
+                .fill(cardBackground)
                 .shadow(color: Comic.black.opacity(0.85), radius: 0, x: Comic.shadowOffset, y: Comic.shadowOffset)
-
-            // Comic border: 3pt solid black (or white in dark), gold for Shady Spade
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .strokeBorder(
-                    isShadySpade ? Color.masterGold : Comic.cardBorder,
-                    lineWidth: Comic.borderWidth
-                )
 
             // Top-left pip
             VStack(alignment: .leading, spacing: 1) {
@@ -267,7 +311,17 @@ struct HandCardView: View {
             }
         }
         .frame(width: width, height: height)
+        .overlay(
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .strokeBorder(cardBorderColor, lineWidth: cardBorderWidth)
+        )
         .opacity(isValid ? 1.0 : 0.45)
+        .shadow(
+            color: cardGlow ?? .clear,
+            radius: isCalled ? 10 : 0,
+            x: 0, y: 0
+        )
+        .accessibilityLabel(accessibilityDescription)
     }
 }
 
@@ -286,6 +340,8 @@ extension View {
 struct PlayingCardView: View {
     let card: Card
     var width: CGFloat = 56
+    var isTrump: Bool = false
+    var isCalled: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -302,6 +358,32 @@ struct PlayingCardView: View {
     private var suitColor: Color { cardSuitColor(rank: card.rank, suit: card.suit) }
     private var bgColor: Color    { cardBGColor(rank: card.rank, suit: card.suit) }
 
+    private var cardBackground: Color {
+        if isShadySpade { return Color(red: 0.08, green: 0.06, blue: 0.02) }
+        if isTrump      { return Color(red: 1.0, green: 0.97, blue: 0.80) }
+        return Comic.cardSurface
+    }
+
+    private var cardBorderColor: Color {
+        if isShadySpade { return Color.masterGold }
+        if isCalled     { return Color(red: 0.576, green: 0.200, blue: 0.918) }
+        if isTrump      { return Comic.yellow }
+        return Comic.cardBorder
+    }
+
+    private var cardBorderWidth: CGFloat {
+        if isCalled { return 3.5 }
+        if isTrump  { return 3.0 }
+        return Comic.borderWidth
+    }
+
+    private var cardGlow: Color? {
+        if isCalled {
+            return Color(red: 0.576, green: 0.200, blue: 0.918).opacity(0.75)
+        }
+        return nil
+    }
+
     private var badgeBG: Color {
         if isShadySpade { return Color.masterGold }
         return colorScheme == .light
@@ -313,18 +395,33 @@ struct PlayingCardView: View {
         return colorScheme == .light ? .white : .black
     }
 
+    private var rankName: String {
+        switch card.rank {
+        case "A": return "Ace"; case "K": return "King"
+        case "Q": return "Queen"; case "J": return "Jack"
+        default: return card.rank
+        }
+    }
+    private var suitName: String {
+        switch card.suit {
+        case "♠": return "Spades"; case "♥": return "Hearts"
+        case "♦": return "Diamonds"; case "♣": return "Clubs"
+        default: return card.suit
+        }
+    }
+    private var accessibilityDescription: String {
+        var parts = ["\(rankName) of \(suitName)"]
+        if card.pointValue > 0 { parts.append("\(card.pointValue) points") }
+        if isTrump { parts.append("trump") }
+        if isCalled { parts.append("called") }
+        return parts.joined(separator: ", ")
+    }
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(bgColor)
+                .fill(cardBackground)
                 .shadow(color: Comic.black.opacity(0.85), radius: 0, x: Comic.shadowOffset, y: Comic.shadowOffset)
-
-            // Comic border: 3pt solid
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .strokeBorder(
-                    isShadySpade ? Color.masterGold : Comic.cardBorder,
-                    lineWidth: Comic.borderWidth
-                )
 
             // Top-left pip
             VStack(alignment: .leading, spacing: 0) {
@@ -376,6 +473,16 @@ struct PlayingCardView: View {
             }
         }
         .frame(width: width, height: height)
+        .overlay(
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .strokeBorder(cardBorderColor, lineWidth: cardBorderWidth)
+        )
+        .shadow(
+            color: cardGlow ?? .clear,
+            radius: isCalled ? 10 : 0,
+            x: 0, y: 0
+        )
+        .accessibilityLabel(accessibilityDescription)
     }
 }
 
@@ -1173,6 +1280,9 @@ struct LastHandView: View {
     let cards: [(card: Card, playerName: String, isWinner: Bool)]
     let winnerName: String
     let pointsWon: Int
+    var trumpSuit: String = ""
+    var calledCard1: String = ""
+    var calledCard2: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1217,9 +1327,14 @@ struct LastHandView: View {
                 HStack(spacing: spacing) {
                     ForEach(Array(cards.enumerated()), id: \.offset) { _, entry in
                         VStack(spacing: 4) {
-                            HandCardView(card: entry.card, width: cardW)
-                                .opacity(entry.isWinner ? 1.0 : 0.5)
-                                .offset(y: entry.isWinner ? -5 : 0)
+                            HandCardView(
+                                card: entry.card,
+                                width: cardW,
+                                isTrump: entry.card.suit == trumpSuit,
+                                isCalled: entry.card.id == calledCard1 || entry.card.id == calledCard2
+                            )
+                            .opacity(entry.isWinner ? 1.0 : 0.5)
+                            .offset(y: entry.isWinner ? -5 : 0)
                                 .overlay(
                                     entry.isWinner
                                     ? RoundedRectangle(
@@ -1269,34 +1384,116 @@ struct GameInfoPillsRow: View {
     let currentScore: Int
     let targetScore: Int
 
+    private func suitColor(for suitSymbol: String) -> Color {
+        switch suitSymbol {
+        case "♥", "♦": return Color(red: 0.753, green: 0.125, blue: 0.125)
+        default:        return Color(red: 0.08, green: 0.04, blue: 0.20)
+        }
+    }
+
     var body: some View {
         HStack(spacing: 6) {
-            infoPill(label: "TRUMP", value: trumpSuit)
-            infoPill(label: "CALLED", value: calledCards)
+            trumpPill()
+            calledPill()
             scorePill(current: currentScore, target: targetScore)
         }
     }
 
-    private func infoPill(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
+    private func trumpPill() -> some View {
+        let parts = trumpSuit.components(separatedBy: " ")
+        let symbol = parts.first ?? ""
+        let name   = parts.dropFirst().joined(separator: " ")
+        let color  = suitColor(for: symbol)
+
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("TRUMP")
                 .font(.system(size: 8, weight: .heavy, design: .rounded))
-                .foregroundStyle(Comic.textSecondary.opacity(0.6))
+                .foregroundStyle(Color(red: 0.627, green: 0.502, blue: 0.063))
                 .tracking(0.3)
-            Text(value)
-                .font(.system(size: 13, weight: .black, design: .rounded))
-                .foregroundStyle(Comic.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+            HStack(spacing: 4) {
+                Text(symbol)
+                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .foregroundStyle(color)
+                Text(name)
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .foregroundStyle(color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(Comic.containerBG)
+        .background(Color(red: 1.0, green: 0.97, blue: 0.80))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Comic.containerBorder, lineWidth: Comic.borderWidth)
+                .strokeBorder(Color(red: 0.831, green: 0.627, blue: 0.086),
+                              lineWidth: 2.5)
+        )
+    }
+
+    private func calledPill() -> some View {
+        let cards = calledCards.components(separatedBy: " · ")
+        let card1 = cards.first ?? ""
+        let card2 = cards.dropFirst().first ?? ""
+
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("CALLED")
+                .font(.system(size: 8, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color(red: 0.769, green: 0.714, blue: 0.988))
+                .tracking(0.3)
+            HStack(spacing: 6) {
+                calledBadge(card1)
+                Text("·")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(
+                        Color(red: 0.576, green: 0.200, blue: 0.918).opacity(0.4)
+                    )
+                calledBadge(card2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color(red: 0.231, green: 0.122, blue: 0.431))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(red: 0.576, green: 0.200, blue: 0.918),
+                              lineWidth: 2.5)
+        )
+        .shadow(
+            color: Color(red: 0.576, green: 0.200, blue: 0.918).opacity(0.25),
+            radius: 6, x: 0, y: 0
+        )
+    }
+
+    @ViewBuilder
+    private func calledBadge(_ card: String) -> some View {
+        let suits  = ["♠", "♥", "♦", "♣"]
+        let symbol = suits.first { card.hasSuffix($0) } ?? ""
+        let rank   = symbol.isEmpty ? card : String(card.dropLast(symbol.count))
+        let color  = suitColor(for: symbol)
+
+        HStack(spacing: 1) {
+            Text(rank)
+                .font(.system(size: 13, weight: .black, design: .rounded))
+                .foregroundStyle(color)
+            Text(symbol)
+                .font(.system(size: 13, weight: .black, design: .rounded))
+                .foregroundStyle(color)
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .strokeBorder(
+                    Color(red: 0.576, green: 0.200, blue: 0.918),
+                    lineWidth: 1.5
+                )
         )
     }
 

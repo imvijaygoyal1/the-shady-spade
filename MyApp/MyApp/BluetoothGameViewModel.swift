@@ -319,7 +319,7 @@ final class BluetoothGameViewModel: NSObject {
         try? await Task.sleep(nanoseconds: 3_000_000_000)
 
         // Deal cards
-        let deck = freshDeck().shuffled()
+        let deck = BluetoothGameViewModel.fullDeck.shuffled()
         allHands = (0..<6).map { i in Array(deck[(i * 8)..<((i + 1) * 8)]) }
 
         // Reset host tracking
@@ -578,7 +578,7 @@ final class BluetoothGameViewModel: NSObject {
     private func processCallCards(playerIndex: Int, trump: TrumpSuit, c1: String, c2: String) async {
         guard isHost else { return }
         guard playerIndex == currentActionPlayer else { return }
-        let validIds = Set(freshDeck().map(\.id))
+        let validIds = Set(BluetoothGameViewModel.fullDeck.map(\.id))
         guard validIds.contains(c1), validIds.contains(c2), c1 != c2,
               !allHands[playerIndex].map(\.id).contains(c1),
               !allHands[playerIndex].map(\.id).contains(c2) else { return }
@@ -731,7 +731,9 @@ final class BluetoothGameViewModel: NSObject {
         guard isHost else { return }
         let gs = buildGameStateDict()
         let msg: [String: Any] = ["type": "gameState", "state": gs]
-        sendToAll(msg)
+        if !sendToAll(msg) {
+            aiLog.warning("[broadcastGameState] send failed — peers will resync on reconnect")
+        }
         // Apply state locally for host
         applyGameState(gs)
         // Push to web dashboard
@@ -986,15 +988,18 @@ final class BluetoothGameViewModel: NSObject {
 
     // MARK: - MC Send Helpers
 
-    private func sendToAll(_ dict: [String: Any]) {
-        guard let session, !session.connectedPeers.isEmpty else { return }
-        guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return }
+    @discardableResult
+    private func sendToAll(_ dict: [String: Any]) -> Bool {
+        guard let session, !session.connectedPeers.isEmpty else { return false }
+        guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return false }
         do {
             try session.send(data, toPeers: session.connectedPeers, with: .reliable)
+            return true
         } catch {
             // MC .reliable errors indicate the session is broken; the didChange/notConnected
             // delegate fires next and handles AI-replacement recovery — no retry needed here.
             aiLog.error("[sendToAll] failed: \(error.localizedDescription)")
+            return false
         }
     }
 
@@ -1161,11 +1166,13 @@ final class BluetoothGameViewModel: NSObject {
     private func startTurnWatchdog(seat: Int, capturedPhase: OnlineGamePhase) {
         guard isHost, seat >= 0 else { return }
         turnWatchdogTask?.cancel()
+        let capturedRound = roundNumber
         turnWatchdogTask = Task { [weak self] in
             do { try await Task.sleep(nanoseconds: 60_000_000_000) } catch { return }
             guard let self else { return }
             guard self.currentActionPlayer == seat,
                   self.phase == capturedPhase,
+                  self.roundNumber == capturedRound,
                   !self.aiSeats.contains(seat) else { return }
             aiLog.warning("[watchdog] seat \(seat) idle 60s in \(capturedPhase.rawValue) — converting to AI")
             let name = self.playerName(seat)
@@ -1258,6 +1265,14 @@ final class BluetoothGameViewModel: NSObject {
             }
         case .calling:
             let result = aiComputeCalling(seat: seat)
+            let bidderHandIds = Set(allHands[safe: seat]?.map(\.id) ?? [])
+            guard !bidderHandIds.contains(result.c1), !bidderHandIds.contains(result.c2) else {
+                aiLog.error("[AI Calling] seat=\(seat) called own card — stale allHands, retrying in 500ms")
+                isProcessingAI = false
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                await processAITurnIfNeeded()
+                return
+            }
             aiLog.debug("seat=\(seat) calling")
             await processCallCards(playerIndex: seat, trump: result.trump, c1: result.c1, c2: result.c2)
         case .playing:
@@ -1290,7 +1305,7 @@ final class BluetoothGameViewModel: NSObject {
         let hand = allHands[seat]
         let myPoints = hand.map(\.pointValue).reduce(0, +)
         let myIds = Set(hand.map(\.id))
-        let topExternal = freshDeck()
+        let topExternal = BluetoothGameViewModel.fullDeck
             .filter { !myIds.contains($0.id) }
             .sorted { lhs, rhs in
                 lhs.pointValue != rhs.pointValue
@@ -1363,7 +1378,7 @@ final class BluetoothGameViewModel: NSObject {
 
         // Phase 2b — Void-feeding called cards, diversified across suits
         let handIds = Set(hand.map(\.id))
-        let candidates = freshDeck()
+        let candidates = BluetoothGameViewModel.fullDeck
             .filter { !handIds.contains($0.id) }
             .sorted { lhs, rhs in
                 lhs.pointValue != rhs.pointValue
@@ -1503,14 +1518,16 @@ final class BluetoothGameViewModel: NSObject {
         let trumpRaw = trumpSuit.rawValue
         let trumpPlays = trick.filter { $0.card.suit == trumpRaw }
         if !trumpPlays.isEmpty {
-            return trumpPlays.max(by: {
+            guard let winner = trumpPlays.max(by: {
                 (Card.rankOrder[$0.card.rank] ?? 0) < (Card.rankOrder[$1.card.rank] ?? 0)
-            })!.playerIndex
+            }) else { return trick[0].playerIndex }
+            return winner.playerIndex
         }
         let ledPlays = trick.filter { $0.card.suit == ledSuit }
-        return ledPlays.max(by: {
+        guard let winner = ledPlays.max(by: {
             (Card.rankOrder[$0.card.rank] ?? 0) < (Card.rankOrder[$1.card.rank] ?? 0)
-        })!.playerIndex
+        }) else { return trick[0].playerIndex }
+        return winner.playerIndex
     }
 
     private func resolvePartners(c1: String, c2: String) -> (Int, Int) {
@@ -1518,6 +1535,9 @@ final class BluetoothGameViewModel: NSObject {
         for (i, hand) in allHands.enumerated() where i != highBidderIndex {
             if hand.contains(where: { $0.id == c1 }) { p1 = i }
             if hand.contains(where: { $0.id == c2 }) { p2 = i }
+        }
+        if p1 == p2 && p1 >= 0 {
+            aiLog.warning("[resolvePartners] p1==p2==\(p1) — both called cards in same hand (c1=\(c1) c2=\(c2))")
         }
         return (p1, p2)
     }
@@ -1529,9 +1549,7 @@ final class BluetoothGameViewModel: NSObject {
         return Card(rank: rank, suit: String(lastChar))
     }
 
-    private func freshDeck() -> [Card] {
-        cardRanks.flatMap { rank in cardSuits.map { suit in Card(rank: rank, suit: suit) } }
-    }
+    private static let fullDeck: [Card] = cardRanks.flatMap { rank in cardSuits.map { suit in Card(rank: rank, suit: suit) } }
 
     private func setSmartCallingDefaults() {
         let hand = myHand
@@ -1542,7 +1560,7 @@ final class BluetoothGameViewModel: NSObject {
         trumpSuitSelection = suitScores.max(by: { $0.1 < $1.1 })?.0 ?? .spades
 
         let handIds = Set(hand.map(\.id))
-        let candidates = freshDeck()
+        let candidates = BluetoothGameViewModel.fullDeck
             .filter { !handIds.contains($0.id) }
             .sorted { lhs, rhs in
                 if lhs.pointValue != rhs.pointValue { return lhs.pointValue > rhs.pointValue }

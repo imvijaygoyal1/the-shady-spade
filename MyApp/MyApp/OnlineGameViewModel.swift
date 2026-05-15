@@ -102,6 +102,9 @@ final class OnlineGameViewModel {
     // Set to true when this player's own seat becomes AI mid-game (host removed them)
     var wasRemovedFromGame = false
 
+    // Set to true on non-host clients when the host explicitly ends the game
+    var hostEndedGame = false
+
     // MARK: Partner reveal tracking (all devices)
     private var hasInitializedCalling = false
     // Revealed in play order (slot 2 = first reveal, slot 3 = second reveal)
@@ -134,6 +137,13 @@ final class OnlineGameViewModel {
         listener?.remove()
         turnWatchdogTask?.cancel()
         turnWatchdogTask = nil
+    }
+
+    /// Writes a flag to Firestore so all non-host clients learn the host ended the game.
+    /// Call this before cleanup() so the listener is still active to receive the write.
+    func notifyHostEndedGame() async {
+        let ref = Firestore.firestore().collection("sessions").document(sessionCode)
+        try? await ref.updateData(["gameState.hostEndedGame": true])
     }
 
     // MARK: - Computed
@@ -314,7 +324,8 @@ final class OnlineGameViewModel {
         let db = Firestore.firestore()
         let ref = db.collection("sessions").document(sessionCode)
         guard let data = (try? await ref.getDocument())?.data(),
-              var slotsData = data["playerSlots"] as? [[String: Any]] else { return }
+              var slotsData = data["playerSlots"] as? [[String: Any]],
+              index < slotsData.count else { return }
 
         var currentAISeats = (data["aiSeats"] as? [Any] ?? []).compactMap {
             ($0 as? Int) ?? ($0 as? Int64).map(Int.init)
@@ -403,7 +414,7 @@ final class OnlineGameViewModel {
                 if let error = error {
                     ogVMLog.error("[listener] Firestore error: \(error.localizedDescription) — reattaching in 3s")
                     Task { @MainActor [weak self] in
-                        try? await Task.sleep(nanoseconds: 3_000_000_000)
+                        do { try await Task.sleep(nanoseconds: 3_000_000_000) } catch { return }
                         self?.reattachListener()
                     }
                     return
@@ -645,6 +656,11 @@ final class OnlineGameViewModel {
 
         // No next-hand confirmation overlay in online mode.
         // The host controls round progression via Firestore.
+
+        // Host ended game — set flag on non-host clients so the view can show an alert.
+        if !isHost && (gs["hostEndedGame"] as? Bool) == true {
+            hostEndedGame = true
+        }
 
         // Per-turn watchdog (host only): start a 60-second timer when a human player's
         // turn begins. Each new snapshot resets the timer for the current seat. If the
@@ -1093,14 +1109,16 @@ final class OnlineGameViewModel {
         let trumpRaw = trumpSuit.rawValue
         let trumpPlays = trick.filter { $0.card.suit == trumpRaw }
         if !trumpPlays.isEmpty {
-            return trumpPlays.max(by: {
+            guard let winner = trumpPlays.max(by: {
                 (Card.rankOrder[$0.card.rank] ?? 0) < (Card.rankOrder[$1.card.rank] ?? 0)
-            })!.playerIndex
+            }) else { return trick[0].playerIndex }
+            return winner.playerIndex
         }
         let ledPlays = trick.filter { $0.card.suit == ledSuit }
-        return ledPlays.max(by: {
+        guard let winner = ledPlays.max(by: {
             (Card.rankOrder[$0.card.rank] ?? 0) < (Card.rankOrder[$1.card.rank] ?? 0)
-        })!.playerIndex
+        }) else { return trick[0].playerIndex }
+        return winner.playerIndex
     }
 
     private func resolvePartners(c1: String, c2: String) -> (Int, Int) {
@@ -1108,6 +1126,9 @@ final class OnlineGameViewModel {
         for (i, hand) in allHands.enumerated() where i != highBidderIndex {
             if hand.contains(where: { $0.id == c1 }) { p1 = i }
             if hand.contains(where: { $0.id == c2 }) { p2 = i }
+        }
+        if p1 == p2 && p1 >= 0 {
+            ogVMLog.warning("[resolvePartners] p1==p2==\(p1) — both called cards in same hand (c1=\(c1) c2=\(c2))")
         }
         return (p1, p2)
     }
@@ -1125,11 +1146,13 @@ final class OnlineGameViewModel {
     private func startTurnWatchdog(seat: Int, capturedPhase: OnlineGamePhase) {
         guard isHost, seat >= 0 else { return }
         turnWatchdogTask?.cancel()
+        let capturedRound = roundNumber
         turnWatchdogTask = Task { [weak self] in
             do { try await Task.sleep(nanoseconds: 60_000_000_000) } catch { return }
             guard let self else { return }
             guard self.currentActionPlayer == seat,
                   self.phase == capturedPhase,
+                  self.roundNumber == capturedRound,
                   !self.aiSeats.contains(seat) else { return }
             ogVMLog.warning("[watchdog] seat \(seat) idle 60s in \(capturedPhase.rawValue) — converting to AI")
             let name = self.playerName(seat)
@@ -1214,6 +1237,14 @@ final class OnlineGameViewModel {
                 return
             }
             let result = aiComputeCalling(seat: seat)
+            let bidderHandIds = Set(allHands[safe: seat]?.map(\.id) ?? [])
+            guard !bidderHandIds.contains(result.c1), !bidderHandIds.contains(result.c2) else {
+                ogVMLog.error("[AI Calling] seat=\(seat) called own card — stale allHands, retrying in 500ms")
+                isProcessingAI = false
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                await processAITurnIfNeeded()
+                return
+            }
             let actionData: [String: Any] = [
                 "nonce": UUID().uuidString,
                 "playerIndex": seat,

@@ -218,8 +218,8 @@ struct OnlineGameView: View {
                 trumpSuit: game.trumpSuit,
                 callCard1: game.calledCard1,
                 callCard2: game.calledCard2,
-                partner1Index: game.partner1Index,
-                partner2Index: game.partner2Index,
+                partner1Index: max(0, game.partner1Index),
+                partner2Index: max(0, game.partner2Index),
                 offensePointsCaught: game.offensePoints,
                 defensePointsCaught: game.defensePoints,
                 runningScores: finalScores
@@ -498,7 +498,7 @@ private struct OnlineLookingAtCardsView: View {
                         } else {
                             VStack(spacing: 6) {
                                 ProgressView().tint(.masterGold)
-                                Text("Waiting for host to start bidding…")
+                                Text("Other players are looking at their cards…")
                                     .font(.system(size: 15, weight: .bold, design: .rounded))
                                     .foregroundStyle(.secondary)
                             }

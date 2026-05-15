@@ -231,7 +231,15 @@ enum SessionStatus: String {
 
         let snapshot: DocumentSnapshot
         do {
-            snapshot = try await ref.getDocument()
+            snapshot = try await withThrowingTaskGroup(of: DocumentSnapshot.self) { group in
+                group.addTask { try await ref.getDocument() }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 10_000_000_000)
+                    throw URLError(.timedOut)
+                }
+                defer { group.cancelAll() }
+                return try await group.next()!
+            }
         } catch {
             print("joinSession: getDocument failed — \(error)")
             throw error
@@ -253,7 +261,7 @@ enum SessionStatus: String {
             .sorted()
 
         let joinIndex: Int
-        if let firstAI = rawAISeats.first {
+        if let firstAI = rawAISeats.first, firstAI >= 0 && firstAI < slotsData.count {
             // Multiplayer: replace the lowest-numbered AI slot
             joinIndex = firstAI
         } else {
