@@ -125,6 +125,7 @@ final class LeaderboardService {
 
     private let pendingKey = "leaderboard_pending_records_v1"
     private let cloudRunURL = URL(string: "https://us-central1-shadyspade-d6b84.cloudfunctions.net/recordGame")!
+    private var isFlushing = false
 
     private init() {}
 
@@ -380,7 +381,7 @@ final class LeaderboardService {
 
             if attempt < maxAttempts {
                 let delay = UInt64(attempt) * 2_000_000_000
-                try? await Task.sleep(nanoseconds: delay)
+                do { try await Task.sleep(nanoseconds: delay) } catch { return .networkFailure }
             }
         }
         return .networkFailure
@@ -402,9 +403,9 @@ final class LeaderboardService {
     }
 
     private func flushPendingRecords() async {
-        // Ensure we have a valid Firebase user before sending. If auth failed at
-        // launch (fire-and-forget with no retry), records would receive 401 here and
-        // be permanently discarded from the queue — so sign in first.
+        guard !isFlushing else { return }
+        isFlushing = true
+        defer { isFlushing = false }
         await ensureAuthenticated()
 
         let records = loadPendingRecords()

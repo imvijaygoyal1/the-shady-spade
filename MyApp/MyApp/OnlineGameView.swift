@@ -104,6 +104,7 @@ struct OnlineGameView: View {
         }
         .onDisappear {
             game.stopPresenceTracking()
+            game.cleanup()
         }
         .onChange(of: game.message) { _, newMsg in
             if newMsg.contains("left. AI took over") {
@@ -192,7 +193,6 @@ struct OnlineGameView: View {
                 .transition(.opacity)
             }
         }
-        .onDisappear { game.cleanup() }
     }
 
     /// Saves completed rounds when the player quits mid-game (X button or Quit to Menu).
