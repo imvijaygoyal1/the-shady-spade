@@ -11,6 +11,7 @@ enum BTSessionState: Equatable {
     case idle
     case hosting
     case browsing
+    case connecting   // invitation sent, waiting for MC to confirm
     case connected
     case playing
 }
@@ -256,12 +257,19 @@ final class BluetoothGameViewModel: NSObject {
     }
 
     func connectTo(peerID remotePeerID: MCPeerID) {
-        guard let browser else { return }
+        // Guard: only send one invitation. Duplicate calls confuse MC and can
+        // cause a silent disconnect, leaving the client stuck on "Waiting for host".
+        guard let browser, sessionState == .browsing else { return }
+        sessionState = .connecting
         let context = try? JSONSerialization.data(withJSONObject: [
             "name": playerNames[0],
             "avatar": playerAvatars[0]
         ])
         browser.invitePeer(remotePeerID, to: session, withContext: context, timeout: 30)
+        // Stop browsing immediately so no more sessions appear and the Join
+        // button cannot be tapped again while the invitation is in-flight.
+        browser.stopBrowsingForPeers()
+        foundSessions = []
     }
 
     // MARK: - Host: Start Game
@@ -848,9 +856,11 @@ final class BluetoothGameViewModel: NSObject {
         phase = newPhase
 
         // Signal clients to transition out of the lobby when any active game phase arrives.
-        // Using sessionState (which IS read in BTClientLobbyView.body) ensures @Observable
-        // triggers a re-render and the onChange fires reliably.
-        if !isHost && sessionState == .connected {
+        // Accept .connected (normal path) or .connecting (race: MC confirms very fast before
+        // our state update) or .browsing with a valid slot (MC connected/assigned before this
+        // state snapshot arrived). Never re-trigger if already .playing.
+        let canTransition = !isHost && sessionState != .playing && sessionState != .idle && sessionState != .hosting
+        if canTransition {
             let activePhases: [OnlineGamePhase] = [.lookingAtCards, .bidding, .calling, .playing, .roundComplete, .gameOver]
             if activePhases.contains(newPhase) {
                 sessionState = .playing
