@@ -648,7 +648,7 @@ final class ComputerGameViewModel {
         if isPassAndPlay {
             // Pass & Play — auto advance after 5 seconds
             // so all players at the table can see the cards
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            do { try await Task.sleep(nanoseconds: 5_000_000_000) } catch { return }
             waitingForNextHand = false
         } else {
             // Solo — wait for human to tap Next Hand

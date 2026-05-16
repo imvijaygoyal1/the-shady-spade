@@ -147,6 +147,8 @@ final class BluetoothGameViewModel: NSObject {
     /// Per-turn watchdog: cancellable Task started whenever a human player's turn begins.
     /// Fires after 60s of inactivity to replace the idle player with AI.
     private var turnWatchdogTask: Task<Void, Never>?
+    private var partnerRevealTask: Task<Void, Never>?
+    private var bidWinnerDismissTask: Task<Void, Never>?
 
     // MARK: - Computed
 
@@ -465,6 +467,10 @@ final class BluetoothGameViewModel: NSObject {
     func cleanup() {
         turnWatchdogTask?.cancel()
         turnWatchdogTask = nil
+        partnerRevealTask?.cancel()
+        partnerRevealTask = nil
+        bidWinnerDismissTask?.cancel()
+        bidWinnerDismissTask = nil
         reconnectTask?.cancel()
         reconnectTask = nil
         pendingHostAction = nil
@@ -794,27 +800,30 @@ final class BluetoothGameViewModel: NSObject {
 
         // Partner reveal detection
         if newPhase == .playing || newPhase == .roundComplete || newPhase == .gameOver {
-            if newP1 >= 0 && revealedPartner1Index == -1 {
-                revealedPartner1Index = newP1
-                let name = playerName(newP1)
-                let isSelf = newP1 == myPlayerIndex
-                partnerRevealMessage = isSelf ? "You are a partner!" : "\(name) is a partner!"
-                Task {
-                    try? await Task.sleep(nanoseconds: 2_500_000_000)
-                    self.partnerRevealMessage = nil
+            let p1IsNew = newP1 >= 0 && revealedPartner1Index == -1
+            let p2IsNew = newP2 >= 0 && revealedPartner2Index == -1
+            if p1IsNew { revealedPartner1Index = newP1 }
+            if p2IsNew { revealedPartner2Index = newP2 }
+            if p1IsNew || p2IsNew {
+                var reveals: [String] = []
+                if p1IsNew {
+                    let isSelf = newP1 == myPlayerIndex
+                    reveals.append(isSelf ? "You are a partner!" : "\(playerName(newP1)) is a partner!")
                 }
-            }
-            if newP2 >= 0 && revealedPartner2Index == -1 {
-                revealedPartner2Index = newP2
-                let name = playerName(newP2)
-                let isSelf = newP2 == myPlayerIndex
-                let msg = isSelf ? "You are a partner!" : "\(name) is a partner!"
-                if msg != partnerRevealMessage {
-                    Task {
-                        try? await Task.sleep(nanoseconds: 500_000_000)
+                if p2IsNew {
+                    let isSelf = newP2 == myPlayerIndex
+                    let msg2 = isSelf ? "You are a partner!" : "\(playerName(newP2)) is a partner!"
+                    if msg2 != reveals.first { reveals.append(msg2) }
+                }
+                partnerRevealTask?.cancel()
+                partnerRevealTask = Task {
+                    for (idx, msg) in reveals.enumerated() {
                         self.partnerRevealMessage = msg
-                        try? await Task.sleep(nanoseconds: 2_500_000_000)
+                        do { try await Task.sleep(nanoseconds: 2_500_000_000) } catch { return }
                         self.partnerRevealMessage = nil
+                        if idx < reveals.count - 1 {
+                            do { try await Task.sleep(nanoseconds: 300_000_000) } catch { return }
+                        }
                     }
                 }
             }
@@ -829,8 +838,10 @@ final class BluetoothGameViewModel: NSObject {
             if winnerIdx >= 0 {
                 bidWinnerInfo = BidWinnerInfo(name: playerName(winnerIdx), avatar: "", bid: winnerBid)
                 if winnerIdx != myPlayerIndex {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-                        self?.bidWinnerInfo = nil
+                    bidWinnerDismissTask?.cancel()
+                    bidWinnerDismissTask = Task {
+                        do { try await Task.sleep(nanoseconds: 2_500_000_000) } catch { return }
+                        self.bidWinnerInfo = nil
                     }
                 }
             }
@@ -873,10 +884,10 @@ final class BluetoothGameViewModel: NSObject {
         dealerIndex = i("dealerIndex")
         currentActionPlayer = newCurrentActionPlayer
 
-        if let bidsAny = gs["bids"] as? [Any] {
+        if let bidsAny = gs["bids"] as? [Any], bidsAny.count == 6 {
             bids = bidsAny.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? -1 }
         }
-        if let passedAny = gs["playerHasPassed"] as? [Any] {
+        if let passedAny = gs["playerHasPassed"] as? [Any], passedAny.count == 6 {
             playerHasPassed = passedAny.map { ($0 as? Bool) ?? false }
         }
         if let histArr = gs["bidHistory"] as? [[String: Any]] {
@@ -923,10 +934,10 @@ final class BluetoothGameViewModel: NSObject {
             trickWinners = []
         }
 
-        if let wpp = gs["wonPointsPerPlayer"] as? [Any] {
+        if let wpp = gs["wonPointsPerPlayer"] as? [Any], wpp.count == 6 {
             wonPointsPerPlayer = wpp.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? 0 }
         }
-        if let rs = gs["runningScores"] as? [Any] {
+        if let rs = gs["runningScores"] as? [Any], rs.count == 6 {
             runningScores = rs.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? 0 }
         }
         message = gs["message"] as? String ?? ""
