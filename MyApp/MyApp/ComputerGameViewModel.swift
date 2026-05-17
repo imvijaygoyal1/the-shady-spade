@@ -108,6 +108,7 @@ final class ComputerGameViewModel {
     var lastCompletedTrick: [(playerIndex: Int, card: Card)] = []
     private var nextHandContinuation: CheckedContinuation<Void, Never>?
     private var bidWinnerContinuation: CheckedContinuation<Void, Never>?
+    private var partnerRevealTask: Task<Void, Never>?
 
     // MARK: Post-bid
     var trumpSuit: TrumpSuit = .spades
@@ -243,7 +244,8 @@ final class ComputerGameViewModel {
         biddingStartPlayerIndex = startPlayer
 
         biddingToastMessage = "\(playerName(startPlayer)) starts the bid!"
-        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        // HIGH-08: cancellation-aware so quit during the toast doesn't re-enter the loop.
+        do { try await Task.sleep(nanoseconds: 1_500_000_000) } catch { return }
         biddingToastMessage = nil
 
         var currentPlayer = startPlayer
@@ -553,6 +555,9 @@ final class ComputerGameViewModel {
 
     var callingValid: Bool {
         guard calledCard1 != calledCard2 else { return false }
+        // LOW-09: confirm both cards exist in the 48-card deck (no rank "2").
+        let deckIds = Set(ComputerGameViewModel.freshDeck().map(\.id))
+        guard deckIds.contains(calledCard1), deckIds.contains(calledCard2) else { return false }
         let bidderIds = Set(hands[highBidderIndex].map(\.id))
         return !bidderIds.contains(calledCard1) && !bidderIds.contains(calledCard2)
     }
@@ -696,6 +701,7 @@ final class ComputerGameViewModel {
         bidWinnerContinuation?.resume();                              bidWinnerContinuation = nil
         cardContinuation?.resume(returning: Self.cancelSentinelCard); cardContinuation = nil
         nextHandContinuation?.resume();                               nextHandContinuation = nil
+        partnerRevealTask?.cancel(); partnerRevealTask = nil
         cancelDevicePassIfNeeded()
     }
 
@@ -733,9 +739,12 @@ final class ComputerGameViewModel {
         partnerRevealMessage = isSelf
             ? "You are a partner!"
             : "\(playerName(playerIndex)) is a partner!"
-        Task {
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
-            partnerRevealMessage = nil
+        // MED-09: store as cancellable Task with [weak self] to prevent use-after-free
+        // if the VM is deallocated within the 2.5s reveal window.
+        partnerRevealTask?.cancel()
+        partnerRevealTask = Task { [weak self] in
+            do { try await Task.sleep(nanoseconds: 2_500_000_000) } catch { return }
+            self?.partnerRevealMessage = nil
         }
     }
 

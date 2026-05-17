@@ -366,8 +366,10 @@ func adaptiveCardWidth(available: CGFloat, count: Int) -> CGFloat {
 }
 
 /// Height for the hand-card row based on the adaptive width (uses 74→106 ratio).
-func adaptiveHandHeight(cardW: CGFloat = 74) -> CGFloat {
-    cardW * (106.0 / 74.0)
+/// LOW-04: returns 0 for an empty hand so no blank space is reserved.
+func adaptiveHandHeight(cardW: CGFloat = 74, count: Int = 1) -> CGFloat {
+    guard count > 0 else { return 0 }
+    return cardW * (106.0 / 74.0)
 }
 
 // MARK: - ViewingCardsView

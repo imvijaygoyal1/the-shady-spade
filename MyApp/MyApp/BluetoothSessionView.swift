@@ -57,7 +57,11 @@ struct BluetoothSessionView: View {
                     Button {
                         HapticManager.impact(.light)
                         if showHostLobby || showClientLobby {
-                            vm.cleanup()
+                            // LOW-11: only call cleanup() from the lobby — if the session is
+                            // already playing, cleanup tears down peers without notifying them.
+                            if vm.sessionState != .playing {
+                                vm.cleanup()
+                            }
                             withAnimation {
                                 showHostLobby = false
                                 showClientLobby = false

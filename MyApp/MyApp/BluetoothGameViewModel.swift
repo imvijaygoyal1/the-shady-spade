@@ -291,8 +291,10 @@ final class BluetoothGameViewModel: NSObject {
         var availableAvatars = Comic.randomAIAvatars(count: 6, excluding: usedAvatars)
         for i in 1..<6 {
             if !humanSlots.contains(i) {
-                let usedNames = playerNames.filter { !$0.isEmpty }
-                let aiName = aiNamePool.first { !usedNames.contains($0) } ?? "Bot\(i)"
+                // LOW-01: rebuild usedNames each iteration so each AI gets a unique name
+                // even when the pool exhausts and the "Bot\(i)" fallback is reached.
+                let usedNames = Set(playerNames.filter { !$0.isEmpty })
+                let aiName = aiNamePool.first { !usedNames.contains($0) } ?? "Bot\(i)-\(UUID().uuidString.prefix(4))"
                 let aiAvatar = availableAvatars.isEmpty ? "🤖" : availableAvatars.removeFirst()
                 playerNames[i] = aiName
                 playerAvatars[i] = aiAvatar
@@ -502,6 +504,7 @@ final class BluetoothGameViewModel: NSObject {
     private func processBid(playerIndex: Int, amount: Int) async {
         guard isHost else { return }
         guard playerIndex == currentActionPlayer else { return }
+        let capturedPassed = playerHasPassed   // MED-12: stable snapshot, not re-read mid-function
         var newBids = bids
         newBids[playerIndex] = amount
         var newHighBid = highBid
@@ -510,12 +513,12 @@ final class BluetoothGameViewModel: NSObject {
         var newHistory = bidHistory
         newHistory.append((playerIndex: playerIndex, amount: amount))
 
-        let activePlayers = (0..<6).filter { !playerHasPassed[$0] }
+        let activePlayers = (0..<6).filter { !capturedPassed[$0] }
         if activePlayers.count <= 1 {
             await concludeBidding(bids: newBids, highBid: newHighBid, highBidder: newHighBidder)
         } else {
             var next = (playerIndex + 1) % 6
-            while playerHasPassed[next] { next = (next + 1) % 6 }
+            while capturedPassed[next] { next = (next + 1) % 6 }
             bids = newBids
             highBid = newHighBid
             highBidderIndex = newHighBidder
@@ -530,9 +533,10 @@ final class BluetoothGameViewModel: NSObject {
     private func processPass(playerIndex: Int) async {
         guard isHost else { return }
         guard playerIndex == currentActionPlayer else { return }
+        let capturedPassed = playerHasPassed   // MED-12: stable snapshot
         var newBids = bids
         newBids[playerIndex] = 0
-        var newPassed = playerHasPassed
+        var newPassed = capturedPassed
         newPassed[playerIndex] = true
         var newHistory = bidHistory
         newHistory.append((playerIndex: playerIndex, amount: 0))
@@ -836,7 +840,7 @@ final class BluetoothGameViewModel: NSObject {
             let winnerIdx = iDef("highBidderIndex", -1)
             let winnerBid = i("highBid")
             if winnerIdx >= 0 {
-                bidWinnerInfo = BidWinnerInfo(name: playerName(winnerIdx), avatar: "", bid: winnerBid)
+                bidWinnerInfo = BidWinnerInfo(name: playerName(winnerIdx), avatar: playerAvatar(winnerIdx), bid: winnerBid)
                 if winnerIdx != myPlayerIndex {
                     bidWinnerDismissTask?.cancel()
                     bidWinnerDismissTask = Task {
@@ -1031,9 +1035,10 @@ final class BluetoothGameViewModel: NSObject {
         }
         // Issue #6 fix: host peer not yet mapped (peer reconnect, session teardown race).
         // Queue the action and retry up to 3× at 500ms intervals instead of silently dropping.
-        // Only one retry chain runs at a time; a newer action replaces the queued one.
-        pendingHostAction = dict
+        // HIGH-07: if a reconnect is already in-flight, do NOT overwrite the queued action —
+        // the running task will send whatever is pending when the host peer becomes available.
         guard reconnectTask == nil else { return }
+        pendingHostAction = dict
         isReconnecting = true
         reconnectTask = Task { @MainActor in
             for attempt in 1...3 {
@@ -1240,7 +1245,8 @@ final class BluetoothGameViewModel: NSObject {
         let capturedPhase = phase
         let delay = UInt64.random(in: 800_000_000...1_200_000_000)
         aiLog.debug("sleeping seat=\(seat) phase=\(capturedPhase.rawValue)")
-        try? await Task.sleep(nanoseconds: delay)
+        // HIGH-02: cancellation-aware sleep — exits cleanly when cleanup() cancels the task.
+        do { try await Task.sleep(nanoseconds: delay) } catch { isProcessingAI = false; return }
         aiLog.debug("woke seat=\(seat) phase=\(capturedPhase.rawValue) aiSeats=\(self.aiSeats)")
         guard aiSeats.contains(seat), phase == capturedPhase, currentActionPlayer == seat else {
             aiLog.error("bail after sleep: seat=\(seat) capturedPhase=\(capturedPhase.rawValue) currentPhase=\(self.phase.rawValue) currentAction=\(self.currentActionPlayer)")

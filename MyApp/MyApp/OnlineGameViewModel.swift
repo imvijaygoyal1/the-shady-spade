@@ -237,7 +237,7 @@ final class OnlineGameViewModel {
         try? await ref.updateData(["gameState": dealingGs])
 
         // Wait for animation to play (~3s)
-        try? await Task.sleep(nanoseconds: 3_000_000_000)
+        do { try await Task.sleep(nanoseconds: 3_000_000_000) } catch { return }
 
         // Deal
         let deck = ComputerGameViewModel.freshDeck().shuffled()
@@ -537,7 +537,7 @@ final class OnlineGameViewModel {
             let winnerIdx = iDef("highBidderIndex", -1)
             let winnerBid = i("highBid")
             if winnerIdx >= 0 {
-                bidWinnerInfo = BidWinnerInfo(name: playerName(winnerIdx), avatar: "", bid: winnerBid)
+                bidWinnerInfo = BidWinnerInfo(name: playerName(winnerIdx), avatar: playerAvatar(winnerIdx), bid: winnerBid)
                 if winnerIdx != myPlayerIndex {
                     // Not our win — auto-dismiss after 2.5s
                     bidWinnerDismissTask?.cancel()
@@ -769,19 +769,22 @@ final class OnlineGameViewModel {
         guard playerIndex >= 0 && playerIndex < 6 else { return }
         guard playerIndex == currentActionPlayer else { return }
 
-        lastProcessedNonce = nonce
+        // Capture a stable snapshot of pass state before any async/switch work.
+        let capturedPassed = playerHasPassed
 
         switch type {
         case "bid":
             let amount = (actionData["bidAmount"] as? Int) ??
                 (actionData["bidAmount"] as? Int64).map(Int.init) ?? 0
+            // CRIT-04: consume nonce only after all validation guards pass.
             guard amount >= 130 && amount <= 250 else { return }
+            lastProcessedNonce = nonce
             var newBids = bids
             newBids[playerIndex] = amount
             var newHighBid = highBid
             var newHighBidder = highBidderIndex
             if amount > newHighBid { newHighBid = amount; newHighBidder = playerIndex }
-            let newPassed = playerHasPassed       // bidder stays active (not marked passed)
+            let newPassed = capturedPassed       // bidder stays active (not marked passed)
             var newHistory = bidHistory
             newHistory.append((playerIndex: playerIndex, amount: amount))
 
@@ -800,9 +803,10 @@ final class OnlineGameViewModel {
             }
 
         case "pass":
+            lastProcessedNonce = nonce
             var newBids = bids
             newBids[playerIndex] = 0
-            var newPassed = playerHasPassed
+            var newPassed = capturedPassed
             newPassed[playerIndex] = true
             var newHistory = bidHistory
             newHistory.append((playerIndex: playerIndex, amount: 0))
@@ -825,15 +829,13 @@ final class OnlineGameViewModel {
             let trumpStr = actionData["trump"] as? String ?? TrumpSuit.spades.rawValue
             let c1 = actionData["calledCard1"] as? String ?? ""
             let c2 = actionData["calledCard2"] as? String ?? ""
-            // Validate cards exist in the deck, are distinct, and the bidder doesn't hold them
-            let validCardIds: Set<String> = {
-                let ranks = ["A","K","Q","J","10","9","8","7","6","5","4","3","2"]
-                let suits = ["♠","♥","♦","♣"]
-                return Set(ranks.flatMap { r in suits.map { r + $0 } })
-            }()
+            // CRIT-03: use exact 48-card deck (no rank "2") so an invalid called card
+            // can't slip through and produce a -1 partner index.
+            let validCardIds = Set(ComputerGameViewModel.freshDeck().map(\.id))
             guard validCardIds.contains(c1), validCardIds.contains(c2), c1 != c2,
                   !allHands[playerIndex].map(\.id).contains(c1),
                   !allHands[playerIndex].map(\.id).contains(c2) else { return }
+            lastProcessedNonce = nonce
             let (p1, p2) = resolvePartners(c1: c1, c2: c2)
             hostPartner1 = p1; hostPartner2 = p2
             hostCalledCard1 = c1; hostCalledCard2 = c2
@@ -866,6 +868,7 @@ final class OnlineGameViewModel {
                 }
                 return
             }
+            lastProcessedNonce = nonce
 
             allHands[playerIndex].removeAll { $0.id == cardId }
 
@@ -1172,7 +1175,8 @@ final class OnlineGameViewModel {
                   !self.aiSeats.contains(seat) else { return }
             ogVMLog.warning("[watchdog] seat \(seat) idle 60s in \(capturedPhase.rawValue) — converting to AI")
             let name = self.playerName(seat)
-            self.aiSeats.append(seat)
+            // LOW-10: guard against double-append when monitorPresence already added the seat.
+            if !self.aiSeats.contains(seat) { self.aiSeats.append(seat) }
             self.aiSeats.sort()
             self.message = "\(name) is taking too long. AI took over."
             let db = Firestore.firestore()
@@ -1209,7 +1213,8 @@ final class OnlineGameViewModel {
         let seat = currentActionPlayer
         let capturedPhase = phase
         let delay = UInt64.random(in: 800_000_000...1_200_000_000)
-        try? await Task.sleep(nanoseconds: delay)
+        // HIGH-02: cancellation-aware sleep — exits cleanly when cleanup() cancels the task.
+        do { try await Task.sleep(nanoseconds: delay) } catch { isProcessingAI = false; return }
         // Verify state hasn't changed during the sleep — another snapshot may have
         // advanced the turn to a different player or a different phase.
         // If the guard fires but it's still an AI's turn in an active phase, re-trigger
@@ -1253,7 +1258,7 @@ final class OnlineGameViewModel {
                 // Firestore failures don't permanently freeze the AI calling turn.
                 if retriesRemaining > 0 {
                     ogVMLog.warning("[AI Calling] seat \(seat) has \(self.allHands[seat].count) cards after refetch — retrying (\(retriesRemaining) left)")
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return }
                     await processAITurnIfNeeded(retriesRemaining: retriesRemaining - 1)
                 } else {
                     ogVMLog.error("[AI Calling] seat \(seat) still has \(self.allHands[seat].count) cards after all retries — giving up")
@@ -1262,11 +1267,13 @@ final class OnlineGameViewModel {
             }
             let result = aiComputeCalling(seat: seat)
             let bidderHandIds = Set(allHands[safe: seat]?.map(\.id) ?? [])
+            // MED-02: pass remaining retries so a persistently-bad hand doesn't reset
+            // the counter to 2 on each attempt, creating an unbounded retry loop.
             guard !bidderHandIds.contains(result.c1), !bidderHandIds.contains(result.c2) else {
                 ogVMLog.error("[AI Calling] seat=\(seat) called own card — stale allHands, retrying in 500ms")
                 isProcessingAI = false
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                await processAITurnIfNeeded()
+                do { try await Task.sleep(nanoseconds: 500_000_000) } catch { return }
+                await processAITurnIfNeeded(retriesRemaining: max(0, retriesRemaining - 1))
                 return
             }
             let actionData: [String: Any] = [

@@ -216,7 +216,7 @@ struct BluetoothGameView: View {
         // race caused .gameOver to arrive before completedRounds was populated.
         let rounds: [HistoryRound]
         if !game.completedRounds.isEmpty {
-            rounds = game.completedRounds
+            rounds = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
         } else if game.highBidderIndex >= 0 {
             rounds = [HistoryRound(
                 roundNumber: game.roundNumber,
@@ -276,7 +276,7 @@ struct BluetoothGameView: View {
         // Fall back to synthetic round from live state if completedRounds is empty.
         let roundsToSend: [HistoryRound]
         if !game.completedRounds.isEmpty {
-            roundsToSend = game.completedRounds
+            roundsToSend = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
         } else if game.highBidderIndex >= 0 {
             roundsToSend = [HistoryRound(
                 roundNumber: game.roundNumber,

@@ -110,6 +110,8 @@ enum SessionStatus: String {
     var sessionType: String = "online"
     /// True while the Firebase document write is in-flight (after prepareLocalSession)
     var isConnecting: Bool = false
+    /// Slot index this non-host player joined (set in joinSession; -1 for host).
+    private var myJoinedSlotIndex: Int = -1
 
     /// Called by GameViewModel to propagate round updates
     var onSessionUpdated: (() -> Void)? = nil
@@ -256,6 +258,13 @@ enum SessionStatus: String {
             throw URLError(.badServerResponse)
         }
 
+        // MED-03: reject joins to sessions that have already started or finished.
+        let sessionStatus = data["status"] as? String ?? "waiting"
+        guard sessionStatus == "waiting" else {
+            print("joinSession: session \(code) is already \(sessionStatus)")
+            throw URLError(.resourceUnavailable)
+        }
+
         let rawAISeats = (data["aiSeats"] as? [Any] ?? [])
             .compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
             .sorted()
@@ -279,6 +288,7 @@ enum SessionStatus: String {
 
         sessionCode = code
         isHost = false
+        myJoinedSlotIndex = joinIndex
         attachListener(code: code)
     }
 
@@ -383,10 +393,31 @@ enum SessionStatus: String {
     }
 
     func leaveSession() async {
+        // LOW-02: clear this player's Firestore slot so the lobby updates for remaining
+        // players and the slot becomes available for a new human to join.
+        let slotToClear = myJoinedSlotIndex
+        if let code = sessionCode, !isHost, slotToClear >= 0 {
+            let ref = db.collection("sessions").document(code)
+            if let data = (try? await ref.getDocument())?.data(),
+               var slotsData = data["playerSlots"] as? [[String: Any]],
+               slotToClear < slotsData.count {
+                var currentAISeats = (data["aiSeats"] as? [Any] ?? []).compactMap {
+                    ($0 as? Int) ?? ($0 as? Int64).map(Int.init)
+                }
+                slotsData[slotToClear] = ["uid": "", "name": "", "avatar": "", "joined": false]
+                if !currentAISeats.contains(slotToClear) { currentAISeats.append(slotToClear) }
+                currentAISeats.sort()
+                try? await ref.updateData([
+                    "playerSlots": slotsData,
+                    "aiSeats": currentAISeats
+                ])
+            }
+        }
         listener?.remove()
         listener = nil
         sessionCode = nil
         isHost = false
+        myJoinedSlotIndex = -1
         status = .idle
         playerSlots = (0..<6).map { SessionPlayer.empty(at: $0) }
         rounds = []

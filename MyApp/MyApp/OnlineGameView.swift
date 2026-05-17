@@ -61,7 +61,8 @@ struct OnlineGameView: View {
                         dismiss()
                     }
                 }
-                .onAppear { saveOnlineGameHistory() }
+                // MED-14: save is triggered by .task(id: game.phase) at the root level
+                // when phase transitions to .gameOver — no duplicate .onAppear needed.
             }
 
             // Bid winner banner — floats above all phase views
@@ -121,7 +122,12 @@ struct OnlineGameView: View {
             if removed { showRemovedFromGameAlert = true }
         }
         .alert("Removed from Game", isPresented: $showRemovedFromGameAlert) {
-            Button("OK") { dismiss() }
+            Button("OK") {
+                // HIGH-03: stop presence timers before dismissing so they don't fire
+                // once more after the player has already been formally removed.
+                game.stopPresenceTracking()
+                dismiss()
+            }
         } message: {
             Text("The host removed you from the game.")
         }
@@ -208,7 +214,7 @@ struct OnlineGameView: View {
         // race caused .gameOver to arrive before completedRounds was populated.
         let rounds: [HistoryRound]
         if !game.completedRounds.isEmpty {
-            rounds = game.completedRounds
+            rounds = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
         } else if game.highBidderIndex >= 0 {
             rounds = [HistoryRound(
                 roundNumber: game.roundNumber,
@@ -293,7 +299,9 @@ struct OnlineGameView: View {
         // synthetic last-round record if the array is unexpectedly empty.
         let roundsToSend: [HistoryRound]
         if !game.completedRounds.isEmpty {
-            roundsToSend = game.completedRounds
+            // HIGH-06: sort by roundNumber in case out-of-order snapshots appended rounds
+            // non-sequentially; the leaderboard Cloud Function expects ascending order.
+            roundsToSend = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
         } else {
             roundsToSend = [HistoryRound(
                 roundNumber: game.roundNumber,
