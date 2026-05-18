@@ -178,7 +178,9 @@ final class ComputerGameViewModel {
 
     func playerAvatar(_ index: Int) -> String {
         if !_allPlayerAvatars.isEmpty { return _allPlayerAvatars.indices.contains(index) ? _allPlayerAvatars[index] : "🦁" }
-        return index == humanPlayerIndex ? humanAvatar : aiAvatars[index - 1]
+        if index == humanPlayerIndex { return humanAvatar }
+        let aiIndex = index < humanPlayerIndex ? index : index - 1
+        return aiAvatars[aiIndex]
     }
 
     // MARK: - Deck
@@ -945,6 +947,8 @@ final class ComputerGameViewModel {
 
     func playerName(_ index: Int) -> String {
         if !_allPlayerNames.isEmpty { return _allPlayerNames.indices.contains(index) ? _allPlayerNames[index] : "Guest \(index+1)" }
-        return index == humanPlayerIndex ? humanName : aiNames[index - 1]
+        if index == humanPlayerIndex { return humanName }
+        let aiIndex = index < humanPlayerIndex ? index : index - 1
+        return aiNames[aiIndex]
     }
 }

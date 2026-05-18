@@ -85,6 +85,7 @@ final class BluetoothGameViewModel: NSObject {
     var wasRemovedFromGame = false
     // Set to true on non-host clients when the host explicitly ends the game
     var hostEndedGame = false
+    var gameHistorySaved: Bool = false
 
     // MARK: AI seats (filled if < 6 humans)
     var aiSeats: [Int] = []
@@ -490,6 +491,7 @@ final class BluetoothGameViewModel: NSObject {
         localServer?.stop()
         localServer = nil
         localServerURL = ""
+        gameHistorySaved = false
     }
 
     /// Broadcasts a "hostEndedGame" message to all connected peers so they can show a
@@ -695,7 +697,8 @@ final class BluetoothGameViewModel: NSObject {
 
                 wonPointsPerPlayer = newWon
                 runningScores = newRS
-                currentTrick = []
+                // Keep currentTrick = newTrick for the broadcast so clients that miss
+                // the per-card snapshots can still capture trick 8 via the fallback.
                 trickNumber = newTrickNum
                 currentLeaderIndex = winner
                 partner1Index = hostPartner1
@@ -705,6 +708,7 @@ final class BluetoothGameViewModel: NSObject {
                 let nextPhase: OnlineGamePhase = (newRS.max() ?? 0) >= Self.winningScore ? .gameOver : .roundComplete
                 phase = nextPhase
                 broadcastGameState()
+                currentTrick = []  // clear after broadcast so host UI shows no active trick
             } else {
                 wonPointsPerPlayer = newWon
                 currentTrick = []
@@ -954,6 +958,20 @@ final class BluetoothGameViewModel: NSObject {
                       let card = parseCard(cardId) else { return nil }
                 return (playerIndex: pi, card: card)
             }
+        }
+
+        // Fallback: coalesced MC broadcast where the pre-parse check (line ~928) missed
+        // the completed trick because self.currentTrick was already [] from the prior advance.
+        // The host now sends the completed trick data in currentTrick for the last trick, so
+        // if we just parsed a non-empty currentTrick after a trickNumber increment that wasn't
+        // captured by the pre-parse check, append it now and clear locally.
+        if newTrickNumber > prevTrickNumber && completedTricks.count < newTrickNumber && !currentTrick.isEmpty {
+            lastCompletedTrick = currentTrick
+            lastTrickWinnerIndex = currentLeaderIndex
+            lastTrickPoints = currentTrick.map { $0.card.pointValue }.reduce(0, +)
+            completedTricks.append(currentTrick)
+            trickWinners.append(currentLeaderIndex)
+            currentTrick = []
         }
 
         // Calling defaults

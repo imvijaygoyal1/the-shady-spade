@@ -70,6 +70,7 @@ final class OnlineGameViewModel {
     var bidWinnerInfo: BidWinnerInfo? = nil
     var partnerRevealMessage: String? = nil
     var errorMessage: String? = nil
+    var gameHistorySaved: Bool = false
 
     /// First player to bid (highBid == 0) must bid; all others may pass.
     var humanCanPass: Bool { highBid > 0 }
@@ -146,6 +147,7 @@ final class OnlineGameViewModel {
         bidWinnerDismissTask = nil
         biddingToastTask?.cancel()
         biddingToastTask = nil
+        gameHistorySaved = false
     }
 
     /// Writes a flag to Firestore so all non-host clients learn the host ended the game.
@@ -638,6 +640,20 @@ final class OnlineGameViewModel {
             }
         }
 
+        // Fallback: coalesced Firestore snapshot where the pre-parse check (line ~608) missed
+        // the completed trick because self.currentTrick was already [] from the prior advance.
+        // The host now sends the completed trick data in currentTrick for trickNumber==8, so
+        // if we just parsed a non-empty currentTrick after a trickNumber increment that wasn't
+        // captured by the pre-parse check, append it now and clear locally.
+        if newTrickNumber > prevTrickNumber && completedTricks.count < newTrickNumber && !currentTrick.isEmpty {
+            lastCompletedTrick = currentTrick
+            lastTrickWinnerIndex = currentLeaderIndex
+            lastTrickPoints = currentTrick.map { $0.card.pointValue }.reduce(0, +)
+            completedTricks.append(currentTrick)
+            trickWinners.append(currentLeaderIndex)
+            currentTrick = []
+        }
+
         // Calling phase defaults for this player
         if newPhase == .calling && newCurrentActionPlayer == myPlayerIndex && !hasInitializedCalling {
             hasInitializedCalling = true
@@ -942,7 +958,9 @@ final class OnlineGameViewModel {
                     var gs = buildGS(phase: nextPhase, currentActionPlayer: -1,
                         bids: bids, highBid: highBid, highBidderIndex: highBidderIndex,
                         message: "\(playerName(winner)) wins! \(bidMade ? "Bid made!" : "SET!")")
-                    gs["currentTrick"] = [] as [[String: Any]]
+                    // Include the completed trick so clients that missed the show-state
+                    // can still capture trick 8 via the parseGameState fallback path.
+                    gs["currentTrick"] = trickData
                     gs["trickNumber"] = newTrickNum
                     gs["wonPointsPerPlayer"] = newWon
                     gs["runningScores"] = newRS

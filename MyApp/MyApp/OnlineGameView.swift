@@ -17,7 +17,6 @@ struct OnlineGameView: View {
     @State private var droppedPlayerName = ""
     @State private var showRemovedFromGameAlert = false
     @State private var showHostEndedGameAlert = false
-    @State private var gameHistorySaved = false
 
     var body: some View {
         ZStack {
@@ -208,14 +207,14 @@ struct OnlineGameView: View {
         // Non-hosts can save at game-over (all clients have full final state).
         // Mid-game quits are host-only — non-hosts don't drive game logic.
         if !game.isHost && game.phase != .gameOver { return }
-        guard !gameHistorySaved else { return }
+        guard !game.gameHistorySaved else { return }
         let finalScores = game.runningScores
         // Use accumulated rounds; fall back to synthetic round if a Firestore snapshot
         // race caused .gameOver to arrive before completedRounds was populated.
         let rounds: [HistoryRound]
         if !game.completedRounds.isEmpty {
             rounds = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
-        } else if game.highBidderIndex >= 0 {
+        } else if game.highBidderIndex >= 0 && game.partner1Index >= 0 && game.partner2Index >= 0 {
             rounds = [HistoryRound(
                 roundNumber: game.roundNumber,
                 dealerIndex: game.dealerIndex,
@@ -224,8 +223,8 @@ struct OnlineGameView: View {
                 trumpSuit: game.trumpSuit,
                 callCard1: game.calledCard1,
                 callCard2: game.calledCard2,
-                partner1Index: max(0, game.partner1Index),
-                partner2Index: max(0, game.partner2Index),
+                partner1Index: game.partner1Index,
+                partner2Index: game.partner2Index,
                 offensePointsCaught: game.offensePoints,
                 defensePointsCaught: game.defensePoints,
                 runningScores: finalScores
@@ -233,7 +232,7 @@ struct OnlineGameView: View {
         } else {
             return  // no round data at all, nothing to save
         }
-        gameHistorySaved = true
+        game.gameHistorySaved = true
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
         let mode = game.aiSeats.isEmpty ? "Online" : "Multiplayer"
@@ -266,7 +265,7 @@ struct OnlineGameView: View {
     }
 
     private func saveOnlineGameHistory() {
-        guard !gameHistorySaved else { return }
+        guard !game.gameHistorySaved else { return }
         let finalScores = game.runningScores
         guard game.highBidderIndex >= 0,
               game.partner1Index >= 0,
@@ -274,7 +273,7 @@ struct OnlineGameView: View {
             ogLog.warning("saveOnlineGameHistory: deferred — bidder=\(game.highBidderIndex) p1=\(game.partner1Index) p2=\(game.partner2Index)")
             return
         }
-        gameHistorySaved = true
+        game.gameHistorySaved = true
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: {
             finalScores[$0] < finalScores[$1]

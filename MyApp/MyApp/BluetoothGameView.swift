@@ -13,7 +13,6 @@ struct BluetoothGameView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showQuitConfirm = false
     @State private var showRoundResultBanner = false
-    @State private var gameHistorySaved = false
     @State private var disconnectedAlert = false
     @State private var showHostEndedGameAlert = false
 
@@ -210,14 +209,14 @@ struct BluetoothGameView: View {
         // Non-hosts can save at game-over (full final state synced via MC).
         // Mid-game quits are host-only — non-hosts don't drive game logic.
         if !game.isHost && game.phase != .gameOver { return }
-        guard !gameHistorySaved else { return }
+        guard !game.gameHistorySaved else { return }
         let finalScores = game.runningScores
         // Use accumulated rounds; fall back to synthetic round if an MC snapshot
         // race caused .gameOver to arrive before completedRounds was populated.
         let rounds: [HistoryRound]
         if !game.completedRounds.isEmpty {
             rounds = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
-        } else if game.highBidderIndex >= 0 {
+        } else if game.highBidderIndex >= 0 && game.partner1Index >= 0 && game.partner2Index >= 0 {
             rounds = [HistoryRound(
                 roundNumber: game.roundNumber,
                 dealerIndex: game.dealerIndex,
@@ -226,8 +225,8 @@ struct BluetoothGameView: View {
                 trumpSuit: game.trumpSuit,
                 callCard1: game.calledCard1,
                 callCard2: game.calledCard2,
-                partner1Index: max(0, game.partner1Index),
-                partner2Index: max(0, game.partner2Index),
+                partner1Index: game.partner1Index,
+                partner2Index: game.partner2Index,
                 offensePointsCaught: game.offensePoints,
                 defensePointsCaught: game.defensePoints,
                 runningScores: finalScores
@@ -235,7 +234,7 @@ struct BluetoothGameView: View {
         } else {
             return  // no round data at all, nothing to save
         }
-        gameHistorySaved = true
+        game.gameHistorySaved = true
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
         let history = GameHistory(
@@ -267,7 +266,7 @@ struct BluetoothGameView: View {
     }
 
     private func saveBTGameHistory() {
-        guard !gameHistorySaved else { return }
+        guard !game.gameHistorySaved else { return }
         let finalScores = game.runningScores
         // Use completedRounds (accumulated across all rounds) as primary path.
         // completedRounds is populated in applyGameState() for ALL clients when
@@ -277,7 +276,7 @@ struct BluetoothGameView: View {
         let roundsToSend: [HistoryRound]
         if !game.completedRounds.isEmpty {
             roundsToSend = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
-        } else if game.highBidderIndex >= 0 {
+        } else if game.highBidderIndex >= 0 && game.partner1Index >= 0 && game.partner2Index >= 0 {
             roundsToSend = [HistoryRound(
                 roundNumber: game.roundNumber,
                 dealerIndex: game.dealerIndex,
@@ -286,17 +285,17 @@ struct BluetoothGameView: View {
                 trumpSuit: game.trumpSuit,
                 callCard1: game.calledCard1,
                 callCard2: game.calledCard2,
-                partner1Index: max(0, game.partner1Index),
-                partner2Index: max(0, game.partner2Index),
+                partner1Index: game.partner1Index,
+                partner2Index: game.partner2Index,
                 offensePointsCaught: game.offensePoints,
                 defensePointsCaught: game.defensePoints,
                 runningScores: finalScores
             )]
         } else {
-            btLog.warning("saveBTGameHistory: no round data — bidder=\(game.highBidderIndex), skipping")
+            btLog.warning("saveBTGameHistory: no round data — bidder=\(game.highBidderIndex) p1=\(game.partner1Index) p2=\(game.partner2Index), skipping")
             return
         }
-        gameHistorySaved = true
+        game.gameHistorySaved = true
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: {
             finalScores[$0] < finalScores[$1]
