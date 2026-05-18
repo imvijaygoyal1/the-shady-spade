@@ -92,7 +92,7 @@ final class GameViewModel {
     var isFormValid: Bool {
         callCardsValid && partnersValid &&
         offensePoints >= 0 && defensePoints >= 0 &&
-        totalPointsEntered <= 250
+        totalPointsEntered == 250
     }
 
     // MARK: - Per-player scoring

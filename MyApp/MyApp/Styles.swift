@@ -342,6 +342,7 @@ struct PlayingCardView: View {
     var width: CGFloat = 56
     var isTrump: Bool = false
     var isCalled: Bool = false
+    var isValid: Bool = true
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -482,6 +483,7 @@ struct PlayingCardView: View {
             radius: isCalled ? 10 : 0,
             x: 0, y: 0
         )
+        .opacity(isValid ? 1.0 : 0.35)
         .accessibilityLabel(accessibilityDescription)
     }
 }

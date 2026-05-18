@@ -136,7 +136,7 @@ enum SessionStatus: String {
     @discardableResult
     func createSession(uid: String, name: String, avatar: String = "",
                        aiSeats newAISeats: [Int] = [], sessionType newSessionType: String = "online") async -> String {
-        let code = generateRoomCode()
+        let code = await findUniqueRoomCode()
         var slots: [[String: Any]] = (0..<6).map { _ in ["uid": "", "name": "", "avatar": "", "joined": false] }
         slots[0] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
 
@@ -204,7 +204,8 @@ enum SessionStatus: String {
     /// Writes the prepared session to Firestore and attaches the listener.
     /// Call this after `prepareLocalSession` (and after setting `showingLobby = true`).
     func writeSessionToFirebase() async {
-        guard let code = sessionCode else { return }
+        let code = await findUniqueRoomCode()
+        sessionCode = code
         let slotsData = playerSlots.map { slot -> [String: Any] in
             ["uid": slot.uid, "name": slot.name, "avatar": slot.avatar, "joined": slot.joined]
         }
@@ -430,36 +431,41 @@ enum SessionStatus: String {
         listener?.remove()
         listener = db.collection("sessions").document(code)
             .addSnapshotListener { [weak self] snapshot, _ in
-                guard let self, let data = snapshot?.data() else { return }
+                guard let data = snapshot?.data() else { return }
+                // Firebase SDK may deliver on a background thread; @Observable is not
+                // thread-safe, so dispatch all mutations to the main actor.
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
 
-                if let slotsData = data["playerSlots"] as? [[String: Any]] {
-                    var slots = slotsData.enumerated().map { i, slot in
-                        SessionPlayer(slotIndex: i,
-                                      uid: slot["uid"] as? String ?? "",
-                                      name: slot["name"] as? String ?? "",
-                                      avatar: slot["avatar"] as? String ?? "",
-                                      joined: slot["joined"] as? Bool ?? false)
+                    if let slotsData = data["playerSlots"] as? [[String: Any]] {
+                        var slots = slotsData.enumerated().map { i, slot in
+                            SessionPlayer(slotIndex: i,
+                                          uid: slot["uid"] as? String ?? "",
+                                          name: slot["name"] as? String ?? "",
+                                          avatar: slot["avatar"] as? String ?? "",
+                                          joined: slot["joined"] as? Bool ?? false)
+                        }
+                        while slots.count < 6 { slots.append(SessionPlayer.empty(at: slots.count)) }
+                        self.playerSlots = slots
                     }
-                    while slots.count < 6 { slots.append(SessionPlayer.empty(at: slots.count)) }
-                    self.playerSlots = slots
-                }
 
-                if let rawStatus = data["status"] as? String {
-                    self.status = SessionStatus(rawValue: rawStatus) ?? .waiting
-                }
+                    if let rawStatus = data["status"] as? String {
+                        self.status = SessionStatus(rawValue: rawStatus) ?? .waiting
+                    }
 
-                if let roundsData = data["rounds"] as? [[String: Any]] {
-                    self.rounds = roundsData.compactMap { OnlineRound(from: $0) }
-                }
+                    if let roundsData = data["rounds"] as? [[String: Any]] {
+                        self.rounds = roundsData.compactMap { OnlineRound(from: $0) }
+                    }
 
-                if let aiSeatsData = data["aiSeats"] as? [Any] {
-                    self.aiSeats = aiSeatsData.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
-                }
-                if let type = data["sessionType"] as? String {
-                    self.sessionType = type
-                }
+                    if let aiSeatsData = data["aiSeats"] as? [Any] {
+                        self.aiSeats = aiSeatsData.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
+                    }
+                    if let type = data["sessionType"] as? String {
+                        self.sessionType = type
+                    }
 
-                self.onSessionUpdated?()
+                    self.onSessionUpdated?()
+                }
             }
     }
 
@@ -468,5 +474,18 @@ enum SessionStatus: String {
     private func generateRoomCode() -> String {
         let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         return String((0..<6).compactMap { _ in chars.randomElement() })
+    }
+
+    /// Returns a room code that does not already exist in Firestore.
+    /// Retries up to 5 times — with 36^6 ≈ 2.2B combinations the probability of
+    /// needing even one retry is negligible.
+    private func findUniqueRoomCode() async -> String {
+        let ref = db.collection("sessions")
+        for _ in 0..<5 {
+            let code = generateRoomCode()
+            let snap = try? await ref.document(code).getDocument()
+            if snap?.exists != true { return code }
+        }
+        return generateRoomCode()
     }
 }

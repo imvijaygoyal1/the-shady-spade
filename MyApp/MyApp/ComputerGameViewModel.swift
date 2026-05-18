@@ -913,8 +913,8 @@ final class ComputerGameViewModel {
         Round(
             roundNumber: nextRoundNumber,
             dealerIndex: dealerIndex,
-            bidderIndex: max(0, highBidderIndex),
-            bidAmount: max(130, highBid),
+            bidderIndex: highBidderIndex,
+            bidAmount: highBid,
             trumpSuit: trumpSuit,
             callCard1: calledCard1,
             callCard2: calledCard2,
