@@ -148,6 +148,13 @@ final class OnlineGameViewModel {
         biddingToastTask?.cancel()
         biddingToastTask = nil
         gameHistorySaved = false
+        wasRemovedFromGame = false
+        hostEndedGame = false
+    }
+
+    deinit {
+        presenceTimer?.invalidate()
+        monitoringTimer?.invalidate()
     }
 
     /// Writes a flag to Firestore so all non-host clients learn the host ended the game.
@@ -310,6 +317,7 @@ final class OnlineGameViewModel {
 
     func startPresenceTracking() {
         guard !isHost else { return }
+        guard presenceTimer == nil else { return }
         let db = Firestore.firestore()
         let ref = db.collection("sessions").document(sessionCode)
         presenceTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
@@ -482,7 +490,7 @@ final class OnlineGameViewModel {
            let nonce = actionData["nonce"] as? String,
            !nonce.isEmpty, nonce != lastProcessedNonce {
             await processPendingAction(actionData)
-        } else if isHost {
+        } else if isHost && [OnlineGamePhase.bidding, .calling, .playing].contains(phase) && !aiSeats.isEmpty {
             await processAITurnIfNeeded()
         }
     }
@@ -1057,6 +1065,7 @@ final class OnlineGameViewModel {
         var gs = buildGS(phase: .calling, currentActionPlayer: finalBidder,
             bids: finalBids, highBid: finalHigh, highBidderIndex: finalBidder,
             message: msg)
+        gs["trumpSuit"] = ""
         gs["calledCard1"] = ""
         gs["calledCard2"] = ""
         gs["partner1Index"] = -1
@@ -1080,7 +1089,7 @@ final class OnlineGameViewModel {
             } catch {
                 ogVMLog.warning("[criticalWrite] attempt \(attempt)/3 failed: \(error.localizedDescription)")
                 if attempt - 1 < delays.count {
-                    try? await Task.sleep(nanoseconds: delays[attempt - 1])
+                    do { try await Task.sleep(nanoseconds: delays[attempt - 1]) } catch { return false }
                 }
             }
         }
