@@ -321,7 +321,7 @@ final class BluetoothGameViewModel: NSObject {
         broadcastGameState()
 
         // Wait for dealing animation
-        try? await Task.sleep(nanoseconds: 3_000_000_000)
+        do { try await Task.sleep(nanoseconds: 3_000_000_000) } catch { return }
 
         // Deal cards
         let deck = BluetoothGameViewModel.fullDeck.shuffled()
@@ -665,7 +665,7 @@ final class BluetoothGameViewModel: NSObject {
             let capturedWonPoints = wonPointsPerPlayer
             let capturedTrickNumber = trickNumber
             let capturedRunningScores = runningScores
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return }
 
             let winner = trickWinnerIndex(trick: newTrick)
             let pts = newTrick.map(\.card.pointValue).reduce(0, +)
@@ -1060,7 +1060,7 @@ final class BluetoothGameViewModel: NSObject {
         isReconnecting = true
         reconnectTask = Task { @MainActor in
             for attempt in 1...3 {
-                try? await Task.sleep(nanoseconds: 500_000_000)
+                do { try await Task.sleep(nanoseconds: 500_000_000) } catch { break }
                 guard !Task.isCancelled else { break }
                 if let hostPeer = playerIndexToPeer[0], let action = pendingHostAction {
                     send(action, to: hostPeer)
@@ -1304,7 +1304,7 @@ final class BluetoothGameViewModel: NSObject {
             guard !bidderHandIds.contains(result.c1), !bidderHandIds.contains(result.c2) else {
                 aiLog.error("[AI Calling] seat=\(seat) called own card — stale allHands, retrying in 500ms")
                 isProcessingAI = false
-                try? await Task.sleep(nanoseconds: 500_000_000)
+                do { try await Task.sleep(nanoseconds: 500_000_000) } catch { return }
                 await processAITurnIfNeeded()
                 return
             }
@@ -1315,7 +1315,7 @@ final class BluetoothGameViewModel: NSObject {
             // Retry after 1s rather than injecting a phantom card.
             guard let cardId = aiComputeCard(seat: seat) else {
                 aiLog.error("seat=\(seat) aiComputeCard returned nil (empty hand) — retrying in 1s")
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return }
                 // Fix 2: state may have changed during the 1s sleep — only recurse if
                 // this seat is still the current action player in the playing phase.
                 // If a different AI now needs to act, the recovery re-triggers for them.
