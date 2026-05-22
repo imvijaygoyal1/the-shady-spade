@@ -31,17 +31,23 @@ enum ScoringEngine {
         let eachPartnerScore: Int
 
         if bidMade {
-            // Offense made the bid — positive scores
+            // Offense made the bid — positive scores.
+            // Partners earn floor(bid/2): on odd bids the bidder keeps the larger share
+            // as reward for taking on the risk of calling trump.
             bidderScore      = bidAmount
-            eachPartnerScore = bidAmount / 2              // floor division
+            eachPartnerScore = bidAmount / 2
         } else {
-            // Offense SET — negative scores
+            // Offense SET — negative scores.
+            // Partners lose ceil(bid/2): rounding up ensures the full penalty is distributed
+            // without floating point; total penalty = bid + 2×ceil(bid/2) ≈ 2×bid.
             bidderScore      = -bidAmount
-            eachPartnerScore = -((bidAmount + 1) / 2)    // ceiling division
+            eachPartnerScore = -((bidAmount + 1) / 2)
         }
 
-        // Defense always scores 0 individually
-        let defenseDisplayScore = 0                        // defense always scores 0 individually
+        // Defense earns no individual score delta per round.
+        // Their team goal is to prevent the bid — accumulated points come only from
+        // rounds where they ARE the offense. This value exists solely for display.
+        let defenseDisplayScore = 0
 
         var playerDeltas = Array(repeating: 0, count: 6)
         for i in 0..<6 {
