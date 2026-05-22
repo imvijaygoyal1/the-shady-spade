@@ -767,13 +767,19 @@ final class BluetoothGameViewModel: NSObject {
     private func broadcastGameState() {
         guard isHost else { return }
         let gs = buildGameStateDict()
+        // Drain peers that missed the previous broadcast
+        if !pendingResyncPeers.isEmpty {
+            let resyncMsg: [String: Any] = ["type": "gameState", "state": gs]
+            for peer in pendingResyncPeers {
+                send(resyncMsg, to: peer)
+            }
+            pendingResyncPeers.removeAll()
+        }
         let msg: [String: Any] = ["type": "gameState", "state": gs]
         if !sendToAll(msg) {
-            aiLog.warning("[broadcastGameState] send failed — peers will resync on reconnect")
+            aiLog.warning("[broadcastGameState] send failed for one or more peers — queued for resync")
         }
-        // Apply state locally for host
         applyGameState(gs)
-        // Push to web dashboard
         pushToLocalServer(gs)
     }
 
@@ -820,6 +826,7 @@ final class BluetoothGameViewModel: NSObject {
     // MARK: - Apply Game State (non-host)
 
     func applyGameState(_ gs: [String: Any]) {
+        lastStateReceivedAt = Date()
         func i(_ key: String) -> Int { (gs[key] as? Int) ?? (gs[key] as? Int64).map(Int.init) ?? 0 }
         func iDef(_ key: String, _ def: Int) -> Int { (gs[key] as? Int) ?? (gs[key] as? Int64).map(Int.init) ?? def }
 
@@ -908,6 +915,17 @@ final class BluetoothGameViewModel: NSObject {
             let activePhases: [OnlineGamePhase] = [.lookingAtCards, .bidding, .calling, .playing, .roundComplete, .gameOver]
             if activePhases.contains(newPhase) {
                 sessionState = .playing
+                if !isHost && staleStateCheckTask == nil {
+                    staleStateCheckTask = Task { @MainActor [weak self] in
+                        while !Task.isCancelled {
+                            do { try await Task.sleep(nanoseconds: 15_000_000_000) } catch { return }
+                            guard let self, !Task.isCancelled else { return }
+                            if Date().timeIntervalSince(self.lastStateReceivedAt) > 15 {
+                                self.sendToHost(["type": "requestFullState"])
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -1048,15 +1066,22 @@ final class BluetoothGameViewModel: NSObject {
     private func sendToAll(_ dict: [String: Any]) -> Bool {
         guard let session, !session.connectedPeers.isEmpty else { return false }
         guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return false }
-        do {
-            try session.send(data, toPeers: session.connectedPeers, with: .reliable)
-            return true
-        } catch {
-            // MC .reliable errors indicate the session is broken; the didChange/notConnected
-            // delegate fires next and handles AI-replacement recovery — no retry needed here.
-            aiLog.error("[sendToAll] failed: \(error.localizedDescription)")
-            return false
+        var allSucceeded = true
+        for peer in session.connectedPeers {
+            do {
+                try session.send(data, toPeers: [peer], with: .reliable)
+            } catch {
+                // Retry once immediately
+                do {
+                    try session.send(data, toPeers: [peer], with: .reliable)
+                } catch {
+                    aiLog.error("[sendToAll] retry failed for \(peer.displayName) — queued for next broadcast")
+                    pendingResyncPeers.insert(peer)
+                    allSucceeded = false
+                }
+            }
         }
+        return allSucceeded
     }
 
     private func send(_ dict: [String: Any], to peer: MCPeerID) {
@@ -1080,14 +1105,17 @@ final class BluetoothGameViewModel: NSObject {
     }
 
     private func sendToHost(_ dict: [String: Any]) {
-        if let hostPeer = playerIndexToPeer[0] {
-            send(dict, to: hostPeer)
-            return
+        // Attempt direct send if host peer is mapped and session is live
+        if let hostPeer = playerIndexToPeer[0], let session {
+            guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return }
+            do {
+                try session.send(data, toPeers: [hostPeer], with: .reliable)
+                return
+            } catch {
+                aiLog.error("[sendToHost] send threw: \(error.localizedDescription) — falling through to retry")
+            }
         }
-        // Issue #6 fix: host peer not yet mapped (peer reconnect, session teardown race).
-        // Queue the action and retry up to 3× at 500ms intervals instead of silently dropping.
-        // HIGH-07: if a reconnect is already in-flight, do NOT overwrite the queued action —
-        // the running task will send whatever is pending when the host peer becomes available.
+        // Nil peer OR send failure — queue and retry up to 3× at 500ms intervals
         guard reconnectTask == nil else { return }
         pendingHostAction = dict
         isReconnecting = true
@@ -1095,19 +1123,23 @@ final class BluetoothGameViewModel: NSObject {
             for attempt in 1...3 {
                 do { try await Task.sleep(nanoseconds: 500_000_000) } catch { break }
                 guard !Task.isCancelled else { break }
-                if let hostPeer = playerIndexToPeer[0], let action = pendingHostAction {
-                    send(action, to: hostPeer)
-                    pendingHostAction = nil
-                    isReconnecting = false
-                    reconnectTask = nil
-                    return
+                if let hostPeer = self.playerIndexToPeer[0],
+                   let action = self.pendingHostAction,
+                   let session = self.session,
+                   let data = try? JSONSerialization.data(withJSONObject: action) {
+                    if (try? session.send(data, toPeers: [hostPeer], with: .reliable)) != nil {
+                        self.pendingHostAction = nil
+                        self.isReconnecting = false
+                        self.reconnectTask = nil
+                        return
+                    }
                 }
                 if attempt == 3 {
-                    aiLog.error("[sendToHost] host peer still nil after 3 retries — action dropped")
-                    errorMessage = "Lost connection to host. Please rejoin the game."
-                    pendingHostAction = nil
-                    isReconnecting = false
-                    reconnectTask = nil
+                    aiLog.error("[sendToHost] host still unreachable after 3 retries — action dropped")
+                    self.errorMessage = "Lost connection to host. Please rejoin the game."
+                    self.pendingHostAction = nil
+                    self.isReconnecting = false
+                    self.reconnectTask = nil
                 }
             }
         }
@@ -1214,6 +1246,10 @@ final class BluetoothGameViewModel: NSObject {
                     connectedPlayerSlots[i] = BTPlayerSlot(slotIndex: i, name: n, avatar: avatars[safe: i] ?? "🃏", joined: !n.isEmpty)
                 }
             }
+
+        case "requestFullState":
+            guard isHost else { return }
+            sendGameState(to: peer)
 
         default:
             break
