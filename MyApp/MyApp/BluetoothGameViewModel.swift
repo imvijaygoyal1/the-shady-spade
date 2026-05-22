@@ -769,8 +769,9 @@ final class BluetoothGameViewModel: NSObject {
         let gs = buildGameStateDict()
         // Drain peers that missed the previous broadcast
         if !pendingResyncPeers.isEmpty {
+            let connected = Set(session?.connectedPeers ?? [])
             let resyncMsg: [String: Any] = ["type": "gameState", "state": gs]
-            for peer in pendingResyncPeers {
+            for peer in pendingResyncPeers where !connected.contains(peer) {
                 send(resyncMsg, to: peer)
             }
             pendingResyncPeers.removeAll()
@@ -1119,19 +1120,22 @@ final class BluetoothGameViewModel: NSObject {
         guard reconnectTask == nil else { return }
         pendingHostAction = dict
         isReconnecting = true
-        reconnectTask = Task { @MainActor in
+        reconnectTask = Task { @MainActor [weak self] in
             for attempt in 1...3 {
                 do { try await Task.sleep(nanoseconds: 500_000_000) } catch { break }
-                guard !Task.isCancelled else { break }
+                guard let self, !Task.isCancelled else { break }
                 if let hostPeer = self.playerIndexToPeer[0],
                    let action = self.pendingHostAction,
                    let session = self.session,
                    let data = try? JSONSerialization.data(withJSONObject: action) {
-                    if (try? session.send(data, toPeers: [hostPeer], with: .reliable)) != nil {
+                    do {
+                        try session.send(data, toPeers: [hostPeer], with: .reliable)
                         self.pendingHostAction = nil
                         self.isReconnecting = false
                         self.reconnectTask = nil
                         return
+                    } catch {
+                        // send failed — will retry on next attempt
                     }
                 }
                 if attempt == 3 {
