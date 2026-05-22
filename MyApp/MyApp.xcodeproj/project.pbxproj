@@ -17,6 +17,9 @@
 		B1000003 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* MainView.swift */; };
 		B1000004 /* AddRoundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004 /* AddRoundView.swift */; };
 		B1000005 /* Styles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000005 /* Styles.swift */; };
+		BT100001 /* BluetoothGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200001 /* BluetoothGameViewModel.swift */; };
+		BT100002 /* BluetoothSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200002 /* BluetoothSessionView.swift */; };
+		BT100003 /* BluetoothGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200003 /* BluetoothGameView.swift */; };
 		C1000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* SettingsView.swift */; };
 		CR100001 /* CasinoRoyaleTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CR200001 /* CasinoRoyaleTheme.swift */; };
 		CT00001 /* ComicTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CT00002 /* ComicTheme.swift */; };
@@ -35,13 +38,14 @@
 		J1000001 /* OnlineGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = J2000001 /* OnlineGameViewModel.swift */; };
 		K1000001 /* OnlineGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K2000001 /* OnlineGameView.swift */; };
 		L1000001 /* GameHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L2000001 /* GameHistoryView.swift */; };
+		LGS100001 /* LocalGameServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = LGS200001 /* LocalGameServer.swift */; };
 		LS100001 /* LeaderboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = LS200001 /* LeaderboardService.swift */; };
-		PF100001 /* ProfanityFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF200001 /* ProfanityFilter.swift */; };
 		LV100001 /* LeaderboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = LV200001 /* LeaderboardView.swift */; };
 		M1000001 /* CardDealAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = M2000001 /* CardDealAnimationView.swift */; };
 		N1000001 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = N2000001 /* QRScannerView.swift */; };
 		O1000001 /* AdaptiveColours.swift in Sources */ = {isa = PBXBuildFile; fileRef = O2000001 /* AdaptiveColours.swift */; };
 		P1000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = P2000001 /* PrivacyInfo.xcprivacy */; };
+		PF100001 /* ProfanityFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF200001 /* ProfanityFilter.swift */; };
 		PT100001 /* PremiumThemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = PT200001 /* PremiumThemes.swift */; };
 		Q1000001 /* PlayerScoreBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q2000001 /* PlayerScoreBarChart.swift */; };
 		SE100001 /* ScoringEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SE200001 /* ScoringEngine.swift */; };
@@ -50,6 +54,9 @@
 		TE100003 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200003 /* ThemeManager.swift */; };
 		TE100004 /* ThemedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200004 /* ThemedComponents.swift */; };
 		TN100001 /* TurnNudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = TN200001 /* TurnNudge.swift */; };
+		TV100001 /* TVDisplayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TV200001 /* TVDisplayManager.swift */; };
+		TV100002 /* TVGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TV200002 /* TVGameView.swift */; };
+		AI100001 /* AIEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI200001 /* AIEngine.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -66,6 +73,9 @@
 		B2000003 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		B2000004 /* AddRoundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddRoundView.swift; sourceTree = "<group>"; };
 		B2000005 /* Styles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Styles.swift; sourceTree = "<group>"; };
+		BT200001 /* BluetoothGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothGameViewModel.swift; sourceTree = "<group>"; };
+		BT200002 /* BluetoothSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothSessionView.swift; sourceTree = "<group>"; };
+		BT200003 /* BluetoothGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothGameView.swift; sourceTree = "<group>"; };
 		C2000001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		CR200001 /* CasinoRoyaleTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CasinoRoyaleTheme.swift; sourceTree = "<group>"; };
 		CT00002 /* ComicTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComicTheme.swift; sourceTree = "<group>"; };
@@ -81,13 +91,14 @@
 		J2000001 /* OnlineGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGameViewModel.swift; sourceTree = "<group>"; };
 		K2000001 /* OnlineGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGameView.swift; sourceTree = "<group>"; };
 		L2000001 /* GameHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameHistoryView.swift; sourceTree = "<group>"; };
+		LGS200001 /* LocalGameServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalGameServer.swift; sourceTree = "<group>"; };
 		LS200001 /* LeaderboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardService.swift; sourceTree = "<group>"; };
-		PF200001 /* ProfanityFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfanityFilter.swift; sourceTree = "<group>"; };
 		LV200001 /* LeaderboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardView.swift; sourceTree = "<group>"; };
 		M2000001 /* CardDealAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardDealAnimationView.swift; sourceTree = "<group>"; };
 		N2000001 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
 		O2000001 /* AdaptiveColours.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveColours.swift; sourceTree = "<group>"; };
 		P2000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		PF200001 /* ProfanityFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfanityFilter.swift; sourceTree = "<group>"; };
 		PT200001 /* PremiumThemes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumThemes.swift; sourceTree = "<group>"; };
 		Q2000001 /* PlayerScoreBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerScoreBarChart.swift; sourceTree = "<group>"; };
 		SE200001 /* ScoringEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngine.swift; sourceTree = "<group>"; };
@@ -96,6 +107,9 @@
 		TE200003 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		TE200004 /* ThemedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemedComponents.swift; sourceTree = "<group>"; };
 		TN200001 /* TurnNudge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnNudge.swift; sourceTree = "<group>"; };
+		TV200001 /* TVDisplayManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVDisplayManager.swift; sourceTree = "<group>"; };
+		TV200002 /* TVGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVGameView.swift; sourceTree = "<group>"; };
+		AI200001 /* AIEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEngine.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,6 +162,13 @@
 				I2000001 /* ComputerGameView.swift */,
 				J2000001 /* OnlineGameViewModel.swift */,
 				K2000001 /* OnlineGameView.swift */,
+				BT200001 /* BluetoothGameViewModel.swift */,
+				BT200002 /* BluetoothSessionView.swift */,
+				BT200003 /* BluetoothGameView.swift */,
+				TV200001 /* TVDisplayManager.swift */,
+				TV200002 /* TVGameView.swift */,
+				LGS200001 /* LocalGameServer.swift */,
+				AI200001 /* AIEngine.swift */,
 				L2000001 /* GameHistoryView.swift */,
 				M2000001 /* CardDealAnimationView.swift */,
 				N2000001 /* QRScannerView.swift */,
@@ -289,6 +310,12 @@
 				I1000001 /* ComputerGameView.swift in Sources */,
 				J1000001 /* OnlineGameViewModel.swift in Sources */,
 				K1000001 /* OnlineGameView.swift in Sources */,
+				BT100001 /* BluetoothGameViewModel.swift in Sources */,
+				BT100002 /* BluetoothSessionView.swift in Sources */,
+				BT100003 /* BluetoothGameView.swift in Sources */,
+				TV100001 /* TVDisplayManager.swift in Sources */,
+				TV100002 /* TVGameView.swift in Sources */,
+				LGS100001 /* LocalGameServer.swift in Sources */,
 				L1000001 /* GameHistoryView.swift in Sources */,
 				M1000001 /* CardDealAnimationView.swift in Sources */,
 				N1000001 /* QRScannerView.swift in Sources */,
@@ -301,6 +328,7 @@
 				PF100001 /* ProfanityFilter.swift in Sources */,
 				LV100001 /* LeaderboardView.swift in Sources */,
 				TN100001 /* TurnNudge.swift in Sources */,
+				AI100001 /* AIEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -434,7 +462,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = MyApp/MyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "\"MyApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
@@ -453,7 +481,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -471,7 +499,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = MyApp/MyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "\"MyApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
@@ -490,7 +518,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

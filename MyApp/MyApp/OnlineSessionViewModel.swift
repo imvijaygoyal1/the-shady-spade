@@ -121,7 +121,7 @@ enum SessionStatus: String {
     /// Called by GameViewModel to propagate round updates
     var onSessionUpdated: (() -> Void)? = nil
 
-    private var listener: ListenerRegistration? = nil
+    nonisolated(unsafe) private var listener: ListenerRegistration? = nil
     private let db = Firestore.firestore()
     // Pending values stored by prepareLocalSession for later Firebase write
     private var pendingUID: String = ""

@@ -44,12 +44,12 @@ struct MyAppApp: App {
     @StateObject private var themeManager = ThemeManager.shared
 
     init() {
-        migrateUserDefaultsIfNeeded()
         _authVM = State(initialValue: AuthViewModel())
         ThemeManager.shared.loadSavedTheme()
+        Self.migrateUserDefaultsIfNeeded()
     }
 
-    private func migrateUserDefaultsIfNeeded() {
+    private static func migrateUserDefaultsIfNeeded() {
         // Increment currentSchemaVersion whenever PendingGameRecord's Codable layout changes.
         // On a schema bump, records that can't be decoded with the new layout are cleared
         // rather than crashing; records are persisted for reliability, not correctness.

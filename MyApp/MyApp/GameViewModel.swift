@@ -164,7 +164,7 @@ final class GameViewModel {
 
     // MARK: - Online Mode
 
-    func enterOnlineMode(_ sessionVM: OnlineSessionViewModel) {
+    @MainActor func enterOnlineMode(_ sessionVM: OnlineSessionViewModel) {
         onlineSessionVM = sessionVM
         // Sync player names from session slots so all devices see the same names
         for slot in sessionVM.playerSlots where slot.joined && slot.slotIndex < 6 {
@@ -182,7 +182,7 @@ final class GameViewModel {
         }
     }
 
-    func exitOnlineMode() {
+    @MainActor func exitOnlineMode() {
         onlineSessionVM?.onSessionUpdated = nil
         onlineSessionVM = nil
         fetchRounds()
@@ -205,7 +205,7 @@ final class GameViewModel {
                     offensePointsCaught: or.offensePointsCaught,
                     defensePointsCaught: or.defensePointsCaught
                 )
-                context.insert(round)
+                context?.insert(round)
                 return round
             }
     }

@@ -99,8 +99,8 @@ final class OnlineGameViewModel {
     private var biddingToastTask: Task<Void, Never>?
 
     // MARK: Presence tracking
-    private var presenceTimer: Timer?
-    private var monitoringTimer: Timer?
+    nonisolated(unsafe) private var presenceTimer: Timer?
+    nonisolated(unsafe) private var monitoringTimer: Timer?
     private var prevAISeats: Set<Int> = []
 
     // Set to true when this player's own seat becomes AI mid-game (host removed them)

@@ -4,7 +4,8 @@
 <dict>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>applinks:imvijaygoyal1.github.io</string>
+		<string>applinks:shadyspade-d6b84.web.app</string>
+		<string>applinks:shadyspade-d6b84.firebaseapp.com</string>
 	</array>
 </dict>
 </plist>
