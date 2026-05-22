@@ -57,6 +57,11 @@ enum ComputerGamePhase: Equatable {
 @Observable
 final class ComputerGameViewModel {
 
+    // MARK: Game Identity
+    /// Stable UUID for this game session, used as the leaderboard dedup key.
+    /// Reset each time deal() starts a new game so every game has a unique key.
+    private(set) var gameId: String = UUID().uuidString
+
     // MARK: Players
     var humanPlayerIndex: Int { humanPlayerIndices.first ?? 0 }
     var humanName: String
@@ -193,6 +198,7 @@ final class ComputerGameViewModel {
     func deal() {
         cancelAllContinuationsIfNeeded()
         gameLoopCancelled = false       // reset for the new round
+        gameId = UUID().uuidString
         let deck = Self.freshDeck().shuffled()
         hands = (0..<6).map { i in Array(deck[(i * 8)..<((i + 1) * 8)]) }
         bids = Array(repeating: -1, count: 6)

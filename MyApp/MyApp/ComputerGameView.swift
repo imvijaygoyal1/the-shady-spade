@@ -282,6 +282,7 @@ struct ComputerGameView: View {
         let capturedRounds  = roundsToSave
         let capturedMode    = mode
         let capturedAISeats = (0..<6).filter { !game.humanPlayerIndices.contains($0) }
+        let capturedGameId  = game.gameId
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    capturedMode,
@@ -289,7 +290,8 @@ struct ComputerGameView: View {
                 finalScores: capturedScores,
                 winnerIndex: capturedWinner,
                 aiSeats:     capturedAISeats,
-                rounds:      capturedRounds
+                rounds:      capturedRounds,
+                sessionCode: capturedGameId
             )
         }
     }
