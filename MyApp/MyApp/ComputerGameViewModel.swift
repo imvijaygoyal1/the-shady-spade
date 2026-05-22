@@ -242,7 +242,7 @@ final class ComputerGameViewModel {
         phase = .bidding
         playerHasPassed = Array(repeating: false, count: 6)
 
-        let startPlayer = Int.random(in: 0..<6)
+        let startPlayer = (dealerIndex + 1) % 6
         biddingStartPlayerIndex = startPlayer
 
         biddingToastMessage = "\(playerName(startPlayer)) starts the bid!"
