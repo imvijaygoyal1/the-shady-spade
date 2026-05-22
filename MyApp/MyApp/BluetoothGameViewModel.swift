@@ -1499,7 +1499,7 @@ extension BluetoothGameViewModel: MCSessionDelegate {
                     // Issue 7: mid-game reconnect — send full state + hand immediately
                     if self.sessionState == .playing {
                         self.sendGameState(to: peerID)
-                        if nextSlot < self.allHands.count {
+                        if !self.allHands[nextSlot].isEmpty {
                             self.sendHand(self.allHands[nextSlot], to: peerID)
                         }
                     }
