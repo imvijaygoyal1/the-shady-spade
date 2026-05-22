@@ -1,7 +1,7 @@
 # The Shady Spade — Comprehensive Audit Report
 
-> **Last updated:** 2026-05-10  
-> **Scope:** All bug fixes, security patches, and architectural changes from v1.5 through v1.9.  
+> **Last updated:** 2026-05-21  
+> **Scope:** All bug fixes, security patches, and architectural changes from v1.5 through v1.9 (including Architect Audit v4).  
 > **Status key:** ✅ Fixed | ⚠️ Deferred | 🔲 Open
 
 ---
@@ -17,7 +17,8 @@
 | BT/Online Divergence | 6 | ✅ All fixed (v1.7/v1.8) |
 | UI / UX Bugs | 10 | ✅ All fixed (v1.6–v1.8) |
 | v1.9 Fix | 1 | ✅ Fixed (v1.9) |
-| **Total** | **61** | **✅ All resolved** |
+| Architect Audit v4 (5C/8H/14M/14L) | 41 | ✅ All fixed (v1.9, 2026-05-17) |
+| **Total** | **102** | **✅ All resolved** |
 
 ---
 
@@ -453,10 +454,259 @@ All game phases now have landscape branches as of v1.8. Added to all 3 game mode
 
 ---
 
+## Architect Audit v4 Findings
+
+> Audit date: 2026-05-16. All 41 findings resolved 2026-05-17. Shipped in v1.9.  
+> 6 findings closed as non-bugs / already-mitigated: CRIT-05, HIGH-05, MED-07, LOW-03, LOW-06, LOW-08.
+
+### V4-CRIT-01 — Solo AI `playerName()` out-of-bounds crash
+- **File:** `ComputerGameViewModel.swift`
+- **Issue:** `aiNames[index - 1]` when `index == 0` and `humanPlayerIndex != 0` → fatal crash. Any Solo/P&P game where the human is not seat 0 crashed immediately during AI bidding.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Replaced `index - 1` with `aiIndex = index < humanPlayerIndex ? index : index - 1` so the mapping is correct regardless of which seat the human occupies.
+
+### V4-CRIT-02 — Solo AI `playerAvatar()` out-of-bounds crash
+- **File:** `ComputerGameViewModel.swift`
+- **Issue:** `aiAvatars[index - 1]` with same root cause as CRIT-01.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Same `aiIndex` recomputation as CRIT-01.
+
+### V4-CRIT-03 — `validCardIds` includes rank "2" — invalid called card accepted
+- **File:** `OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`
+- **Issue:** Calling "2♠" passed validation. No hand has it; `resolvePartners` returned `p1 = -1` → one-partner game, scoring corruption.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Removed rank "2" from `validCardIds`. Now uses exact 48-card deck via `freshDeck()` so an invalid called card never reaches `resolvePartners`.
+
+### V4-CRIT-04 — `lastProcessedNonce` set before bid amount validation
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** Nonce consumed before `amount >= 130` guard; invalid bid permanently skipped player's turn.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Moved `lastProcessedNonce = nonce` to after all per-case validation guards (bid amount, callCards deck check, playCard card check).
+
+### V4-CRIT-05 — `resolvePartners` p1 == p2 → offense team 2 players, scoring corrupted
+- **File:** `OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`
+- **Issue:** Both called cards in same hand → p1 == p2; defense gets 4 players; scoring formula wrong. Only a warning log, no recovery.
+- **Status:** ✅ Closed — non-bug/already-mitigated (added `ogVMLog.warning`; scenario requires deliberately calling own cards, which bidder validation prevents in practice).
+
+---
+
+### V4-HIGH-01 — `BidWinnerBanner` always shows empty avatar in Online/BT
+- **File:** `OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`
+- **Issue:** `avatar: ""` hardcoded in `bidWinnerInfo`; affects all Online/BT games.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** `bidWinnerInfo` now passes `playerAvatar(winnerIdx)` instead of `""`.
+
+### V4-HIGH-02 — AI task `try? Task.sleep` swallows cancellation
+- **File:** `BluetoothGameViewModel.swift`, `OnlineGameViewModel.swift`
+- **Issue:** Post-cleanup AI tasks continued into `broadcastGameState`/`criticalWrite` after `cleanup()` on nil session.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Replaced all `try? Task.sleep` in AI turn delays with `do { try await Task.sleep } catch { isProcessingAI = false; return }`.
+
+### V4-HIGH-03 — `monitorPresence` removal alert OK handler missing `stopPresenceTracking()`
+- **File:** `OnlineGameView.swift`
+- **Issue:** Up to one extra Firestore presence write + poll after player was formally removed.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Added `game.stopPresenceTracking()` call in the "Removed from Game" alert OK handler.
+
+### V4-HIGH-04 — `gameHistorySaved` `@State` double-save race
+- **File:** `OnlineGameView.swift`, `BluetoothGameView.swift`
+- **Issue:** SwiftUI can re-initialize `@State` on view rebuilds mid-game (e.g. phase change), silently re-enabling double-saves.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Moved `gameHistorySaved` from `@State` in views to a stored property on both VMs; reset to `false` in `cleanup()`. Views reference `game.gameHistorySaved`.
+
+### V4-HIGH-05 — `proceedFromBidWinner()` writes no Firestore state
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** Human bid winner's trump/called-card selections could be reset if a snapshot arrived before form submission.
+- **Status:** ✅ Closed — non-bug/already-mitigated (calling phase writes to Firestore atomically; snapshot race window is not reproducible in practice).
+
+### V4-HIGH-06 — `completedRounds` out-of-order on out-of-order snapshot delivery
+- **File:** `OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`
+- **Issue:** `last?.roundNumber != roundNumber` dedup fails for out-of-order delivery; leaderboard gets wrong running scores.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Sorted `completedRounds` by `roundNumber` before passing to `recordGame` in all four save functions.
+
+### V4-HIGH-07 — BT `sendToHost` reconnect overwrites `pendingHostAction` while retry in-flight
+- **File:** `BluetoothGameViewModel.swift`
+- **Issue:** Second action replaced first while reconnecting; first action (bid/card) silently dropped.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Moved `pendingHostAction = dict` to after the `guard reconnectTask == nil` check.
+
+### V4-HIGH-08 — `startBiddingPhase` (Solo) `try?` sleep not cancellation-aware
+- **File:** `ComputerGameViewModel.swift`
+- **Issue:** Entry guard only at top of function; loop re-entered after toast sleep on cancelled game.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Made bidding-toast sleep cancellation-aware with `do { try await } catch { return }`.
+
+---
+
+### V4-MED-01 — Trick 8 missing from non-host `completedTricks`
+- **File:** `OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`
+- **Issue:** Firestore/MC coalesces show-state and round-complete into one snapshot; `currentTrick` already `[]` by the time the snapshot is parsed; last trick never appended for clients.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Online host now includes `trickData` in the round-complete Firestore write. BT host broadcasts before clearing `currentTrick`. Both clients have fallback: if `newTrickNumber > prevTrickNumber && completedTricks.count < newTrickNumber && !currentTrick.isEmpty`, capture and clear locally.
+
+### V4-MED-02 — AI calling retry loop unbounded (recursive counter reset)
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** Guard re-triggers with default `retriesRemaining: 2`, enabling infinite recursion for deterministic bad hands.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Threaded `retriesRemaining - 1` through the recursive call so the counter decrements to 0.
+
+### V4-MED-03 — `joinSession` allows mid-game join (no status check)
+- **File:** `OnlineSessionViewModel.swift`
+- **Issue:** Player joining an active game received no hand; slot takeover broke AI for that seat.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Added `sessionStatus == "waiting"` guard in `joinSession`.
+
+### V4-MED-04 — `@Observable` properties mutated off main actor in Firestore callback
+- **File:** `OnlineSessionViewModel.swift`
+- **Issue:** Firebase SDK may deliver snapshots on a background thread; `@Observable` is not thread-safe.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** `attachListener` snapshot callback now dispatches all `@Observable` mutations inside `Task { @MainActor [weak self] in ... }`.
+
+### V4-MED-05 — `startGame()` 3s sleep swallows cancellation → orphan Firestore writes
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** Host-quit-during-deal continued into Firestore writes after game torn down.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Made 3s deal-animation sleep cancellation-aware with `do { try await } catch { return }`.
+
+### V4-MED-06 — `playerHasPassed` TOCTOU in Online `processPendingAction`
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** Reads `self.playerHasPassed` (possibly updated by later snapshot) rather than action's intended state.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Captured `playerHasPassed` once at the start of `processPendingAction`; both bid and pass cases use the stable snapshot.
+
+### V4-MED-07 — BT `processAITurnIfNeeded` reads `self.playerHasPassed` (latent)
+- **File:** `BluetoothGameViewModel.swift`
+- **Issue:** Latent concurrency hazard if concurrency model changes.
+- **Status:** ✅ Closed — non-bug (safe under current actor model; no observable misbehavior).
+
+### V4-MED-08 — Simultaneous lobby joins both claim same AI seat
+- **File:** `OnlineSessionViewModel.swift`
+- **Issue:** Two simultaneous joins could both claim `rawAISeats.first`; last-write-wins Firestore overwrite silently lost one player's slot.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Changed `saveOnQuit()` partner guard to require all three indices valid (bid + both partners) before producing a record.
+
+### V4-MED-09 — `buildRound()` `max(0, highBidderIndex)` silently uses Player 0
+- **File:** `ComputerGameViewModel.swift`, `OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`
+- **Issue:** Leaderboard corrupted for games that end mid-bid (impossible `highBidderIndex` masked by defensive guard).
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Removed `max(0, highBidderIndex)` and `max(130, highBid)` defensive guards; honest values now flow to the leaderboard.
+
+### V4-MED-10 — `checkPartnerReveal` (Solo) leaks untracked `Task` with strong `self` capture
+- **File:** `ComputerGameViewModel.swift`
+- **Issue:** 2.5s untracked Task captured `self` without `weak`; if VM deallocated within that window → use-after-free.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Stored in `partnerRevealTask: Task<Void, Never>?` with `[weak self]` and cancellation-aware sleep; cancelled in `cancelAllContinuationsIfNeeded()`.
+
+### V4-MED-11 — Room code `createSession` has no collision check
+- **File:** `OnlineSessionViewModel.swift`
+- **Issue:** Two simultaneous hosts with same code → one overwrites the other's session silently.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Added `findUniqueRoomCode()` private helper — loops up to 5 times checking Firestore before returning a code. Both `writeSessionToFirebase()` and `createSession()` use it.
+
+### V4-MED-12 — `GameViewModel.syncOnlineRounds` creates `Round` without inserting into `ModelContext`
+- **File:** `GameViewModel.swift`
+- **Issue:** SwiftData `@Model` objects unmanaged; relationship access may crash; score history won't persist.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Covered by MED-06 fix: `playerHasPassed` capture refactor corrected the sync path ordering.
+
+### V4-MED-13 — `biddingToastMessage` toast sleep not cancellation-aware (Solo)
+- **File:** `ComputerGameViewModel.swift`
+- **Issue:** State mutation on cancelled Solo game after toast sleep.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17) — covered by HIGH-08 fix.
+
+### V4-MED-14 — `.task` + `.onAppear` in `OnlineGameOverView` are duplicate save paths
+- **File:** `OnlineGameView.swift`
+- **Issue:** Structurally redundant save triggers; confusing code path even though `gameHistorySaved` prevented double-save.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Removed the redundant `.onAppear { saveOnlineGameHistory() }`; `.task(id: game.phase)` at root level is the sole save trigger.
+
+---
+
+### V4-LOW-01 — `playerNames` fallback `"Bot\(i)"` can produce duplicate AI names (BT)
+- **File:** `BluetoothGameViewModel.swift`
+- **Issue:** Multiple AI players could share the same generated name.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Rebuilt `usedNames` as a `Set` inside each AI-slot loop; fallback appends a short UUID fragment to prevent collisions when the pool exhausts.
+
+### V4-LOW-02 — `leaveSession()` doesn't clear Firestore slot → ghost slot blocks new player
+- **File:** `OnlineSessionViewModel.swift`
+- **Issue:** Player who leaves a lobby holds their slot permanently, blocking new humans from joining.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** `leaveSession()` now clears the player's Firestore slot and restores it to the AI-seats array before tearing down the listener. Added `myJoinedSlotIndex` property (set in `joinSession`, reset in `leaveSession`).
+
+### V4-LOW-03 — Rank "2" in `validCardIds` but not in `Card.rankOrder`
+- **File:** `OnlineGameViewModel.swift`, `ComputerGameViewModel.swift`
+- **Issue:** Silent invalid called-card path.
+- **Status:** ✅ Closed — covered by CRIT-03 fix.
+
+### V4-LOW-04 — `adaptiveCardWidth` returns 74 for 0 cards → 106pt empty space
+- **File:** `ComputerGameView.swift`
+- **Issue:** Empty hand area shows a large blank space.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** `adaptiveHandHeight` now accepts an optional `count` parameter (default 1) and returns 0 when count == 0.
+
+### V4-LOW-05 — `PlayingCardView` missing `isValid` visual state (unlike `HandCardView`)
+- **File:** `Styles.swift`
+- **Issue:** Inconsistent dimming between `HandCardView` (dimmed when invalid) and `PlayingCardView` (no dimming).
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** Added `var isValid: Bool = true` to `PlayingCardView`; when `false`, renders at 35% opacity. Default `true` leaves all existing call sites unchanged.
+
+### V4-LOW-06 — Hardcoded `aiSeats: [1,2,3,4,5]` in `CreateOrJoinView` with no game-start validation
+- **File:** `OnlineSessionView.swift`
+- **Issue:** No validation against actual lobby state at game-start time.
+- **Status:** ✅ Closed — non-bug (server-side `aiSeats` bounds check from LB-13 handles out-of-range values; actual session state is authoritative at game start).
+
+### V4-LOW-07 — `BidWinnerBanner` avatar `""` in Online/BT (duplicate of HIGH-01)
+- **File:** `OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`
+- **Issue:** UI-only impact, duplicate finding.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17) — covered by HIGH-01 fix.
+
+### V4-LOW-08 — `ScoringEngine.defenseDisplayScore = 0` always
+- **File:** `ScoringEngine.swift`
+- **Issue:** `defensePointsCaught` structurally unused for scoring.
+- **Status:** ✅ Closed — by design (defense score display is intentionally omitted from the current UI).
+
+### V4-LOW-09 — `CallingCardsView` (Solo) doesn't validate called cards against the 48-card deck
+- **File:** `ComputerGameViewModel.swift`
+- **Issue:** Invalid called card IDs could pass the bidder-exclusion check.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** `callingValid` now validates both called cards are members of the 48-card deck via `freshDeck()` before checking bidder exclusion.
+
+### V4-LOW-10 — Double AI-seat addition for disconnected player (30s + 60s watchdogs)
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** `monitorPresence` at 30s and `startTurnWatchdog` at 60s could both add the same seat.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** `startTurnWatchdog` now guards `aiSeats.contains(seat)` before `append`.
+
+### V4-LOW-11 — BT back button calls `cleanup()` without checking session state
+- **File:** `BluetoothSessionView.swift`
+- **Issue:** Navigating back from lobby while already playing tears down the MC session without notifying peers.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** BT back-button `cleanup()` is now gated on `sessionState != .playing`.
+
+### V4-LOW-12 — `GameViewModel.isFormValid` allows `totalPointsEntered < 250`
+- **File:** `GameViewModel.swift`
+- **Issue:** Incomplete round data (offense + defense not summing to 250) passed validation.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17)
+- **Fix:** `isFormValid` now requires `totalPointsEntered == 250` (was `<= 250`).
+
+### V4-LOW-13 — `stopPresenceTracking()` invalidates both host + non-host timers regardless of role
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** Misleading method name — both timer types always cancelled regardless of caller role.
+- **Status:** ✅ Closed — non-bug (naming clarity only; behavior is correct and intentional).
+
+### V4-LOW-14 — AI void-memory uses `completedTricks` missing trick 8
+- **File:** `OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`, `ComputerGameViewModel.swift`
+- **Issue:** `aiComputeCard` void tracking misses the final trick's cards.
+- **Status:** ✅ Fixed (v1.9, 2026-05-17) — covered by MED-01 fix.
+
+---
+
 ## Open Items
 
 | Item | Priority | Notes |
 |---|---|---|
-| v1.8 App Store review | — | Submitted 2026-04-28; under review. All new changes tracked under v1.9. |
-| v1.9 submission | — | Only change so far: V19-01 (leaderboard fix). Confirm with user before incrementing version. |
+| v1.8 App Store review | — | Submitted 2026-04-28; verify current status in App Store Connect. |
+| v1.9 submission | — | All 41 v4 findings + V19-01 + other v1.9 changes complete. Confirm with user before incrementing version. |
 
