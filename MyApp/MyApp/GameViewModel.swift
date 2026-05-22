@@ -192,7 +192,7 @@ final class GameViewModel {
         rounds = onlineRounds
             .sorted { $0.roundNumber > $1.roundNumber }   // newest first, matches offline sort
             .map { or in
-                Round(
+                let round = Round(
                     roundNumber:         or.roundNumber,
                     dealerIndex:         or.dealerIndex,
                     bidderIndex:         or.bidderIndex,
@@ -205,6 +205,8 @@ final class GameViewModel {
                     offensePointsCaught: or.offensePointsCaught,
                     defensePointsCaught: or.defensePointsCaught
                 )
+                context.insert(round)
+                return round
             }
     }
 
