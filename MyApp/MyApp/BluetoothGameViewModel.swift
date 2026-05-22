@@ -1149,6 +1149,48 @@ final class BluetoothGameViewModel: NSObject {
         }
     }
 
+    // MARK: - Action Queue (Issue 4)
+
+    private func enqueueAction(_ dict: [String: Any]) {
+        pendingActions.append(dict)
+        drainActionQueue()
+    }
+
+    private func drainActionQueue() {
+        guard !isProcessingAction, !pendingActions.isEmpty else { return }
+        isProcessingAction = true
+        let next = pendingActions.removeFirst()
+        Task { @MainActor [weak self] in
+            await self?.processAction(next)
+            self?.isProcessingAction = false
+            self?.drainActionQueue()
+        }
+    }
+
+    private func processAction(_ dict: [String: Any]) async {
+        guard let playerIndex = dict["_playerIndex"] as? Int else { return }
+        let action = dict["action"] as? String ?? ""
+        switch action {
+        case "bid":
+            let amount = (dict["amount"] as? Int) ?? (dict["amount"] as? Int64).map(Int.init) ?? 0
+            guard amount >= 130 && amount <= 250 else { return }
+            await processBid(playerIndex: playerIndex, amount: amount)
+        case "pass":
+            await processPass(playerIndex: playerIndex)
+        case "callTrump":
+            let suitStr = dict["suit"] as? String ?? TrumpSuit.spades.rawValue
+            let suit = TrumpSuit(rawValue: suitStr) ?? .spades
+            let c1 = dict["card1"] as? String ?? ""
+            let c2 = dict["card2"] as? String ?? ""
+            await processCallCards(playerIndex: playerIndex, trump: suit, c1: c1, c2: c2)
+        case "playCard":
+            let cardId = dict["cardId"] as? String ?? ""
+            await processPlayCard(playerIndex: playerIndex, cardId: cardId)
+        default:
+            break
+        }
+    }
+
     // MARK: - Handle Incoming Messages
 
     private func handleMessage(_ dict: [String: Any], from peer: MCPeerID) {
@@ -1214,29 +1256,9 @@ final class BluetoothGameViewModel: NSObject {
             let actionId = dict["actionId"] as? String ?? ""
             guard actionId != lastProcessedActionId, !actionId.isEmpty else { return }
             lastProcessedActionId = actionId
-
-            let action = dict["action"] as? String ?? ""
-            Task {
-                switch action {
-                case "bid":
-                    let amount = (dict["amount"] as? Int) ?? (dict["amount"] as? Int64).map(Int.init) ?? 0
-                    guard amount >= 130 && amount <= 250 else { return }
-                    await self.processBid(playerIndex: playerIndex, amount: amount)
-                case "pass":
-                    await self.processPass(playerIndex: playerIndex)
-                case "callTrump":
-                    let suitStr = dict["suit"] as? String ?? TrumpSuit.spades.rawValue
-                    let suit = TrumpSuit(rawValue: suitStr) ?? .spades
-                    let c1 = dict["card1"] as? String ?? ""
-                    let c2 = dict["card2"] as? String ?? ""
-                    await self.processCallCards(playerIndex: playerIndex, trump: suit, c1: c1, c2: c2)
-                case "playCard":
-                    let cardId = dict["cardId"] as? String ?? ""
-                    await self.processPlayCard(playerIndex: playerIndex, cardId: cardId)
-                default:
-                    break
-                }
-            }
+            var enriched = dict
+            enriched["_playerIndex"] = playerIndex
+            enqueueAction(enriched)
 
         case "lobbyUpdate":
             // Client receives info about who else joined — only trust the host
