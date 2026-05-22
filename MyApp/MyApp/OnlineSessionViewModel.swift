@@ -99,8 +99,13 @@ enum SessionStatus: String {
 
 // MARK: - ViewModel
 
+@MainActor
 @Observable final class OnlineSessionViewModel {
     var sessionCode: String? = nil
+    /// True once writeSessionToFirebase() has confirmed a unique room code in Firestore.
+    /// Show the QR code / share UI only when this is true — avoids displaying a code that
+    /// Firestore may reassign via findUniqueRoomCode().
+    var isSessionCodeConfirmed: Bool = false
     var playerSlots: [SessionPlayer] = (0..<6).map { SessionPlayer.empty(at: $0) }
     var status: SessionStatus = .idle
     var isHost: Bool = false
@@ -178,7 +183,12 @@ enum SessionStatus: String {
     func prepareLocalSession(uid: String, name: String, avatar: String = "",
                               aiSeats newAISeats: [Int] = [], sessionType newSessionType: String = "online") -> String {
         let code = generateRoomCode()
+        // Note: sessionCode is set to the tentative code here so the lobby view renders
+        // immediately. writeSessionToFirebase() may assign a different confirmed code via
+        // findUniqueRoomCode() — it updates sessionCode + sets isSessionCodeConfirmed = true.
+        // The share/QR buttons are disabled until isConnecting = false (i.e., confirmed).
         sessionCode = code
+        isSessionCodeConfirmed = false
         isHost = true
         isConnecting = true
         errorMessage = nil
@@ -222,6 +232,7 @@ enum SessionStatus: String {
         do {
             try await db.collection("sessions").document(code).setData(data)
             isConnecting = false
+            isSessionCodeConfirmed = true
             attachListener(code: code)
         } catch {
             errorMessage = "Connection failed. Tap Retry to try again."
@@ -232,64 +243,69 @@ enum SessionStatus: String {
     func joinSession(code: String, uid: String, name: String, avatar: String = "") async throws {
         let ref = db.collection("sessions").document(code)
 
-        let snapshot: DocumentSnapshot
-        do {
-            snapshot = try await withThrowingTaskGroup(of: DocumentSnapshot.self) { group in
-                group.addTask { try await ref.getDocument() }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: 10_000_000_000)
-                    throw URLError(.timedOut)
-                }
-                defer { group.cancelAll() }
-                return try await group.next()!
+        // CRIT-03: Wrap slot claim in a Firestore transaction to prevent two simultaneous
+        // joins from both reading the same empty slot and overwriting each other.
+        var resolvedJoinIndex: Int = -1
+
+        try await db.runTransaction { [weak self] transaction, errorPointer in
+            guard let self else { return nil }
+            let snapshot: DocumentSnapshot
+            do {
+                snapshot = try transaction.getDocument(ref)
+            } catch let fetchError as NSError {
+                errorPointer?.pointee = fetchError
+                return nil
             }
-        } catch {
-            print("joinSession: getDocument failed — \(error)")
-            throw error
+
+            guard snapshot.exists,
+                  let data = snapshot.data(),
+                  let slotsData = data["playerSlots"] as? [[String: Any]] else {
+                errorPointer?.pointee = NSError(
+                    domain: "JoinSession", code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Session not found"])
+                return nil
+            }
+
+            let sessionStatus = data["status"] as? String ?? "waiting"
+            guard sessionStatus == "waiting" else {
+                errorPointer?.pointee = NSError(
+                    domain: "JoinSession", code: -2,
+                    userInfo: [NSLocalizedDescriptionKey: "Session already started"])
+                return nil
+            }
+
+            let rawAISeats = (data["aiSeats"] as? [Any] ?? [])
+                .compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
+                .sorted()
+
+            let joinIndex: Int
+            if let firstAI = rawAISeats.first, firstAI >= 0 && firstAI < slotsData.count {
+                joinIndex = firstAI
+            } else {
+                guard let idx = slotsData.firstIndex(where: { !($0["joined"] as? Bool ?? false) }) else {
+                    errorPointer?.pointee = NSError(
+                        domain: "JoinSession", code: -3,
+                        userInfo: [NSLocalizedDescriptionKey: "No slots available"])
+                    return nil
+                }
+                joinIndex = idx
+            }
+
+            var updated = slotsData
+            updated[joinIndex] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
+            let newAISeats = rawAISeats.filter { $0 != joinIndex }
+            transaction.updateData(["playerSlots": updated, "aiSeats": newAISeats], forDocument: ref)
+            resolvedJoinIndex = joinIndex
+            return nil
         }
 
-        guard snapshot.exists else {
-            print("joinSession: document does not exist for code \(code)")
-            throw URLError(.badServerResponse)
-        }
-
-        guard let data = snapshot.data(),
-              let slotsData = data["playerSlots"] as? [[String: Any]] else {
-            print("joinSession: bad data shape")
-            throw URLError(.badServerResponse)
-        }
-
-        // MED-03: reject joins to sessions that have already started or finished.
-        let sessionStatus = data["status"] as? String ?? "waiting"
-        guard sessionStatus == "waiting" else {
-            print("joinSession: session \(code) is already \(sessionStatus)")
+        guard resolvedJoinIndex >= 0 else {
             throw URLError(.resourceUnavailable)
         }
 
-        let rawAISeats = (data["aiSeats"] as? [Any] ?? [])
-            .compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
-            .sorted()
-
-        let joinIndex: Int
-        if let firstAI = rawAISeats.first, firstAI >= 0 && firstAI < slotsData.count {
-            // Multiplayer: replace the lowest-numbered AI slot
-            joinIndex = firstAI
-        } else {
-            // Classic online: find first empty slot
-            guard let idx = slotsData.firstIndex(where: { !($0["joined"] as? Bool ?? false) }) else {
-                throw URLError(.resourceUnavailable)
-            }
-            joinIndex = idx
-        }
-
-        var updated = slotsData
-        updated[joinIndex] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
-        let newAISeats = rawAISeats.filter { $0 != joinIndex }
-        try await ref.updateData(["playerSlots": updated, "aiSeats": newAISeats])
-
         sessionCode = code
         isHost = false
-        myJoinedSlotIndex = joinIndex
+        myJoinedSlotIndex = resolvedJoinIndex
         attachListener(code: code)
     }
 

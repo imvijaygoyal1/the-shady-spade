@@ -619,7 +619,8 @@ Tap to join: https://shadyspade-d6b84.web.app/shadyspade/join/\(sessionVM.sessio
                                     style: .continuous))
                             }
                             .disabled(sessionVM.isConnecting
-                                || sessionVM.sessionCode == nil)
+                                || sessionVM.sessionCode == nil
+                                || !sessionVM.isSessionCodeConfirmed)
                         }
                     }
                     .frame(height: 44)
