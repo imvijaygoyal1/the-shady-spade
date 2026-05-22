@@ -151,6 +151,19 @@ final class BluetoothGameViewModel: NSObject {
     private var partnerRevealTask: Task<Void, Never>?
     private var bidWinnerDismissTask: Task<Void, Never>?
 
+    // MARK: - Host Migration (Issue 1)
+    var isMigrating: Bool = false
+    private var migrationTimeoutTask: Task<Void, Never>?
+
+    // MARK: - Broadcast Reliability (Issue 2)
+    private var pendingResyncPeers: Set<MCPeerID> = []
+    private var lastStateReceivedAt: Date = .distantPast
+    private var staleStateCheckTask: Task<Void, Never>?
+
+    // MARK: - Action Serialisation (Issue 4)
+    private var isProcessingAction = false
+    private var pendingActions: [[String: Any]] = []
+
     // MARK: - Computed
 
     var isMyTurn: Bool { myPlayerIndex == currentActionPlayer }
@@ -476,8 +489,16 @@ final class BluetoothGameViewModel: NSObject {
         bidWinnerDismissTask = nil
         reconnectTask?.cancel()
         reconnectTask = nil
+        migrationTimeoutTask?.cancel()
+        migrationTimeoutTask = nil
+        staleStateCheckTask?.cancel()
+        staleStateCheckTask = nil
         pendingHostAction = nil
         isReconnecting = false
+        isMigrating = false
+        isProcessingAction = false
+        pendingActions = []
+        pendingResyncPeers = []
         advertiser?.stopAdvertisingPeer()
         advertiser = nil
         browser?.stopBrowsingForPeers()
@@ -491,6 +512,7 @@ final class BluetoothGameViewModel: NSObject {
         localServer?.stop()
         localServer = nil
         localServerURL = ""
+        UserDefaults.standard.removeObject(forKey: "bt_active_game_session_id")
         gameHistorySaved = false
     }
 
