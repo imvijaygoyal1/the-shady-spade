@@ -1,7 +1,7 @@
 # The Shady Spade — Comprehensive Audit Report
 
-> **Last updated:** 2026-05-21  
-> **Scope:** All bug fixes, security patches, and architectural changes from v1.5 through v1.9 (including Architect Audit v4).  
+> **Last updated:** 2026-05-22  
+> **Scope:** All bug fixes, security patches, and architectural changes from v1.5 through v1.9 (including Architect Audits v4 and v5).  
 > **Status key:** ✅ Fixed | ⚠️ Deferred | 🔲 Open
 
 ---
@@ -703,10 +703,153 @@ All game phases now have landscape branches as of v1.8. Added to all 3 game mode
 
 ---
 
+---
+
+## Architect Audit v5 — 2026-05-21
+> Scope: All game modes (Solo, P&P, BT, Online) — all four VMs, LeaderboardService, LocalGameServer, ScoringEngine, OnlineSessionViewModel.
+> All 21 findings ✅ fixed (3 Critical, 5 High, 8 Medium fixed; 2 Low won't-do; 2 Low deferred).
+
+### V5-CRIT-01 — `criticalWrite` retry sleeps not cancellation-aware
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** `try? Task.sleep` in retry back-off swallowed cancellation, allowing retries to continue after cleanup.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** `do { try await Task.sleep ... } catch { return false }`
+
+### V5-CRIT-02 — BT `processPlayCard` 1-second sleep not cancellation-aware
+- **File:** `BluetoothGameViewModel.swift`
+- **Issue:** Post-play sleep continued after game cleanup, mutating torn-down state.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** `do { try await Task.sleep ... } catch { return }`
+
+### V5-CRIT-03 — `joinSession` TOCTOU — simultaneous joins overwrite each other's slot
+- **File:** `OnlineSessionViewModel.swift`
+- **Issue:** Read-modify-write on playerSlots was not atomic; two simultaneous joins could claim the same slot.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** Wrapped read-modify-write in a Firestore `runTransaction`.
+
+### V5-HIGH-01 — `OnlineSessionViewModel` not `@MainActor`
+- **File:** `OnlineSessionViewModel.swift`
+- **Issue:** `@Observable` property mutations from Firestore callbacks on background thread risked data races.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** Annotated class `@MainActor`; `GameViewModel.enterOnlineMode/exitOnlineMode` also annotated `@MainActor`.
+
+### V5-HIGH-02 — `startPresenceTracking()` has no re-entry guard
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** Multiple calls stacked duplicate timers.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** Added `guard presenceTimer == nil` at top of `startPresenceTracking()`.
+
+### V5-HIGH-03 — `ScoringEngine` defense score always 0 — undocumented
+- **File:** `ScoringEngine.swift`
+- **Issue:** `defenseDisplayScore` structurally unused; no comment explaining intent.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** Added design-intent comment explaining defense scores 0 intentionally.
+
+### V5-HIGH-04 — `LocalGameServer` `/state` endpoint has no authentication
+- **File:** `LocalGameServer.swift`
+- **Issue:** Any device on the same Wi-Fi could poll live game state.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** Random 16-char token generated per server instance; required as query param on `/state`; CORS restricted to `null`.
+
+### V5-HIGH-05 — Solo `startBiddingPhase` first bidder is random
+- **File:** `ComputerGameViewModel.swift`
+- **Issue:** First bidder was not consistently the player left of the dealer.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** `let startPlayer = (dealerIndex + 1) % 6`.
+
+### V5-MED-01 — `GameViewModel.syncOnlineRounds` creates SwiftData objects without `context.insert`
+- **File:** `GameViewModel.swift`
+- **Issue:** `Round` objects created without being inserted into the model context were silently dropped.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** Added `context?.insert(round)` call.
+
+### V5-MED-02 — `presenceTimer`/`monitoringTimer` not invalidated in `deinit`
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** Timers could fire after VM deallocation.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** `nonisolated(unsafe)` on both timer properties; `deinit` invalidates them.
+
+### V5-MED-03 — BT/Solo/P&P deduplication key content-based — valid records silently dropped
+- **File:** `ComputerGameViewModel.swift`
+- **Issue:** Two different games with identical stats shared the same dedup key, dropping the second game's leaderboard record.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** `gameId = UUID().uuidString` stable per game; passed as `sessionCode` to `recordGame`.
+
+### V5-MED-04 — `buildGS` reads stale `trumpSuit` in `concludeBidding`
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** Trump suit from prior round could leak into new round's game state.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** `concludeBidding` passes explicit cleared values before calling `buildGS`.
+
+### V5-MED-05 — Firestore Security Rules not scoped to session player UIDs
+- **File:** `firestore.rules`
+- **Issue:** Any authenticated user could read/write any session document.
+- **Status:** ✅ Fixed (v1.9, 2026-05-22)
+- **Fix:** Rules updated — `create` requires hostUid == caller; `update` requires caller in playerSlots or joining empty slot; `delete` requires host. Deployed via Firebase CLI (commit f222cd3).
+
+### V5-MED-06 — Room code shown before Firestore uniqueness check
+- **File:** `OnlineSessionViewModel.swift`
+- **Issue:** UI displayed a room code that might be reassigned by `findUniqueRoomCode()`, confusing users.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** Room code not set until `writeSessionToFirebase()` confirms the unique code.
+
+### V5-MED-07 — `ScoringEngine` partner scoring floor division undocumented
+- **File:** `ScoringEngine.swift`
+- **Issue:** Floor division behavior on partner bid-fail penalty was surprising with no explanation.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** Added design-intent comment explaining floor division and why defense earns 0.
+
+### V5-MED-08 — `processAITurnIfNeeded` called on every Firestore snapshot regardless of phase
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** Unnecessary AI processing during inactive phases wasted compute and risked state corruption.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** Added `activePhases.contains(phase) && !aiSeats.isEmpty` guard.
+
+### V5-LOW-01 — AI `canPass` logic diverges between Solo and Online/BT
+- **Files:** `ComputerGameViewModel.swift`, `OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`
+- **Issue:** Minor semantic difference in pass logic across modes.
+- **Status:** ⚠️ Deferred — low risk, no active bug.
+
+### V5-LOW-02/03/04 — AI logic copy-pasted between Online and BT VMs
+- **Files:** `OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`
+- **Issue:** `latestBidPerPlayer`, `trickWinnerIndex`, `computeBid`, `computeCalling`, `computeCard` duplicated across both VMs.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** `AIEngine.swift` (new file) contains shared logic; both VMs delegate to it.
+
+### V5-LOW-05 — No Firebase Crashlytics
+- **Status:** ❌ Won't do — intentional product decision (2026-05-22).
+
+### V5-LOW-06 — No analytics events
+- **Status:** ❌ Won't do — intentional product decision (2026-05-22).
+
+### V5-LOW-07 — `UserDefaults` schema has no migration path
+- **File:** `MyAppApp.swift`
+- **Issue:** No versioning on UserDefaults keys; future schema changes would silently corrupt stored data.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** `migrateUserDefaultsIfNeeded()` static method added; called on every launch; increments schema version.
+
+### V5-LOW-08 — `LocalGameServer` CORS `*`
+- **File:** `LocalGameServer.swift`
+- **Issue:** CORS wildcard allowed any origin to access game state endpoint.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21) — covered by HIGH-04 fix (CORS restricted to `null`).
+
+### V5-LOW-09 — `GameViewModel.isOnlineMode` legacy confusion
+- **File:** `GameViewModel.swift`
+- **Issue:** Property name misleading given current architecture.
+- **Status:** ⚠️ Deferred — no active bug; naming cleanup only.
+
+### V5-LOW-10 — `cleanup()` doesn't reset `wasRemovedFromGame` / `hostEndedGame`
+- **File:** `OnlineGameViewModel.swift`
+- **Issue:** Stale flags from a previous session could trigger spurious alerts in a new game.
+- **Status:** ✅ Fixed (v1.9, 2026-05-21)
+- **Fix:** Both flags reset to `false` at top of `cleanup()`.
+
+---
+
 ## Open Items
 
 | Item | Priority | Notes |
 |---|---|---|
 | v1.8 App Store review | — | Submitted 2026-04-28; verify current status in App Store Connect. |
-| v1.9 submission | — | All 41 v4 findings + V19-01 + other v1.9 changes complete. Confirm with user before incrementing version. |
+| v1.9 submission | — | All v4 + v5 findings complete. Confirm with user before incrementing version. |
 
