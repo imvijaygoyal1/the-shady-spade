@@ -1068,6 +1068,16 @@ final class BluetoothGameViewModel: NSObject {
         }
     }
 
+    private func sendGameState(to peer: MCPeerID) {
+        let gs = buildGameStateDict()
+        send(["type": "gameState", "state": gs], to: peer)
+    }
+
+    private func sendHand(_ hand: [Card], to peer: MCPeerID) {
+        let cards = hand.map { ["rank": $0.rank, "suit": $0.suit] as [String: Any] }
+        send(["type": "hand", "cards": cards], to: peer)
+    }
+
     private func sendToHost(_ dict: [String: Any]) {
         if let hostPeer = playerIndexToPeer[0] {
             send(dict, to: hostPeer)
