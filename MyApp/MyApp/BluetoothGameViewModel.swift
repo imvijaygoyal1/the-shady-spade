@@ -233,6 +233,7 @@ final class BluetoothGameViewModel: NSObject {
             .filter { $0.isLetter || $0.isNumber }
             .prefix(10)
             .lowercased()
+        UserDefaults.standard.set(gameSessionId, forKey: "bt_active_game_session_id")
         playerNames[0] = playerName
         playerAvatars[0] = avatar
         connectedPlayerSlots[0] = BTPlayerSlot(slotIndex: 0, name: playerName, avatar: avatar, joined: true)
@@ -1494,6 +1495,14 @@ extension BluetoothGameViewModel: MCSessionDelegate {
                         "aiSeats": self.aiSeats
                     ]
                     self.send(assignMsg, to: peerID)
+
+                    // Issue 7: mid-game reconnect — send full state + hand immediately
+                    if self.sessionState == .playing {
+                        self.sendGameState(to: peerID)
+                        if nextSlot < self.allHands.count {
+                            self.sendHand(self.allHands[nextSlot], to: peerID)
+                        }
+                    }
 
                     // Broadcast updated lobby to all
                     let lobbyMsg: [String: Any] = [
