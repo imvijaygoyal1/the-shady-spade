@@ -1161,8 +1161,8 @@ final class BluetoothGameViewModel: NSObject {
         isProcessingAction = true
         let next = pendingActions.removeFirst()
         Task { @MainActor [weak self] in
-            await self?.processAction(next)
             guard let self else { return }
+            await self.processAction(next)
             self.isProcessingAction = false
             self.drainActionQueue()
         }
@@ -1189,7 +1189,6 @@ final class BluetoothGameViewModel: NSObject {
             await processPlayCard(playerIndex: playerIndex, cardId: cardId)
         default:
             aiLog.warning("[processAction] unknown action type: '\(action)'")
-        break
         }
     }
 
