@@ -1162,12 +1162,13 @@ final class BluetoothGameViewModel: NSObject {
         let next = pendingActions.removeFirst()
         Task { @MainActor [weak self] in
             await self?.processAction(next)
-            self?.isProcessingAction = false
-            self?.drainActionQueue()
+            guard let self else { return }
+            self.isProcessingAction = false
+            self.drainActionQueue()
         }
     }
 
-    private func processAction(_ dict: [String: Any]) async {
+    @MainActor private func processAction(_ dict: [String: Any]) async {
         guard let playerIndex = dict["_playerIndex"] as? Int else { return }
         let action = dict["action"] as? String ?? ""
         switch action {
@@ -1187,7 +1188,8 @@ final class BluetoothGameViewModel: NSObject {
             let cardId = dict["cardId"] as? String ?? ""
             await processPlayCard(playerIndex: playerIndex, cardId: cardId)
         default:
-            break
+            aiLog.warning("[processAction] unknown action type: '\(action)'")
+        break
         }
     }
 
