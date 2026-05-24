@@ -1326,7 +1326,7 @@ final class BluetoothGameViewModel: NSObject {
 
     // MARK: - AI Auto-play
 
-    private func processAITurnIfNeeded() async {
+    private func processAITurnIfNeeded(retriesRemaining: Int = 3, handResyncAttempted: Bool = false) async {
         // Fix 2: prevent two concurrent tasks (from back-to-back MC messages) from both
         // passing the post-sleep guard and double-playing. Reset before every re-trigger
         // and before each action so processPlayCard's internal calls can proceed.
@@ -1404,18 +1404,24 @@ final class BluetoothGameViewModel: NSObject {
             // Fix 1: aiComputeCard returns nil when hand is empty (stale state / sync lag).
             // Retry after 1s rather than injecting a phantom card.
             guard let cardId = aiComputeCard(seat: seat) else {
-                aiLog.error("seat=\(seat) aiComputeCard returned nil (empty hand) — retrying in 1s")
-                do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return }
-                // Fix 2: state may have changed during the 1s sleep — only recurse if
-                // this seat is still the current action player in the playing phase.
-                // If a different AI now needs to act, the recovery re-triggers for them.
-                guard currentActionPlayer == seat, phase == .playing else {
-                    if aiSeats.contains(currentActionPlayer) && phase == .playing {
-                        await processAITurnIfNeeded()
+                aiLog.error("[AI] seat=\(seat) aiComputeCard nil — retriesRemaining=\(retriesRemaining) handResyncAttempted=\(handResyncAttempted)")
+                if retriesRemaining > 0 {
+                    do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return }
+                    guard currentActionPlayer == seat, phase == .playing else {
+                        if aiSeats.contains(currentActionPlayer) && phase == .playing {
+                            await processAITurnIfNeeded()
+                        }
+                        return
                     }
-                    return
+                    await processAITurnIfNeeded(retriesRemaining: retriesRemaining - 1, handResyncAttempted: handResyncAttempted)
+                } else if !handResyncAttempted {
+                    aiLog.warning("[AI] seat=\(seat) empty hand after 3 retries — resyncing all hands")
+                    resyncAllHands()
+                    do { try await Task.sleep(nanoseconds: 500_000_000) } catch { return }
+                    await processAITurnIfNeeded(retriesRemaining: 0, handResyncAttempted: true)
+                } else {
+                    aiLog.error("[AI] seat=\(seat) empty hand persists after resync — giving up to prevent freeze")
                 }
-                await processAITurnIfNeeded()
                 return
             }
             aiLog.debug("seat=\(seat) playing \(cardId)")
@@ -1461,6 +1467,16 @@ final class BluetoothGameViewModel: NSObject {
     }
 
     // MARK: - Card & Game Helpers
+
+    private func resyncAllHands() {
+        guard isHost else { return }
+        for slot in 0..<6 {
+            guard !aiSeats.contains(slot),
+                  let peer = playerIndexToPeer[slot],
+                  slot < allHands.count else { continue }
+            sendHand(allHands[slot], to: peer)
+        }
+    }
 
     private func trickWinnerIndex(trick: [(playerIndex: Int, card: Card)]) -> Int {
         AIEngine.trickWinnerIndex(trick: trick, trumpSuit: trumpSuit)
