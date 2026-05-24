@@ -1473,7 +1473,8 @@ final class BluetoothGameViewModel: NSObject {
         for slot in 0..<6 {
             guard !aiSeats.contains(slot),
                   let peer = playerIndexToPeer[slot],
-                  slot < allHands.count else { continue }
+                  slot < allHands.count,
+                  !allHands[slot].isEmpty else { continue }
             sendHand(allHands[slot], to: peer)
         }
     }
