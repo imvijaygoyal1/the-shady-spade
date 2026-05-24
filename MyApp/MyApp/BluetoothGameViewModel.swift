@@ -482,6 +482,7 @@ final class BluetoothGameViewModel: NSObject {
     // MARK: - Host Migration (Issue 1)
 
     private func triggerHostMigration() {
+        guard !isMigrating else { return }
         isMigrating = true
         // Remove the disconnected host from peer mappings
         if let hostPeer = playerIndexToPeer[0] {
@@ -521,7 +522,7 @@ final class BluetoothGameViewModel: NSObject {
         migrationTimeoutTask = nil
         message = "\(playerName(newHostSlot)) is now the host."
         if aiSeats.contains(currentActionPlayer) {
-            Task { await processAITurnIfNeeded() }
+            Task { [weak self] in await self?.processAITurnIfNeeded() }
         }
     }
 
@@ -1355,10 +1356,11 @@ final class BluetoothGameViewModel: NSObject {
                   let newHostSlot = (dict["newHostSlot"] as? Int) ?? (dict["newHostSlot"] as? Int64).map(Int.init),
                   let gs = dict["gameState"] as? [String: Any] else { return }
             // Remap slot 0 → new host's MCPeerID so sendToHost() needs no changes at call sites
-            if let newHostPeer = playerIndexToPeer[newHostSlot] {
-                playerIndexToPeer[0] = newHostPeer
-                peerToPlayerIndex[newHostPeer] = 0
-            }
+            // Use the sender as fallback if the slot→peer mapping was already cleaned up
+            let newHostPeer = playerIndexToPeer[newHostSlot] ?? peer
+            playerIndexToPeer.removeValue(forKey: newHostSlot)
+            peerToPlayerIndex[newHostPeer] = 0
+            playerIndexToPeer[0] = newHostPeer
             if !aiSeats.contains(0) { aiSeats.append(0); aiSeats.sort() }
             applyGameState(gs)
             isMigrating = false
