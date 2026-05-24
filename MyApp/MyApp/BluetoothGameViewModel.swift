@@ -479,6 +479,77 @@ final class BluetoothGameViewModel: NSObject {
         bidWinnerInfo = nil
     }
 
+    // MARK: - Host Migration (Issue 1)
+
+    private func triggerHostMigration() {
+        isMigrating = true
+        // Remove the disconnected host from peer mappings
+        if let hostPeer = playerIndexToPeer[0] {
+            peerToPlayerIndex.removeValue(forKey: hostPeer)
+            playerIndexToPeer.removeValue(forKey: 0)
+        }
+        // Slot 0 becomes AI
+        if !aiSeats.contains(0) { aiSeats.append(0); aiSeats.sort() }
+        // Elect new host: lowest non-AI slot whose peer is still connected
+        let connectedSlots = Set(
+            (session?.connectedPeers ?? []).compactMap { peerToPlayerIndex[$0] }
+        )
+        let newHostSlot = (1...5).first { !aiSeats.contains($0) && connectedSlots.contains($0) } ?? -1
+        guard newHostSlot >= 0 else {
+            aiLog.error("[hostMigration] no viable host — all remaining slots are AI or disconnected")
+            isMigrating = false
+            return
+        }
+        if myPlayerIndex == newHostSlot {
+            becomeNewHost(newHostSlot: newHostSlot)
+        } else {
+            startMigrationTimeout(electedSlot: newHostSlot)
+        }
+    }
+
+    private func becomeNewHost(newHostSlot: Int) {
+        isHost = true
+        let gs = buildGameStateDict()
+        let migrationMsg: [String: Any] = [
+            "type": "hostMigration",
+            "newHostSlot": newHostSlot,
+            "gameState": gs
+        ]
+        sendToAll(migrationMsg)
+        isMigrating = false
+        migrationTimeoutTask?.cancel()
+        migrationTimeoutTask = nil
+        message = "\(playerName(newHostSlot)) is now the host."
+        if aiSeats.contains(currentActionPlayer) {
+            Task { await processAITurnIfNeeded() }
+        }
+    }
+
+    private func startMigrationTimeout(electedSlot: Int) {
+        migrationTimeoutTask?.cancel()
+        migrationTimeoutTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { return }
+            guard let self, self.isMigrating else { return }
+            // Elected client also crashed — re-elect excluding them
+            let connectedSlots = Set(
+                (self.session?.connectedPeers ?? []).compactMap { self.peerToPlayerIndex[$0] }
+            )
+            let newHostSlot = (1...5).first {
+                !self.aiSeats.contains($0) && connectedSlots.contains($0) && $0 != electedSlot
+            } ?? -1
+            guard newHostSlot >= 0 else {
+                aiLog.error("[hostMigration] timeout re-election: no viable host")
+                self.isMigrating = false
+                return
+            }
+            if self.myPlayerIndex == newHostSlot {
+                self.becomeNewHost(newHostSlot: newHostSlot)
+            } else {
+                self.startMigrationTimeout(electedSlot: newHostSlot)
+            }
+        }
+    }
+
     // MARK: - Cleanup
 
     func cleanup() {
@@ -1278,6 +1349,23 @@ final class BluetoothGameViewModel: NSObject {
             guard isHost else { return }
             sendGameState(to: peer)
 
+        case "hostMigration":
+            // Accept from any peer — old host is gone, standard host-peer verification is skipped
+            guard !isHost,
+                  let newHostSlot = (dict["newHostSlot"] as? Int) ?? (dict["newHostSlot"] as? Int64).map(Int.init),
+                  let gs = dict["gameState"] as? [String: Any] else { return }
+            // Remap slot 0 → new host's MCPeerID so sendToHost() needs no changes at call sites
+            if let newHostPeer = playerIndexToPeer[newHostSlot] {
+                playerIndexToPeer[0] = newHostPeer
+                peerToPlayerIndex[newHostPeer] = 0
+            }
+            if !aiSeats.contains(0) { aiSeats.append(0); aiSeats.sort() }
+            applyGameState(gs)
+            isMigrating = false
+            migrationTimeoutTask?.cancel()
+            migrationTimeoutTask = nil
+            message = "\(playerName(newHostSlot)) is now the host."
+
         default:
             break
         }
@@ -1601,28 +1689,25 @@ extension BluetoothGameViewModel: MCSessionDelegate {
             case .notConnected:
                 self.pendingPeerInfo.removeValue(forKey: peerID)
                 if let playerIdx = self.peerToPlayerIndex[peerID] {
-                    if (self.sessionState == .playing || self.phase != .dealing)
-                        && !self.hostEndedGame {
-                        self.errorMessage = "\(self.playerName(playerIdx)) disconnected."
-                    }
-                    if self.isHost {
-                        self.peerToPlayerIndex.removeValue(forKey: peerID)
-                        self.playerIndexToPeer.removeValue(forKey: playerIdx)
-
-                        // If a human disconnects mid-game, replace them with an AI bot so
-                        // the game can continue rather than freeze waiting for their turn.
-                        if self.phase == .playing || self.phase == .bidding ||
-                           self.phase == .calling || self.phase == .lookingAtCards {
-                            if !self.aiSeats.contains(playerIdx) {
-                                self.aiSeats.append(playerIdx)
-                                self.aiSeats.sort()
-                                self.broadcastGameState()
-                                // Fix 4: always re-trigger — don't gate on currentActionPlayer == playerIdx.
-                                // The disconnect can race with an in-flight AI sleep: currentActionPlayer
-                                // may have already advanced before this handler fires, making the old
-                                // conditional check false even when the replaced seat is now active.
-                                // processAITurnIfNeeded() bails immediately if no AI turn is needed.
-                                Task { await self.processAITurnIfNeeded() }
+                    // Non-host client detecting host crash: trigger migration
+                    if !self.isHost && playerIdx == 0 && self.sessionState == .playing {
+                        self.triggerHostMigration()
+                    } else {
+                        if (self.sessionState == .playing || self.phase != .dealing)
+                            && !self.hostEndedGame {
+                            self.errorMessage = "\(self.playerName(playerIdx)) disconnected."
+                        }
+                        if self.isHost {
+                            self.peerToPlayerIndex.removeValue(forKey: peerID)
+                            self.playerIndexToPeer.removeValue(forKey: playerIdx)
+                            if self.phase == .playing || self.phase == .bidding ||
+                               self.phase == .calling || self.phase == .lookingAtCards {
+                                if !self.aiSeats.contains(playerIdx) {
+                                    self.aiSeats.append(playerIdx)
+                                    self.aiSeats.sort()
+                                    self.broadcastGameState()
+                                    Task { await self.processAITurnIfNeeded() }
+                                }
                             }
                         }
                     }
