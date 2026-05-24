@@ -57,7 +57,7 @@ final class GameViewModel {
 
     // MARK: Online mode
     var onlineSessionVM: OnlineSessionViewModel? = nil
-    var isOnlineMode: Bool { onlineSessionVM != nil }
+    var hasActiveOnlineSession: Bool { onlineSessionVM != nil }
 
     // MARK: Private
     private var context: ModelContext?
@@ -148,7 +148,7 @@ final class GameViewModel {
     }
 
     func deleteRound(_ round: Round) {
-        guard !isOnlineMode else { return }
+        guard !hasActiveOnlineSession else { return }
         guard let context else { return }
         context.delete(round)
         try? context.save()

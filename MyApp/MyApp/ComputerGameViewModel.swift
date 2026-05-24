@@ -257,7 +257,6 @@ final class ComputerGameViewModel {
         biddingToastMessage = nil
 
         var currentPlayer = startPlayer
-        var isVeryFirstBid = true
 
         // Cycle through active players until only one hasn't passed
         while playerHasPassed.filter({ !$0 }).count > 1 {
@@ -267,8 +266,8 @@ final class ComputerGameViewModel {
             }
 
             currentBidTurn = currentPlayer
-            // Starting player must bid on their very first turn
-            let canPassThisTurn = !isVeryFirstBid
+            // Can only pass once someone has already bid; first bidder must open.
+            let canPassThisTurn = highBid > 0
             humanCanPass = canPassThisTurn
 
             if humanPlayerIndices.contains(currentPlayer) {
@@ -314,7 +313,6 @@ final class ComputerGameViewModel {
                 }
             }
 
-            isVeryFirstBid = false
             currentPlayer = (currentPlayer + 1) % 6
         }
 

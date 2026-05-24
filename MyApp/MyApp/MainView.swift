@@ -106,10 +106,10 @@ private struct LocalLeaderboardView: View {
                                 vm.showingOnlineSession = true
                             }
                         } label: {
-                            Image(systemName: vm.isOnlineMode ? "globe.badge.chevron.backward" : "globe")
-                                .foregroundStyle(vm.isOnlineMode ? .offenseBlue : .masterGold)
+                            Image(systemName: vm.hasActiveOnlineSession ? "globe.badge.chevron.backward" : "globe")
+                                .foregroundStyle(vm.hasActiveOnlineSession ? .offenseBlue : .masterGold)
                         }
-                        .accessibilityLabel(vm.isOnlineMode ? "Exit online mode" : "Play online")
+                        .accessibilityLabel(vm.hasActiveOnlineSession ? "Exit online mode" : "Play online")
                         Button {
                             vm.showingGameTable = true
                         } label: {
