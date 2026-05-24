@@ -155,25 +155,6 @@ struct BluetoothGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: game.isReconnecting)
-        .overlay {
-            if game.isMigrating {
-                Color.black.opacity(0.72)
-                    .ignoresSafeArea()
-                    .overlay {
-                        VStack(spacing: 16) {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                                .tint(.white)
-                                .scaleEffect(1.6)
-                            Text("Reconnecting…")
-                                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.white)
-                        }
-                    }
-                    .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.3), value: game.isMigrating)
         .overlay(alignment: .topTrailing) {
             let activePhase = ![.roundComplete, .gameOver].contains(game.phase)
             if activePhase {
@@ -194,6 +175,25 @@ struct BluetoothGameView: View {
                 .transition(.opacity)
             }
         }
+        .overlay {
+            if game.isMigrating {
+                Color.black.opacity(0.72)
+                    .ignoresSafeArea()
+                    .overlay {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .tint(.white)
+                                .scaleEffect(1.6)
+                            Text("Reconnecting…")
+                                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: game.isMigrating)
         .alert("Player Disconnected", isPresented: $disconnectedAlert) {
             Button("OK", role: .cancel) { }
         } message: {
