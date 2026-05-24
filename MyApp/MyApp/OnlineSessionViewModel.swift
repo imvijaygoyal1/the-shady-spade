@@ -247,8 +247,7 @@ enum SessionStatus: String {
         // joins from both reading the same empty slot and overwriting each other.
         var resolvedJoinIndex: Int = -1
 
-        try await db.runTransaction { [weak self] transaction, errorPointer in
-            guard let self else { return nil }
+        try await db.runTransaction { transaction, errorPointer in
             let snapshot: DocumentSnapshot
             do {
                 snapshot = try transaction.getDocument(ref)
