@@ -155,6 +155,25 @@ struct BluetoothGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: game.isReconnecting)
+        .overlay {
+            if game.isMigrating {
+                Color.black.opacity(0.72)
+                    .ignoresSafeArea()
+                    .overlay {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .tint(.white)
+                                .scaleEffect(1.6)
+                            Text("Reconnecting…")
+                                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: game.isMigrating)
         .overlay(alignment: .topTrailing) {
             let activePhase = ![.roundComplete, .gameOver].contains(game.phase)
             if activePhase {
@@ -251,7 +270,9 @@ struct BluetoothGameView: View {
         }
         try? modelContext.save()
         let capturedAISeats = game.aiSeats
-        let capturedCode = game.gameSessionId
+        let capturedCode = game.gameSessionId.isEmpty
+            ? (UserDefaults.standard.string(forKey: "bt_active_game_session_id") ?? "")
+            : game.gameSessionId
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    "Bluetooth",
@@ -315,7 +336,9 @@ struct BluetoothGameView: View {
         }
         try? modelContext.save()
         let capturedAISeats = game.aiSeats
-        let capturedCode = game.gameSessionId
+        let capturedCode = game.gameSessionId.isEmpty
+            ? (UserDefaults.standard.string(forKey: "bt_active_game_session_id") ?? "")
+            : game.gameSessionId
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    "Bluetooth",
