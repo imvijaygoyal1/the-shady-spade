@@ -843,7 +843,7 @@ final class BluetoothGameViewModel: NSObject {
         if !pendingResyncPeers.isEmpty {
             let connected = Set(session?.connectedPeers ?? [])
             let resyncMsg: [String: Any] = ["type": "gameState", "state": gs]
-            for peer in pendingResyncPeers where !connected.contains(peer) {
+            for peer in pendingResyncPeers where connected.contains(peer) {
                 send(resyncMsg, to: peer)
             }
             pendingResyncPeers.removeAll()
