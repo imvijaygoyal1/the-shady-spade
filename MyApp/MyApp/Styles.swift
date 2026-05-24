@@ -1594,14 +1594,11 @@ struct LandscapePlayerRow: View {
 
 struct ShimmerModifier: ViewModifier {
     let isActive: Bool
-    @State private var phase: CGFloat = -1.0
-
-    private func startAnimation() {
-        phase = -1.0
-        withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) {
-            phase = 1.5
-        }
-    }
+    // Scoped animation: bool drives gradient position; repeatForever sweeps left→right
+    // without propagating an animation transaction up the view tree. Using withAnimation
+    // here would re-evaluate all ancestor views on every frame and race with gesture
+    // recognizers, producing "Message send exceeds rate-limit threshold" console spam.
+    @State private var sweeping = false
 
     func body(content: Content) -> some View {
         content
@@ -1615,17 +1612,16 @@ struct ShimmerModifier: ViewModifier {
                             .init(color: Color.masterGold.opacity(0.35), location: 0.55),
                             .init(color: .clear, location: 1.0),
                         ],
-                        startPoint: .init(x: phase, y: 0),
-                        endPoint: .init(x: phase + 1, y: 1)
+                        startPoint: .init(x: sweeping ? 1.5 : -1.0, y: 0),
+                        endPoint: .init(x: sweeping ? 2.5 : 0.0, y: 1)
                     )
                     .blendMode(.screen)
                     .opacity(isActive ? 1 : 0)
+                    .animation(.linear(duration: 1.4).repeatForever(autoreverses: false), value: sweeping)
                     .animation(.easeInOut(duration: 0.25), value: isActive)
                     .allowsHitTesting(false)
-                    .onAppear { startAnimation() }
-                    .onChange(of: isActive) { _, newValue in
-                        if newValue { startAnimation() }
-                    }
+                    .onAppear { if isActive { sweeping = true } }
+                    .onChange(of: isActive) { _, newValue in sweeping = newValue }
                 }
             )
             .overlay(
