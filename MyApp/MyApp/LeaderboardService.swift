@@ -273,10 +273,14 @@ final class LeaderboardService {
 
         let totalDefensePts = rounds.reduce(0) { $0 + $1.defensePointsCaught }
 
+        let sanitizedNames = playerNames.enumerated().map { (i, name) in
+            ProfanityFilter.isProfane(name) ? "Guest \(i + 1)" : name
+        }
+
         let pending = PendingGameRecord(
             sessionCode: sessionCode.isEmpty ? nil : sessionCode,
             gameMode: gameMode,
-            playerNames: playerNames,
+            playerNames: sanitizedNames,
             finalScores: finalScores.map { Int($0) },
             winnerIndex: Int(winnerIndex),
             aiSeats: aiSeats.map { Int($0) },
