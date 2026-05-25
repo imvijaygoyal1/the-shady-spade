@@ -1357,10 +1357,12 @@ final class BluetoothGameViewModel: NSObject {
             sendGameState(to: peer)
 
         case "hostMigration":
-            // Accept from any peer — old host is gone, standard host-peer verification is skipped
+            // Only accept during an active migration window from the peer we elected as new host.
             guard !isHost,
+                  isMigrating,
                   let newHostSlot = (dict["newHostSlot"] as? Int) ?? (dict["newHostSlot"] as? Int64).map(Int.init),
-                  let gs = dict["gameState"] as? [String: Any] else { return }
+                  let gs = dict["gameState"] as? [String: Any],
+                  peerToPlayerIndex[peer] == newHostSlot else { return }
             // Remap slot 0 → new host's MCPeerID so sendToHost() needs no changes at call sites
             // Use the sender as fallback if the slot→peer mapping was already cleaned up
             let newHostPeer = playerIndexToPeer[newHostSlot] ?? peer

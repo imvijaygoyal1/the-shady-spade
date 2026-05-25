@@ -35,7 +35,7 @@ function isProfane(text) {
 const db = admin.firestore();
 
 // ── Constants (must match your Swift ScoringEngine) ──────────
-const MIN_BID = 100;
+const MIN_BID = 130;
 const MAX_BID = 250;
 const PLAYER_COUNT = 6;
 
