@@ -1102,7 +1102,7 @@ final class BluetoothGameViewModel: NSObject {
         // LB4: Accumulate a HistoryRound whenever a round ends so the leaderboard
         // receives stats for every round, not just the last one.
         if (newPhase == .roundComplete || newPhase == .gameOver),
-           completedRounds.last?.roundNumber != roundNumber {
+           !completedRounds.contains(where: { $0.roundNumber == roundNumber }) {
             completedRounds.append(HistoryRound(
                 roundNumber: roundNumber,
                 dealerIndex: dealerIndex,
