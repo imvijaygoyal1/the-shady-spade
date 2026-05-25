@@ -70,7 +70,6 @@ struct BluetoothGameView: View {
                         dismiss()
                     }
                 }
-                .onAppear { saveBTGameHistory() }
             }
 
             // Bid winner banner
@@ -209,13 +208,17 @@ struct BluetoothGameView: View {
         }
         .alert("Game Ended", isPresented: $showHostEndedGameAlert) {
             Button("OK") {
+                saveOnQuit()   // GAP-4: save completed rounds before teardown
                 game.cleanup()
                 dismiss()
             }
         } message: {
             Text("The host has ended the game.")
         }
-        .onDisappear { game.cleanup() }
+        .onDisappear {
+            saveOnQuit()   // GAP-5: last-resort save on system dismiss
+            game.cleanup()
+        }
         .task {
             if game.isHost { await game.startGame() }
         }

@@ -6,6 +6,8 @@
 ## v1.9 Changelog
 > Changes made after v1.8 App Store submission (April 28, 2026). Add entries here as changes are implemented.
 
+- [2026-05-25] Fix GAP-4/GAP-5/RED-1 in BluetoothGameView — (1) **GAP-4:** Added `saveOnQuit()` to "Game Ended" alert OK handler — non-host completed rounds were lost when the host ended the game; `saveOnQuit()` guards `phase == .gameOver` for non-hosts so this is safe. (2) **GAP-5:** Added `saveOnQuit()` to `.onDisappear` as last-resort save on system dismiss; `gameHistorySaved` flag prevents double-saves. (3) **RED-1:** Removed redundant `.onAppear { saveBTGameHistory() }` from `BTGameOverView` — `.task(id: game.phase)` at the root already handles this save. (`BluetoothGameView.swift`)
+
 - [2026-05-25] Fix CRIT-02 — `completedRounds` dedup guard strengthened in both `OnlineGameViewModel` and `BluetoothGameViewModel`: replaced `completedRounds.last?.roundNumber != roundNumber` with `!completedRounds.contains(where: { $0.roundNumber == roundNumber })`. The old guard only caught consecutive duplicates; out-of-order reconnect snapshots delivering the same roundNumber non-consecutively could append a duplicate round and inflate player stats. (`OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`)
 
 - [2026-05-25] Fix MED-03/LOW-02 — (1) `saveOnlineGameHistory()` now claims `game.gameHistorySaved = true` before the partner-index guard, then releases it to `false` if deferred — prevents concurrent `.task(id:)` and `.onChange` triggers from both passing the guard and both submitting the same game. (2) `enqueue()` sets `scoreSaveStatus = .saved` when a duplicate record is detected — UI no longer stays stuck on `.saving` when the game was already queued. (`OnlineGameView.swift`, `LeaderboardService.swift`)
