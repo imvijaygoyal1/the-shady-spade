@@ -266,14 +266,18 @@ struct OnlineGameView: View {
 
     private func saveOnlineGameHistory() {
         guard !game.gameHistorySaved else { return }
+        // MED-03: claim the flag immediately so concurrent triggers (.task + .onChange)
+        // can't both pass the guard and both reach recordGame(). Release below if deferred.
+        game.gameHistorySaved = true
         let finalScores = game.runningScores
         guard game.highBidderIndex >= 0,
               game.partner1Index >= 0,
               game.partner2Index >= 0 else {
+            game.gameHistorySaved = false  // release so .onChange retry can still save
             ogLog.warning("saveOnlineGameHistory: deferred — bidder=\(game.highBidderIndex) p1=\(game.partner1Index) p2=\(game.partner2Index)")
             return
         }
-        game.gameHistorySaved = true
+        // flag stays true — proceed with save
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: {
             finalScores[$0] < finalScores[$1]

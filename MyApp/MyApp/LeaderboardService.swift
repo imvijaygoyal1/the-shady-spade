@@ -415,6 +415,8 @@ final class LeaderboardService {
         // #10: skip exact duplicates (e.g. onChange retry race before gameHistorySaved is set)
         guard !records.contains(where: { $0.deduplicationKey == record.deduplicationKey }) else {
             lbLog.warning("enqueue: duplicate skipped id=\(record.id)")
+            // LOW-02: treat a duplicate as already-queued so the UI doesn't stay on .saving
+            scoreSaveStatus = .saved
             return
         }
         records.append(record)
