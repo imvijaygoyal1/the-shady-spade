@@ -119,11 +119,20 @@ exports.recordGame = onRequest(
         roundCount,
       } = payload;
       const finalScores = payload.finalScores || Array(PLAYER_COUNT).fill(0);
-      const aiSeats = new Set(
-          (payload.aiSeats || []).filter(
-              (i) => Number.isInteger(i) && i >= 0 && i < PLAYER_COUNT,
-          ),
+      const rawAISeats = payload.aiSeats || [];
+      const validAISeatsArr = rawAISeats.filter(
+          (i) => Number.isInteger(i) && i >= 0 && i < PLAYER_COUNT,
       );
+      const droppedAISeats = rawAISeats.filter(
+          (i) => !Number.isInteger(i) || i < 0 || i >= PLAYER_COUNT,
+      );
+      if (droppedAISeats.length > 0) {
+        console.warn("recordGame: dropped invalid aiSeats", JSON.stringify({
+          dropped: droppedAISeats,
+          sessionCode: payload.sessionCode ?? null,
+        }));
+      }
+      const aiSeats = new Set(validAISeatsArr);
       // sessionCode: used as game_log doc ID for Online games so all 6 clients
       // can submit independently — first write wins, duplicates are no-ops.
       const rawCode = payload.sessionCode;
@@ -150,8 +159,11 @@ exports.recordGame = onRequest(
       for (const name of playerNames) {
         if (typeof name === "string" && name.trim().length > 0) {
           if (isProfane(name)) {
-            return sendError(res, 400,
-                `Player name "${name}" contains inappropriate content.`);
+            return res.status(400).json({
+              error: "Player name contains inappropriate content.",
+              code: "PROFANITY_REJECTED",
+              field: "playerNames",
+            });
           }
         }
       }
@@ -178,6 +190,20 @@ exports.recordGame = onRequest(
           roundCount < 1 || roundCount > 200) {
         return sendError(res, 400,
             `Invalid roundCount: ${roundCount}.`);
+      }
+
+      // LOW-04: warn if rounds are not sequential — gaps indicate missed completedRounds appends
+      const rounds = payload.rounds;
+      if (Array.isArray(rounds) && rounds.length > 1) {
+        const roundNums = rounds.map((r) => r.roundNumber);
+        const isSequential = roundNums.every(
+            (n, i) => i === 0 || n === roundNums[i - 1] + 1,
+        );
+        if (!isSequential) {
+          console.warn("recordGame: non-sequential round numbers",
+              JSON.stringify({roundNumbers: roundNums, sessionCode: payload.sessionCode ?? null}));
+          // Accept the record — non-sequential rounds are unusual but not corrupt.
+        }
       }
 
       // ── Validate defensePointsCaught ───────────────────────

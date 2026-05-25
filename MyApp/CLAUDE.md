@@ -6,6 +6,8 @@
 ## v1.9 Changelog
 > Changes made after v1.8 App Store submission (April 28, 2026). Add entries here as changes are implemented.
 
+- [2026-05-25] Fix LOW-01/LOW-03/LOW-04 in Cloud Function — (1) **LOW-01:** Profanity rejection now returns `{error, code: "PROFANITY_REJECTED", field: "playerNames"}` JSON body — iOS can detect the specific rejection reason. (2) **LOW-03:** Dropped invalid `aiSeats` indices now logged via `console.warn` with the specific dropped values and sessionCode — iOS-side bugs become visible in Firebase Functions logs. (3) **LOW-04:** Round number sequencing validated after `roundCount` check; non-sequential submissions logged as warnings (record still accepted). (`functions/index.js`)
+
 - [2026-05-25] Fix GAP-1 — Solo/P&P `.onDisappear` now saves completed rounds if `soloGameSaved` is still false and at least one round was completed. Covers system-level dismissal of the fullScreenCover (memory pressure, navigation). Sheets presented over the cover do not trigger `.onDisappear` on it, so this is safe. (`ComputerGameView.swift`)
 
 - [2026-05-25] Fix GAP-2/GAP-3 in OnlineGameView — (1) **GAP-2:** Added `saveOnQuit()` to "Removed from Game" alert OK handler before `stopPresenceTracking()` — removed players' completed rounds were previously lost; `saveOnQuit()` returns early for non-hosts mid-game so this is safe. (2) **GAP-3:** Added `saveOnQuit()` to `.onDisappear` as last-resort save on system dismiss. (`OnlineGameView.swift`)
