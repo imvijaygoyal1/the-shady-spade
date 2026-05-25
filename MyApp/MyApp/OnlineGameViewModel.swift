@@ -671,22 +671,28 @@ final class OnlineGameViewModel {
 
         // LB4: Accumulate a HistoryRound whenever a round ends so the leaderboard
         // receives stats for every round, not just the last one.
-        if (newPhase == .roundComplete || newPhase == .gameOver),
-           !completedRounds.contains(where: { $0.roundNumber == roundNumber }) {
-            completedRounds.append(HistoryRound(
-                roundNumber: roundNumber,
-                dealerIndex: dealerIndex,
-                bidderIndex: highBidderIndex >= 0 ? highBidderIndex : 0,
-                bidAmount: highBid,
-                trumpSuit: trumpSuit,
-                callCard1: calledCard1,
-                callCard2: calledCard2,
-                partner1Index: partner1Index >= 0 ? partner1Index : 0,
-                partner2Index: partner2Index >= 0 ? partner2Index : 0,
-                offensePointsCaught: offensePoints,
-                defensePointsCaught: defensePoints,
-                runningScores: runningScores
-            ))
+        if (newPhase == .roundComplete || newPhase == .gameOver) {
+            if !completedRounds.contains(where: { $0.roundNumber == roundNumber }) {
+                completedRounds.append(HistoryRound(
+                    roundNumber: roundNumber,
+                    dealerIndex: dealerIndex,
+                    bidderIndex: highBidderIndex >= 0 ? highBidderIndex : 0,
+                    bidAmount: highBid,
+                    trumpSuit: trumpSuit,
+                    callCard1: calledCard1,
+                    callCard2: calledCard2,
+                    partner1Index: partner1Index >= 0 ? partner1Index : 0,
+                    partner2Index: partner2Index >= 0 ? partner2Index : 0,
+                    offensePointsCaught: offensePoints,
+                    defensePointsCaught: defensePoints,
+                    runningScores: runningScores
+                ))
+                let rn = roundNumber; let total = completedRounds.count
+                ogVMLog.info("[completedRounds] appended round=\(rn) total=\(total)")
+            } else {
+                let rn = roundNumber; let existing = completedRounds.map(\.roundNumber)
+                ogVMLog.warning("[completedRounds] duplicate blocked round=\(rn) — already in \(existing)")
+            }
         }
 
         // No next-hand confirmation overlay in online mode.

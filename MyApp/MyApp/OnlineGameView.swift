@@ -206,6 +206,7 @@ struct OnlineGameView: View {
     /// Unlike saveOnlineGameHistory(), does not require highBidderIndex/partnerIndex to be
     /// valid — it guards on completedRounds being non-empty instead.
     private func saveOnQuit() {
+        ogLog.info("saveOnQuit: triggered isHost=\(game.isHost) phase=\(game.phase.rawValue) alreadySaved=\(game.gameHistorySaved)")
         // Non-hosts can save at game-over (all clients have full final state).
         // Mid-game quits are host-only — non-hosts don't drive game logic.
         if !game.isHost && game.phase != .gameOver { return }
@@ -271,6 +272,7 @@ struct OnlineGameView: View {
         // MED-03: claim the flag immediately so concurrent triggers (.task + .onChange)
         // can't both pass the guard and both reach recordGame(). Release below if deferred.
         game.gameHistorySaved = true
+        ogLog.info("saveOnlineGameHistory: flag claimed")
         let finalScores = game.runningScores
         guard game.highBidderIndex >= 0,
               game.partner1Index >= 0,
@@ -280,6 +282,7 @@ struct OnlineGameView: View {
             return
         }
         // flag stays true — proceed with save
+        ogLog.info("saveOnlineGameHistory: proceeding — rounds=\(game.completedRounds.count)")
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: {
             finalScores[$0] < finalScores[$1]

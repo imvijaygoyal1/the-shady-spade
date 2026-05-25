@@ -228,6 +228,7 @@ struct BluetoothGameView: View {
     /// Unlike saveBTGameHistory(), does not require highBidderIndex/partnerIndex to be
     /// valid — it guards on completedRounds being non-empty instead.
     private func saveOnQuit() {
+        btLog.info("saveOnQuit: triggered isHost=\(game.isHost) phase=\(game.phase.rawValue) alreadySaved=\(game.gameHistorySaved)")
         // Non-hosts can save at game-over (full final state synced via MC).
         // Mid-game quits are host-only — non-hosts don't drive game logic.
         if !game.isHost && game.phase != .gameOver { return }
@@ -292,6 +293,7 @@ struct BluetoothGameView: View {
     }
 
     private func saveBTGameHistory() {
+        btLog.info("saveBTGameHistory: triggered alreadySaved=\(game.gameHistorySaved)")
         guard !game.gameHistorySaved else { return }
         let finalScores = game.runningScores
         // Use completedRounds (accumulated across all rounds) as primary path.
@@ -324,6 +326,7 @@ struct BluetoothGameView: View {
             return
         }
         game.gameHistorySaved = true
+        btLog.info("saveBTGameHistory: proceeding — rounds=\(game.completedRounds.count)")
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: {
             finalScores[$0] < finalScores[$1]
