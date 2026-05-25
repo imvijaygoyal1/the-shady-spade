@@ -494,6 +494,10 @@ enum SessionStatus: String {
     /// Returns a room code that does not already exist in Firestore.
     /// Retries up to 5 times — with 36^6 ≈ 2.2B combinations the probability of
     /// needing even one retry is negligible.
+    // MED-02: Uniqueness is checked against Firestore only, not the local pending
+    // queue in LeaderboardService. Two simultaneous hosts generating the same
+    // 6-char code would deduplicate one game as a duplicate and silently drop it.
+    // Collision probability ~1 in 2.18B per attempt — acceptable in practice.
     private func findUniqueRoomCode() async -> String {
         let ref = db.collection("sessions")
         for _ in 0..<5 {

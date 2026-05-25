@@ -3,6 +3,9 @@ import Foundation
 enum ProfanityFilter {
 
     // Common English profanity — mirrors the server-side bad-words check.
+    // IMPORTANT: Keep in sync with PROFANITY_LIST in functions/index.js.
+    // If the lists diverge, a name passing this filter may be rejected by the
+    // server (HTTP 400 → permanent discard). Update both simultaneously.
     // Kept as a Set<String> for O(1) lookup.
     private static let wordList: Set<String> = [
         "fuck", "shit", "ass", "asshole", "bitch", "cunt", "dick",
