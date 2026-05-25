@@ -103,6 +103,7 @@ struct OnlineGameView: View {
             if game.isHost { await game.startGame() }
         }
         .onDisappear {
+            saveOnQuit()   // GAP-3: last-resort save on system dismiss
             game.stopPresenceTracking()
             game.cleanup()
         }
@@ -122,6 +123,7 @@ struct OnlineGameView: View {
         }
         .alert("Removed from Game", isPresented: $showRemovedFromGameAlert) {
             Button("OK") {
+                saveOnQuit()   // GAP-2: save completed rounds before teardown
                 // HIGH-03: stop presence timers before dismissing so they don't fire
                 // once more after the player has already been formally removed.
                 game.stopPresenceTracking()
