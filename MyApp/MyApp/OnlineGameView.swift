@@ -302,6 +302,8 @@ struct OnlineGameView: View {
             // non-sequentially; the leaderboard Cloud Function expects ascending order.
             roundsToSend = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
         } else {
+            // Single-element array — sort is a no-op but applied for parity with
+            // the completedRounds path above so both branches produce sorted output.
             roundsToSend = [HistoryRound(
                 roundNumber: game.roundNumber,
                 dealerIndex: game.dealerIndex,
@@ -315,7 +317,7 @@ struct OnlineGameView: View {
                 offensePointsCaught: game.offensePoints,
                 defensePointsCaught: game.defensePoints,
                 runningScores: finalScores
-            )]
+            )].sorted { $0.roundNumber < $1.roundNumber }
         }
         let capturedCode = game.sessionCode
         Task {

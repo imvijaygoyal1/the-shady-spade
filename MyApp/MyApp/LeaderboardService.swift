@@ -265,10 +265,27 @@ final class LeaderboardService {
         sessionCode: String = ""
     ) async {
         lbLog.info("recordGame called mode=\(gameMode) names=\(playerNames.count) rounds=\(rounds.count) winner=\(winnerIndex)")
-        guard playerNames.count == 6,
-              let lastRound = rounds.last else {
-            lbLog.error("recordGame guard failed — names=\(playerNames.count) rounds=\(rounds.count)")
+        guard playerNames.count == 6 else {
+            lbLog.error("recordGame aborted — playerNames.count=\(playerNames.count) ≠ 6")
             return
+        }
+        guard finalScores.count == 6 else {
+            lbLog.error("recordGame aborted — finalScores.count=\(finalScores.count) ≠ 6")
+            return
+        }
+        guard rounds.allSatisfy({ $0.runningScores.count == 6 }) else {
+            lbLog.error("recordGame aborted — a HistoryRound has runningScores.count ≠ 6")
+            return
+        }
+        guard let lastRound = rounds.last else {
+            lbLog.error("recordGame aborted — rounds is empty")
+            return
+        }
+        // HIGH-01: filter out-of-range aiSeats rather than abort — the game record
+        // is valid; bad indices are a caller bug and the server already filters them.
+        let validAISeats = aiSeats.filter { (0..<6).contains($0) }
+        if validAISeats.count != aiSeats.count {
+            lbLog.warning("recordGame: dropped \(aiSeats.count - validAISeats.count) invalid aiSeat index(es)")
         }
 
         let totalDefensePts = rounds.reduce(0) { $0 + $1.defensePointsCaught }
@@ -283,7 +300,7 @@ final class LeaderboardService {
             playerNames: sanitizedNames,
             finalScores: finalScores.map { Int($0) },
             winnerIndex: Int(winnerIndex),
-            aiSeats: aiSeats.map { Int($0) },
+            aiSeats: validAISeats.map { Int($0) },
             bid: Int(lastRound.bidAmount),
             bidMade: !lastRound.isSet,
             bidderIndex: Int(lastRound.bidderIndex),

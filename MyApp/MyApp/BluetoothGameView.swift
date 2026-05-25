@@ -236,6 +236,8 @@ struct BluetoothGameView: View {
         if !game.completedRounds.isEmpty {
             rounds = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
         } else if game.highBidderIndex >= 0 && game.partner1Index >= 0 && game.partner2Index >= 0 {
+            // Single-element array — sort is a no-op but applied for parity with
+            // the completedRounds path above so both branches produce sorted output.
             rounds = [HistoryRound(
                 roundNumber: game.roundNumber,
                 dealerIndex: game.dealerIndex,
@@ -249,7 +251,7 @@ struct BluetoothGameView: View {
                 offensePointsCaught: game.offensePoints,
                 defensePointsCaught: game.defensePoints,
                 runningScores: finalScores
-            )]
+            )].sorted { $0.roundNumber < $1.roundNumber }
         } else {
             return  // no round data at all, nothing to save
         }
@@ -298,6 +300,8 @@ struct BluetoothGameView: View {
         if !game.completedRounds.isEmpty {
             roundsToSend = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
         } else if game.highBidderIndex >= 0 && game.partner1Index >= 0 && game.partner2Index >= 0 {
+            // Single-element array — sort is a no-op but applied for parity with
+            // the completedRounds path above so both branches produce sorted output.
             roundsToSend = [HistoryRound(
                 roundNumber: game.roundNumber,
                 dealerIndex: game.dealerIndex,
@@ -311,7 +315,7 @@ struct BluetoothGameView: View {
                 offensePointsCaught: game.offensePoints,
                 defensePointsCaught: game.defensePoints,
                 runningScores: finalScores
-            )]
+            )].sorted { $0.roundNumber < $1.roundNumber }
         } else {
             btLog.warning("saveBTGameHistory: no round data — bidder=\(game.highBidderIndex) p1=\(game.partner1Index) p2=\(game.partner2Index), skipping")
             return
