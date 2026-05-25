@@ -4,6 +4,8 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 // ── Profanity filter ──────────────────────────────────────────
+// IMPORTANT: Keep in sync with ProfanityFilter.swift in the iOS app.
+// Divergence causes server rejection of names that passed iOS validation.
 const PROFANITY_LIST = new Set([
   "fuck", "shit", "ass", "asshole", "bitch", "cunt", "dick",
   "cock", "pussy", "bastard", "damn", "crap", "piss", "fag",
