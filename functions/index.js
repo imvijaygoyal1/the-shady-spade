@@ -70,9 +70,11 @@ function isValidIndex(i) {
   return Number.isInteger(i) && i >= 0 && i < PLAYER_COUNT;
 }
 
-function sendError(res, status, message) {
+function sendError(res, status, message, code = null) {
   console.error("recordGame error:", status, message);
-  res.status(status).json({error: {message, status: "ERROR"}});
+  const errorBody = {error: {message, status: "ERROR"}};
+  if (code) errorBody.error.code = code;
+  res.status(status).json(errorBody);
 }
 
 // ── Cloud Function: recordGame ────────────────────────────────
@@ -159,11 +161,9 @@ exports.recordGame = onRequest(
       for (const name of playerNames) {
         if (typeof name === "string" && name.trim().length > 0) {
           if (isProfane(name)) {
-            return res.status(400).json({
-              error: "Player name contains inappropriate content.",
-              code: "PROFANITY_REJECTED",
-              field: "playerNames",
-            });
+            return sendError(res, 400,
+                "Player name contains inappropriate content.",
+                "PROFANITY_REJECTED");
           }
         }
       }
@@ -196,13 +196,16 @@ exports.recordGame = onRequest(
       const rounds = payload.rounds;
       if (Array.isArray(rounds) && rounds.length > 1) {
         const roundNums = rounds.map((r) => r.roundNumber);
-        const isSequential = roundNums.every(
-            (n, i) => i === 0 || n === roundNums[i - 1] + 1,
-        );
-        if (!isSequential) {
-          console.warn("recordGame: non-sequential round numbers",
-              JSON.stringify({roundNumbers: roundNums, sessionCode: payload.sessionCode ?? null}));
-          // Accept the record — non-sequential rounds are unusual but not corrupt.
+        // Only check sequentiality if all roundNumbers are integers
+        if (roundNums.every(Number.isInteger)) {
+          const isSequential = roundNums.every(
+              (n, i) => i === 0 || n === roundNums[i - 1] + 1,
+          );
+          if (!isSequential) {
+            console.warn("recordGame: non-sequential round numbers",
+                JSON.stringify({roundNumbers: roundNums, sessionCode: payload.sessionCode ?? null}));
+            // Accept the record — non-sequential rounds are unusual but not corrupt.
+          }
         }
       }
 
