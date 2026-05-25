@@ -159,6 +159,8 @@ final class BluetoothGameViewModel: NSObject {
     private var pendingResyncPeers: Set<MCPeerID> = []
     private var lastStateReceivedAt: Date = .distantPast
     private var staleStateCheckTask: Task<Void, Never>?
+    private var consecutiveStaleRequests: Int = 0
+    private var migrationFailureCount: Int = 0
 
     // MARK: - Action Serialisation (Issue 4)
     private var isProcessingAction = false
@@ -510,6 +512,7 @@ final class BluetoothGameViewModel: NSObject {
 
     private func becomeNewHost(newHostSlot: Int) {
         isHost = true
+        hasInitializedCalling = false  // BT-GAP-11: reset so smart defaults fire as new host
         let gs = buildGameStateDict()
         let migrationMsg: [String: Any] = [
             "type": "hostMigration",
@@ -531,6 +534,14 @@ final class BluetoothGameViewModel: NSObject {
         migrationTimeoutTask = Task { @MainActor [weak self] in
             do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { return }
             guard let self, self.isMigrating else { return }
+            self.migrationFailureCount += 1
+            // BT-GAP-12: After 3 consecutive timeouts treat the session as unrecoverable.
+            if self.migrationFailureCount >= 3 {
+                aiLog.error("[hostMigration] \(self.migrationFailureCount) consecutive failures — treating as host exit")
+                self.hostEndedGame = true
+                self.isMigrating = false
+                return
+            }
             // Elected client also crashed — re-elect excluding them
             let connectedSlots = Set(
                 (self.session?.connectedPeers ?? []).compactMap { self.peerToPlayerIndex[$0] }
@@ -569,6 +580,7 @@ final class BluetoothGameViewModel: NSObject {
         pendingHostAction = nil
         isReconnecting = false
         isMigrating = false
+        migrationFailureCount = 0  // BT-GAP-13: prevent bleed into next session
         isProcessingAction = false
         pendingActions = []
         pendingResyncPeers = []
@@ -593,6 +605,18 @@ final class BluetoothGameViewModel: NSObject {
     /// farewell alert before the session disconnects. Call before cleanup() so peers
     /// are still connected to receive it.
     func notifyHostEndedGame() {
+        // BT-GAP-01: Drain peers that missed the .gameOver broadcast before sending the
+        // farewell. Without this, a peer in pendingResyncPeers sees a raw MC disconnect
+        // on slot 0, triggers host migration instead of clean exit, and never saves.
+        if !pendingResyncPeers.isEmpty {
+            let gs = buildGameStateDict()
+            let connected = Set(session?.connectedPeers ?? [])
+            let resyncMsg: [String: Any] = ["type": "gameState", "state": gs]
+            for peer in pendingResyncPeers where connected.contains(peer) {
+                send(resyncMsg, to: peer)
+            }
+            pendingResyncPeers.removeAll()
+        }
         sendToAll(["type": "hostEndedGame"])
     }
 
@@ -892,7 +916,23 @@ final class BluetoothGameViewModel: NSObject {
             "message": message,
             "playerNames": playerNames,
             "playerAvatars": playerAvatars,
-            "aiSeats": aiSeats
+            "aiSeats": aiSeats,
+            "completedRounds": completedRounds.map { r -> [String: Any] in
+                [
+                    "roundNumber":          r.roundNumber,
+                    "dealerIndex":          r.dealerIndex,
+                    "bidderIndex":          r.bidderIndex,
+                    "bidAmount":            r.bidAmount,
+                    "trumpSuit":            r.trumpSuitRaw,
+                    "callCard1":            r.callCard1,
+                    "callCard2":            r.callCard2,
+                    "partner1Index":        r.partner1Index,
+                    "partner2Index":        r.partner2Index,
+                    "offensePointsCaught":  r.offensePointsCaught,
+                    "defensePointsCaught":  r.defensePointsCaught,
+                    "runningScores":        r.runningScores
+                ]
+            }
         ]
     }
 
@@ -900,6 +940,7 @@ final class BluetoothGameViewModel: NSObject {
 
     func applyGameState(_ gs: [String: Any]) {
         lastStateReceivedAt = Date()
+        consecutiveStaleRequests = 0
         func i(_ key: String) -> Int { (gs[key] as? Int) ?? (gs[key] as? Int64).map(Int.init) ?? 0 }
         func iDef(_ key: String, _ def: Int) -> Int { (gs[key] as? Int) ?? (gs[key] as? Int64).map(Int.init) ?? def }
 
@@ -994,6 +1035,14 @@ final class BluetoothGameViewModel: NSObject {
                             do { try await Task.sleep(nanoseconds: 15_000_000_000) } catch { return }
                             guard let self, !Task.isCancelled else { return }
                             if Date().timeIntervalSince(self.lastStateReceivedAt) > 15 {
+                                self.consecutiveStaleRequests += 1
+                                if self.consecutiveStaleRequests >= 2 {
+                                    // BT-GAP-05: Two consecutive 15s misses (30s total) with no
+                                    // host response — host likely exited without sending hostEndedGame.
+                                    aiLog.warning("[staleWatchdog] 2 consecutive misses — treating as host exit")
+                                    self.hostEndedGame = true
+                                    return
+                                }
                                 self.sendToHost(["type": "requestFullState"])
                             }
                         }
@@ -1099,10 +1148,44 @@ final class BluetoothGameViewModel: NSObject {
             humanBidAmount = Double(max(130, highBid + 5))
         }
 
+        // BT-GAP-06/09: Merge completedRounds synced from host — allows reconnecting
+        // non-host clients to recover full round history without re-playing rounds.
+        if let rawRounds = gs["completedRounds"] as? [[String: Any]] {
+            for rd in rawRounds {
+                let rn = (rd["roundNumber"] as? Int) ?? -1
+                guard rn >= 0 else { continue }
+                guard !completedRounds.contains(where: { $0.roundNumber == rn }) else { continue }
+                let rsRaw = rd["runningScores"] as? [Int] ?? Array(repeating: 0, count: 6)
+                let runScores = rsRaw.count == 6 ? rsRaw : Array(repeating: 0, count: 6)
+                let p1 = (rd["partner1Index"] as? Int) ?? -1
+                let p2 = (rd["partner2Index"] as? Int) ?? -1
+                guard p1 >= 0, p2 >= 0 else { continue }
+                completedRounds.append(HistoryRound(
+                    roundNumber: rn,
+                    dealerIndex: (rd["dealerIndex"] as? Int) ?? 0,
+                    bidderIndex: (rd["bidderIndex"] as? Int) ?? 0,
+                    bidAmount:   (rd["bidAmount"] as? Int) ?? 130,
+                    trumpSuit:   TrumpSuit(rawValue: rd["trumpSuit"] as? String ?? "") ?? .spades,
+                    callCard1:   rd["callCard1"] as? String ?? "",
+                    callCard2:   rd["callCard2"] as? String ?? "",
+                    partner1Index:       p1,
+                    partner2Index:       p2,
+                    offensePointsCaught: (rd["offensePointsCaught"] as? Int) ?? 0,
+                    defensePointsCaught: (rd["defensePointsCaught"] as? Int) ?? 0,
+                    runningScores:       runScores
+                ))
+                aiLog.info("[completedRounds] synced round=\(rn) from host")
+            }
+        }
+
         // LB4: Accumulate a HistoryRound whenever a round ends so the leaderboard
         // receives stats for every round, not just the last one.
         if (newPhase == .roundComplete || newPhase == .gameOver) {
-            if !completedRounds.contains(where: { $0.roundNumber == roundNumber }) {
+            // BT-GAP-08: Require valid partner indices — normalizing -1 to 0 falsely
+            // marks Player 0 as partner and inflates their stats. The host-synced
+            // completedRounds (above) provides correction for reconnecting clients.
+            if !completedRounds.contains(where: { $0.roundNumber == roundNumber })
+                && partner1Index >= 0 && partner2Index >= 0 {
                 completedRounds.append(HistoryRound(
                     roundNumber: roundNumber,
                     dealerIndex: dealerIndex,
@@ -1111,18 +1194,40 @@ final class BluetoothGameViewModel: NSObject {
                     trumpSuit: trumpSuit,
                     callCard1: calledCard1,
                     callCard2: calledCard2,
-                    partner1Index: partner1Index >= 0 ? partner1Index : 0,
-                    partner2Index: partner2Index >= 0 ? partner2Index : 0,
+                    partner1Index: partner1Index,
+                    partner2Index: partner2Index,
                     offensePointsCaught: offensePoints,
                     defensePointsCaught: defensePoints,
                     runningScores: runningScores
                 ))
                 let rn = roundNumber; let total = completedRounds.count
                 aiLog.info("[completedRounds] appended round=\(rn) total=\(total)")
+            } else if !completedRounds.contains(where: { $0.roundNumber == roundNumber }) {
+                let rn = roundNumber; let p1 = partner1Index; let p2 = partner2Index
+                aiLog.warning("[completedRounds] skipped round=\(rn) — invalid partner indices p1=\(p1) p2=\(p2)")
             } else {
                 let rn = roundNumber; let existing = completedRounds.map(\.roundNumber)
                 aiLog.warning("[completedRounds] duplicate blocked round=\(rn) — already in \(existing)")
             }
+        }
+
+        // BT-GAP-03: Pre-persist the record to disk at .gameOver so it survives any
+        // process suspension before the SwiftUI .task(id: game.phase) fires.
+        if newPhase == .gameOver && !gameHistorySaved && !completedRounds.isEmpty {
+            let finalScores = runningScores
+            let winner = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
+            let capturedCode = gameSessionId.isEmpty
+                ? (UserDefaults.standard.string(forKey: "bt_active_game_session_id") ?? "")
+                : gameSessionId
+            LeaderboardService.shared.preEnqueue(
+                sessionCode: capturedCode,
+                gameMode:    "Bluetooth",
+                playerNames: playerNames,
+                finalScores: finalScores,
+                winnerIndex: winner,
+                aiSeats:     aiSeats,
+                rounds:      completedRounds.sorted { $0.roundNumber < $1.roundNumber }
+            )
         }
 
         // Per-turn watchdog (host only): start a 60-second timer when a human player's

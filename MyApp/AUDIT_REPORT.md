@@ -846,10 +846,89 @@ All game phases now have landscape branches as of v1.8. Added to all 3 game mode
 
 ---
 
+## BT Leaderboard Gap Audit — 2026-05-25
+
+14 gaps identified via end-to-end analysis of the BT leaderboard save flow
+(MultipeerConnectivity → BluetoothGameViewModel → LeaderboardService → Cloud Function).
+Primary root cause: `pendingResyncPeers` not drained before farewell notification, causing
+non-host clients to miss both the `.gameOver` state and the `hostEndedGame` message.
+
+### BT-GAP-01 — pendingResyncPeers not drained before farewell
+- **File:** `BluetoothGameViewModel.swift` — `notifyHostEndedGame()`
+- **Issue:** Bare `sendToAll(["type": "hostEndedGame"])` skips peers in `pendingResyncPeers`. They miss the `.gameOver` state, trigger host migration instead of clean exit, and never save.
+- **Status:** ✅ Fixed (2026-05-25) — drain `pendingResyncPeers` with current game state before sending hostEndedGame.
+
+### BT-GAP-02 — Host cleanup delay insufficient for MC delivery
+- **File:** `BluetoothGameView.swift` (3 locations)
+- **Issue:** 400ms delay before `cleanup()` → `session.disconnect()` is too short for MC `.reliable` delivery on congested links.
+- **Status:** ✅ Fixed (2026-05-25) — delay increased to 2000ms in all three quit paths.
+
+### BT-GAP-03 — Save intent not persisted until async Task fires
+- **File:** `LeaderboardService.swift` (new `preEnqueue()`), `BluetoothGameViewModel.swift` (`applyGameState()`)
+- **Issue:** `enqueue()` is called from the async `recordGame()`, launched by a SwiftUI `.task(id: game.phase)`. A process suspension in the sub-second window between `applyGameState()` setting `.gameOver` and the Task body executing permanently loses the record.
+- **Status:** ✅ Fixed (2026-05-25) — `preEnqueue()` called synchronously from `applyGameState()` at `.gameOver`; `enqueue()` replaces-on-duplicate so the caller's id is correct for removal.
+
+### BT-GAP-04 — 400ms delay duplicated across three quit paths
+- **File:** `BluetoothGameView.swift`
+- **Issue:** Same root cause as BT-GAP-02; three identical sites.
+- **Status:** ✅ Fixed (2026-05-25) — consolidated with BT-GAP-02 fix.
+
+### BT-GAP-05 — Stale-state watchdog doesn't infer host exit
+- **File:** `BluetoothGameViewModel.swift` — stale-state watchdog
+- **Issue:** If the host process is killed without sending `hostEndedGame`, non-host clients wait 15s, send `requestFullState`, get no response, forever. They never save and are stuck.
+- **Status:** ✅ Fixed (2026-05-25) — `consecutiveStaleRequests` counter; 2 consecutive misses (30s) → `hostEndedGame = true`.
+
+### BT-GAP-06 — `completedRounds` absent from `buildGameStateDict()`
+- **File:** `BluetoothGameViewModel.swift` — `buildGameStateDict()`
+- **Issue:** Reconnecting non-host clients start with empty `completedRounds`. Their first-write-wins Firestore submission has `roundCount: 1` (synthetic), corrupting the canonical record.
+- **Status:** ✅ Fixed (2026-05-25) — serialize `completedRounds` in `buildGameStateDict()`; merge in `applyGameState()`.
+
+### BT-GAP-07 — `saveOnQuit()` guard blocks non-host mid-game saves
+- **File:** `BluetoothGameView.swift` — `saveOnQuit()`
+- **Issue:** `if !game.isHost && game.phase != .gameOver { return }` discards a non-host's accumulated `completedRounds` when they quit mid-game (e.g. after 3 of 5 rounds).
+- **Status:** ✅ Fixed (2026-05-25) — guard relaxed: allow save if `!completedRounds.isEmpty`.
+
+### BT-GAP-08 — Partner index -1 normalized to 0 in completedRounds append
+- **File:** `BluetoothGameViewModel.swift` — `applyGameState()`
+- **Issue:** `partner1Index >= 0 ? partner1Index : 0` maps unresolved partner slot to Player 0, inflating Player 0's stats.
+- **Status:** ✅ Fixed (2026-05-25) — guard `partner1Index >= 0 && partner2Index >= 0` before local append; host-synced data provides correction for reconnecting clients.
+
+### BT-GAP-09 — Reconnecting clients get stale `completedRounds`
+- **File:** `BluetoothGameViewModel.swift` — `applyGameState()`
+- **Issue:** Merge path from host was missing; reconnecting clients only got real-time phase/scores.
+- **Status:** ✅ Fixed (2026-05-25) — consolidated with BT-GAP-06 fix.
+
+### BT-GAP-10 — `consecutiveStaleRequests` not reset on state receipt
+- **File:** `BluetoothGameViewModel.swift` — `applyGameState()`
+- **Issue:** Without reset, a peer that recovers after one missed tick still triggers the host-exit path on the second.
+- **Status:** ✅ Fixed (2026-05-25) — `consecutiveStaleRequests = 0` at top of `applyGameState()`.
+
+### BT-GAP-11 — `becomeNewHost()` doesn't reset `hasInitializedCalling`
+- **File:** `BluetoothGameViewModel.swift` — `becomeNewHost()`
+- **Issue:** Migration during calling phase leaves `hasInitializedCalling = true`; new host skips smart-calling-defaults.
+- **Status:** ✅ Fixed (2026-05-25) — `hasInitializedCalling = false` added at top of `becomeNewHost()`.
+
+### BT-GAP-12 — Host migration never times out permanently
+- **File:** `BluetoothGameViewModel.swift` — `startMigrationTimeout()`
+- **Issue:** `startMigrationTimeout` re-elects indefinitely when no viable host exists; game is stuck in `isMigrating = true` and never saves.
+- **Status:** ✅ Fixed (2026-05-25) — `migrationFailureCount`; after 3 failures → `hostEndedGame = true`.
+
+### BT-GAP-13 — `migrationFailureCount` not reset in `cleanup()`
+- **File:** `BluetoothGameViewModel.swift` — `cleanup()`
+- **Issue:** Stale count from previous session causes premature `hostEndedGame` after 1 migration attempt in the next session.
+- **Status:** ✅ Fixed (2026-05-25) — `migrationFailureCount = 0` in `cleanup()`.
+
+### BT-GAP-14 — `enqueue()` keeps old record on duplicate (wrong id)
+- **File:** `LeaderboardService.swift` — `enqueue()`
+- **Issue:** `preEnqueue()` stores record A; `recordGame()` builds record B (same dedup key, different UUID); `enqueue()` keeps A; `removeFromQueue(id: B.id)` removes nothing; A stays in queue → double-send on next flush.
+- **Status:** ✅ Fixed (2026-05-25) — `enqueue()` replaces existing record rather than skipping.
+
+---
+
 ## Open Items
 
 | Item | Priority | Notes |
 |---|---|---|
 | v1.8 App Store review | — | Submitted 2026-04-28; verify current status in App Store Connect. |
-| v1.9 submission | — | All v4 + v5 findings complete. Confirm with user before incrementing version. |
+| v1.9 submission | — | All v4 + v5 + BT-GAP findings complete. Confirm with user before incrementing version. |
 

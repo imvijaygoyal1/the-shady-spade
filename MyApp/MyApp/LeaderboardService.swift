@@ -416,17 +416,60 @@ final class LeaderboardService {
 
     private func enqueue(_ record: PendingGameRecord) {
         var records = loadPendingRecords()
-        // #10: skip exact duplicates (e.g. onChange retry race before gameHistorySaved is set)
-        guard !records.contains(where: { $0.deduplicationKey == record.deduplicationKey }) else {
-            lbLog.warning("enqueue: duplicate skipped id=\(record.id)")
-            // LOW-02: treat a duplicate as already-queued so the UI doesn't stay on .saving
-            scoreSaveStatus = .saved
+        if let existingIdx = records.firstIndex(where: { $0.deduplicationKey == record.deduplicationKey }) {
+            // BT-GAP-14: Replace the existing record with the newer one so the caller's
+            // UUID (pending.id) matches what is stored. If we kept the old UUID,
+            // removeFromQueue(id: pending.id) after a successful send would remove nothing
+            // and the pre-enqueued record would accumulate in the queue forever.
+            lbLog.info("enqueue: replacing existing record id=\(records[existingIdx].id) → \(record.id)")
+            records[existingIdx] = record
+            savePendingRecords(records)
             return
         }
         records.append(record)
         // #9: cap queue to prevent unbounded UserDefaults growth; evict oldest
         if records.count > 100 { records = Array(records.suffix(100)) }
         savePendingRecords(records)
+    }
+
+    /// Persists a game record to the offline queue WITHOUT triggering an HTTP send.
+    /// Call from synchronous game-state handlers (e.g. applyGameState at .gameOver) so
+    /// the record survives a process suspension before the normal async recordGame() path
+    /// runs. When recordGame() is subsequently called, enqueue() replaces this record
+    /// (same deduplicationKey) and removeFromQueue(id:) uses the correct UUID.
+    func preEnqueue(
+        sessionCode: String,
+        gameMode: String,
+        playerNames: [String],
+        finalScores: [Int],
+        winnerIndex: Int,
+        aiSeats: [Int] = [],
+        rounds: [HistoryRound]
+    ) {
+        guard playerNames.count == 6, finalScores.count == 6 else { return }
+        guard rounds.allSatisfy({ $0.runningScores.count == 6 }), let lastRound = rounds.last else { return }
+        let validAISeats = aiSeats.filter { (0..<6).contains($0) }
+        let totalDefensePts = rounds.reduce(0) { $0 + $1.defensePointsCaught }
+        let sanitizedNames = playerNames.enumerated().map { (i, name) in
+            ProfanityFilter.isProfane(name) ? "Guest \(i + 1)" : name
+        }
+        let pending = PendingGameRecord(
+            sessionCode: sessionCode.isEmpty ? nil : sessionCode,
+            gameMode: gameMode,
+            playerNames: sanitizedNames,
+            finalScores: finalScores.map { Int($0) },
+            winnerIndex: Int(winnerIndex),
+            aiSeats: validAISeats.map { Int($0) },
+            bid: Int(lastRound.bidAmount),
+            bidMade: !lastRound.isSet,
+            bidderIndex: Int(lastRound.bidderIndex),
+            partner1Index: Int(lastRound.partner1Index),
+            partner2Index: Int(lastRound.partner2Index),
+            defensePointsCaught: Int(totalDefensePts),
+            roundCount: Int(rounds.count)
+        )
+        enqueue(pending)
+        lbLog.info("preEnqueue: persisted to disk — \(gameMode) sessionCode=\(sessionCode.isEmpty ? "none" : sessionCode) rounds=\(rounds.count)")
     }
 
     private func flushPendingRecords() async {

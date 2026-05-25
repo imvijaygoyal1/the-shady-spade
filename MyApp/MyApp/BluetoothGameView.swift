@@ -46,7 +46,7 @@ struct BluetoothGameView: View {
                     if game.isHost {
                         game.notifyHostEndedGame()
                         Task {
-                            try? await Task.sleep(nanoseconds: 400_000_000)
+                            do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch {}
                             game.cleanup()
                             dismiss()
                         }
@@ -61,7 +61,7 @@ struct BluetoothGameView: View {
                     if game.isHost {
                         game.notifyHostEndedGame()
                         Task {
-                            try? await Task.sleep(nanoseconds: 400_000_000)
+                            do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch {}
                             game.cleanup()
                             dismiss()
                         }
@@ -94,7 +94,7 @@ struct BluetoothGameView: View {
                 if game.isHost {
                     game.notifyHostEndedGame()
                     Task {
-                        try? await Task.sleep(nanoseconds: 400_000_000)
+                        do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch {}
                         game.cleanup()
                         dismiss()
                     }
@@ -231,7 +231,9 @@ struct BluetoothGameView: View {
         btLog.info("saveOnQuit: triggered isHost=\(game.isHost) phase=\(game.phase.rawValue) alreadySaved=\(game.gameHistorySaved)")
         // Non-hosts can save at game-over (full final state synced via MC).
         // Mid-game quits are host-only — non-hosts don't drive game logic.
-        if !game.isHost && game.phase != .gameOver { return }
+        // BT-GAP-07: Allow non-host to save accumulated completed rounds even when
+        // not at .gameOver — covers mid-game quit after e.g. 3 of 5 rounds.
+        if !game.isHost && game.phase != .gameOver && game.completedRounds.isEmpty { return }
         guard !game.gameHistorySaved else { return }
         let finalScores = game.runningScores
         // Use accumulated rounds; fall back to synthetic round if an MC snapshot
