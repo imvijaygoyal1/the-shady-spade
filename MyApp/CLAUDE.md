@@ -6,6 +6,8 @@
 ## v1.9 Changelog
 > Changes made after v1.8 App Store submission (April 28, 2026). Add entries here as changes are implemented.
 
+- [2026-05-25] Fix GAP-1 — Solo/P&P `.onDisappear` now saves completed rounds if `soloGameSaved` is still false and at least one round was completed. Covers system-level dismissal of the fullScreenCover (memory pressure, navigation). Sheets presented over the cover do not trigger `.onDisappear` on it, so this is safe. (`ComputerGameView.swift`)
+
 - [2026-05-25] Fix GAP-2/GAP-3 in OnlineGameView — (1) **GAP-2:** Added `saveOnQuit()` to "Removed from Game" alert OK handler before `stopPresenceTracking()` — removed players' completed rounds were previously lost; `saveOnQuit()` returns early for non-hosts mid-game so this is safe. (2) **GAP-3:** Added `saveOnQuit()` to `.onDisappear` as last-resort save on system dismiss. (`OnlineGameView.swift`)
 
 - [2026-05-25] Fix GAP-4/GAP-5/RED-1 in BluetoothGameView — (1) **GAP-4:** Added `saveOnQuit()` to "Game Ended" alert OK handler — non-host completed rounds were lost when the host ended the game; `saveOnQuit()` guards `phase == .gameOver` for non-hosts so this is safe. (2) **GAP-5:** Added `saveOnQuit()` to `.onDisappear` as last-resort save on system dismiss; `gameHistorySaved` flag prevents double-saves. (3) **RED-1:** Removed redundant `.onAppear { saveBTGameHistory() }` from `BTGameOverView` — `.task(id: game.phase)` at the root already handles this save. (`BluetoothGameView.swift`)

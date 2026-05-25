@@ -169,7 +169,16 @@ struct ComputerGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: game.isPassingDevice)
-        .onDisappear { game.cancelAllContinuationsIfNeeded() }
+        .onDisappear {
+            // GAP-1: last-resort save if system dismisses the fullScreenCover.
+            // Sheets presented over the cover don't trigger this, so it's safe.
+            if !soloGameSaved && !savedHistoryRounds.isEmpty {
+                soloGameSaved = true
+                let mode = game.isPassAndPlay ? "PassAndPlay" : (game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer")
+                saveGameHistory(finalScores: runningScores, mode: mode)
+            }
+            game.cancelAllContinuationsIfNeeded()
+        }
         // Quit button — top-right safe area, above all content
         .overlay(alignment: .topTrailing) {
             let activePhase = !isGameOver && game.phase != .roundComplete
