@@ -74,7 +74,7 @@ struct MyAppApp: App {
         let roomCode = parts[joinIndex + 1]
         guard !roomCode.isEmpty else { return }
         guard roomCode.count == 6,
-              roomCode.allSatisfy({ $0.isLetter || $0.isNumber }) else { return }
+              roomCode.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return }
         // Store for cold-start deep link (CreateOrJoinView reads this on appear)
         DeepLinkManager.shared.pendingJoinCode = roomCode
         // Also notify in case CreateOrJoinView is already mounted (foreground tap)

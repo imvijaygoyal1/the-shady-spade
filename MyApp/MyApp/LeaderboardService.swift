@@ -124,6 +124,10 @@ final class LeaderboardService {
     private var networkMonitor: NWPathMonitor?
 
     private let pendingKey = "leaderboard_pending_records_v1"
+    private var pendingRecordsFileURL: URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return support.appendingPathComponent("leaderboard_pending_v1.json")
+    }
     private let cloudRunURL = URL(string: "https://us-central1-shadyspade-d6b84.cloudfunctions.net/recordGame")!
     private var isFlushing = false
 
@@ -479,15 +483,31 @@ final class LeaderboardService {
     }
 
     private func loadPendingRecords() -> [PendingGameRecord] {
-        guard let data = UserDefaults.standard.data(forKey: pendingKey),
-              let records = try? JSONDecoder().decode([PendingGameRecord].self, from: data)
-        else { return [] }
-        return records
+        let url = pendingRecordsFileURL
+        if let data = try? Data(contentsOf: url),
+           let records = try? JSONDecoder().decode([PendingGameRecord].self, from: data) {
+            return records
+        }
+        // Migrate from UserDefaults (legacy storage) on first load.
+        if let data = UserDefaults.standard.data(forKey: pendingKey),
+           let records = try? JSONDecoder().decode([PendingGameRecord].self, from: data) {
+            savePendingRecords(records)
+            UserDefaults.standard.removeObject(forKey: pendingKey)
+            return records
+        }
+        return []
     }
 
     private func savePendingRecords(_ records: [PendingGameRecord]) {
-        if let data = try? JSONEncoder().encode(records) {
-            UserDefaults.standard.set(data, forKey: pendingKey)
+        guard let data = try? JSONEncoder().encode(records) else { return }
+        let url = pendingRecordsFileURL
+        do {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            try data.write(to: url, options: [.atomic, .completeFileProtectionUnlessOpen])
+        } catch {
+            lbLog.error("LeaderboardService: failed to save pending records: \(error.localizedDescription)")
         }
     }
 }

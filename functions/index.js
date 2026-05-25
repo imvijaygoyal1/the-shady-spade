@@ -64,7 +64,7 @@ function calculateScores(bid, bidMade, bidderIndex,
 function isValidName(name) {
   if (!name || typeof name !== "string") return false;
   const trimmed = name.trim();
-  if (trimmed.length === 0) return false;
+  if (trimmed.length === 0 || trimmed.length > 30) return false;
   return true;
 }
 
@@ -81,7 +81,7 @@ function sendError(res, status, message, code = null) {
 
 // ── Cloud Function: recordGame ────────────────────────────────
 exports.recordGame = onRequest(
-    {cors: true},
+    {cors: ["https://shadyspade-d6b84.web.app", "https://shadyspade-d6b84.firebaseapp.com"]},
     async (req, res) => {
       console.log("recordGame: invoked, method=", req.method);
 
@@ -108,7 +108,7 @@ exports.recordGame = onRequest(
       // ── Extract payload (supports both raw body and {data:…} wrapper) ──
       const body = req.body || {};
       const payload = body.data || body;
-      console.log("recordGame: payload=", JSON.stringify(payload));
+      console.log("recordGame: mode=", payload.gameMode, "uid=", uid);
 
       const {
         gameMode,
@@ -159,9 +159,13 @@ exports.recordGame = onRequest(
             `Exactly 6 player names required, got ${playerNames?.length}.`);
       }
 
-      // ── Check playerNames for profanity ───────────────────
+      // ── Check playerNames for length and profanity ────────
       for (const name of playerNames) {
         if (typeof name === "string" && name.trim().length > 0) {
+          if (name.trim().length > 30) {
+            return sendError(res, 400,
+                "Player name exceeds maximum length of 30 characters.");
+          }
           if (isProfane(name)) {
             return sendError(res, 400,
                 "Player name contains inappropriate content.",
@@ -189,7 +193,7 @@ exports.recordGame = onRequest(
 
       // ── Validate roundCount ────────────────────────────────
       if (!Number.isInteger(roundCount) ||
-          roundCount < 1 || roundCount > 200) {
+          roundCount < 1 || roundCount > 20) {
         return sendError(res, 400,
             `Invalid roundCount: ${roundCount}.`);
       }

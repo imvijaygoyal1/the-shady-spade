@@ -214,6 +214,10 @@ enum SessionStatus: String {
     /// Writes the prepared session to Firestore and attaches the listener.
     /// Call this after `prepareLocalSession` (and after setting `showingLobby = true`).
     func writeSessionToFirebase() async {
+        // Refresh with real Firebase UID — anon sign-in may complete after prepareLocalSession ran.
+        if let realUID = Auth.auth().currentUser?.uid {
+            pendingUID = realUID
+        }
         let code = await findUniqueRoomCode()
         sessionCode = code
         let slotsData = playerSlots.map { slot -> [String: Any] in

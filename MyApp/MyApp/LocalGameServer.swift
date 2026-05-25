@@ -51,6 +51,8 @@ final class LocalGameServer: @unchecked Sendable {
     // MARK: - Private
 
     private var listener: NWListener?
+    private var activeConnections = 0
+    private let maxConnections = 5
 
     // MARK: - Lifecycle
 
@@ -70,8 +72,18 @@ final class LocalGameServer: @unchecked Sendable {
         }
 
         l.newConnectionHandler = { [weak self] conn in
+            guard let self else { conn.cancel(); return }
+            let count = self.lock.withLock { () -> Int in
+                self.activeConnections += 1
+                return self.activeConnections
+            }
+            guard count <= self.maxConnections else {
+                self.lock.withLock { self.activeConnections -= 1 }
+                conn.cancel()
+                return
+            }
             conn.start(queue: .global(qos: .background))
-            self?.serve(conn)
+            self.serve(conn)
         }
 
         l.start(queue: .global(qos: .background))
@@ -87,10 +99,17 @@ final class LocalGameServer: @unchecked Sendable {
 
     private func serve(_ conn: NWConnection) {
         conn.receive(minimumIncompleteLength: 1, maximumLength: 8192) { [weak self] data, _, _, _ in
-            guard let self, let data, !data.isEmpty else { conn.cancel(); return }
+            guard let self, let data, !data.isEmpty else {
+                self?.lock.withLock { self?.activeConnections -= 1 }
+                conn.cancel()
+                return
+            }
             let req = String(data: data, encoding: .utf8) ?? ""
             conn.send(content: self.buildResponse(for: req),
-                      completion: .contentProcessed { _ in conn.cancel() })
+                      completion: .contentProcessed { [weak self] _ in
+                          self?.lock.withLock { self?.activeConnections -= 1 }
+                          conn.cancel()
+                      })
         }
     }
 

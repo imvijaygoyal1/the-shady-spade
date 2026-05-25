@@ -39,10 +39,14 @@ service cloud.firestore {
     }
 
     function isJoiningEmptySlot(oldSlots, newSlots, uid) {
-      return (newSlots[0].uid == uid || newSlots[1].uid == uid ||
-              newSlots[2].uid == uid || newSlots[3].uid == uid ||
-              newSlots[4].uid == uid || newSlots[5].uid == uid)
-        && !isPlayerInSession(oldSlots, uid);
+      return !isPlayerInSession(oldSlots, uid) && (
+        (newSlots[0].uid == uid && !oldSlots[0].joined) ||
+        (newSlots[1].uid == uid && !oldSlots[1].joined) ||
+        (newSlots[2].uid == uid && !oldSlots[2].joined) ||
+        (newSlots[3].uid == uid && !oldSlots[3].joined) ||
+        (newSlots[4].uid == uid && !oldSlots[4].joined) ||
+        (newSlots[5].uid == uid && !oldSlots[5].joined)
+      );
     }
 
     match /{document=**} {
