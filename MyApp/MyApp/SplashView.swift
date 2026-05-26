@@ -51,10 +51,8 @@ private struct SplashPage: View {
     @State private var spadeOpacity: Double = 0
     @State private var spadeScale:  CGFloat = 1.0
     // Aura
-    @State private var auraScale:   CGFloat = 0.6
     @State private var auraOpacity: Double  = 0
-    // Title shimmer
-    @State private var shimmer:     CGFloat = -0.4
+    @State private var auraPulsing: Bool    = false
     // Staggered content
     @State private var subtitleOp:  Double = 0
     @State private var rulesOp:     Double = 0
@@ -116,71 +114,135 @@ private struct SplashPage: View {
                     endRadius: 110
                 )
                 .frame(width: 220, height: 220)
-                .scaleEffect(auraScale)
-                .opacity(auraOpacity)
+                .scaleEffect(auraPulsing ? 1.25 : 1.0)
+                .opacity(auraOpacity * (auraPulsing ? 0.5 : 1.0))
+                .animation(.easeOut(duration: 0.8), value: auraOpacity)
+                .animation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true), value: auraPulsing)
                 .position(x: geo.size.width / 2, y: geo.size.height * 0.265)
 
                 // ── Main content ─────────────────────────────────────────
-                VStack(spacing: 0) {
-                    Spacer()
+                GameAdaptiveLayout(
+                    portrait: {
+                        VStack(spacing: 0) {
+                            Spacer()
 
-                    // Spade logo — 120pt gold, thick black shadow offset 4pt
-                    Text("♠")
-                        .font(.system(size: 120, weight: .black))
-                        .foregroundStyle(Comic.yellow)
-                        .shadow(color: Comic.black, radius: 0, x: 4, y: 4)
-                        .shadow(color: Comic.black.opacity(0.3), radius: 0, x: 8, y: 8)
-                        .offset(y: spadeY)
-                        .opacity(spadeOpacity)
-                        .scaleEffect(spadeScale)
+                            // Spade logo — 120pt gold, thick black shadow offset 4pt
+                            Text("♠")
+                                .font(.system(size: 120, weight: .black))
+                                .foregroundStyle(Comic.yellow)
+                                .shadow(color: Comic.black, radius: 0, x: 4, y: 4)
+                                .shadow(color: Comic.black.opacity(0.3), radius: 0, x: 8, y: 8)
+                                .offset(y: spadeY)
+                                .opacity(spadeOpacity)
+                                .scaleEffect(spadeScale)
+                                .animation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true), value: spadeScale)
 
-                    Spacer().frame(height: 18)
+                            Spacer().frame(height: 18)
 
-                    // Title — black outline text effect
-                    Text("The Shady Spade")
-                        .font(.system(size: 34, weight: .black, design: .default))
-                        .foregroundStyle(Comic.textPrimary)
-                        .shadow(color: Comic.black.opacity(0.25), radius: 0, x: 2, y: 2)
+                            // Title — black outline text effect
+                            Text("The Shady Spade")
+                                .font(.system(size: 34, weight: .black, design: .default))
+                                .foregroundStyle(Comic.textPrimary)
+                                .shadow(color: Comic.black.opacity(0.25), radius: 0, x: 2, y: 2)
 
-                    Spacer().frame(height: 6)
+                            Spacer().frame(height: 6)
 
-                    // Subtitle — bold
-                    Text("6-Player Secret Partner Card Game")
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Comic.textSecondary)
-                        .opacity(subtitleOp)
+                            // Subtitle — bold
+                            Text("6-Player Secret Partner Card Game")
+                                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.textSecondary)
+                                .opacity(subtitleOp)
 
-                    Spacer().frame(height: 36)
+                            Spacer().frame(height: 36)
 
-                    // Rules card
-                    rulesCard
-                        .opacity(rulesOp)
-                        .offset(y: rulesY)
+                            // Rules card
+                            rulesCard
+                                .opacity(rulesOp)
+                                .offset(y: rulesY)
 
-                    Spacer().frame(height: 28)
+                            Spacer().frame(height: 28)
 
-                    // Creator
-                    VStack(spacing: 5) {
-                        Text("CREATED BY")
-                            .font(.system(size: 10, weight: .semibold))
-                            .kerning(2.5)
-                            .foregroundStyle(Comic.textSecondary.opacity(0.7))
-                        Text("Vijay Goyal")
-                            .font(.title3.bold())
-                            .foregroundStyle(Comic.textPrimary)
+                            // Creator
+                            VStack(spacing: 5) {
+                                Text("CREATED BY")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .kerning(2.5)
+                                    .foregroundStyle(Comic.textSecondary.opacity(0.7))
+                                Text("Vijay Goyal")
+                                    .font(.title3.bold())
+                                    .foregroundStyle(Comic.textPrimary)
+                            }
+                            .opacity(creatorOp)
+                            .padding(.bottom, 28)
+
+                            // CTA
+                            VStack(spacing: 12) {
+                                goldButton(label: "Let's Play", icon: "arrow.right.circle.fill", action: { onSkip?() })
+                                    .padding(.horizontal, 32)
+                            }
+                            .padding(.bottom, 54)
+                            .opacity(buttonOp)
+                            .scaleEffect(buttonOp == 1 ? 1 : 0.92)
+                        }
+                    },
+                    landscape: {
+                        HStack(spacing: 0) {
+                            // LEFT PANEL — brand identity
+                            VStack(spacing: 8) {
+                                Spacer()
+
+                                Text("♠")
+                                    .font(.system(size: 52, weight: .black))
+                                    .foregroundStyle(Comic.yellow)
+                                    .shadow(color: .black.opacity(0.5), radius: 0, x: 3, y: 4)
+
+                                Text("The Shady\nSpade")
+                                    .font(.system(size: 22, weight: .black))
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(Comic.textPrimary)
+                                    .shadow(color: .black.opacity(0.3), radius: 0, x: 2, y: 2)
+
+                                Text("6-Player Secret Partner Card Game")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(Comic.yellow)
+                                    .multilineTextAlignment(.center)
+
+                                Spacer()
+
+                                VStack(spacing: 1) {
+                                    Text("CREATED BY")
+                                        .font(.system(size: 7.5, weight: .bold))
+                                        .foregroundStyle(Comic.textPrimary.opacity(0.3))
+                                        .kerning(1.5)
+                                    Text("Vijay Goyal")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(Comic.textPrimary.opacity(0.75))
+                                }
+                                .padding(.bottom, 14)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Comic.containerBG.opacity(0.85))
+
+                            Rectangle()
+                                .fill(Comic.containerBorder)
+                                .frame(width: 1)
+
+                            // RIGHT PANEL — rules card + CTA
+                            VStack(spacing: 10) {
+                                rulesCard
+                                    .frame(maxHeight: .infinity)
+
+                                goldButton(
+                                    label: "Let's Play",
+                                    icon: "arrow.right.circle.fill"
+                                ) { onSkip?() }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 14)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
                     }
-                    .opacity(creatorOp)
-                    .padding(.bottom, 28)
-
-                    // CTA
-                    VStack(spacing: 12) {
-                        goldButton(label: "Let's Play", icon: "arrow.right.circle.fill", action: { onSkip?() })
-                            .padding(.horizontal, 32)
-                    }
-                    .padding(.bottom, 54)
-                    .opacity(buttonOp)
-                    .scaleEffect(buttonOp == 1 ? 1 : 0.92)
-                }
+                )
             }
         }
         .onAppear { startAnimations() }
@@ -234,21 +296,11 @@ private struct SplashPage: View {
         withAnimation(.spring(response: 0.65, dampingFraction: 0.52)) {
             spadeY = 0; spadeOpacity = 1
         }
-        // Spade subtle pulse after landing
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
-            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) {
-                spadeScale = 1.055
-            }
-        }
-        // Aura pulses in
-        withAnimation(.easeOut(duration: 0.8).delay(0.35)) { auraOpacity = 1 }
-        withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true).delay(0.35)) {
-            auraScale = 1.25; auraOpacity = 0.5
-        }
-        // Shimmer sweeps — delayed then repeats
-        withAnimation(.linear(duration: 2.8).repeatForever(autoreverses: false).delay(0.9)) {
-            shimmer = 1.4
-        }
+        // Spade pulse — scoped to the spade view via .animation(value: spadeScale)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { spadeScale = 1.055 }
+        // Aura fade-in then pulse — both scoped to the RadialGradient via .animation(value:)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { auraOpacity = 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.15) { auraPulsing = true }
         // Subtitle
         withAnimation(.easeOut(duration: 0.5).delay(0.55)) { subtitleOp = 1 }
         // Rules card slides up
