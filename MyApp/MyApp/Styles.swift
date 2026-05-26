@@ -1910,24 +1910,30 @@ struct BiddingTwoColumnLayout: View {
                             isSubmittingBid = false
                         }
                     } label: {
-                        HStack(spacing: 6) {
-                            if isSubmittingBid {
-                                ProgressView().tint(Comic.black).scaleEffect(0.8)
+                        ZStack {
+                            // Pulsing green layer scoped to this leaf — never reaches the Button's gesture recognizer
+                            Color(red: 0.29, green: 0.87, blue: 0.50)
+                                .opacity(bidPulse ? 1 : 0)
+                                .animation(.easeInOut(duration: 0.65).repeatForever(autoreverses: true), value: bidPulse)
+                                .allowsHitTesting(false)
+                            HStack(spacing: 6) {
+                                if isSubmittingBid {
+                                    ProgressView().tint(Comic.black).scaleEffect(0.8)
+                                }
+                                Text(isSubmittingBid ? "Placing…" : "Bid \(Int(humanBidAmount))")
+                                    .font(.system(size: 15, weight: .black, design: .rounded))
+                                    .foregroundStyle(Comic.black)
                             }
-                            Text(isSubmittingBid ? "Placing…" : "Bid \(Int(humanBidAmount))")
-                                .font(.system(size: 15, weight: .black, design: .rounded))
-                                .foregroundStyle(Comic.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
                     }
                     .buttonStyle(ComicButtonStyle(
-                        bg: bidPulse ? Color(red: 0.29, green: 0.87, blue: 0.50) : Comic.yellow,
+                        bg: Comic.yellow,
                         fg: Comic.black,
-                        borderColor: bidPulse ? Color(red: 0.18, green: 0.62, blue: 0.34) : Comic.black))
-                    .shadow(color: Color(red: 0.29, green: 0.87, blue: 0.50).opacity(bidPulse ? 0.65 : 0),
+                        borderColor: Comic.black))
+                    .shadow(color: Color(red: 0.29, green: 0.87, blue: 0.50).opacity(0.5),
                             radius: 12, x: 0, y: 0)
-                    .animation(.easeInOut(duration: 0.65).repeatForever(autoreverses: true), value: bidPulse)
                     .disabled(isSubmittingBid)
                     .onAppear { bidPulse = true }
 

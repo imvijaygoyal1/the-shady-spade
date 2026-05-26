@@ -29,7 +29,6 @@ struct PlayerScoreBarChart: View {
 
     let players: [PlayerScoreEntry]   // caller sorts descending by score
     let title: String
-    var targetScore: Int = 500
 
     @State private var selectedEntry: PlayerScoreEntry? = nil
 
@@ -37,9 +36,9 @@ struct PlayerScoreBarChart: View {
         themeManager.currentTheme.colours(for: colorScheme).accentColor
     }
 
-    /// Scale bars against max(highest score, 25% of target) so short early-game bars aren't invisible.
+    /// Scale bars against highest score among all players.
     private var maxScore: Int {
-        max(players.map { max($0.score, 0) }.max() ?? 1, targetScore / 4)
+        max(players.map { max($0.score, 0) }.max() ?? 1, 1)
     }
 
     var body: some View {

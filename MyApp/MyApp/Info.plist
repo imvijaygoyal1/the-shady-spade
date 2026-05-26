@@ -15,5 +15,12 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>The Shady Spade uses local networking to find nearby players for Bluetooth/local multiplayer games.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_shady-spade._tcp</string>
+		<string>_shady-spade._udp</string>
+	</array>
 </dict>
 </plist>
