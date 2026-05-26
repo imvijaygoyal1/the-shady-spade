@@ -275,6 +275,7 @@ struct PlayerTurnGlowModifier: ViewModifier {
                             : .default,
                         value: pulsing
                     )
+                    .allowsHitTesting(false)
             )
             .onChange(of: isActive) { _, active in
                 pulsing = active

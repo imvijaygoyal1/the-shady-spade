@@ -662,6 +662,7 @@ struct LiveDot: View {
             .shadow(color: green.opacity(pulse ? 0.85 : 0.25), radius: pulse ? 6 : 2)
             .scaleEffect(pulse ? 1.4 : 1.0)
             .animation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true), value: pulse)
+            .allowsHitTesting(false)
             .onAppear { pulse = true }
     }
 }
@@ -1031,6 +1032,7 @@ struct AvatarRoleCard: View {
                         )
                         .padding(-3)
                         .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: glowPulse)
+                        .allowsHitTesting(false)
                 }
             }
         )

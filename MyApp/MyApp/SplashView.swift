@@ -602,6 +602,7 @@ private struct DeckAndDealPage: View {
             .position(card.arrived ? dest : src)
             .opacity(card.arrived ? 0 : 1)
             .animation(.spring(response: 0.32, dampingFraction: 0.72), value: card.arrived)
+            .allowsHitTesting(false)
     }
 
     // MARK: Action button
