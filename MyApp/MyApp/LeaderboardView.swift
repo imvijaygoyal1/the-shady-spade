@@ -406,7 +406,7 @@ private struct GameLogCard: View {
                     .foregroundStyle(.defenseRose)
                     .frame(width: 52, alignment: .leading)
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(entry.defenseNames, id: \.self) { name in
+                    ForEach(Array(entry.defenseNames.enumerated()), id: \.offset) { _, name in
                         Text(name)
                             .font(.system(size: 12, weight: .bold,
                                 design: .rounded))

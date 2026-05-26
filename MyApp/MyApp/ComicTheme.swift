@@ -250,7 +250,7 @@ extension Comic {
         "Arjun", "Rohan", "Vikram", "Karan", "Rahul", "Aditya", "Nikhil", "Siddharth", "Pranav", "Arnav",
         "Ishaan", "Kabir", "Dhruv", "Varun", "Shiv", "Dev", "Ravi", "Ankit", "Kunal", "Vivek",
         "Priya", "Ananya", "Divya", "Kavya", "Shreya", "Pooja", "Neha", "Riya", "Isha", "Aditi",
-        "Meera", "Nisha", "Sana", "Pari", "Zara", "Tanya", "Simran", "Kiara", "Aisha", "Diya",
+        "Meera", "Nisha", "Sana", "Pari", "Mahi", "Tanya", "Simran", "Kiara", "Aisha", "Diya",
         "Ishan", "Veer", "Aarav", "Reyan", "Soren", "Krish", "Ayaan", "Tarun", "Yash", "Mihir",
     ]
 }
