@@ -50,6 +50,7 @@ struct GameTableView: View {
                                 value: appeared[i]
                             )
                             .animation(.spring(response: 0.28), value: dealtTo.contains(i))
+                            .allowsHitTesting(false)
                     }
                 }
             }
@@ -154,6 +155,7 @@ struct GameTableView: View {
                     .delay(Double(i) * 0.16),
                 value: arrived
             )
+            .allowsHitTesting(false)
     }
 
     // MARK: - Avatar
