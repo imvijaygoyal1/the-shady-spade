@@ -408,15 +408,17 @@ private struct JoinByCodeView: View {
                     avatar: playerAvatar
                 )
                 dismiss()
-            } catch let error as URLError
-                where error.code == .resourceUnavailable {
+            } catch let nsError as NSError where nsError.domain == "JoinSession" {
+                switch nsError.code {
+                case -1: joinError = "Room not found. Check the code."
+                case -2: joinError = "Game already started. Can't join."
+                case -3: joinError = "Room is full."
+                default: joinError = "Connection error. Check your internet and try again."
+                }
+            } catch let error as URLError where error.code == .resourceUnavailable {
                 joinError = "Room is full."
-            } catch let error as URLError {
-                joinError = "Room not found. Check the code."
-                print("Join error: \(error)")
             } catch {
-                joinError = "Connection error. Check your " +
-                    "internet and try again."
+                joinError = "Connection error. Check your internet and try again."
                 print("Join error: \(error)")
             }
             isJoining = false
@@ -731,10 +733,10 @@ Tap to join: https://shadyspade-d6b84.web.app/shadyspade/join/\(sessionVM.sessio
         .onChange(of: sessionVM.aiSeats) { oldAI, newAI in
             let joined = Set(oldAI).subtracting(Set(newAI))
             for slot in joined {
-                withAnimation { newlyJoinedSlots.insert(slot) }
+                _ = withAnimation { newlyJoinedSlots.insert(slot) }
                 Task {
                     try? await Task.sleep(nanoseconds: 2_000_000_000)
-                    withAnimation { newlyJoinedSlots.remove(slot) }
+                    _ = withAnimation { newlyJoinedSlots.remove(slot) }
                 }
             }
             // Detect if this player was removed by host

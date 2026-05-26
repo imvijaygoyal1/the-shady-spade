@@ -18,11 +18,14 @@ struct ModeSelectionView: View {
     @State private var showingJoinGame = false
     @State private var showingSettings = false
     @State private var showingLeaderboard = false
+    @State private var showingPlayerCount = false
+    @State private var selectedPlayerCount = 1
     @State private var namePromptRequest: NamePromptRequest? = nil
     @State private var pendingName = ""
     @State private var pendingAvatar = "🦁"
     @State private var nameConfirmed = false
-    @State private var confirmedIsOnline = false
+    @State private var confirmedIsNewGame = false
+    @State private var playerCountConfirmed = false
     @State private var confirmedIsBluetooth = false
     @State private var confirmedIsJoin = false
     @AppStorage("soloPlayerName") private var soloPlayerName = ""
@@ -94,29 +97,17 @@ struct ModeSelectionView: View {
 
                     VStack(spacing: 16) {
                         ModeCard(
-                            icon: "person.fill.badge.plus",
-                            title: "Play Solo",
-                            subtitle: "Face 5 AI opponents in a fully simulated game",
+                            icon: "play.circle.fill",
+                            title: "New Game",
+                            subtitle: "Play alone or invite friends — AI fills empty seats",
                             color: Comic.yellow,
                             iconBG: Comic.yellow
                         ) {
                             HapticManager.impact(.medium)
+                            selectedPlayerCount = 1
                             pendingName = soloPlayerName
                             pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                            namePromptRequest = NamePromptRequest(mode: "Solo Game", isOnline: false)
-                        }
-
-                        ModeCard(
-                            icon: "person.3.fill",
-                            title: "Multiplayer",
-                            subtitle: "Play with friends online — internet required",
-                            color: Comic.blue,
-                            iconBG: Comic.blue
-                        ) {
-                            HapticManager.impact(.medium)
-                            pendingName = soloPlayerName
-                            pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                            namePromptRequest = NamePromptRequest(mode: "Multiplayer", isOnline: true)
+                            namePromptRequest = NamePromptRequest(mode: "New Game", isOnline: false)
                         }
 
                         ModeCard(
@@ -180,37 +171,19 @@ struct ModeSelectionView: View {
                 )
             },
             landscapeRight: {
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: 8),
-                        GridItem(.flexible(), spacing: 8)
-                    ],
-                    spacing: 8
-                ) {
+                VStack(spacing: 10) {
                     ModeCard(
-                        icon: "person.fill.badge.plus",
-                        title: "Play Solo",
-                        subtitle: "Face 5 AI opponents in a fully simulated game",
+                        icon: "play.circle.fill",
+                        title: "New Game",
+                        subtitle: "Play alone or invite friends — AI fills empty seats",
                         color: Comic.yellow,
                         iconBG: Comic.yellow
                     ) {
                         HapticManager.impact(.medium)
+                        selectedPlayerCount = 1
                         pendingName = soloPlayerName
                         pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        namePromptRequest = NamePromptRequest(mode: "Solo Game", isOnline: false)
-                    }
-
-                    ModeCard(
-                        icon: "person.3.fill",
-                        title: "Multiplayer",
-                        subtitle: "Play with friends online — internet required",
-                        color: Comic.blue,
-                        iconBG: Comic.blue
-                    ) {
-                        HapticManager.impact(.medium)
-                        pendingName = soloPlayerName
-                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        namePromptRequest = NamePromptRequest(mode: "Multiplayer", isOnline: true)
+                        namePromptRequest = NamePromptRequest(mode: "New Game", isOnline: false)
                     }
 
                     ModeCard(
@@ -247,7 +220,7 @@ struct ModeSelectionView: View {
             if nameConfirmed {
                 nameConfirmed = false
                 if confirmedIsJoin { showingJoinGame = true }
-                else if confirmedIsOnline { showingOnline = true }
+                else if confirmedIsNewGame { showingPlayerCount = true }
                 else if confirmedIsBluetooth { showingBluetooth = true }
                 else { showingSolo = true }
             }
@@ -261,10 +234,25 @@ struct ModeSelectionView: View {
                 soloPlayerName = trimmed.isEmpty ? "Player" : trimmed
                 soloPlayerAvatar = pendingAvatar
                 confirmedIsJoin = request.mode == "Join a Game"
-                confirmedIsOnline = request.isOnline
+                confirmedIsNewGame = request.mode == "New Game"
                 confirmedIsBluetooth = request.mode == "Local / Bluetooth"
                 nameConfirmed = true
                 namePromptRequest = nil
+            }
+        }
+        .sheet(isPresented: $showingPlayerCount, onDismiss: {
+            if playerCountConfirmed {
+                playerCountConfirmed = false
+                if selectedPlayerCount == 1 {
+                    showingSolo = true
+                } else {
+                    showingOnline = true
+                }
+            }
+        }) {
+            PlayerCountSheet(selectedCount: $selectedPlayerCount) {
+                playerCountConfirmed = true
+                showingPlayerCount = false
             }
         }
         .fullScreenCover(isPresented: $showingSolo) {
@@ -509,6 +497,102 @@ private struct NamePromptSheet: View {
             }
         }
         .presentationDetents([.large])
+        .presentationBackground(Comic.bg)
+    }
+}
+
+private struct PlayerCountSheet: View {
+    @Binding var selectedCount: Int
+    let onConfirm: () -> Void
+
+    private var description: String {
+        switch selectedCount {
+        case 1: return "Just you vs 5 AI opponents.\nStarts instantly — no internet needed."
+        case 6: return "Full table — 6 humans, no AI.\nAn online room will be created."
+        default:
+            let others = selectedCount - 1
+            let ai = 6 - selectedCount
+            return "You + \(others) friend\(others > 1 ? "s" : ""). AI fills \(ai) seat\(ai > 1 ? "s" : "").\nAn online room will be created."
+        }
+    }
+
+    private var buttonLabel: String { selectedCount == 1 ? "Start Now" : "Create Room" }
+
+    var body: some View {
+        ZStack {
+            Comic.bg.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Icon + title
+                VStack(spacing: 10) {
+                    Image(systemName: selectedCount == 1 ? "person.fill" : "person.3.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(Comic.yellow)
+                        .shadow(color: Comic.black, radius: 0, x: 3, y: 3)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedCount)
+                        .padding(.top, 36)
+                    Text("How many players?")
+                        .font(.system(size: 22, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                    Text("AI fills any empty seats")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                }
+                .padding(.bottom, 28)
+
+                // Count selector — 6 circles
+                HStack(spacing: 8) {
+                    ForEach(1...6, id: \.self) { count in
+                        Button {
+                            HapticManager.impact(.light)
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                                selectedCount = count
+                            }
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .fill(selectedCount == count ? Comic.yellow : Comic.containerBG)
+                                    .frame(width: 50, height: 50)
+                                    .overlay(Circle().strokeBorder(Comic.black, lineWidth: Comic.borderWidth))
+                                    .shadow(color: Comic.black.opacity(selectedCount == count ? 0.85 : 0.25),
+                                            radius: 0, x: 2, y: 2)
+                                Text("\(count)")
+                                    .font(.system(size: 20, weight: .black, design: .rounded))
+                                    .foregroundStyle(selectedCount == count ? Comic.black : Comic.textSecondary)
+                            }
+                        }
+                        .buttonStyle(BouncyButton())
+                    }
+                }
+                .padding(.bottom, 24)
+
+                // Description
+                Text(description)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 36)
+                    .frame(minHeight: 48)
+                    .animation(.easeInOut(duration: 0.18), value: selectedCount)
+                    .padding(.bottom, 36)
+
+                Spacer()
+
+                // Action button
+                Button(action: onConfirm) {
+                    Text(buttonLabel)
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                }
+                .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
+                .padding(.horizontal, 28)
+                .padding(.bottom, 40)
+                .animation(.easeInOut(duration: 0.18), value: selectedCount)
+            }
+        }
+        .presentationDetents([.medium])
         .presentationBackground(Comic.bg)
     }
 }

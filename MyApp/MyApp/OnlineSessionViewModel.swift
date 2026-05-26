@@ -122,14 +122,14 @@ enum SessionStatus: String {
     /// Called by GameViewModel to propagate round updates
     var onSessionUpdated: (() -> Void)? = nil
 
-    nonisolated(unsafe) private var listener: ListenerRegistration? = nil
+    private var listener: ListenerRegistration? = nil
     private let db = Firestore.firestore()
     // Pending values stored by prepareLocalSession for later Firebase write
     private var pendingUID: String = ""
     private var pendingName: String = ""
     private var pendingAvatar: String = ""
 
-    deinit { listener?.remove() }
+    @MainActor deinit { listener?.remove() }
 
     var allSlotsJoined: Bool { playerSlots.allSatisfy(\.joined) }
 
@@ -216,8 +216,15 @@ enum SessionStatus: String {
     /// Call this after `prepareLocalSession` (and after setting `showingLobby = true`).
     func writeSessionToFirebase() async {
         // Refresh with real Firebase UID — anon sign-in may complete after prepareLocalSession ran.
+        // Ensure auth is ready — on cold start the user may reach this before Firebase
+        // anonymous auth completes, causing a hostUid mismatch and PERMISSION_DENIED.
+        if Auth.auth().currentUser == nil {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
         if let realUID = Auth.auth().currentUser?.uid {
             pendingUID = realUID
+        } else if let result = try? await Auth.auth().signInAnonymously() {
+            pendingUID = result.user.uid
         }
         let code = await findUniqueRoomCode()
         sessionCode = code
@@ -252,7 +259,7 @@ enum SessionStatus: String {
         // joins from both reading the same empty slot and overwriting each other.
         var resolvedJoinIndex: Int = -1
 
-        try await db.runTransaction { transaction, errorPointer in
+        _ = try await db.runTransaction { transaction, errorPointer in
             let snapshot: DocumentSnapshot
             do {
                 snapshot = try transaction.getDocument(ref)
@@ -335,10 +342,14 @@ enum SessionStatus: String {
             // Removing an AI bot — free the slot so a human can join
             slotsData[slotIndex] = ["uid": "", "name": "", "avatar": "", "joined": false]
             currentAISeats.removeAll { $0 == slotIndex }
-            try? await ref.updateData([
-                "playerSlots": slotsData,
-                "aiSeats": currentAISeats
-            ])
+            do {
+                try await ref.updateData([
+                    "playerSlots": slotsData,
+                    "aiSeats": currentAISeats
+                ])
+            } catch {
+                print("[removePlayer] AI slot clear failed for slot \(slotIndex): \(error.localizedDescription)")
+            }
         } else {
             // Removing a human player — replace with AI bot
             let aiNamePool = Comic.aiNamePool
@@ -355,11 +366,15 @@ enum SessionStatus: String {
             ]
             currentAISeats.append(slotIndex)
             currentAISeats.sort()
-            try? await ref.updateData([
-                "playerSlots": slotsData,
-                "aiSeats": currentAISeats,
-                "removedSlot": slotIndex
-            ])
+            do {
+                try await ref.updateData([
+                    "playerSlots": slotsData,
+                    "aiSeats": currentAISeats,
+                    "removedSlot": slotIndex
+                ])
+            } catch {
+                print("[removePlayer] human→AI replacement failed for slot \(slotIndex): \(error.localizedDescription)")
+            }
         }
     }
 
@@ -392,7 +407,11 @@ enum SessionStatus: String {
             }
             if changed {
                 currentAISeats.sort()
-                try? await ref.updateData(["playerSlots": slotsData, "aiSeats": currentAISeats])
+                do {
+                    try await ref.updateData(["playerSlots": slotsData, "aiSeats": currentAISeats])
+                } catch {
+                    print("[startGame] AI auto-fill write failed: \(error.localizedDescription)")
+                }
             }
         }
 
@@ -417,16 +436,20 @@ enum SessionStatus: String {
         // LOW-02: clear this player's Firestore slot so the lobby updates for remaining
         // players and the slot becomes available for a new human to join.
         let slotToClear = myJoinedSlotIndex
-        if let code = sessionCode, !isHost, slotToClear >= 0 {
+        if let code = sessionCode, !isHost {
             let ref = db.collection("sessions").document(code)
             if let data = (try? await ref.getDocument())?.data(),
-               var slotsData = data["playerSlots"] as? [[String: Any]],
-               slotToClear < slotsData.count {
+               var slotsData = data["playerSlots"] as? [[String: Any]] {
+                let uid = Auth.auth().currentUser?.uid ?? ""
+                // Fall back to UID scan when myJoinedSlotIndex is unknown (e.g. after state reset)
+                let resolvedSlot = slotToClear >= 0 ? slotToClear
+                    : slotsData.firstIndex(where: { $0["uid"] as? String == uid && !uid.isEmpty }) ?? -1
+                guard resolvedSlot >= 0, resolvedSlot < slotsData.count else { return }
                 var currentAISeats = (data["aiSeats"] as? [Any] ?? []).compactMap {
                     ($0 as? Int) ?? ($0 as? Int64).map(Int.init)
                 }
-                slotsData[slotToClear] = ["uid": "", "name": "", "avatar": "", "joined": false]
-                if !currentAISeats.contains(slotToClear) { currentAISeats.append(slotToClear) }
+                slotsData[resolvedSlot] = ["uid": "", "name": "", "avatar": "", "joined": false]
+                if !currentAISeats.contains(resolvedSlot) { currentAISeats.append(resolvedSlot) }
                 currentAISeats.sort()
                 try? await ref.updateData([
                     "playerSlots": slotsData,

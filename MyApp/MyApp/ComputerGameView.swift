@@ -291,7 +291,10 @@ struct ComputerGameView: View {
         let capturedRounds  = roundsToSave
         let capturedMode    = mode
         let capturedAISeats = (0..<6).filter { !game.humanPlayerIndices.contains($0) }
-        let capturedGameId  = game.gameId
+        // Truncate to 8 alphanumeric chars so the server treats it as a valid sessionCode
+        // and uses the transaction dedup path (first-write-wins). Full UUID fails the
+        // server's ≤10 alphanumeric char check and falls through to the non-deduped batch path.
+        let capturedGameId  = String(game.gameId.replacingOccurrences(of: "-", with: "").prefix(8))
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    capturedMode,
@@ -1771,9 +1774,6 @@ private struct RoundCompleteView: View {
             rows.append((0..<6).map { builtRound.score(for: $0) })
             return rows
         }()
-
-        // Award pill values
-        let partnerPts = game.highBid / 2
 
         // Bar chart entries — sorted descending by running total
         let sortedEntries: [PlayerScoreEntry] = (0..<6).map { i in

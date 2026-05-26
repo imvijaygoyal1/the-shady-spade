@@ -156,7 +156,17 @@ final class OnlineGameViewModel {
     /// Call this before cleanup() so the listener is still active to receive the write.
     func notifyHostEndedGame() async {
         let ref = Firestore.firestore().collection("sessions").document(sessionCode)
-        try? await ref.updateData(["gameState.hostEndedGame": true])
+        for attempt in 1...3 {
+            do {
+                try await ref.updateData(["gameState.hostEndedGame": true])
+                return
+            } catch {
+                ogVMLog.warning("[notifyHostEndedGame] attempt \(attempt)/3 failed: \(error.localizedDescription)")
+                if attempt < 3 {
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                }
+            }
+        }
     }
 
     // MARK: - Computed
@@ -318,9 +328,11 @@ final class OnlineGameViewModel {
         presenceTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task {
-                try? await ref.updateData([
-                    "presence.\(self.myPlayerIndex)": Timestamp()
-                ])
+                do {
+                    try await ref.updateData(["presence.\(self.myPlayerIndex)": Timestamp()])
+                } catch {
+                    ogVMLog.warning("[presence] update failed (index \(self.myPlayerIndex)): \(error.localizedDescription)")
+                }
             }
         }
         presenceTimer?.fire()
@@ -353,13 +365,17 @@ final class OnlineGameViewModel {
         currentAISeats.append(index)
         currentAISeats.sort()
 
-        try? await ref.updateData([
-            "playerSlots": slotsData,
-            "aiSeats": currentAISeats,
-            "gameState.aiSeats": currentAISeats,
-            "removedSlot": index,
-            "gameState.message": "\(removedName) was removed. AI took over."
-        ])
+        do {
+            try await ref.updateData([
+                "playerSlots": slotsData,
+                "aiSeats": currentAISeats,
+                "gameState.aiSeats": currentAISeats,
+                "removedSlot": index,
+                "gameState.message": "\(removedName) was removed. AI took over."
+            ])
+        } catch {
+            ogVMLog.error("[removePlayerMidGame] write failed for slot \(index): \(error.localizedDescription)")
+        }
     }
 
     func monitorPresence() {
@@ -602,7 +618,7 @@ final class OnlineGameViewModel {
         partner1Index = newP1
         partner2Index = newP2
         let prevTrickNumber = trickNumber
-        let prevWonTotal = wonPointsPerPlayer.reduce(0, +)
+        _ = wonPointsPerPlayer.reduce(0, +)
         let newTrickNumber = i("trickNumber")
         currentLeaderIndex = i("currentLeaderIndex")
         trickNumber = newTrickNumber
@@ -951,7 +967,6 @@ final class OnlineGameViewModel {
                 if newTrickNum == 8 {
                     let offSet = Set([highBidderIndex, hostPartner1, hostPartner2].filter { $0 >= 0 })
                     let offPts = (0..<6).filter { offSet.contains($0) }.map { newWon[$0] }.reduce(0, +)
-                    let defPts = (0..<6).filter { !offSet.contains($0) }.map { newWon[$0] }.reduce(0, +)
                     let bidMade = offPts >= highBid
 
                     let scoring = ScoringEngine.calculateRoundScores(
@@ -1087,8 +1102,17 @@ final class OnlineGameViewModel {
             do {
                 try await ref.updateData(update)
                 return true
-            } catch {
-                ogVMLog.warning("[criticalWrite] attempt \(attempt)/3 failed: \(error.localizedDescription)")
+            } catch let nsErr as NSError {
+                // Permanent Firestore errors (PERMISSION_DENIED=7, NOT_FOUND=5, UNAUTHENTICATED=16)
+                // won't resolve on retry — fail immediately to avoid wasting 6 seconds.
+                let isPermanent = nsErr.domain == "FIRFirestoreErrorDomain" &&
+                    (nsErr.code == 7 || nsErr.code == 5 || nsErr.code == 16)
+                if isPermanent {
+                    ogVMLog.error("[criticalWrite] permanent error (\(nsErr.code)): \(nsErr.localizedDescription)")
+                    errorMessage = "Network error — couldn't save game state. Check your connection."
+                    return false
+                }
+                ogVMLog.warning("[criticalWrite] attempt \(attempt)/3 failed: \(nsErr.localizedDescription)")
                 if attempt - 1 < delays.count {
                     do { try await Task.sleep(nanoseconds: delays[attempt - 1]) } catch { return false }
                 }

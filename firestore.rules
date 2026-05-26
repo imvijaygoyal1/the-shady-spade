@@ -38,14 +38,18 @@ service cloud.firestore {
         || slots[5].uid == uid;
     }
 
+    function isAISlot(slot) {
+      return slot.uid.matches('AI-.*');
+    }
+
     function isJoiningEmptySlot(oldSlots, newSlots, uid) {
       return !isPlayerInSession(oldSlots, uid) && (
-        (newSlots[0].uid == uid && !oldSlots[0].joined) ||
-        (newSlots[1].uid == uid && !oldSlots[1].joined) ||
-        (newSlots[2].uid == uid && !oldSlots[2].joined) ||
-        (newSlots[3].uid == uid && !oldSlots[3].joined) ||
-        (newSlots[4].uid == uid && !oldSlots[4].joined) ||
-        (newSlots[5].uid == uid && !oldSlots[5].joined)
+        (newSlots[0].uid == uid && (!oldSlots[0].joined || isAISlot(oldSlots[0]))) ||
+        (newSlots[1].uid == uid && (!oldSlots[1].joined || isAISlot(oldSlots[1]))) ||
+        (newSlots[2].uid == uid && (!oldSlots[2].joined || isAISlot(oldSlots[2]))) ||
+        (newSlots[3].uid == uid && (!oldSlots[3].joined || isAISlot(oldSlots[3]))) ||
+        (newSlots[4].uid == uid && (!oldSlots[4].joined || isAISlot(oldSlots[4]))) ||
+        (newSlots[5].uid == uid && (!oldSlots[5].joined || isAISlot(oldSlots[5])))
       );
     }
 

@@ -802,7 +802,6 @@ final class BluetoothGameViewModel: NSObject {
             if newTrickNum == 8 {
                 let offSet = Set([highBidderIndex, hostPartner1, hostPartner2].filter { $0 >= 0 })
                 let offPts = (0..<6).filter { offSet.contains($0) }.map { newWon[$0] }.reduce(0, +)
-                let defPts = (0..<6).filter { !offSet.contains($0) }.map { newWon[$0] }.reduce(0, +)
                 let bidMade = offPts >= highBid
 
                 let scoring = ScoringEngine.calculateRoundScores(
