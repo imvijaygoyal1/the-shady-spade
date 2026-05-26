@@ -103,9 +103,7 @@ struct GameTableView: View {
             }
             // 2. Card shuffle starts after avatars settle
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-                withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                    shuffleFan = 1
-                }
+                shuffleFan = 1
             }
         }
     }
@@ -136,6 +134,7 @@ struct GameTableView: View {
                     .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
             }
         }
+        .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: shuffleFan)
     }
 
     // MARK: - Deal Card (animated chip flying to avatar)
