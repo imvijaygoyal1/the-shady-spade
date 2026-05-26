@@ -99,7 +99,7 @@ struct GameTableView: View {
             // 1. Avatars fly in with stagger
             for i in 0..<6 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.11) {
-                    withAnimation { appeared[i] = true }
+                    appeared[i] = true
                 }
             }
             // 2. Card shuffle starts after avatars settle
@@ -212,7 +212,7 @@ struct GameTableView: View {
         dealing = true
         for i in 0..<6 {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.16 + 0.1) {
-                withAnimation { _ = dealtTo.insert(i) }
+                _ = dealtTo.insert(i)
             }
         }
         let totalDelay = Double(6) * 0.16 + 0.6
