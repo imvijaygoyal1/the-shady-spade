@@ -104,6 +104,7 @@ private struct SplashPage: View {
                                 .delay(p.delay),
                             value: floating
                         )
+                        .allowsHitTesting(false)
                 }
 
                 // ── Pulsing aura behind spade ────────────────────────────
@@ -119,6 +120,7 @@ private struct SplashPage: View {
                 .animation(.easeOut(duration: 0.8), value: auraOpacity)
                 .animation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true), value: auraPulsing)
                 .position(x: geo.size.width / 2, y: geo.size.height * 0.265)
+                .allowsHitTesting(false)
 
                 // ── Main content ─────────────────────────────────────────
                 GameAdaptiveLayout(
@@ -136,6 +138,7 @@ private struct SplashPage: View {
                                 .opacity(spadeOpacity)
                                 .scaleEffect(spadeScale)
                                 .animation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true), value: spadeScale)
+                                .allowsHitTesting(false)
 
                             Spacer().frame(height: 18)
 

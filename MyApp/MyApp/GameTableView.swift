@@ -135,6 +135,7 @@ struct GameTableView: View {
             }
         }
         .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: shuffleFan)
+        .allowsHitTesting(false)
     }
 
     // MARK: - Deal Card (animated chip flying to avatar)
