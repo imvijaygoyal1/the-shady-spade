@@ -14,6 +14,8 @@ struct GameTableView: View {
     // Deal
     @State private var dealing:    Bool   = false
     @State private var dealtTo:    Set<Int> = []
+    // Suppresses button gesture tracking during fullScreenCover appear/dismiss animations
+    @State private var settled:    Bool   = false
 
     var body: some View {
         ZStack {
@@ -90,6 +92,7 @@ struct GameTableView: View {
                     }
                 }
                 .disabled(dealing)
+                .allowsHitTesting(settled && !dealing)
                 .buttonStyle(BouncyButton())
                 .padding(.horizontal, 32)
                 .padding(.bottom, 48)
@@ -105,6 +108,10 @@ struct GameTableView: View {
             // 2. Card shuffle starts after avatars settle
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
                 shuffleFan = 1
+            }
+            // 3. Enable button after fullScreenCover appearance animation finishes (~0.4s)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                settled = true
             }
         }
     }
