@@ -9,12 +9,14 @@ struct MainView: View {
 
     var body: some View {
         // ZStack overlay instead of fullScreenCover for GameTableView.
-        // fullScreenCover creates a UIKit modal whose _UIHostingView (which
-        // always carries SwiftUI's internal gesture recognizers) physically
-        // moves during the slide-up/down UIKit transition, triggering
-        // "Message send exceeds rate-limit threshold" spam. A same-host
-        // ZStack overlay animates entirely via CALayer transforms — the
-        // hosting view never moves in UIKit coordinates.
+        // fullScreenCover creates a UIKit modal whose _UIHostingView physically
+        // moves during its slide transition, triggering "Message send exceeds
+        // rate-limit threshold" spam from SwiftUI's internal gesture recognizers.
+        // The overlay uses no .transition/.animation: adding .animation(value:)
+        // on the ZStack propagates animation transactions to ALL children
+        // (including the TabView's gesture recognizers), reproducing the same
+        // spam. Instant appear/disappear is the correct fix — no UIKit movement,
+        // no CALayer animation tick, no gesture-reporter events.
         ZStack {
             TabView {
                 LocalLeaderboardView(vm: vm)
@@ -49,11 +51,9 @@ struct MainView: View {
                     vm.showingGameTable = false
                 }
                 .ignoresSafeArea()
-                .transition(.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(1)
             }
         }
-        .animation(.spring(response: 0.45, dampingFraction: 0.85), value: vm.showingGameTable)
     }
 
     private func styleTabBar() {
