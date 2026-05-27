@@ -72,30 +72,25 @@ struct GameTableView: View {
                 }
                 .padding(.bottom, 24)
 
-                Button {
-                    startDeal()
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: dealing ? "ellipsis" : "suit.spade.fill")
-                        Text(dealing ? "Dealing…" : "Deal Cards")
-                            .fontWeight(.semibold)
+                // Button is removed from the UIKit hierarchy during fullScreenCover
+                // appear/dismiss animations and during the deal. A UIGestureRecognizer
+                // reports its view's position even when allowsHitTesting(false) — removing
+                // the Button entirely is the only way to stop the rate-limit spam.
+                if settled && !dealing {
+                    Button {
+                        startDeal()
+                    } label: {
+                        dealButtonLabel
                     }
-                    .font(.title3)
-                    .foregroundStyle(Color.black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(LinearGradient(
-                                colors: [.masterGold, Color(red: 0.80, green: 0.65, blue: 0.15)],
-                                startPoint: .leading, endPoint: .trailing))
-                    }
+                    .buttonStyle(BouncyButton())
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 48)
+                } else {
+                    dealButtonLabel
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 48)
+                        .allowsHitTesting(false)
                 }
-                .disabled(dealing)
-                .allowsHitTesting(settled && !dealing)
-                .buttonStyle(BouncyButton())
-                .padding(.horizontal, 32)
-                .padding(.bottom, 48)
             }
         }
         .onAppear {
@@ -109,10 +104,31 @@ struct GameTableView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
                 shuffleFan = 1
             }
-            // 3. Enable button after fullScreenCover appearance animation finishes (~0.4s)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // 3. Add button to view hierarchy after fullScreenCover spring settles (~0.6s).
+            //    Use 0.7s for margin — spring tails can run slightly past the response time.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
                 settled = true
             }
+        }
+    }
+
+    // MARK: - Deal Button Label (shared by interactive Button and inert placeholder)
+
+    private var dealButtonLabel: some View {
+        HStack(spacing: 10) {
+            Image(systemName: dealing ? "ellipsis" : "suit.spade.fill")
+            Text(dealing ? "Dealing…" : "Deal Cards")
+                .fontWeight(.semibold)
+        }
+        .font(.title3)
+        .foregroundStyle(Color.black)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(LinearGradient(
+                    colors: [.masterGold, Color(red: 0.80, green: 0.65, blue: 0.15)],
+                    startPoint: .leading, endPoint: .trailing))
         }
     }
 
