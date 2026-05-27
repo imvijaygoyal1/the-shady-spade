@@ -8,38 +8,52 @@ struct MainView: View {
     @State private var vm = GameViewModel()
 
     var body: some View {
-        TabView {
-            LocalLeaderboardView(vm: vm)
-                .tabItem { Label("Leaderboard", systemImage: "trophy.fill") }
+        // ZStack overlay instead of fullScreenCover for GameTableView.
+        // fullScreenCover creates a UIKit modal whose _UIHostingView (which
+        // always carries SwiftUI's internal gesture recognizers) physically
+        // moves during the slide-up/down UIKit transition, triggering
+        // "Message send exceeds rate-limit threshold" spam. A same-host
+        // ZStack overlay animates entirely via CALayer transforms — the
+        // hosting view never moves in UIKit coordinates.
+        ZStack {
+            TabView {
+                LocalLeaderboardView(vm: vm)
+                    .tabItem { Label("Leaderboard", systemImage: "trophy.fill") }
 
-            HistoryView(vm: vm)
-                .tabItem { Label("History", systemImage: "clock.fill") }
+                HistoryView(vm: vm)
+                    .tabItem { Label("History", systemImage: "clock.fill") }
 
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-        }
-        .tint(.masterGold)
-        .onAppear {
-            vm.setup(with: modelContext)
-            styleTabBar()
-        }
-        .sheet(isPresented: $vm.showingAddRound) {
-            AddRoundView(vm: vm)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-        }
-        .fullScreenCover(isPresented: $vm.showingGameTable) {
-            GameTableView(playerNames: vm.playerNames) {
-                vm.showingGameTable = false
+                SettingsView()
+                    .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+            }
+            .tint(.masterGold)
+            .onAppear {
+                vm.setup(with: modelContext)
+                styleTabBar()
+            }
+            .sheet(isPresented: $vm.showingAddRound) {
+                AddRoundView(vm: vm)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $vm.showingAuth) {
+                AuthView()
+            }
+            .sheet(isPresented: $vm.showingOnlineSession) {
+                OnlineSessionView(vm: vm)
+                    .environmentObject(ThemeManager.shared)
+            }
+
+            if vm.showingGameTable {
+                GameTableView(playerNames: vm.playerNames) {
+                    vm.showingGameTable = false
+                }
+                .ignoresSafeArea()
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(1)
             }
         }
-        .sheet(isPresented: $vm.showingAuth) {
-            AuthView()
-        }
-        .sheet(isPresented: $vm.showingOnlineSession) {
-            OnlineSessionView(vm: vm)
-                .environmentObject(ThemeManager.shared)
-        }
+        .animation(.spring(response: 0.45, dampingFraction: 0.85), value: vm.showingGameTable)
     }
 
     private func styleTabBar() {
