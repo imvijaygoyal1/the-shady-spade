@@ -32,6 +32,17 @@ struct ModeSelectionView: View {
     @AppStorage("soloPlayerAvatar") private var soloPlayerAvatar = "🦁"
     @State private var deepLink = DeepLinkManager.shared
 
+    // Settled gates: fullScreenCover's _UIHostingView slides during UIKit's
+    // presentation/dismissal transition.  Every gesture recogniser in the
+    // cover fires position updates at 60 Hz while the view moves, producing
+    // "Message send exceeds rate-limit threshold" spam.  The fix: disable
+    // all hit-testing in the cover until the spring settles (~0.7s), then
+    // re-enable.  Also disable immediately when the cover starts to dismiss.
+    @State private var soloSettled     = false
+    @State private var onlineSettled   = false
+    @State private var joinSettled     = false
+    @State private var btSettled       = false
+
     private var portraitBody: some View {
         ZStack {
             Comic.bg.ignoresSafeArea()
@@ -262,7 +273,13 @@ struct ModeSelectionView: View {
                 humanAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
             )
             .environmentObject(themeManager)
+            .allowsHitTesting(soloSettled)
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { soloSettled = true }
+            }
+            .onDisappear { soloSettled = false }
         }
+        .onChange(of: showingSolo) { _, v in if !v { soloSettled = false } }
         .fullScreenCover(isPresented: $showingOnline) {
             OnlineEntryView(
                 vm: vm,
@@ -270,7 +287,13 @@ struct ModeSelectionView: View {
                 playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
             )
             .environmentObject(themeManager)
+            .allowsHitTesting(onlineSettled)
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { onlineSettled = true }
+            }
+            .onDisappear { onlineSettled = false }
         }
+        .onChange(of: showingOnline) { _, v in if !v { onlineSettled = false } }
         .fullScreenCover(isPresented: $showingJoinGame) {
             OnlineEntryView(
                 vm: vm,
@@ -279,14 +302,26 @@ struct ModeSelectionView: View {
                 autoShowJoin: true
             )
             .environmentObject(themeManager)
+            .allowsHitTesting(joinSettled)
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { joinSettled = true }
+            }
+            .onDisappear { joinSettled = false }
         }
+        .onChange(of: showingJoinGame) { _, v in if !v { joinSettled = false } }
         .fullScreenCover(isPresented: $showingBluetooth) {
             BTEntryView(
                 playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
                 playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
             )
             .environmentObject(themeManager)
+            .allowsHitTesting(btSettled)
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { btSettled = true }
+            }
+            .onDisappear { btSettled = false }
         }
+        .onChange(of: showingBluetooth) { _, v in if !v { btSettled = false } }
         .sheet(isPresented: $showingLeaderboard) {
             LeaderboardView()
                 .environmentObject(themeManager)
