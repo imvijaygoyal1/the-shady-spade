@@ -487,7 +487,7 @@ private struct NamePromptSheet: View {
                                             dampingFraction: 0.6),
                                             value: isSelected)
                                     }
-                                    .buttonStyle(BouncyButton())
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.horizontal, 28)
@@ -579,7 +579,7 @@ private struct PlayerCountSheet: View {
                             .animation(.spring(response: 0.25, dampingFraction: 0.7),
                                 value: selectedCount)
                         }
-                        .buttonStyle(BouncyButton())
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.bottom, 24)
