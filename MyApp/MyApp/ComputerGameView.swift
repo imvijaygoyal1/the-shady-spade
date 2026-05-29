@@ -52,7 +52,7 @@ struct ComputerGameView: View {
                     playerAvatars: (0..<6).map { game.playerAvatar($0) },
                     humanPlayerIndex: game.humanPlayerIndex,
                     onComplete: {
-                        withAnimation(.easeInOut(duration: 0.35)) { dealAnimDone = true }
+                        dealAnimDone = true
                     }
                 )
                 .transition(.opacity)
@@ -417,6 +417,7 @@ private struct ViewingCardsView: View {
                     .padding(.bottom, vSizeClass == .compact ? 12 : 24)
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : -12)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.1), value: appeared)
                     .adaptiveContentFrame()
 
                     Spacer()
@@ -452,34 +453,36 @@ private struct ViewingCardsView: View {
                     }
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : 20)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.1), value: appeared)
 
                     Spacer()
 
-                    // CTA
-                    Button {
-                        HapticManager.impact(.medium)
-                        game.humanReadyToBid()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Text("Ready to Bid")
-                                .fontWeight(.black)
-                            Image(systemName: "arrow.right")
+                    // CTA — kept outside the hierarchy until appeared to prevent gesture-reporter
+                    // spam: an opacity-animated Button's CALayer still ticks at 60Hz while the
+                    // spring runs, exceeding the 32Hz gesture-reporter rate limit.
+                    if appeared {
+                        Button {
+                            HapticManager.impact(.medium)
+                            game.humanReadyToBid()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Text("Ready to Bid")
+                                    .fontWeight(.black)
+                                Image(systemName: "arrow.right")
+                            }
+                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Comic.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, vSizeClass == .compact ? 14 : 18)
                         }
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Comic.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, vSizeClass == .compact ? 14 : 18)
+                        .buttonStyle(ComicButtonStyle())
+                        .adaptiveContentFrame(maxWidth: 480)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, vSizeClass == .compact ? 24 : 40)
                     }
-                    .buttonStyle(ComicButtonStyle())
-                    .adaptiveContentFrame(maxWidth: 480)
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, vSizeClass == .compact ? 24 : 40)
-                    .opacity(appeared ? 1 : 0)
                 }
                 .onAppear {
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.1)) {
-                        appeared = true
-                    }
+                    appeared = true
                 }
             },
             landscape: {

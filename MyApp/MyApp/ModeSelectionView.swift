@@ -1,12 +1,6 @@
 import SwiftUI
 import SwiftData
 
-private struct NamePromptRequest: Identifiable {
-    let id = UUID()
-    let mode: String
-    let isOnline: Bool
-}
-
 struct ModeSelectionView: View {
     @EnvironmentObject private var themeManager: ThemeManager
     @Environment(\.modelContext) private var modelContext
@@ -20,7 +14,8 @@ struct ModeSelectionView: View {
     @State private var showingLeaderboard = false
     @State private var showingPlayerCount = false
     @State private var selectedPlayerCount = 1
-    @State private var namePromptRequest: NamePromptRequest? = nil
+    @State private var showingNamePrompt = false
+    @State private var pendingMode = ""
     @State private var pendingName = ""
     @State private var pendingAvatar = "🦁"
     @State private var nameConfirmed = false
@@ -32,16 +27,6 @@ struct ModeSelectionView: View {
     @AppStorage("soloPlayerAvatar") private var soloPlayerAvatar = "🦁"
     @State private var deepLink = DeepLinkManager.shared
 
-    // Settled gates: fullScreenCover's _UIHostingView slides during UIKit's
-    // presentation/dismissal transition.  Every gesture recogniser in the
-    // cover fires position updates at 60 Hz while the view moves, producing
-    // "Message send exceeds rate-limit threshold" spam.  The fix: disable
-    // all hit-testing in the cover until the spring settles (~0.7s), then
-    // re-enable.  Also disable immediately when the cover starts to dismiss.
-    @State private var soloSettled     = false
-    @State private var onlineSettled   = false
-    @State private var joinSettled     = false
-    @State private var btSettled       = false
 
     private var portraitBody: some View {
         ZStack {
@@ -118,7 +103,8 @@ struct ModeSelectionView: View {
                             selectedPlayerCount = 1
                             pendingName = soloPlayerName
                             pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                            namePromptRequest = NamePromptRequest(mode: "New Game", isOnline: false)
+                            pendingMode = "New Game"
+                            showingNamePrompt = true
                         }
 
                         ModeCard(
@@ -131,7 +117,8 @@ struct ModeSelectionView: View {
                             HapticManager.impact(.medium)
                             pendingName = soloPlayerName
                             pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                            namePromptRequest = NamePromptRequest(mode: "Local / Bluetooth", isOnline: false)
+                            pendingMode = "Local / Bluetooth"
+                            showingNamePrompt = true
                         }
 
                         ModeCard(
@@ -144,7 +131,8 @@ struct ModeSelectionView: View {
                             HapticManager.impact(.medium)
                             pendingName = soloPlayerName
                             pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                            namePromptRequest = NamePromptRequest(mode: "Join a Game", isOnline: false)
+                            pendingMode = "Join a Game"
+                            showingNamePrompt = true
                         }
                     }
                     .adaptiveContentFrame()
@@ -194,7 +182,8 @@ struct ModeSelectionView: View {
                         selectedPlayerCount = 1
                         pendingName = soloPlayerName
                         pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        namePromptRequest = NamePromptRequest(mode: "New Game", isOnline: false)
+                        pendingMode = "New Game"
+                        showingNamePrompt = true
                     }
 
                     ModeCard(
@@ -207,7 +196,8 @@ struct ModeSelectionView: View {
                         HapticManager.impact(.medium)
                         pendingName = soloPlayerName
                         pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        namePromptRequest = NamePromptRequest(mode: "Local / Bluetooth", isOnline: false)
+                        pendingMode = "Local / Bluetooth"
+                        showingNamePrompt = true
                     }
 
                     ModeCard(
@@ -220,108 +210,101 @@ struct ModeSelectionView: View {
                         HapticManager.impact(.medium)
                         pendingName = soloPlayerName
                         pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        namePromptRequest = NamePromptRequest(mode: "Join a Game", isOnline: false)
+                        pendingMode = "Join a Game"
+                        showingNamePrompt = true
                     }
                 }
                 .padding(12)
             }
         )
         .onAppear { vm.setup(with: modelContext) }
-        .sheet(item: $namePromptRequest, onDismiss: {
-            if nameConfirmed {
-                nameConfirmed = false
-                if confirmedIsJoin { showingJoinGame = true }
-                else if confirmedIsNewGame { showingPlayerCount = true }
-                else if confirmedIsBluetooth { showingBluetooth = true }
-                else { showingSolo = true }
-            }
-        }) { request in
-            NamePromptSheet(
-                pendingName: $pendingName,
-                pendingAvatar: $pendingAvatar,
-                mode: request.mode
+        // NoAnimationCover replaces ALL UIKit animated presentations.
+        // Any UIKit modal transition (fullScreenCover OR .sheet) physically moves
+        // _UIHostingView; SwiftUI's own internal gesture recognisers on that view
+        // report 60-Hz position changes for the ~0.5-0.7s spring duration →
+        // rate-limit spam. animated:false means zero movement → zero spam.
+        .background {
+            // Name/avatar prompt (replaces .sheet(item: $namePromptRequest))
+            NoAnimationCover(
+                isPresented: $showingNamePrompt,
+                onDismiss: {
+                    if nameConfirmed {
+                        nameConfirmed = false
+                        if confirmedIsJoin { showingJoinGame = true }
+                        else if confirmedIsNewGame { showingPlayerCount = true }
+                        else if confirmedIsBluetooth { showingBluetooth = true }
+                        else { showingSolo = true }
+                    }
+                }
             ) {
-                let trimmed = pendingName.trimmingCharacters(in: .whitespaces)
-                soloPlayerName = trimmed.isEmpty ? "Player" : trimmed
-                soloPlayerAvatar = pendingAvatar
-                confirmedIsJoin = request.mode == "Join a Game"
-                confirmedIsNewGame = request.mode == "New Game"
-                confirmedIsBluetooth = request.mode == "Local / Bluetooth"
-                nameConfirmed = true
-                namePromptRequest = nil
-            }
-        }
-        .sheet(isPresented: $showingPlayerCount, onDismiss: {
-            if playerCountConfirmed {
-                playerCountConfirmed = false
-                if selectedPlayerCount == 1 {
-                    showingSolo = true
-                } else {
-                    showingOnline = true
+                NamePromptSheet(
+                    pendingName: $pendingName,
+                    pendingAvatar: $pendingAvatar,
+                    mode: pendingMode
+                ) {
+                    let trimmed = pendingName.trimmingCharacters(in: .whitespaces)
+                    soloPlayerName = trimmed.isEmpty ? "Player" : trimmed
+                    soloPlayerAvatar = pendingAvatar
+                    confirmedIsJoin = pendingMode == "Join a Game"
+                    confirmedIsNewGame = pendingMode == "New Game"
+                    confirmedIsBluetooth = pendingMode == "Local / Bluetooth"
+                    nameConfirmed = true
+                    showingNamePrompt = false
                 }
             }
-        }) {
-            PlayerCountSheet(selectedCount: $selectedPlayerCount) {
-                playerCountConfirmed = true
-                showingPlayerCount = false
+            // Player count picker (replaces .sheet(isPresented: $showingPlayerCount))
+            NoAnimationCover(
+                isPresented: $showingPlayerCount,
+                onDismiss: {
+                    if playerCountConfirmed {
+                        playerCountConfirmed = false
+                        if selectedPlayerCount == 1 {
+                            showingSolo = true
+                        } else {
+                            showingOnline = true
+                        }
+                    }
+                }
+            ) {
+                PlayerCountSheet(selectedCount: $selectedPlayerCount) {
+                    playerCountConfirmed = true
+                    showingPlayerCount = false
+                }
+            }
+            // Game views
+            NoAnimationCover(isPresented: $showingSolo) {
+                ComputerGameView(
+                    vm: vm,
+                    humanName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
+                    humanAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                )
+                .environmentObject(themeManager)
+            }
+            NoAnimationCover(isPresented: $showingOnline) {
+                OnlineEntryView(
+                    vm: vm,
+                    playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
+                    playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                )
+                .environmentObject(themeManager)
+            }
+            NoAnimationCover(isPresented: $showingJoinGame) {
+                OnlineEntryView(
+                    vm: vm,
+                    playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
+                    playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar,
+                    autoShowJoin: true
+                )
+                .environmentObject(themeManager)
+            }
+            NoAnimationCover(isPresented: $showingBluetooth) {
+                BTEntryView(
+                    playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
+                    playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                )
+                .environmentObject(themeManager)
             }
         }
-        .fullScreenCover(isPresented: $showingSolo) {
-            ComputerGameView(
-                vm: vm,
-                humanName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
-                humanAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-            )
-            .environmentObject(themeManager)
-            .allowsHitTesting(soloSettled)
-            .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { soloSettled = true }
-            }
-            .onDisappear { soloSettled = false }
-        }
-        .onChange(of: showingSolo) { _, v in if !v { soloSettled = false } }
-        .fullScreenCover(isPresented: $showingOnline) {
-            OnlineEntryView(
-                vm: vm,
-                playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
-                playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-            )
-            .environmentObject(themeManager)
-            .allowsHitTesting(onlineSettled)
-            .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { onlineSettled = true }
-            }
-            .onDisappear { onlineSettled = false }
-        }
-        .onChange(of: showingOnline) { _, v in if !v { onlineSettled = false } }
-        .fullScreenCover(isPresented: $showingJoinGame) {
-            OnlineEntryView(
-                vm: vm,
-                playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
-                playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar,
-                autoShowJoin: true
-            )
-            .environmentObject(themeManager)
-            .allowsHitTesting(joinSettled)
-            .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { joinSettled = true }
-            }
-            .onDisappear { joinSettled = false }
-        }
-        .onChange(of: showingJoinGame) { _, v in if !v { joinSettled = false } }
-        .fullScreenCover(isPresented: $showingBluetooth) {
-            BTEntryView(
-                playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
-                playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-            )
-            .environmentObject(themeManager)
-            .allowsHitTesting(btSettled)
-            .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { btSettled = true }
-            }
-            .onDisappear { btSettled = false }
-        }
-        .onChange(of: showingBluetooth) { _, v in if !v { btSettled = false } }
         .sheet(isPresented: $showingLeaderboard) {
             LeaderboardView()
                 .environmentObject(themeManager)
@@ -490,10 +473,7 @@ private struct NamePromptSheet: View {
                                     let isSelected = pendingAvatar == emoji
                                     Button {
                                         HapticManager.impact(.light)
-                                        withAnimation(.spring(response: 0.25,
-                                            dampingFraction: 0.6)) {
-                                            pendingAvatar = emoji
-                                        }
+                                        pendingAvatar = emoji
                                     } label: {
                                         AvatarPickerCard(
                                             emoji: emoji,
@@ -503,6 +483,9 @@ private struct NamePromptSheet: View {
                                             width: 62,
                                             height: 84
                                         )
+                                        .animation(.spring(response: 0.25,
+                                            dampingFraction: 0.6),
+                                            value: isSelected)
                                     }
                                     .buttonStyle(BouncyButton())
                                 }
@@ -580,9 +563,7 @@ private struct PlayerCountSheet: View {
                     ForEach(1...6, id: \.self) { count in
                         Button {
                             HapticManager.impact(.light)
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                                selectedCount = count
-                            }
+                            selectedCount = count
                         } label: {
                             ZStack {
                                 Circle()
@@ -595,6 +576,8 @@ private struct PlayerCountSheet: View {
                                     .font(.system(size: 20, weight: .black, design: .rounded))
                                     .foregroundStyle(selectedCount == count ? Comic.black : Comic.textSecondary)
                             }
+                            .animation(.spring(response: 0.25, dampingFraction: 0.7),
+                                value: selectedCount)
                         }
                         .buttonStyle(BouncyButton())
                     }
@@ -624,7 +607,6 @@ private struct PlayerCountSheet: View {
                 .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
                 .padding(.horizontal, 28)
                 .padding(.bottom, 40)
-                .animation(.easeInOut(duration: 0.18), value: selectedCount)
             }
         }
         .presentationDetents([.medium])
@@ -675,6 +657,96 @@ private struct ModeCard: View {
             .comicContainer(cornerRadius: 20)
         }
         .buttonStyle(BouncyButton())
+    }
+}
+
+// MARK: - NoAnimationCover
+// Presents content as a UIKit fullScreen modal with animated:false so
+// _UIHostingView never slides in UIKit space.  This eliminates the
+// "Message send exceeds rate-limit threshold" spam: SwiftUI attaches its own
+// internal gesture recognisers to _UIHostingView; those recognisers report
+// position changes at ~60Hz during the ~0.7s UIKit spring animation even when
+// .allowsHitTesting(false) is set on the SwiftUI content.  animated:false
+// means zero movement → zero position-change events → no spam.
+private struct NoAnimationCover<Content: View>: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    var onDismiss: (() -> Void)? = nil
+    @ViewBuilder var content: () -> Content
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let vc = UIViewController()
+        vc.view.backgroundColor = .clear
+        vc.view.isUserInteractionEnabled = false
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        let c = context.coordinator
+        c.binding = $isPresented
+        c.onDismiss = onDismiss
+        c.contentBuilder = { AnyView(self.content()) }
+        c.sync(isPresented: isPresented)
+    }
+
+    final class Coordinator: NSObject {
+        var binding: Binding<Bool>?
+        var onDismiss: (() -> Void)?
+        var contentBuilder: (() -> AnyView)?
+        private weak var hosted: HostingVC?
+        private var scheduleToken: UUID?
+
+        func sync(isPresented: Bool) {
+            if isPresented {
+                guard hosted == nil, scheduleToken == nil else { return }
+                let token = UUID()
+                scheduleToken = token
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.scheduleToken == token else { return }
+                    self.scheduleToken = nil
+                    guard let root = Self.keyWindowRootVC(),
+                          root.presentedViewController == nil,
+                          let body = self.contentBuilder?() else { return }
+                    let hvc = HostingVC(rootView: body)
+                    hvc.modalPresentationStyle = .overFullScreen
+                    hvc.onDismissed = { [weak self] in
+                        self?.hosted = nil
+                        self?.binding?.wrappedValue = false
+                        self?.onDismiss?()
+                    }
+                    root.present(hvc, animated: false)
+                    self.hosted = hvc
+                }
+            } else {
+                guard let hvc = hosted else { return }
+                hosted = nil
+                scheduleToken = nil
+                // Defer to next runloop tick so this never fires mid-SwiftUI-update.
+                DispatchQueue.main.async { hvc.dismiss(animated: false) }
+            }
+        }
+
+        private static func keyWindowRootVC() -> UIViewController? {
+            UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first?.windows
+                .first(where: { $0.isKeyWindow })?
+                .rootViewController
+        }
+    }
+
+    final class HostingVC: UIHostingController<AnyView> {
+        var onDismissed: (() -> Void)?
+
+        override func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
+            super.dismiss(animated: false, completion: completion)
+        }
+
+        override func viewDidDisappear(_ animated: Bool) {
+            super.viewDidDisappear(animated)
+            if isBeingDismissed { onDismissed?() }
+        }
     }
 }
 

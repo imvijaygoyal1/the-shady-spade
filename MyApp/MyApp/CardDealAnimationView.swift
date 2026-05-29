@@ -410,9 +410,7 @@ struct CardDealAnimationView: View {
                         deadline: .now() + 0.04) {
                         if let idx = flyingCards.firstIndex(
                             where: { $0.id == card.id }) {
-                            withAnimation {
-                                flyingCards[idx].arrived = true
-                            }
+                            flyingCards[idx].arrived = true
                         }
                         card.arrived = true
                     }
