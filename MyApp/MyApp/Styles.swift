@@ -1211,9 +1211,7 @@ struct AvatarPickerCard: View {
                 Text(emoji)
                     .font(.system(size: height * 0.45))
                     .scaleEffect(isSelected ? 1.1 : 1.0)
-                    .animation(.spring(response: 0.25,
-                        dampingFraction: 0.6),
-                        value: isSelected)
+                    .animation(nil, value: isSelected)
             }
             .frame(maxWidth: .infinity)
             .frame(height: height - 36)

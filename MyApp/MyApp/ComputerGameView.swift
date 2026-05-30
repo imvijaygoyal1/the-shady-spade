@@ -1721,32 +1721,34 @@ private struct RoundResultBanner: View {
 
                     Spacer().frame(height: 32)
 
-                    // CTA
-                    Button(action: onContinue) {
-                        HStack(spacing: 8) {
-                            Text("See Full Results")
-                                .fontWeight(.black)
-                            Image(systemName: "arrow.right")
+                    // CTA — kept outside hierarchy until appeared to prevent gesture-reporter spam
+                    if appeared {
+                        Button(action: onContinue) {
+                            HStack(spacing: 8) {
+                                Text("See Full Results")
+                                    .fontWeight(.black)
+                                Image(systemName: "arrow.right")
+                            }
+                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .foregroundStyle(isSet ? Comic.white : Comic.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 18)
                         }
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
-                        .foregroundStyle(isSet ? Comic.white : Comic.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 18)
+                        .buttonStyle(ComicButtonStyle(
+                            bg: isSet ? Comic.red : Comic.yellow,
+                            fg: isSet ? Comic.white : Comic.black,
+                            borderColor: Comic.black,
+                            animatesPress: false
+                        ))
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 54)
+                        .transition(.opacity)
                     }
-                    .buttonStyle(ComicButtonStyle(
-                        bg: isSet ? Comic.red : Comic.yellow,
-                        fg: isSet ? Comic.white : Comic.black,
-                        borderColor: Comic.black
-                    ))
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 54)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.25), value: appeared)
                 }
             }
         }
         .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) { appeared = true }
+            appeared = true
         }
     }
 }
