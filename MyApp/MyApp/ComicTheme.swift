@@ -116,9 +116,10 @@ struct ComicButtonStyle: ButtonStyle {
     var bg: Color? = nil
     var fg: Color? = nil
     var borderColor: Color? = nil
+    var animatesPress: Bool = true
 
     func makeBody(configuration: Configuration) -> some View {
-        ComicButtonBody(configuration: configuration, bg: bg, fg: fg, borderColor: borderColor)
+        ComicButtonBody(configuration: configuration, bg: bg, fg: fg, borderColor: borderColor, animatesPress: animatesPress)
     }
 }
 
@@ -127,6 +128,7 @@ private struct ComicButtonBody: View {
     var bg: Color?
     var fg: Color?
     var borderColor: Color?
+    var animatesPress: Bool = true
     @ObservedObject private var themeManager = ThemeManager.shared
 
     var body: some View {
@@ -154,7 +156,8 @@ private struct ComicButtonBody: View {
                 x: isHardShadow ? (configuration.isPressed ? shadow.x - 1 : 0) : 0,
                 y: isHardShadow ? (configuration.isPressed ? shadow.y - 1 : 0) : 0
             )
-            .animation(.spring(response: 0.15, dampingFraction: 0.6), value: configuration.isPressed)
+            .animation(animatesPress ? .spring(response: 0.15, dampingFraction: 0.6) : nil,
+                value: configuration.isPressed)
     }
 }
 

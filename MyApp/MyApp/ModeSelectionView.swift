@@ -483,9 +483,6 @@ private struct NamePromptSheet: View {
                                             width: 62,
                                             height: 84
                                         )
-                                        .animation(.spring(response: 0.25,
-                                            dampingFraction: 0.6),
-                                            value: isSelected)
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -506,7 +503,8 @@ private struct NamePromptSheet: View {
                     .buttonStyle(ComicButtonStyle(
                         bg: canStart ? Comic.yellow : Comic.containerBG,
                         fg: canStart ? Comic.black : .secondary,
-                        borderColor: Comic.black
+                        borderColor: Comic.black,
+                        animatesPress: false
                     ))
                     .disabled(!canStart)
                     .padding(.horizontal, 28)
@@ -576,8 +574,6 @@ private struct PlayerCountSheet: View {
                                     .font(.system(size: 20, weight: .black, design: .rounded))
                                     .foregroundStyle(selectedCount == count ? Comic.black : Comic.textSecondary)
                             }
-                            .animation(.spring(response: 0.25, dampingFraction: 0.7),
-                                value: selectedCount)
                         }
                         .buttonStyle(.plain)
                     }
@@ -604,7 +600,7 @@ private struct PlayerCountSheet: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                 }
-                .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
+                .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black, animatesPress: false))
                 .padding(.horizontal, 28)
                 .padding(.bottom, 40)
             }
