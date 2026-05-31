@@ -1637,12 +1637,16 @@ final class BluetoothGameViewModel: NSObject {
     private func aiComputeBid(seat: Int) -> Int {
         AIEngine.computeBid(
             seat: seat, hand: allHands[seat], dealerIndex: dealerIndex,
-            highBid: highBid, canPass: highBid > 0
+            highBid: highBid, canPass: highBid > 0,
+            personality: AIEngine.BotPersonality.forSeat(seat)
         )
     }
 
     private func aiComputeCalling(seat: Int) -> (trump: TrumpSuit, c1: String, c2: String) {
-        AIEngine.computeCalling(hand: allHands[seat])
+        AIEngine.computeCalling(
+            hand: allHands[seat],
+            personality: AIEngine.BotPersonality.forSeat(seat)
+        )
     }
 
     private func aiComputeCard(seat: Int) -> String? {
@@ -1653,14 +1657,17 @@ final class BluetoothGameViewModel: NSObject {
         return AIEngine.computeCard(
             seat: seat,
             hand: allHands[seat],
-            offenseSet: hostOffenseSet,
+            actualPartnerIndices: Set([hostPartner1, hostPartner2].filter { $0 >= 0 }),
+            revealedPartnerIndices: Set([partner1Index, partner2Index].filter { $0 >= 0 }),
+            calledCardIds: Set([hostCalledCard1, hostCalledCard2].filter { !$0.isEmpty }),
             highBidderIndex: highBidderIndex,
             trumpSuit: trumpSuit,
             currentTrick: currentTrick,
             completedTricks: completedTricks,
             wonPointsPerPlayer: wonPointsPerPlayer,
             highBid: highBid,
-            trickNumber: trickNumber
+            trickNumber: trickNumber,
+            personality: AIEngine.BotPersonality.forSeat(seat)
         )
     }
 
@@ -1914,4 +1921,3 @@ struct BTPlayerSlot {
         BTPlayerSlot(slotIndex: index, name: "", avatar: "", joined: false)
     }
 }
-

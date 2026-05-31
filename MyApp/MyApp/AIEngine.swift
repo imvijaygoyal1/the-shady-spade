@@ -10,6 +10,102 @@ enum AIEngine {
     static let fullDeck: [Card] = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3"]
         .flatMap { r in ["♠", "♥", "♦", "♣"].map { s in Card(rank: r, suit: s) } }
 
+    // MARK: - Bot Personality
+
+    enum BotPersonality: String, CaseIterable {
+        case conservative
+        case aggressive
+        case pointFeeder
+        case trumpController
+        case riskTaker
+
+        static func forSeat(_ seat: Int) -> BotPersonality {
+            let styles: [BotPersonality] = [.conservative, .aggressive, .pointFeeder, .trumpController, .riskTaker]
+            return styles[abs(seat) % styles.count]
+        }
+
+        var bidMultiplier: Double {
+            switch self {
+            case .conservative:     return 0.92
+            case .aggressive:       return 1.08
+            case .pointFeeder:      return 1.00
+            case .trumpController:  return 1.03
+            case .riskTaker:        return 1.12
+            }
+        }
+
+        var bidOffset: Int {
+            switch self {
+            case .conservative:     return -5
+            case .aggressive:       return 5
+            case .pointFeeder:      return 0
+            case .trumpController:  return 5
+            case .riskTaker:        return 10
+            }
+        }
+
+        var trumpLeadFloor: Int {
+            switch self {
+            case .conservative:     return Card.rankOrder["A"] ?? 12
+            case .aggressive:       return Card.rankOrder["K"] ?? 11
+            case .pointFeeder:      return Card.rankOrder["A"] ?? 12
+            case .trumpController:  return Card.rankOrder["Q"] ?? 10
+            case .riskTaker:        return Card.rankOrder["J"] ?? 9
+            }
+        }
+
+        var trumpInPointThreshold: Int {
+            switch self {
+            case .conservative:     return 25
+            case .aggressive:       return 10
+            case .pointFeeder:      return 20
+            case .trumpController:  return 5
+            case .riskTaker:        return 0
+            }
+        }
+
+        var unsafeFeedTolerance: Int {
+            switch self {
+            case .conservative:     return 0
+            case .aggressive:       return 1
+            case .pointFeeder:      return 2
+            case .trumpController:  return 1
+            case .riskTaker:        return 3
+            }
+        }
+
+        var leadTrumpBias: Int {
+            switch self {
+            case .conservative:     return -8
+            case .aggressive:       return 6
+            case .pointFeeder:      return -4
+            case .trumpController:  return 18
+            case .riskTaker:        return 10
+            }
+        }
+
+        var pointFeedBias: Int {
+            switch self {
+            case .conservative:     return -4
+            case .aggressive:       return 3
+            case .pointFeeder:      return 12
+            case .trumpController:  return 0
+            case .riskTaker:        return 6
+            }
+        }
+    }
+
+    private struct Urgency {
+        let offense: Bool
+        let defense: Bool
+        let offensePoints: Int
+        let defensePoints: Int
+        let remainingPoints: Int
+        let tricksRemaining: Int
+
+        var eitherSide: Bool { offense || defense }
+    }
+
     // MARK: - Bid History
 
     /// Deduplicate bid history so each player appears once with their LATEST amount.
@@ -59,8 +155,10 @@ enum AIEngine {
         hand: [Card],
         dealerIndex: Int,
         highBid: Int,
-        canPass: Bool
+        canPass: Bool,
+        personality: BotPersonality? = nil
     ) -> Int {
+        let style = personality ?? BotPersonality.forSeat(seat)
         let myPoints = hand.map(\.pointValue).reduce(0, +)
         let myIds    = Set(hand.map(\.id))
         let topExternal = fullDeck
@@ -103,7 +201,8 @@ enum AIEngine {
         }.count
         let shortnessPenalty = max(0, thinSuits - 2) * 8
 
-        let estimated = myPoints + call1Pts + call2Pts + partnerBonus + clusterBonus - shortnessPenalty
+        let rawEstimate = myPoints + call1Pts + call2Pts + partnerBonus + clusterBonus - shortnessPenalty
+        let estimated = Int(Double(rawEstimate) * style.bidMultiplier) + style.bidOffset
         let minBid    = max(130, highBid + 5)
         if !canPass {
             let rounded = (max(estimated, minBid) / 5) * 5
@@ -117,7 +216,12 @@ enum AIEngine {
     // MARK: - AI Calling
 
     /// Compute the best trump suit and two called card IDs for the bidder's hand.
-    static func computeCalling(hand: [Card]) -> (trump: TrumpSuit, c1: String, c2: String) {
+    static func computeCalling(
+        hand: [Card],
+        personality: BotPersonality? = nil
+    ) -> (trump: TrumpSuit, c1: String, c2: String) {
+        let style = personality ?? .trumpController
+
         // Phase 2a — Tier-based trump selection
         func trumpTier(_ suit: TrumpSuit) -> Int {
             let topRank = hand.filter { $0.suit == suit.rawValue }
@@ -130,7 +234,9 @@ enum AIEngine {
         let suitRankings = TrumpSuit.allCases.map { suit -> (TrumpSuit, Int) in
             let pts   = hand.filter { $0.suit == suit.rawValue }.map(\.pointValue).reduce(0, +)
             let count = hand.filter { $0.suit == suit.rawValue }.count
-            return (suit, pts + trumpTier(suit) * 15 + count * 2)
+            let controlBonus = style == .trumpController ? count * 4 : 0
+            let riskBonus = style == .riskTaker && count >= 3 ? 8 : 0
+            return (suit, pts + trumpTier(suit) * 15 + count * 2 + controlBonus + riskBonus)
         }
         let trump = suitRankings.max(by: { $0.1 < $1.1 })?.0 ?? .spades
 
@@ -167,6 +273,20 @@ enum AIEngine {
         return (trump: trump, c1: c1, c2: c2)
     }
 
+    // MARK: - Partner Visibility
+
+    static func revealedPartnerIndices(
+        calledCardIds: Set<String>,
+        currentTrick: [(playerIndex: Int, card: Card)],
+        completedTricks: [[(playerIndex: Int, card: Card)]]
+    ) -> Set<Int> {
+        guard !calledCardIds.isEmpty else { return [] }
+        let playedEntries = completedTricks.flatMap { $0 } + currentTrick
+        return Set(playedEntries.compactMap { entry in
+            calledCardIds.contains(entry.card.id) ? entry.playerIndex : nil
+        })
+    }
+
     // MARK: - AI Card Play
 
     /// Compute the best card ID to play for `seat`.
@@ -174,103 +294,350 @@ enum AIEngine {
     static func computeCard(
         seat: Int,
         hand: [Card],
-        offenseSet: Set<Int>,
+        actualPartnerIndices: Set<Int>,
+        revealedPartnerIndices: Set<Int>,
+        calledCardIds: Set<String>,
         highBidderIndex: Int,
         trumpSuit: TrumpSuit,
         currentTrick: [(playerIndex: Int, card: Card)],
         completedTricks: [[(playerIndex: Int, card: Card)]],
         wonPointsPerPlayer: [Int],
         highBid: Int,
-        trickNumber: Int
+        trickNumber: Int,
+        personality: BotPersonality? = nil
     ) -> String? {
         guard !hand.isEmpty else { return nil }
 
-        let isOffense = offenseSet.contains(seat)
-        let isBidder  = seat == highBidderIndex
-        let trumpRaw  = trumpSuit.rawValue
-
-        func rankScore(_ c: Card) -> Int  { Card.rankOrder[c.rank] ?? 0 }
-        func valueScore(_ c: Card) -> Int { c.pointValue * 100 + rankScore(c) }
-
-        // Phase 3 — Deficit tracking
-        let offensePts = offenseSet.map { wonPointsPerPlayer[$0] }.reduce(0, +)
-        let totalPts   = wonPointsPerPlayer.reduce(0, +)
-        let remaining  = 250 - totalPts
-        let shortfall  = max(0, highBid - offensePts)
-        let isUrgent   = isOffense && remaining > 0 && shortfall * 10 > remaining * 6
-
-        // Phase 4 — Void memory from completed tricks
-        var knownVoids: [Int: Set<String>] = [:]
-        for trick in completedTricks {
-            guard let ledSuit = trick.first?.card.suit else { continue }
-            for entry in trick where entry.card.suit != ledSuit {
-                knownVoids[entry.playerIndex, default: []].insert(ledSuit)
-            }
-        }
-        let opponentIndices = (0..<6).filter {
-            isOffense ? !offenseSet.contains($0) : offenseSet.contains($0)
-        }
+        let style = personality ?? BotPersonality.forSeat(seat)
+        let trumpRaw = trumpSuit.rawValue
+        let actualPartners = actualPartnerIndices.filter { $0 >= 0 && $0 < 6 }
+        let knownOffense = knownOffenseSet(
+            seat: seat,
+            hand: hand,
+            highBidderIndex: highBidderIndex,
+            actualPartnerIndices: actualPartners,
+            revealedPartnerIndices: revealedPartnerIndices,
+            calledCardIds: calledCardIds
+        )
+        let isKnownOffense = knownOffense.contains(seat)
+        let knownVoids = knownVoids(from: completedTricks)
+        let remainingCards = unseenCards(
+            hand: hand,
+            currentTrick: currentTrick,
+            completedTricks: completedTricks
+        )
+        let urgency = urgencyState(
+            knownOffenseSet: knownOffense,
+            wonPointsPerPlayer: wonPointsPerPlayer,
+            highBid: highBid,
+            trickNumber: trickNumber,
+            personality: style
+        )
 
         // ── LEADING ──────────────────────────────────────────────────────────
         if currentTrick.isEmpty {
-            let nonTrump = hand.filter { $0.suit != trumpRaw }
-            if isBidder {
-                let bidSecured  = offensePts >= highBid
-                let trumpCards  = hand.filter { $0.suit == trumpRaw }
-                if !bidSecured || trickNumber < 3 {
-                    if let highTrump = trumpCards.max(by: { rankScore($0) < rankScore($1) }),
-                       rankScore(highTrump) >= (Card.rankOrder["Q"] ?? 0) {
-                        return highTrump.id
-                    }
-                }
-            }
-            if isUrgent, let best = nonTrump.max(by: { valueScore($0) < valueScore($1) }) { return best.id }
-            let scored = nonTrump.map { card -> (Card, Int) in
-                let voidCount = opponentIndices.filter { knownVoids[$0]?.contains(card.suit) == true }.count
-                return (card, rankScore(card) + card.pointValue - voidCount * 4)
-            }
-            if let best = scored.max(by: { $0.1 < $1.1 })?.0 { return best.id }
-            if let best = nonTrump.max(by: { rankScore($0) < rankScore($1) }) { return best.id }
-            return (hand.min(by: { rankScore($0) < rankScore($1) }) ?? hand[0]).id
+            return bestLeadCard(
+                hand: hand,
+                seat: seat,
+                isKnownOffense: isKnownOffense,
+                knownOffenseSet: knownOffense,
+                highBidderIndex: highBidderIndex,
+                trumpRaw: trumpRaw,
+                remainingCards: remainingCards,
+                knownVoids: knownVoids,
+                urgency: urgency,
+                personality: style
+            ).id
         }
 
         // ── FOLLOWING ────────────────────────────────────────────────────────
-        let ledSuit  = currentTrick[0].card.suit
+        let ledSuit = currentTrick[0].card.suit
         let sameSuit = hand.filter { $0.suit == ledSuit }
-
         let winnerIndex = trickWinnerIndex(trick: currentTrick, trumpSuit: trumpSuit)
-        guard let winnerEntry = currentTrick.first(where: { $0.playerIndex == winnerIndex }) else {
+        guard let winner = currentTrick.first(where: { $0.playerIndex == winnerIndex }) else {
             return hand[0].id
         }
 
-        let winner          = winnerEntry
-        let winnerIsOffense = offenseSet.contains(winner.playerIndex)
-        let teammateWinning = isOffense ? winnerIsOffense : !winnerIsOffense
+        let teammateWinning = knownOffense.contains(winner.playerIndex) == isKnownOffense
+        let futureSeats = playersAfter(seat: seat, currentTrick: currentTrick)
+        let futureThreats = futureOpponentThreatCount(
+            futureSeats: futureSeats,
+            isKnownOffense: isKnownOffense,
+            knownOffenseSet: knownOffense,
+            winnerCard: winner.card,
+            ledSuit: ledSuit,
+            trumpRaw: trumpRaw,
+            remainingCards: remainingCards,
+            knownVoids: knownVoids
+        )
+        let trickPoints = currentTrick.map(\.card.pointValue).reduce(0, +)
+        let canFeedPoints = futureThreats <= style.unsafeFeedTolerance
+            || (isKnownOffense && urgency.offense)
+            || (!isKnownOffense && urgency.defense)
 
         if !sameSuit.isEmpty {
             if teammateWinning {
-                return (sameSuit.max(by: { valueScore($0) < valueScore($1) }) ?? sameSuit[0]).id
+                return (canFeedPoints
+                    ? highestValueCard(sameSuit, personality: style)
+                    : lowestValueCard(sameSuit)).id
             }
-            if winner.card.suit == ledSuit {
-                let canBeat = sameSuit.filter { rankScore($0) > rankScore(winner.card) }
-                if let best = canBeat.max(by: { rankScore($0) < rankScore($1) }) { return best.id }
+
+            let winningCards = sameSuit.filter {
+                cardBeats($0, winner: winner.card, ledSuit: ledSuit, trumpRaw: trumpRaw)
             }
-            return (sameSuit.min(by: { valueScore($0) < valueScore($1) }) ?? sameSuit[0]).id
+            if let best = lowestWinningCard(winningCards, trumpRaw: trumpRaw) {
+                return best.id
+            }
+            return lowestValueCard(sameSuit).id
         }
 
         // ── CAN'T FOLLOW ──────────────────────────────────────────────────────
-        if teammateWinning {
-            let nonTrump = hand.filter { $0.suit != trumpRaw }
-            if let best = nonTrump.max(by: { valueScore($0) < valueScore($1) }) { return best.id }
-        }
-        // Only trump in if points are at stake or offense is urgent
-        let trickPoints = currentTrick.map(\.card.pointValue).reduce(0, +)
-        let trumpCards  = hand.filter { $0.suit == trumpRaw }
-        if !trumpCards.isEmpty && (trickPoints > 0 || isUrgent) {
-            return (trumpCards.min(by: { rankScore($0) < rankScore($1) }) ?? trumpCards[0]).id
-        }
+        let trumpCards = hand.filter { $0.suit == trumpRaw }
         let nonTrump = hand.filter { $0.suit != trumpRaw }
-        if let discard = nonTrump.min(by: { valueScore($0) < valueScore($1) }) { return discard.id }
-        return (trumpCards.min(by: { rankScore($0) < rankScore($1) }) ?? hand[0]).id
+
+        if teammateWinning {
+            if canFeedPoints, let feed = nonTrump.max(by: { valueScore($0, personality: style) < valueScore($1, personality: style) }) {
+                return feed.id
+            }
+            if let discard = nonTrump.min(by: { valueScore($0, personality: style) < valueScore($1, personality: style) }) {
+                return discard.id
+            }
+            return lowestValueCard(trumpCards.isEmpty ? hand : trumpCards).id
+        }
+
+        let winningTrumps = trumpCards.filter {
+            cardBeats($0, winner: winner.card, ledSuit: ledSuit, trumpRaw: trumpRaw)
+        }
+        let shouldTrump = !winningTrumps.isEmpty
+            && (trickPoints >= style.trumpInPointThreshold || urgency.eitherSide)
+        if shouldTrump, let bestTrump = lowestWinningCard(winningTrumps, trumpRaw: trumpRaw) {
+            return bestTrump.id
+        }
+
+        if let discard = nonTrump.min(by: { valueScore($0, personality: style) < valueScore($1, personality: style) }) {
+            return discard.id
+        }
+        return lowestValueCard(trumpCards.isEmpty ? hand : trumpCards).id
+    }
+
+    private static func knownOffenseSet(
+        seat: Int,
+        hand: [Card],
+        highBidderIndex: Int,
+        actualPartnerIndices: Set<Int>,
+        revealedPartnerIndices: Set<Int>,
+        calledCardIds: Set<String>
+    ) -> Set<Int> {
+        var known = Set([highBidderIndex])
+        known.formUnion(revealedPartnerIndices.filter { $0 >= 0 && $0 < 6 })
+
+        if seat == highBidderIndex {
+            known.formUnion(actualPartnerIndices)
+            return known
+        }
+
+        let handIds = Set(hand.map(\.id))
+        let knowsSelfIsPartner = actualPartnerIndices.contains(seat)
+            && (!handIds.isDisjoint(with: calledCardIds) || revealedPartnerIndices.contains(seat))
+        if knowsSelfIsPartner {
+            known.insert(seat)
+        }
+        return known
+    }
+
+    private static func knownVoids(
+        from completedTricks: [[(playerIndex: Int, card: Card)]]
+    ) -> [Int: Set<String>] {
+        var voids: [Int: Set<String>] = [:]
+        for trick in completedTricks {
+            guard let ledSuit = trick.first?.card.suit else { continue }
+            for entry in trick where entry.card.suit != ledSuit {
+                voids[entry.playerIndex, default: []].insert(ledSuit)
+            }
+        }
+        return voids
+    }
+
+    private static func unseenCards(
+        hand: [Card],
+        currentTrick: [(playerIndex: Int, card: Card)],
+        completedTricks: [[(playerIndex: Int, card: Card)]]
+    ) -> [Card] {
+        var seen = Set(hand.map(\.id))
+        seen.formUnion(currentTrick.map(\.card.id))
+        seen.formUnion(completedTricks.flatMap { $0.map(\.card.id) })
+        return fullDeck.filter { !seen.contains($0.id) }
+    }
+
+    private static func urgencyState(
+        knownOffenseSet: Set<Int>,
+        wonPointsPerPlayer: [Int],
+        highBid: Int,
+        trickNumber: Int,
+        personality: BotPersonality
+    ) -> Urgency {
+        func points(for index: Int) -> Int {
+            guard wonPointsPerPlayer.indices.contains(index) else { return 0 }
+            return wonPointsPerPlayer[index]
+        }
+
+        let offensePoints = knownOffenseSet.map(points(for:)).reduce(0, +)
+        let totalPoints = wonPointsPerPlayer.reduce(0, +)
+        let defensePoints = totalPoints - offensePoints
+        let remainingPoints = max(0, 250 - totalPoints)
+        let tricksRemaining = max(0, 8 - trickNumber)
+        let offenseShortfall = max(0, highBid - offensePoints)
+        let defenseTarget = max(0, 251 - highBid)
+        let defenseShortfall = max(0, defenseTarget - defensePoints)
+
+        let offensePressure = personality == .riskTaker ? 5 : 6
+        let defensePressure = personality == .conservative ? 6 : 5
+        let offenseUrgent = remainingPoints > 0
+            && (offenseShortfall * 10 > remainingPoints * offensePressure
+                || (tricksRemaining <= 2 && offenseShortfall > 0))
+        let defenseUrgent = remainingPoints > 0
+            && (defenseShortfall * 10 > remainingPoints * defensePressure
+                || (tricksRemaining <= 2 && offensePoints < highBid && offensePoints + remainingPoints >= highBid))
+
+        return Urgency(
+            offense: offenseUrgent,
+            defense: defenseUrgent,
+            offensePoints: offensePoints,
+            defensePoints: defensePoints,
+            remainingPoints: remainingPoints,
+            tricksRemaining: tricksRemaining
+        )
+    }
+
+    private static func bestLeadCard(
+        hand: [Card],
+        seat: Int,
+        isKnownOffense: Bool,
+        knownOffenseSet: Set<Int>,
+        highBidderIndex: Int,
+        trumpRaw: String,
+        remainingCards: [Card],
+        knownVoids: [Int: Set<String>],
+        urgency: Urgency,
+        personality: BotPersonality
+    ) -> Card {
+        let scored = hand.map { card -> (Card, Int) in
+            let isTrump = card.suit == trumpRaw
+            let higherRemaining = remainingCards.filter {
+                $0.suit == card.suit && rankScore($0) > rankScore(card)
+            }.count
+            let futureVoidRisk = (0..<6).filter {
+                knownOffenseSet.contains($0) != isKnownOffense
+                    && knownVoids[$0]?.contains(card.suit) == true
+            }.count
+
+            var score = rankScore(card) + card.pointValue
+            if isTrump {
+                score += personality.leadTrumpBias
+                if rankScore(card) >= personality.trumpLeadFloor { score += 18 }
+                if seat == highBidderIndex || personality == .trumpController { score += 10 }
+                if !isKnownOffense && !urgency.defense { score -= 8 }
+            } else {
+                score += higherRemaining == 0 ? 18 : -(higherRemaining * 3)
+                score -= futureVoidRisk * 10
+                if isKnownOffense && urgency.offense { score += card.pointValue * 3 }
+                if !isKnownOffense && urgency.defense { score += card.pointValue * 2 }
+                score += personality.pointFeedBias
+            }
+            return (card, score)
+        }
+
+        return scored.max {
+            if $0.1 != $1.1 { return $0.1 < $1.1 }
+            return rankScore($0.0) < rankScore($1.0)
+        }?.0 ?? hand[0]
+    }
+
+    private static func playersAfter(
+        seat: Int,
+        currentTrick: [(playerIndex: Int, card: Card)]
+    ) -> [Int] {
+        guard let leader = currentTrick.first?.playerIndex else { return [] }
+        let order = (0..<6).map { (leader + $0) % 6 }
+        let alreadyPlayed = Set(currentTrick.map(\.playerIndex))
+        guard let position = order.firstIndex(of: seat), position + 1 < order.count else { return [] }
+        return order[(position + 1)...].filter { !alreadyPlayed.contains($0) }
+    }
+
+    private static func futureOpponentThreatCount(
+        futureSeats: [Int],
+        isKnownOffense: Bool,
+        knownOffenseSet: Set<Int>,
+        winnerCard: Card,
+        ledSuit: String,
+        trumpRaw: String,
+        remainingCards: [Card],
+        knownVoids: [Int: Set<String>]
+    ) -> Int {
+        let futureOpponents = futureSeats.filter { knownOffenseSet.contains($0) != isKnownOffense }
+        guard !futureOpponents.isEmpty else { return 0 }
+
+        let higherTrumpRemains = remainingCards.contains {
+            $0.suit == trumpRaw && rankScore($0) > rankScore(winnerCard)
+        }
+        let higherLedRemains = remainingCards.contains {
+            $0.suit == ledSuit && rankScore($0) > rankScore(winnerCard)
+        }
+        let anyTrumpRemains = remainingCards.contains { $0.suit == trumpRaw }
+
+        return futureOpponents.filter { player in
+            if winnerCard.suit == trumpRaw {
+                return higherTrumpRemains
+            }
+            if knownVoids[player]?.contains(ledSuit) == true && anyTrumpRemains {
+                return true
+            }
+            return higherLedRemains
+        }.count
+    }
+
+    private static func cardBeats(
+        _ card: Card,
+        winner: Card,
+        ledSuit: String,
+        trumpRaw: String
+    ) -> Bool {
+        if card.suit == trumpRaw && winner.suit != trumpRaw { return true }
+        if card.suit == trumpRaw && winner.suit == trumpRaw {
+            return rankScore(card) > rankScore(winner)
+        }
+        if winner.suit == trumpRaw { return false }
+        return card.suit == ledSuit && winner.suit == ledSuit && rankScore(card) > rankScore(winner)
+    }
+
+    private static func lowestWinningCard(_ cards: [Card], trumpRaw: String) -> Card? {
+        cards.min {
+            let lhs = ($0.suit == trumpRaw ? 100 : 0) + rankScore($0)
+            let rhs = ($1.suit == trumpRaw ? 100 : 0) + rankScore($1)
+            if lhs != rhs { return lhs < rhs }
+            return $0.pointValue < $1.pointValue
+        }
+    }
+
+    private static func highestValueCard(_ cards: [Card], personality: BotPersonality) -> Card {
+        cards.max {
+            valueScore($0, personality: personality) < valueScore($1, personality: personality)
+        } ?? cards[0]
+    }
+
+    private static func lowestValueCard(_ cards: [Card]) -> Card {
+        cards.min {
+            if $0.pointValue != $1.pointValue { return $0.pointValue < $1.pointValue }
+            return rankScore($0) < rankScore($1)
+        } ?? cards[0]
+    }
+
+    private static func rankScore(_ card: Card) -> Int {
+        Card.rankOrder[card.rank] ?? 0
+    }
+
+    private static func valueScore(_ card: Card, personality: BotPersonality) -> Int {
+        let feedBonus = personality == .pointFeeder ? card.pointValue * 20 : 0
+        return card.pointValue * 100 + rankScore(card) + feedBonus
     }
 }

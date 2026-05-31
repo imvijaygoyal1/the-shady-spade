@@ -416,7 +416,8 @@ final class ComputerGameViewModel {
             hand: hands[playerIndex],
             dealerIndex: dealerIndex,
             highBid: highBid,
-            canPass: canPass
+            canPass: canPass,
+            personality: AIEngine.BotPersonality.forSeat(playerIndex)
         )
     }
 
@@ -429,7 +430,10 @@ final class ComputerGameViewModel {
         // at its own entry, but stopping here is cleaner.
         guard !gameLoopCancelled else { return }
 
-        let result = AIEngine.computeCalling(hand: hands[highBidderIndex])
+        let result = AIEngine.computeCalling(
+            hand: hands[highBidderIndex],
+            personality: AIEngine.BotPersonality.forSeat(highBidderIndex)
+        )
         trumpSuit = result.trump
         applyCalledCard(result.c1, slot: 1)
         applyCalledCard(result.c2, slot: 2)
@@ -670,17 +674,26 @@ final class ComputerGameViewModel {
         let wonPointsPerPlayer = wonTricks.map { trickCards in
             trickCards.map(\.pointValue).reduce(0, +)
         }
+        let calledCardIds = Set([calledCard1, calledCard2].filter { !$0.isEmpty })
+        let revealedPartners = AIEngine.revealedPartnerIndices(
+            calledCardIds: calledCardIds,
+            currentTrick: currentTrick,
+            completedTricks: completedTricks
+        )
         guard let cardId = AIEngine.computeCard(
             seat: playerIndex,
             hand: hand,
-            offenseSet: offenseSet,
+            actualPartnerIndices: Set([partner1Index, partner2Index].compactMap { $0 }),
+            revealedPartnerIndices: revealedPartners,
+            calledCardIds: calledCardIds,
             highBidderIndex: highBidderIndex,
             trumpSuit: trumpSuit,
             currentTrick: currentTrick,
             completedTricks: completedTricks,
             wonPointsPerPlayer: wonPointsPerPlayer,
             highBid: highBid,
-            trickNumber: trickNumber
+            trickNumber: trickNumber,
+            personality: AIEngine.BotPersonality.forSeat(playerIndex)
         ) else {
             return hand[0]
         }
