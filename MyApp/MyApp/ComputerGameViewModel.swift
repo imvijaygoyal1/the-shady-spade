@@ -127,6 +127,7 @@ final class ComputerGameViewModel {
     // MARK: Playing
     var currentTrick: [(playerIndex: Int, card: Card)] = []
     var currentLeaderIndex: Int = 0
+    var currentActionPlayer: Int = -1
     var trickNumber: Int = 0
     var wonTricks: [[Card]] = Array(repeating: [], count: 6)
     var completedTricks: [[(playerIndex: Int, card: Card)]] = []
@@ -204,6 +205,7 @@ final class ComputerGameViewModel {
         bids = Array(repeating: -1, count: 6)
         bidHistory = []
         currentTrick = []
+        currentActionPlayer = -1
         trickNumber = 0
         wonTricks = Array(repeating: [], count: 6)
         highBid = 0
@@ -590,11 +592,14 @@ final class ComputerGameViewModel {
         guard !gameLoopCancelled else { return }
         phase = .playing
         currentLeaderIndex = highBidderIndex
+        currentActionPlayer = highBidderIndex
 
         for _ in 0..<8 {
             let order = (0..<6).map { (currentLeaderIndex + $0) % 6 }
 
             for playerIndex in order {
+                currentActionPlayer = playerIndex
+
                 if humanPlayerIndices.contains(playerIndex) {
                     // Pass device if this isn't the currently active human
                     if playerIndex != currentHumanPlayerIndex {
@@ -633,6 +638,8 @@ final class ComputerGameViewModel {
                 }
             }
 
+            currentActionPlayer = -1
+
             // Brief pause so SwiftUI renders the 6th card before resolveTrick() fires.
             // Pass & Play uses 1s (multiple people at the table); solo uses 0.4s.
             if isPassAndPlay {
@@ -647,6 +654,7 @@ final class ComputerGameViewModel {
             currentTrick = []
         }
 
+        currentActionPlayer = -1
         phase = .roundComplete
     }
 

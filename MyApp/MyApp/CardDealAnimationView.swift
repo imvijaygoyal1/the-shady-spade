@@ -31,6 +31,8 @@ struct CardDealAnimationView: View {
 
                 // Felt texture rings
                 feltRings(geo: geo)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
 
                 // Player positions around the table
                 ForEach(0..<6) { i in
@@ -50,6 +52,8 @@ struct CardDealAnimationView: View {
                     .animation(.spring(response: 0.5,
                         dampingFraction: 0.65),
                         value: deckVisible)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
 
                 // Status + progress
                 VStack(spacing: 6) {
@@ -247,6 +251,8 @@ struct CardDealAnimationView: View {
         .position(pos)
         .animation(.spring(response: 0.3), value: count)
         .animation(.spring(response: 0.4), value: done)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     // MARK: - Deck stack
@@ -321,6 +327,8 @@ struct CardDealAnimationView: View {
             .animation(.spring(response: 0.24,
                 dampingFraction: 0.75),
                 value: card.arrived)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     // MARK: - Geometry

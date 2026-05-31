@@ -279,6 +279,7 @@ struct PlayerTurnGlowModifier: ViewModifier {
                         value: pulsing
                     )
                     .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             )
             .onChange(of: isActive) { _, active in
                 pulsing = active

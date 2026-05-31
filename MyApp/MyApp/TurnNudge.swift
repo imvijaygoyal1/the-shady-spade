@@ -1,10 +1,9 @@
 import SwiftUI
-import AVFoundation
 
 extension View {
     func turnNudge(
         isMyTurn: Bool,
-        playSound: Bool = true
+        playSound: Bool = false
     ) -> some View {
         self.modifier(TurnNudgeModifier(
             isMyTurn: isMyTurn,
@@ -33,65 +32,24 @@ private struct TurnNudgeModifier: ViewModifier {
 }
 
 enum TurnNudgeEngine {
-    private static var audioPlayer: AVAudioPlayer?
+    private static let isEnabled = true
+    private static var lastFireDate = Date.distantPast
+    private static let minimumFireInterval: TimeInterval = 1.25
 
+    @MainActor
     static func fire(playSound: Bool = true) {
+        guard isEnabled else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastFireDate) >= minimumFireInterval else { return }
+        lastFireDate = now
+
         // Beat 1 — soft
-        let soft = UIImpactFeedbackGenerator(
-            style: .soft)
-        soft.prepare()
-        soft.impactOccurred(intensity: 0.6)
+        HapticManager.impact(.soft)
 
         // Beat 2 — medium, delayed
         DispatchQueue.main.asyncAfter(
             deadline: .now() + 0.14) {
-            let medium = UIImpactFeedbackGenerator(
-                style: .medium)
-            medium.prepare()
-            medium.impactOccurred(intensity: 0.85)
-        }
-
-        if playSound {
-            DispatchQueue.main.asyncAfter(
-                deadline: .now() + 0.18) {
-                playTurnSound()
-            }
-        }
-    }
-
-    private static func playTurnSound() {
-        // Configure audio session to play even
-        // when silent switch is ON
-        do {
-            try AVAudioSession.sharedInstance()
-                .setCategory(
-                    .ambient,
-                    mode: .default,
-                    options: [.mixWithOthers]
-                )
-            try AVAudioSession.sharedInstance()
-                .setActive(true)
-        } catch {
-            print("TurnNudge: audio session " +
-                "error — \(error)")
-        }
-
-        // Use a built-in system sound file
-        // that exists on all iOS devices
-        let soundURL = URL(fileURLWithPath:
-            "/System/Library/Audio/UISounds/" +
-            "Tock.caf")
-
-        do {
-            audioPlayer = try AVAudioPlayer(
-                contentsOf: soundURL)
-            audioPlayer?.volume = 0.5
-            audioPlayer?.prepareToPlay()
-            audioPlayer?.play()
-        } catch {
-            // Fallback to AudioServices
-            // if file path fails
-            AudioServicesPlaySystemSound(1104)
+            HapticManager.impact(.medium)
         }
     }
 }

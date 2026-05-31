@@ -105,6 +105,7 @@ private struct SplashPage: View {
                             value: floating
                         )
                         .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
 
                 // ── Pulsing aura behind spade ────────────────────────────
@@ -121,6 +122,7 @@ private struct SplashPage: View {
                 .animation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true), value: auraPulsing)
                 .position(x: geo.size.width / 2, y: geo.size.height * 0.265)
                 .allowsHitTesting(false)
+                .accessibilityHidden(true)
 
                 // ── Main content ─────────────────────────────────────────
                 GameAdaptiveLayout(
@@ -139,6 +141,7 @@ private struct SplashPage: View {
                                 .scaleEffect(spadeScale)
                                 .animation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true), value: spadeScale)
                                 .allowsHitTesting(false)
+                                .accessibilityHidden(true)
 
                             Spacer().frame(height: 18)
 
@@ -469,6 +472,8 @@ private struct DeckAndDealPage: View {
                     .opacity(deckVisible ? 1 : 0)
                     .scaleEffect(deckVisible ? 1 : 0.4)
                     .animation(.spring(response: 0.6, dampingFraction: 0.65), value: deckVisible)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
 
                 // Deck info label
                 VStack(spacing: 2) {
@@ -583,6 +588,8 @@ private struct DeckAndDealPage: View {
         .frame(width: 64)
         .position(pos)
         .animation(.spring(response: 0.3), value: dealt)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     // MARK: Flying deal card
@@ -603,6 +610,7 @@ private struct DeckAndDealPage: View {
             .opacity(card.arrived ? 0 : 1)
             .animation(.spring(response: 0.32, dampingFraction: 0.72), value: card.arrived)
             .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     // MARK: Action button

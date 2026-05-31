@@ -130,6 +130,9 @@ final class LeaderboardService {
     }
     private let cloudRunURL = URL(string: "https://us-central1-shadyspade-d6b84.cloudfunctions.net/recordGame")!
     private var isFlushing = false
+    private var listenerAttachTask: Task<Void, Never>?
+    private var reattachTask: Task<Void, Never>?
+    private var authStateHandle: AuthStateDidChangeListenerHandle?
 
     private init() {}
 
@@ -142,8 +145,50 @@ final class LeaderboardService {
         // before attaching fresh listeners.
         stopListening()
         isLoading = true
-        attachFirestoreListeners()
         startNetworkMonitor()
+        startAuthStateListener()
+        scheduleAuthenticatedListenerAttach()
+    }
+
+    private func startAuthStateListener() {
+        guard authStateHandle == nil else { return }
+        authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            guard let self else { return }
+            Task { @MainActor in
+                if user == nil {
+                    self.stopFirestoreListeners()
+                    return
+                }
+                self.errorMessage = nil
+                self.scheduleAuthenticatedListenerAttach()
+                await self.flushPendingRecords()
+            }
+        }
+    }
+
+    private func scheduleAuthenticatedListenerAttach(after delay: UInt64 = 0) {
+        listenerAttachTask?.cancel()
+        listenerAttachTask = Task { @MainActor [weak self] in
+            if delay > 0 {
+                do { try await Task.sleep(nanoseconds: delay) } catch { return }
+            }
+            guard let self, !Task.isCancelled else { return }
+            guard self.statsListener == nil || self.logListener == nil else {
+                self.isLoading = false
+                return
+            }
+            guard await self.ensureAuthenticated() else {
+                self.isLoading = false
+                self.errorMessage = "Leaderboard sign-in failed. Scores will sync when authentication recovers."
+                lbLog.error("startListening: Firebase auth unavailable; leaderboard listeners not attached")
+                return
+            }
+            guard !Task.isCancelled else { return }
+            self.errorMessage = nil
+            self.stopFirestoreListeners()
+            self.attachFirestoreListeners()
+            await self.flushPendingRecords()
+        }
     }
 
     private func attachFirestoreListeners() {
@@ -225,16 +270,31 @@ final class LeaderboardService {
     /// Tears down existing listeners and re-subscribes after a 3-second delay.
     /// Called automatically when a listener reports an error (e.g. silent death).
     private func reattachListeners() {
-        stopListening()
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            guard let self else { return }
-            lbLog.info("reattachListeners: re-subscribing Firestore listeners")
-            self.attachFirestoreListeners()
+        stopFirestoreListeners()
+        reattachTask?.cancel()
+        reattachTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: 3_000_000_000) } catch { return }
+            guard let self, !Task.isCancelled else { return }
+            lbLog.info("reattachListeners: re-subscribing Firestore listeners after auth check")
+            self.scheduleAuthenticatedListenerAttach()
         }
     }
 
     func stopListening() {
+        listenerAttachTask?.cancel()
+        listenerAttachTask = nil
+        reattachTask?.cancel()
+        reattachTask = nil
+        stopFirestoreListeners()
+        networkMonitor?.cancel()
+        networkMonitor = nil
+        if let authStateHandle {
+            Auth.auth().removeStateDidChangeListener(authStateHandle)
+            self.authStateHandle = nil
+        }
+    }
+
+    private func stopFirestoreListeners() {
         statsListener?.remove()
         statsListener = nil
         logListener?.remove()
@@ -244,10 +304,14 @@ final class LeaderboardService {
     // MARK: - Network Monitor
 
     private func startNetworkMonitor() {
+        networkMonitor?.cancel()
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
             guard path.status == .satisfied else { return }
             Task { @MainActor [weak self] in
+                if self?.statsListener == nil || self?.logListener == nil {
+                    self?.scheduleAuthenticatedListenerAttach()
+                }
                 await self?.flushPendingRecords()
             }
         }
@@ -321,6 +385,12 @@ final class LeaderboardService {
         // automatic offline retry.
         enqueue(pending)
         scoreSaveStatus = .saving
+        guard await ensureAuthenticated() else {
+            scoreSaveStatus = .pending
+            errorMessage = nil
+            lbLog.error("recordGame: Firebase auth unavailable; record left in pending queue")
+            return
+        }
 
         switch await sendRecord(pending) {
         case .success:
@@ -476,7 +546,7 @@ final class LeaderboardService {
         guard !isFlushing else { return }
         isFlushing = true
         defer { isFlushing = false }
-        await ensureAuthenticated()
+        guard await ensureAuthenticated() else { return }
 
         let records = loadPendingRecords()
         guard !records.isEmpty else { return }
@@ -515,13 +585,16 @@ final class LeaderboardService {
     /// Ensures a Firebase anonymous user exists before attempting an HTTP send.
     /// Called by flushPendingRecords so that records queued during an offline
     /// session are not permanently discarded with a 401 on first flush.
-    private func ensureAuthenticated() async {
-        guard Auth.auth().currentUser == nil else { return }
+    @discardableResult
+    private func ensureAuthenticated() async -> Bool {
+        guard Auth.auth().currentUser == nil else { return true }
         do {
             try await Auth.auth().signInAnonymously()
             lbLog.info("ensureAuthenticated: signed in anonymously for pending flush")
+            return true
         } catch {
             lbLog.error("ensureAuthenticated: sign-in failed: \(error.localizedDescription)")
+            return false
         }
     }
 

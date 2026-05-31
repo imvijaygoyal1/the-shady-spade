@@ -1008,35 +1008,23 @@ struct BTPlayingView: View {
             VStack(spacing: 10) {
                 HStack(spacing: 5) {
                     ForEach(0..<6, id: \.self) { i in
-                        let isActive = i == game.currentActionPlayer
-                        ZStack(alignment: .top) {
-                            AvatarRoleCard(
-                                avatar: game.playerAvatar(i),
-                                name: game.playerName(i),
-                                role: resolveAvatarRole(
-                                    playerIndex: i,
-                                    bidderIndex: game.highBidderIndex,
-                                    revealedPartner1: game.revealedPartner1Index >= 0
-                                        ? game.revealedPartner1Index : nil,
-                                    revealedPartner2: game.revealedPartner2Index >= 0
-                                        ? game.revealedPartner2Index : nil,
-                                    isRoundComplete: false
-                                )
+                        TurnAvatarChip(
+                            avatar: game.playerAvatar(i),
+                            name: game.playerName(i),
+                            role: resolveAvatarRole(
+                                playerIndex: i,
+                                bidderIndex: game.highBidderIndex,
+                                revealedPartner1: game.revealedPartner1Index >= 0
+                                    ? game.revealedPartner1Index : nil,
+                                revealedPartner2: game.revealedPartner2Index >= 0
+                                    ? game.revealedPartner2Index : nil,
+                                isRoundComplete: false
+                            ),
+                            isActive: TurnUI.isActive(
+                                playerIndex: i,
+                                currentActionPlayer: game.currentActionPlayer
                             )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(
-                                        isActive ? Color(red: 0.29, green: 0.87, blue: 0.50) : Color.clear,
-                                        lineWidth: 2.5
-                                    )
-                            )
-                            if isActive {
-                                TurnArrow()
-                                    .fill(Color(red: 0.29, green: 0.87, blue: 0.50))
-                                    .frame(width: 8, height: 6)
-                                    .offset(y: -8)
-                            }
-                        }
+                        )
                     }
                 }
                 .animation(.easeInOut(duration: 0.2), value: game.currentActionPlayer)
@@ -1135,7 +1123,7 @@ struct BTPlayingView: View {
                             name: game.playerName(i),
                             role: roleLabel,
                             roleColor: roleColor,
-                            isActive: i == game.currentActionPlayer,
+                            isActive: TurnUI.isActive(playerIndex: i, currentActionPlayer: game.currentActionPlayer),
                             isBidder: i == game.highBidderIndex
                         )
                     }
@@ -1213,25 +1201,7 @@ struct BTPlayingView: View {
     // MARK: - Shared Sub-views
 
     private func btWaitingBanner(name: String) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(Color(red: 0.22, green: 0.74, blue: 0.97))
-                .frame(width: 6, height: 6)
-            Text("Waiting for \(name) to play…")
-                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                .foregroundStyle(Color(red: 0.22, green: 0.74, blue: 0.97))
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(Color(red: 0.22, green: 0.74, blue: 0.97).opacity(0.1))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color(red: 0.22, green: 0.74, blue: 0.97).opacity(0.35), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .transition(.opacity)
-        .animation(.easeInOut(duration: 0.3), value: game.currentActionPlayer)
+        TurnWaitingBanner(name: name, currentActionPlayer: game.currentActionPlayer)
     }
 
     private func btCurrentHandBox(geo: GeometryProxy) -> some View {

@@ -29,6 +29,8 @@ struct GameTableView: View {
                     // 3-D card shuffle deck
                     cardDeck
                         .position(center)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
 
                     // Flying deal cards (only while dealing)
                     if dealing {
@@ -53,6 +55,7 @@ struct GameTableView: View {
                             )
                             .animation(.spring(response: 0.28), value: dealtTo.contains(i))
                             .allowsHitTesting(false)
+                            .accessibilityHidden(true)
                     }
                 }
             }
@@ -160,6 +163,7 @@ struct GameTableView: View {
         }
         .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: shuffleFan)
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     // MARK: - Deal Card (animated chip flying to avatar)
@@ -179,6 +183,7 @@ struct GameTableView: View {
                 value: arrived
             )
             .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     // MARK: - Avatar

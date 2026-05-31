@@ -1142,40 +1142,24 @@ private struct PlayingPhaseView: View {
                     let chipW = (avatarGeo.size.width - 32) / 6
                     HStack(spacing: 0) {
                         ForEach(0..<6, id: \.self) { i in
-                            let isActive = i == game.currentLeaderIndex
-                            ZStack(alignment: .top) {
-                                AvatarRoleCard(
-                                    avatar: game.playerAvatar(i),
-                                    name: game.playerName(i),
-                                    role: resolveAvatarRole(
-                                        playerIndex: i,
-                                        bidderIndex: game.highBidderIndex,
-                                        revealedPartner1: game.revealedPartner1Index,
-                                        revealedPartner2: game.revealedPartner2Index,
-                                        isRoundComplete: false
-                                    )
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .strokeBorder(
-                                            isActive ? Color(red: 0.29, green: 0.87, blue: 0.50) : Color.clear,
-                                            lineWidth: 2.5
-                                        )
-                                )
-                                if isActive {
-                                    TurnArrow()
-                                        .fill(Color(red: 0.29, green: 0.87, blue: 0.50))
-                                        .frame(width: 8, height: 6)
-                                        .offset(y: -8)
-                                }
-                            }
+                            TurnAvatarChip(
+                                avatar: game.playerAvatar(i),
+                                name: game.playerName(i),
+                                role: resolveAvatarRole(
+                                    playerIndex: i,
+                                    bidderIndex: game.highBidderIndex,
+                                    revealedPartner1: game.revealedPartner1Index,
+                                    revealedPartner2: game.revealedPartner2Index,
+                                    isRoundComplete: false
+                                ),
+                                isActive: TurnUI.isActive(playerIndex: i, currentActionPlayer: game.currentActionPlayer)
+                            )
                             .frame(maxWidth: chipW)
-                            .clipped()
                         }
                     }
                     .padding(.horizontal, 16)
                     .id("avatars-\(game.revealedPartner1Index.map(String.init) ?? "nil")-\(game.revealedPartner2Index.map(String.init) ?? "nil")")
-                    .animation(.easeInOut(duration: 0.2), value: game.currentLeaderIndex)
+                    .animation(.easeInOut(duration: 0.2), value: game.currentActionPlayer)
                     .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
                     .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
                 }
@@ -1183,8 +1167,8 @@ private struct PlayingPhaseView: View {
                 .padding(.top, 44)
 
                 // Waiting banner
-                if !game.humanPlayerIndices.contains(game.currentLeaderIndex) && game.currentLeaderIndex >= 0 {
-                    waitingBanner(name: game.playerName(game.currentLeaderIndex))
+                if !game.humanPlayerIndices.contains(game.currentActionPlayer) && game.currentActionPlayer >= 0 {
+                    waitingBanner(name: game.playerName(game.currentActionPlayer))
                         .padding(.horizontal, 12)
                 }
 
@@ -1280,7 +1264,7 @@ private struct PlayingPhaseView: View {
                             name: game.playerName(i),
                             role: roleLabel,
                             roleColor: roleColor,
-                            isActive: i == game.currentLeaderIndex,
+                            isActive: TurnUI.isActive(playerIndex: i, currentActionPlayer: game.currentActionPlayer),
                             isBidder: i == game.highBidderIndex
                         )
                     }
@@ -1302,8 +1286,8 @@ private struct PlayingPhaseView: View {
                     )
                     .padding(.horizontal, 10)
 
-                    if !game.humanPlayerIndices.contains(game.currentLeaderIndex) && game.currentLeaderIndex >= 0 {
-                        waitingBanner(name: game.playerName(game.currentLeaderIndex))
+                    if !game.humanPlayerIndices.contains(game.currentActionPlayer) && game.currentActionPlayer >= 0 {
+                        waitingBanner(name: game.playerName(game.currentActionPlayer))
                             .padding(.horizontal, 10)
                     }
 
@@ -1360,25 +1344,7 @@ private struct PlayingPhaseView: View {
     // MARK: - Shared Sub-views
 
     private func waitingBanner(name: String) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(Color(red: 0.22, green: 0.74, blue: 0.97))
-                .frame(width: 6, height: 6)
-            Text("Waiting for \(name) to play…")
-                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                .foregroundStyle(Color(red: 0.22, green: 0.74, blue: 0.97))
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(Color(red: 0.22, green: 0.74, blue: 0.97).opacity(0.1))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color(red: 0.22, green: 0.74, blue: 0.97).opacity(0.35), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .transition(.opacity)
-        .animation(.easeInOut(duration: 0.3), value: game.currentLeaderIndex)
+        TurnWaitingBanner(name: name, currentActionPlayer: game.currentActionPlayer)
     }
 
     private func currentHandBox() -> some View {
@@ -1398,7 +1364,8 @@ private struct PlayingPhaseView: View {
 
             if game.currentTrick.isEmpty {
                 let isMine = game.phase == .humanPlaying
-                Text(isMine ? "Your turn — play a card" : "Waiting for \(game.playerName(game.currentLeaderIndex))…")
+                let name = game.currentActionPlayer >= 0 ? game.playerName(game.currentActionPlayer) : "…"
+                Text(isMine ? "Your turn — play a card" : "Waiting for \(name)…")
                     .font(.system(size: 13, weight: .heavy, design: .rounded))
                     .foregroundStyle(isMine ? Comic.yellow : Color.adaptiveSecondary)
                     .multilineTextAlignment(.center)

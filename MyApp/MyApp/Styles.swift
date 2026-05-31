@@ -140,11 +140,37 @@ extension View {
 // MARK: - Haptics
 
 struct HapticManager {
-    static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
-        UIImpactFeedbackGenerator(style: style).impactOccurred()
+    private static let isEnabled = true
+    private static let minimumInterval: TimeInterval = 0.12
+    private static var lastFireDate = Date.distantPast
+
+    private static func fire(_ action: @escaping () -> Void) {
+        DispatchQueue.main.async {
+            guard isEnabled else { return }
+            let now = Date()
+            guard now.timeIntervalSince(lastFireDate) >= minimumInterval else { return }
+            lastFireDate = now
+            action()
+        }
     }
-    static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
-    static func error()   { UINotificationFeedbackGenerator().notificationOccurred(.error) }
+
+    static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
+        fire {
+            let generator = UIImpactFeedbackGenerator(style: style)
+            generator.prepare()
+            generator.impactOccurred()
+        }
+    }
+    static func success() {
+        fire {
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        }
+    }
+    static func error() {
+        fire {
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+        }
+    }
 }
 
 // MARK: - Bouncy Button
@@ -663,6 +689,7 @@ struct LiveDot: View {
             .scaleEffect(pulse ? 1.4 : 1.0)
             .animation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true), value: pulse)
             .allowsHitTesting(false)
+            .accessibilityHidden(true)
             .onAppear { pulse = true }
     }
 }
@@ -910,6 +937,69 @@ func resolveAvatarRole(
     }
 }
 
+// MARK: - Turn UI
+
+enum TurnUI {
+    static let activeColor = Color(red: 0.29, green: 0.87, blue: 0.50)
+    static let waitingColor = Color(red: 0.22, green: 0.74, blue: 0.97)
+
+    static func isActive(playerIndex: Int, currentActionPlayer: Int) -> Bool {
+        currentActionPlayer >= 0 && playerIndex == currentActionPlayer
+    }
+}
+
+struct TurnAvatarChip: View {
+    let avatar: String
+    let name: String
+    let role: AvatarRole
+    let isActive: Bool
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            AvatarRoleCard(avatar: avatar, name: name, role: role)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(isActive ? TurnUI.activeColor : .clear, lineWidth: 2.5)
+                )
+
+            if isActive {
+                TurnArrow()
+                    .fill(TurnUI.activeColor)
+                    .frame(width: 8, height: 6)
+                    .offset(y: -8)
+            }
+        }
+        .clipped()
+    }
+}
+
+struct TurnWaitingBanner: View {
+    let name: String
+    let currentActionPlayer: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(TurnUI.waitingColor)
+                .frame(width: 6, height: 6)
+            Text("Waiting for \(name) to play…")
+                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .foregroundStyle(TurnUI.waitingColor)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(TurnUI.waitingColor.opacity(0.1))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(TurnUI.waitingColor.opacity(0.35), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.3), value: currentActionPlayer)
+    }
+}
+
 // MARK: - AvatarRoleCard
 
 struct AvatarRoleCard: View {
@@ -1033,6 +1123,7 @@ struct AvatarRoleCard: View {
                         .padding(-3)
                         .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: glowPulse)
                         .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
             }
         )
@@ -1563,7 +1654,7 @@ struct LandscapePlayerRow: View {
             Spacer()
             if isActive {
                 Circle()
-                    .fill(Color(red: 0.29, green: 0.87, blue: 0.50))
+                    .fill(TurnUI.activeColor)
                     .frame(width: 6, height: 6)
             }
         }
@@ -1573,7 +1664,7 @@ struct LandscapePlayerRow: View {
             isBidder
                 ? Color.masterGold.opacity(0.08)
                 : isActive
-                    ? Color(red: 0.29, green: 0.87, blue: 0.50).opacity(0.06)
+                    ? TurnUI.activeColor.opacity(0.06)
                     : Comic.containerBG
         )
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -1583,7 +1674,7 @@ struct LandscapePlayerRow: View {
                     isBidder
                         ? Color.masterGold.opacity(0.4)
                         : isActive
-                            ? Color(red: 0.29, green: 0.87, blue: 0.50).opacity(0.4)
+                            ? TurnUI.activeColor.opacity(0.4)
                             : Comic.containerBorder,
                     lineWidth: 1)
         )
@@ -1620,6 +1711,7 @@ struct ShimmerModifier: ViewModifier {
                     .animation(.linear(duration: 1.4).repeatForever(autoreverses: false), value: sweeping)
                     .animation(.easeInOut(duration: 0.25), value: isActive)
                     .allowsHitTesting(false)
+                    .accessibilityHidden(true)
                     .onAppear { if isActive { sweeping = true } }
                     .onChange(of: isActive) { _, newValue in sweeping = newValue }
                 }
@@ -1630,6 +1722,7 @@ struct ShimmerModifier: ViewModifier {
                         Color.masterGold.opacity(isActive ? 0.55 : 0),
                         lineWidth: 1.5)
                     .allowsHitTesting(false)
+                    .accessibilityHidden(true)
                     .animation(.easeInOut(duration: 0.25), value: isActive)
             )
     }
@@ -1744,12 +1837,12 @@ struct BiddingTwoColumnLayout: View {
                         .overlay(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .strokeBorder(
-                                    isActive ? Color(red: 0.29, green: 0.87, blue: 0.50) : Color.clear,
+                                    isActive ? TurnUI.activeColor : Color.clear,
                                     lineWidth: 2.5)
                         )
                         if isActive {
                             TurnArrow()
-                                .fill(Color(red: 0.29, green: 0.87, blue: 0.50))
+                                .fill(TurnUI.activeColor)
                                 .frame(width: 8, height: 6)
                                 .offset(y: -8)
                         }
@@ -1912,10 +2005,11 @@ struct BiddingTwoColumnLayout: View {
                     } label: {
                         ZStack {
                             // Pulsing green layer scoped to this leaf — never reaches the Button's gesture recognizer
-                            Color(red: 0.29, green: 0.87, blue: 0.50)
+                            TurnUI.activeColor
                                 .opacity(bidPulse ? 1 : 0)
                                 .animation(.easeInOut(duration: 0.65).repeatForever(autoreverses: true), value: bidPulse)
                                 .allowsHitTesting(false)
+                                .accessibilityHidden(true)
                             HStack(spacing: 6) {
                                 if isSubmittingBid {
                                     ProgressView().tint(Comic.black).scaleEffect(0.8)
@@ -1932,7 +2026,7 @@ struct BiddingTwoColumnLayout: View {
                         bg: Comic.yellow,
                         fg: Comic.black,
                         borderColor: Comic.black))
-                    .shadow(color: Color(red: 0.29, green: 0.87, blue: 0.50).opacity(0.5),
+                    .shadow(color: TurnUI.activeColor.opacity(0.5),
                             radius: 12, x: 0, y: 0)
                     .disabled(isSubmittingBid)
                     .onAppear { bidPulse = true }
@@ -1978,19 +2072,19 @@ struct BiddingTwoColumnLayout: View {
             } else {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(Color(red: 0.22, green: 0.74, blue: 0.97))
+                        .fill(TurnUI.waitingColor)
                         .frame(width: 6, height: 6)
                     Text("Waiting for \(currentBidTurn >= 0 && currentBidTurn < playerNames.count ? playerNames[currentBidTurn] : "…")…")
                         .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color(red: 0.22, green: 0.74, blue: 0.97))
+                        .foregroundStyle(TurnUI.waitingColor)
                         .lineLimit(2)
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(red: 0.22, green: 0.74, blue: 0.97).opacity(0.1))
+                .background(TurnUI.waitingColor.opacity(0.1))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color(red: 0.22, green: 0.74, blue: 0.97).opacity(0.35), lineWidth: 1)
+                        .strokeBorder(TurnUI.waitingColor.opacity(0.35), lineWidth: 1)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
