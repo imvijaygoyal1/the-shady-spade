@@ -366,14 +366,14 @@ private struct OnlineEntryView: View {
                 playerName: playerName,
                 playerAvatar: playerAvatar,
                 autoShowJoin: autoShowJoin,
-                onGameReady: { myIndex, isHostVal, code, names, avatars, aiSeats in
+                onGameReady: { myIndex, isHostVal, code, names, avatars, aiSeats, dealerIndex in
                     onlineGame = OnlineGameViewModel(
                         myPlayerIndex: myIndex,
                         isHost: isHostVal,
                         sessionCode: code,
                         playerNames: names,
                         playerAvatars: avatars,
-                        dealerIndex: 0,
+                        dealerIndex: dealerIndex,
                         roundNumber: 1,
                         aiSeats: aiSeats
                     )
@@ -745,4 +745,3 @@ private struct NoAnimationCover<Content: View>: UIViewControllerRepresentable {
         }
     }
 }
-

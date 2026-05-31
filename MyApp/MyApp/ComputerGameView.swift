@@ -21,6 +21,7 @@ struct ComputerGameView: View {
     @State private var soloGameSaved = false
     private let targetScore = 500
     private static let firstSessionRoundNumber = 1
+    private static func randomInitialDealerIndex() -> Int { Int.random(in: 0..<6) }
 
     init(vm: GameViewModel, humanName: String, humanAvatar: String = "🦁") {
         self.vm = vm
@@ -29,7 +30,7 @@ struct ComputerGameView: View {
         _game = State(initialValue: ComputerGameViewModel(
             humanName: humanName,
             humanAvatar: humanAvatar,
-            dealerIndex: vm.dealerIndex,
+            dealerIndex: Self.randomInitialDealerIndex(),
             roundNumber: Self.firstSessionRoundNumber
         ))
     }
@@ -341,20 +342,21 @@ struct ComputerGameView: View {
         savedHistoryRounds = []
         isGameOver = false
         soloGameSaved = false
+        let nextDealer = (game.dealerIndex + 1) % 6
         let newGame: ComputerGameViewModel
         if !game._allPlayerNames.isEmpty {
             newGame = ComputerGameViewModel(
                 humanSeats: game.humanPlayerIndices,
                 allNames: game._allPlayerNames,
                 allAvatars: game._allPlayerAvatars,
-                dealerIndex: vm?.dealerIndex ?? 0,
+                dealerIndex: nextDealer,
                 roundNumber: Self.firstSessionRoundNumber
             )
         } else {
             newGame = ComputerGameViewModel(
                 humanName: humanName,
                 humanAvatar: humanAvatar,
-                dealerIndex: vm?.dealerIndex ?? 0,
+                dealerIndex: nextDealer,
                 roundNumber: Self.firstSessionRoundNumber
             )
         }

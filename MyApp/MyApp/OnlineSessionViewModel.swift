@@ -114,6 +114,7 @@ enum SessionStatus: String {
     var errorMessage: String? = nil
     var aiSeats: [Int] = []
     var sessionType: String = "online"
+    var currentDealerIndex: Int = Int.random(in: 0..<6)
     /// True while the Firebase document write is in-flight (after prepareLocalSession)
     var isConnecting: Bool = false
     /// Slot index this non-host player joined (set in joinSession; -1 for host).
@@ -143,6 +144,8 @@ enum SessionStatus: String {
     func createSession(uid: String, name: String, avatar: String = "",
                        aiSeats newAISeats: [Int] = [], sessionType newSessionType: String = "online") async -> String {
         let code = await findUniqueRoomCode()
+        let initialDealerIndex = Int.random(in: 0..<6)
+        currentDealerIndex = initialDealerIndex
         var slots: [[String: Any]] = (0..<6).map { _ in ["uid": "", "name": "", "avatar": "", "joined": false] }
         slots[0] = ["uid": uid, "name": name, "avatar": avatar, "joined": true]
 
@@ -158,7 +161,7 @@ enum SessionStatus: String {
             "hostUid": uid,
             "status": SessionStatus.waiting.rawValue,
             "createdAt": Timestamp(),
-            "currentDealerIndex": 0,
+            "currentDealerIndex": initialDealerIndex,
             "playerSlots": slots,
             "rounds": [],
             "aiSeats": newAISeats,
@@ -195,6 +198,7 @@ enum SessionStatus: String {
         errorMessage = nil
         self.aiSeats = newAISeats
         self.sessionType = newSessionType
+        currentDealerIndex = Int.random(in: 0..<6)
         pendingUID = uid
         pendingName = name
         pendingAvatar = avatar
@@ -235,7 +239,7 @@ enum SessionStatus: String {
             "hostUid": pendingUID,
             "status": SessionStatus.waiting.rawValue,
             "createdAt": Timestamp(),
-            "currentDealerIndex": 0,
+            "currentDealerIndex": currentDealerIndex,
             "playerSlots": slotsData,
             "rounds": [],
             "aiSeats": aiSeats,
@@ -465,6 +469,7 @@ enum SessionStatus: String {
         status = .idle
         playerSlots = (0..<6).map { SessionPlayer.empty(at: $0) }
         rounds = []
+        currentDealerIndex = Int.random(in: 0..<6)
         onSessionUpdated = nil
     }
 
@@ -498,6 +503,11 @@ enum SessionStatus: String {
 
                     if let roundsData = data["rounds"] as? [[String: Any]] {
                         self.rounds = roundsData.compactMap { OnlineRound(from: $0) }
+                    }
+
+                    if let dealer = (data["currentDealerIndex"] as? Int)
+                        ?? (data["currentDealerIndex"] as? Int64).map(Int.init) {
+                        self.currentDealerIndex = dealer
                     }
 
                     if let aiSeatsData = data["aiSeats"] as? [Any] {

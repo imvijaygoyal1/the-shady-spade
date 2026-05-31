@@ -231,6 +231,7 @@ final class BluetoothGameViewModel: NSObject {
         // Slot 0 = host
         myPlayerIndex = 0
         isHost = true
+        dealerIndex = Int.random(in: 0..<6)
         gameSessionId = UUID().uuidString
             .filter { $0.isLetter || $0.isNumber }
             .prefix(10)
