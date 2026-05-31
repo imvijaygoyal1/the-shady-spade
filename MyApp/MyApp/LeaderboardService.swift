@@ -133,6 +133,8 @@ final class LeaderboardService {
     private var listenerAttachTask: Task<Void, Never>?
     private var reattachTask: Task<Void, Never>?
     private var authStateHandle: AuthStateDidChangeListenerHandle?
+    private var inFlightRecordIDs = Set<UUID>()
+    private var inFlightDeduplicationKeys = Set<String>()
 
     private init() {}
 
@@ -385,6 +387,15 @@ final class LeaderboardService {
         // automatic offline retry.
         enqueue(pending)
         scoreSaveStatus = .saving
+
+        guard claimSend(pending) else {
+            scoreSaveStatus = .pending
+            errorMessage = nil
+            lbLog.info("recordGame: send already in progress; record left in pending queue id=\(pending.id)")
+            return
+        }
+        defer { releaseSend(pending) }
+
         guard await ensureAuthenticated() else {
             scoreSaveStatus = .pending
             errorMessage = nil
@@ -394,12 +405,12 @@ final class LeaderboardService {
 
         switch await sendRecord(pending) {
         case .success:
-            removeFromQueue(id: pending.id)
+            removeFromQueue(matching: pending)
             scoreSaveStatus = .saved
             errorMessage = nil
         case .serverRejected(let reason):
             // Server will keep rejecting this payload — remove from queue, surface the error.
-            removeFromQueue(id: pending.id)
+            removeFromQueue(matching: pending)
             scoreSaveStatus = .failed("Score not saved: \(reason)")
             errorMessage = "Score not saved: \(reason)"
             lbLog.error("record permanently rejected by server: \(reason)")
@@ -489,8 +500,8 @@ final class LeaderboardService {
         if let existingIdx = records.firstIndex(where: { $0.deduplicationKey == record.deduplicationKey }) {
             // BT-GAP-14: Replace the existing record with the newer one so the caller's
             // UUID (pending.id) matches what is stored. If we kept the old UUID,
-            // removeFromQueue(id: pending.id) after a successful send would remove nothing
-            // and the pre-enqueued record would accumulate in the queue forever.
+            // removeFromQueue(matching:) after a successful send can clear both the
+            // sent record and any same-game replacement created during an in-flight flush.
             lbLog.info("enqueue: replacing existing record id=\(records[existingIdx].id) → \(record.id)")
             records[existingIdx] = record
             savePendingRecords(records)
@@ -506,7 +517,7 @@ final class LeaderboardService {
     /// Call from synchronous game-state handlers (e.g. applyGameState at .gameOver) so
     /// the record survives a process suspension before the normal async recordGame() path
     /// runs. When recordGame() is subsequently called, enqueue() replaces this record
-    /// (same deduplicationKey) and removeFromQueue(id:) uses the correct UUID.
+    /// (same deduplicationKey) and removeFromQueue(matching:) clears the saved game.
     func preEnqueue(
         sessionCode: String,
         gameMode: String,
@@ -546,39 +557,77 @@ final class LeaderboardService {
         guard !isFlushing else { return }
         isFlushing = true
         defer { isFlushing = false }
-        guard await ensureAuthenticated() else { return }
 
         let records = loadPendingRecords()
         guard !records.isEmpty else { return }
-        lbLog.info("flushing \(records.count) pending record(s)")
+        let sendableRecords = records.filter { !isSendInFlight($0) }
+        guard !sendableRecords.isEmpty else {
+            lbLog.debug("flushPendingRecords: pending records already in-flight; waiting for active send")
+            return
+        }
 
+        guard await ensureAuthenticated() else { return }
+        lbLog.info("flushing \(sendableRecords.count) pending record(s)")
+
+        var attemptedAny = false
         var allFlushed = true
-        for record in records {
-            switch await sendRecord(record) {
-            case .success:
-                lbLog.info("pending record flushed ✓ id=\(record.id)")
-                removeFromQueue(id: record.id)
-            case .serverRejected(let reason):
-                // Server will permanently reject this — discard it rather than
-                // retrying forever. Log for diagnostics.
-                lbLog.error("pending record discarded (server rejected): \(reason) id=\(record.id)")
-                removeFromQueue(id: record.id)
-            case .networkFailure:
-                allFlushed = false
+        for record in sendableRecords {
+            guard claimSend(record) else {
+                lbLog.debug("flushPendingRecords: skipping in-flight record id=\(record.id)")
+                continue
+            }
+            attemptedAny = true
+
+            do {
+                defer { releaseSend(record) }
+                switch await sendRecord(record) {
+                case .success:
+                    lbLog.info("pending record flushed ✓ id=\(record.id)")
+                    removeFromQueue(matching: record)
+                case .serverRejected(let reason):
+                    // Server will permanently reject this — discard it rather than
+                    // retrying forever. Log for diagnostics.
+                    lbLog.error("pending record discarded (server rejected): \(reason) id=\(record.id)")
+                    removeFromQueue(matching: record)
+                case .networkFailure:
+                    allFlushed = false
+                }
             }
         }
 
-        if allFlushed, case .pending = scoreSaveStatus {
+        if attemptedAny, allFlushed, case .pending = scoreSaveStatus {
             scoreSaveStatus = .saved
         }
     }
 
-    /// Removes a single record from the persistent queue by ID.
+    private func claimSend(_ record: PendingGameRecord) -> Bool {
+        let key = record.deduplicationKey
+        guard !isSendInFlight(record) else { return false }
+        inFlightRecordIDs.insert(record.id)
+        inFlightDeduplicationKeys.insert(key)
+        return true
+    }
+
+    private func isSendInFlight(_ record: PendingGameRecord) -> Bool {
+        inFlightRecordIDs.contains(record.id)
+            || inFlightDeduplicationKeys.contains(record.deduplicationKey)
+    }
+
+    private func releaseSend(_ record: PendingGameRecord) {
+        inFlightRecordIDs.remove(record.id)
+        inFlightDeduplicationKeys.remove(record.deduplicationKey)
+    }
+
+    /// Removes a sent record from the persistent queue by ID and same-game
+    /// deduplication key.
     /// Reads the live queue immediately before writing so that records enqueued
     /// during an in-flight flush are never overwritten (TOCTOU fix).
-    private func removeFromQueue(id: UUID) {
+    private func removeFromQueue(matching record: PendingGameRecord) {
+        let deduplicationKey = record.deduplicationKey
         var records = loadPendingRecords()
-        records.removeAll { $0.id == id }
+        records.removeAll {
+            $0.id == record.id || $0.deduplicationKey == deduplicationKey
+        }
         savePendingRecords(records)
     }
 

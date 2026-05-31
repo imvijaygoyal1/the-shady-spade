@@ -62,6 +62,7 @@
 /* Begin PBXFileReference section */
 		9F4365EF2F66FDBF008FD94E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		9F4365F02F67002C008FD94E /* MyApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyApp.entitlements; sourceTree = "<group>"; };
+		9F4365F12F67002C008FD94E /* MyAppDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyAppDebug.entitlements; sourceTree = "<group>"; };
 		9FCB9B022F54A07D005C3E4B /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A2000000 /* MyApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2000001 /* MyAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyAppApp.swift; sourceTree = "<group>"; };
@@ -138,6 +139,7 @@
 			isa = PBXGroup;
 			children = (
 				9F4365F02F67002C008FD94E /* MyApp.entitlements */,
+				9F4365F12F67002C008FD94E /* MyAppDebug.entitlements */,
 				9F4365EF2F66FDBF008FD94E /* Info.plist */,
 				A2000001 /* MyAppApp.swift */,
 				B2000003 /* MainView.swift */,
@@ -460,7 +462,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = MyApp/MyApp.entitlements;
+				CODE_SIGN_ENTITLEMENTS = MyApp/MyAppDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "\"MyApp/Preview Content\"";

@@ -20,6 +20,7 @@ struct ComputerGameView: View {
     @State private var dealAnimDone = false
     @State private var soloGameSaved = false
     private let targetScore = 500
+    private static let firstSessionRoundNumber = 1
 
     init(vm: GameViewModel, humanName: String, humanAvatar: String = "🦁") {
         self.vm = vm
@@ -29,7 +30,7 @@ struct ComputerGameView: View {
             humanName: humanName,
             humanAvatar: humanAvatar,
             dealerIndex: vm.dealerIndex,
-            roundNumber: vm.nextRoundNumber
+            roundNumber: Self.firstSessionRoundNumber
         ))
     }
 
@@ -203,9 +204,9 @@ struct ComputerGameView: View {
     }
 
     private func nextRound() {
-        let nextRoundNum = vm?.nextRoundNumber ?? (game.roundNumber + 1)
-        let builtRound = game.buildRound(nextRoundNumber: nextRoundNum)
-        vm?.recordRound(builtRound)
+        let completedRoundNum = game.roundNumber
+        let nextRoundNum = completedRoundNum + 1
+        let builtRound = game.buildRound(nextRoundNumber: completedRoundNum)
         var updated = runningScores
         for i in 0..<6 { updated[i] += builtRound.score(for: i) }
         runningScores = updated
@@ -247,7 +248,7 @@ struct ComputerGameView: View {
                 humanName: humanName,
                 humanAvatar: humanAvatar,
                 dealerIndex: nextDealer,
-                roundNumber: vm?.nextRoundNumber ?? nextRoundNum
+                roundNumber: nextRoundNum
             )
         }
         game = newGame
@@ -310,8 +311,7 @@ struct ComputerGameView: View {
 
     private func saveAndQuit() {
         // Capture the completed round currently showing in RoundCompleteView
-        let nextRoundNum = vm?.nextRoundNumber ?? (game.roundNumber + 1)
-        let builtRound = game.buildRound(nextRoundNumber: nextRoundNum)
+        let builtRound = game.buildRound(nextRoundNumber: game.roundNumber)
         var updated = runningScores
         for i in 0..<6 { updated[i] += builtRound.score(for: i) }
         let hr = HistoryRound(
@@ -348,14 +348,14 @@ struct ComputerGameView: View {
                 allNames: game._allPlayerNames,
                 allAvatars: game._allPlayerAvatars,
                 dealerIndex: vm?.dealerIndex ?? 0,
-                roundNumber: vm?.nextRoundNumber ?? 1
+                roundNumber: Self.firstSessionRoundNumber
             )
         } else {
             newGame = ComputerGameViewModel(
                 humanName: humanName,
                 humanAvatar: humanAvatar,
                 dealerIndex: vm?.dealerIndex ?? 0,
-                roundNumber: vm?.nextRoundNumber ?? 1
+                roundNumber: Self.firstSessionRoundNumber
             )
         }
         game = newGame
@@ -1734,7 +1734,7 @@ private struct RoundCompleteView: View {
     private var isSet: Bool { game.offensePoints < game.highBid }
 
     var body: some View {
-        let builtRound = game.buildRound(nextRoundNumber: 0)
+        let builtRound = game.buildRound(nextRoundNumber: game.roundNumber)
         let updatedScores = (0..<6).map { previousRunningScores[$0] + builtRound.score(for: $0) }
 
         // All round deltas: previous rounds + current

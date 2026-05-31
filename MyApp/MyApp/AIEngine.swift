@@ -1,6 +1,6 @@
 import Foundation
 
-/// Shared, stateless AI logic used by OnlineGameViewModel and BluetoothGameViewModel.
+/// Shared, stateless AI logic used by Solo, Online, and Bluetooth game modes.
 /// All functions are pure (no side effects) — callers pass the game state they need.
 enum AIEngine {
 
@@ -238,13 +238,10 @@ enum AIEngine {
         let ledSuit  = currentTrick[0].card.suit
         let sameSuit = hand.filter { $0.suit == ledSuit }
 
-        guard let winnerEntry = currentTrick.max(by: { (a, b) in
-            let aTrump = a.card.suit == trumpRaw
-            let bTrump = b.card.suit == trumpRaw
-            if aTrump != bTrump { return bTrump }
-            if a.card.suit == b.card.suit { return rankScore(a.card) < rankScore(b.card) }
-            return true
-        }) else { return hand[0].id }
+        let winnerIndex = trickWinnerIndex(trick: currentTrick, trumpSuit: trumpSuit)
+        guard let winnerEntry = currentTrick.first(where: { $0.playerIndex == winnerIndex }) else {
+            return hand[0].id
+        }
 
         let winner          = winnerEntry
         let winnerIsOffense = offenseSet.contains(winner.playerIndex)
