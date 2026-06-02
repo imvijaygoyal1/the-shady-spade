@@ -14,6 +14,8 @@ enum ScoreSaveStatus: Equatable {
     case saving
     case saved
     case pending        // queued locally, will sync when online
+    case notSaved(String)
+    case handledByHost(String)
     case failed(String)
 }
 
@@ -21,7 +23,7 @@ enum ScoreSaveStatus: Equatable {
 
 struct PendingGameRecord: Codable {
     var id: UUID = UUID()
-    var sessionCode: String?       // nil for BT/Solo/P&P; set for Online games
+    var sessionCode: String?       // Round-scoped dedupe key when available.
     var gameMode: String
     var playerNames: [String]
     var finalScores: [Int]
@@ -44,6 +46,16 @@ struct PendingGameRecord: Codable {
     }
 }
 
+extension PendingGameRecord {
+    static func roundScopedSessionCode(_ rawCode: String, roundNumber: Int) -> String {
+        let cleaned = rawCode.filter { $0.isLetter || $0.isNumber }
+        guard !cleaned.isEmpty else { return "" }
+        let suffix = "R\(max(1, roundNumber))"
+        let prefixLength = max(1, 10 - suffix.count)
+        return String(cleaned.prefix(prefixLength)) + suffix
+    }
+}
+
 // MARK: - Other models
 
 struct GameLogEntry: Identifiable {
@@ -60,6 +72,7 @@ struct GameLogEntry: Identifiable {
     var partner2Score: Int
     var defenseNames: [String]
     var defensePointsCaught: Int
+    var roundCount: Int
 }
 
 struct PlayerStat: Identifiable {
@@ -137,6 +150,16 @@ final class LeaderboardService {
     private var inFlightDeduplicationKeys = Set<String>()
 
     private init() {}
+
+    func resetScoreSaveStatus() {
+        scoreSaveStatus = .idle
+        errorMessage = nil
+    }
+
+    func markScoreNotSaved(_ message: String) {
+        scoreSaveStatus = .notSaved(message)
+        errorMessage = nil
+    }
 
     // MARK: - Listeners
 
@@ -263,7 +286,8 @@ final class LeaderboardService {
                             ?? 0,
                         defenseNames: defenseNames,
                         defensePointsCaught:
-                            d["defensePointsCaught"] as? Int ?? 0
+                            d["defensePointsCaught"] as? Int ?? 0,
+                        roundCount: d["roundCount"] as? Int ?? 1
                     )
                 } ?? []
             }
@@ -358,14 +382,18 @@ final class LeaderboardService {
             lbLog.warning("recordGame: dropped \(aiSeats.count - validAISeats.count) invalid aiSeat index(es)")
         }
 
-        let totalDefensePts = rounds.reduce(0) { $0 + $1.defensePointsCaught }
+        let completedRoundNumber = max(1, lastRound.roundNumber)
+        let scopedSessionCode = PendingGameRecord.roundScopedSessionCode(
+            sessionCode,
+            roundNumber: completedRoundNumber
+        )
 
         let sanitizedNames = playerNames.enumerated().map { (i, name) in
             ProfanityFilter.isProfane(name) ? "Guest \(i + 1)" : name
         }
 
         let pending = PendingGameRecord(
-            sessionCode: sessionCode.isEmpty ? nil : sessionCode,
+            sessionCode: scopedSessionCode.isEmpty ? nil : scopedSessionCode,
             gameMode: gameMode,
             playerNames: sanitizedNames,
             finalScores: finalScores.map { Int($0) },
@@ -376,8 +404,8 @@ final class LeaderboardService {
             bidderIndex: Int(lastRound.bidderIndex),
             partner1Index: Int(lastRound.partner1Index),
             partner2Index: Int(lastRound.partner2Index),
-            defensePointsCaught: Int(totalDefensePts),
-            roundCount: Int(rounds.count)
+            defensePointsCaught: Int(lastRound.defensePointsCaught),
+            roundCount: completedRoundNumber
         )
 
         scoreSaveStatus = .idle
@@ -530,12 +558,16 @@ final class LeaderboardService {
         guard playerNames.count == 6, finalScores.count == 6 else { return }
         guard rounds.allSatisfy({ $0.runningScores.count == 6 }), let lastRound = rounds.last else { return }
         let validAISeats = aiSeats.filter { (0..<6).contains($0) }
-        let totalDefensePts = rounds.reduce(0) { $0 + $1.defensePointsCaught }
+        let completedRoundNumber = max(1, lastRound.roundNumber)
+        let scopedSessionCode = PendingGameRecord.roundScopedSessionCode(
+            sessionCode,
+            roundNumber: completedRoundNumber
+        )
         let sanitizedNames = playerNames.enumerated().map { (i, name) in
             ProfanityFilter.isProfane(name) ? "Guest \(i + 1)" : name
         }
         let pending = PendingGameRecord(
-            sessionCode: sessionCode.isEmpty ? nil : sessionCode,
+            sessionCode: scopedSessionCode.isEmpty ? nil : scopedSessionCode,
             gameMode: gameMode,
             playerNames: sanitizedNames,
             finalScores: finalScores.map { Int($0) },
@@ -546,11 +578,11 @@ final class LeaderboardService {
             bidderIndex: Int(lastRound.bidderIndex),
             partner1Index: Int(lastRound.partner1Index),
             partner2Index: Int(lastRound.partner2Index),
-            defensePointsCaught: Int(totalDefensePts),
-            roundCount: Int(rounds.count)
+            defensePointsCaught: Int(lastRound.defensePointsCaught),
+            roundCount: completedRoundNumber
         )
         enqueue(pending)
-        lbLog.info("preEnqueue: persisted to disk — \(gameMode) sessionCode=\(sessionCode.isEmpty ? "none" : sessionCode) rounds=\(rounds.count)")
+        lbLog.info("preEnqueue: persisted to disk — \(gameMode) sessionCode=\(scopedSessionCode.isEmpty ? "none" : scopedSessionCode) round=\(completedRoundNumber)")
     }
 
     private func flushPendingRecords() async {

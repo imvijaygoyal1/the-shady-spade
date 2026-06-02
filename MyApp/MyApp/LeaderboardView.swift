@@ -79,6 +79,12 @@ struct LeaderboardView: View {
                     .padding(.bottom, 4)
                 }
 
+                if service.hasPendingScore || service.scoreSaveStatus != .idle {
+                    ScoreSaveStatusRow(status: service.hasPendingScore ? .pending : service.scoreSaveStatus)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                }
+
                 if service.isLoading && service.playerStats.isEmpty {
                     Spacer()
                     ProgressView().tint(.masterGold)
@@ -341,6 +347,14 @@ private struct GameLogCard: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text(entry.gameMode)
+                    .font(.system(size: 10, weight: .heavy,
+                        design: .rounded))
+                    .foregroundStyle(.adaptivePrimary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.adaptiveDivider)
+                    .clipShape(Capsule())
+                Text("R\(entry.roundCount)")
                     .font(.system(size: 10, weight: .heavy,
                         design: .rounded))
                     .foregroundStyle(.adaptivePrimary)

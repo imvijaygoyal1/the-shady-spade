@@ -525,49 +525,139 @@ struct ScoreSaveStatusRow: View {
             case .idle:
                 EmptyView()
             case .saving:
-                HStack(spacing: 6) {
+                statusPill(tint: .secondary) {
                     ProgressView().scaleEffect(0.75)
-                    Text("Saving to leaderboard...")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                    statusText("Saving round to leaderboard...", color: .secondary)
                 }
             case .saved:
-                HStack(spacing: 6) {
+                statusPill(tint: .green) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                    Text("Saved to leaderboard")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                    statusText("Round saved to leaderboard", color: .secondary)
                 }
             case .pending:
-                HStack(spacing: 8) {
+                statusPill(tint: .masterGold) {
                     Image(systemName: "wifi.slash")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Color.masterGold)
-                    Text("No internet — score will sync automatically when you're back online.")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.masterGold)
-                        .multilineTextAlignment(.leading)
+                    statusText("Round queued. It will sync when you're back online.", color: .masterGold)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(Color.masterGold.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.masterGold.opacity(0.35), lineWidth: 1)
-                )
+            case .notSaved(let msg):
+                statusPill(tint: .defenseRose) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.defenseRose)
+                    statusText(msg, color: .defenseRose)
+                }
+            case .handledByHost(let msg):
+                statusPill(tint: .offenseBlue) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.offenseBlue)
+                    statusText(msg, color: .offenseBlue)
+                }
             case .failed(let msg):
-                HStack(spacing: 6) {
+                statusPill(tint: .defenseRose) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.defenseRose)
-                    Text(msg)
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.defenseRose)
+                    statusText(msg, color: .defenseRose)
                 }
             }
         }
         .animation(.easeInOut(duration: 0.25), value: status == .saving)
+    }
+
+    private func statusText(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .foregroundStyle(color)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func statusPill<Content: View>(
+        tint: Color,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(spacing: 8) {
+            content()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(tint.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(tint.opacity(0.35), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Multiplayer Connection Status
+
+enum MultiplayerConnectionTone {
+    case normal
+    case warning
+    case error
+    case success
+
+    var tint: Color {
+        switch self {
+        case .normal: return .offenseBlue
+        case .warning: return .masterGold
+        case .error: return .defenseRose
+        case .success: return .green
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .normal: return "person.3.fill"
+        case .warning: return "wifi.exclamationmark"
+        case .error: return "exclamationmark.triangle.fill"
+        case .success: return "checkmark.circle.fill"
+        }
+    }
+}
+
+struct MultiplayerConnectionStatusRibbon: View {
+    let title: String
+    let detail: String
+    let tone: MultiplayerConnectionTone
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Image(systemName: tone.iconName)
+                .font(.system(size: 13, weight: .black))
+                .foregroundStyle(tone.tint)
+                .frame(width: 22, height: 22)
+                .background(tone.tint.opacity(0.14))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                Text(detail)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 8)
+        .frame(maxWidth: 340, alignment: .leading)
+        .background(Comic.containerBG.opacity(0.94))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(tone.tint.opacity(0.42), lineWidth: 1.5)
+        )
+        .shadow(color: Comic.black.opacity(0.16), radius: 8, x: 0, y: 3)
+        .allowsHitTesting(false)
     }
 }
 

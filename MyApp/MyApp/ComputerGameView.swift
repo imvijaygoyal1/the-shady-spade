@@ -19,7 +19,7 @@ struct ComputerGameView: View {
     @State private var savedHistoryRounds: [HistoryRound] = []
     @State private var dealAnimDone = false
     @State private var soloGameSaved = false
-    private let targetScore = 500
+    @State private var savedLeaderboardRoundNumbers = Set<Int>()
     private static let firstSessionRoundNumber = 1
     private static func randomInitialDealerIndex() -> Int { Int.random(in: 0..<6) }
 
@@ -66,12 +66,6 @@ struct ComputerGameView: View {
                     onHistory: { showGameHistory = true },
                     onQuit: { dismiss() }
                 )
-                .onAppear {
-                    guard !soloGameSaved else { return }
-                    soloGameSaved = true
-                    let mode = game.isPassAndPlay ? "PassAndPlay" : (game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer")
-                    saveGameHistory(finalScores: runningScores, mode: mode)
-                }
             } else {
                 switch game.phase {
                 case .viewingCards:
@@ -97,9 +91,9 @@ struct ComputerGameView: View {
                         game: game,
                         previousRunningScores: runningScores,
                         previousRounds: savedHistoryRounds,
-                        targetScore: targetScore,
                         onNextRound: { Task { nextRound() } },
-                        onQuit: { saveAndQuit() }
+                        onEndGame: { finishAfterCompletedRound() },
+                        onQuit: { dismiss() }
                     )
                 }
             }
@@ -119,27 +113,26 @@ struct ComputerGameView: View {
             GameHistoryView()
                 .environmentObject(ThemeManager.shared)
         }
-        .confirmationDialog("Quit Game?", isPresented: $showQuitConfirm, titleVisibility: .visible) {
-            Button("Quit", role: .destructive) {
-                // Save any completed rounds even if the game isn't over.
-                if !soloGameSaved && !savedHistoryRounds.isEmpty {
-                    soloGameSaved = true
-                    let mode = game.isPassAndPlay ? "PassAndPlay" : (game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer")
-                    saveGameHistory(finalScores: runningScores, mode: mode)
-                }
+        .confirmationDialog("End Game?", isPresented: $showQuitConfirm, titleVisibility: .visible) {
+            Button("End Game", role: .destructive) {
+                endMidRoundWithoutLeaderboardSave()
+            }
+            Button("Quit to Menu") {
                 dismiss()
             }
             Button("Keep Playing", role: .cancel) { }
         } message: {
-            Text("Your progress this round will be lost.")
+            Text("Ending now discards the current round. The leaderboard will not update for this unfinished round.")
         }
         .task {
+            LeaderboardService.shared.resetScoreSaveStatus()
             game.deal()
             await game.waitForCardViewing()
             await game.startBiddingPhase()
         }
         .onChange(of: game.phase) { _, newPhase in
             if newPhase == .roundComplete {
+                saveCurrentCompletedRoundToLeaderboardIfNeeded()
                 HapticManager.success()
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                     showRoundResultBanner = true
@@ -207,32 +200,9 @@ struct ComputerGameView: View {
     private func nextRound() {
         let completedRoundNum = game.roundNumber
         let nextRoundNum = completedRoundNum + 1
-        let builtRound = game.buildRound(nextRoundNumber: completedRoundNum)
-        var updated = runningScores
-        for i in 0..<6 { updated[i] += builtRound.score(for: i) }
-        runningScores = updated
+        let (hr, updated) = appendCurrentRoundIfNeeded()
+        saveRoundToLeaderboardIfNeeded(hr, mode: currentGameMode())
 
-        // Track history round
-        let hr = HistoryRound(
-            roundNumber: builtRound.roundNumber,
-            dealerIndex: builtRound.dealerIndex,
-            bidderIndex: builtRound.bidderIndex,
-            bidAmount: builtRound.bidAmount,
-            trumpSuit: builtRound.trumpSuit,
-            callCard1: builtRound.callCard1,
-            callCard2: builtRound.callCard2,
-            partner1Index: builtRound.partner1Index,
-            partner2Index: builtRound.partner2Index,
-            offensePointsCaught: builtRound.offensePointsCaught,
-            defensePointsCaught: builtRound.defensePointsCaught,
-            runningScores: updated
-        )
-        savedHistoryRounds.append(hr)
-
-        if updated.max() ?? 0 >= targetScore {
-            isGameOver = true
-            return
-        }
         let nextDealer = (game.dealerIndex + 1) % 6
         let newGame: ComputerGameViewModel
         if !game.humanPlayerIndices.isEmpty && game.humanPlayerIndices != [0] || !game._allPlayerNames.isEmpty {
@@ -262,7 +232,7 @@ struct ComputerGameView: View {
 
     private func saveGameHistory(finalScores: [Int], rounds: [HistoryRound]? = nil, mode: String = "Solo") {
         let roundsToSave = rounds ?? savedHistoryRounds
-        print("ComputerGameView.saveGameHistory: mode=\(mode) rounds=\(roundsToSave.count) savedRounds=\(savedHistoryRounds.count)")
+        print("ComputerGameView.saveGameHistory(local): mode=\(mode) rounds=\(roundsToSave.count) savedRounds=\(savedHistoryRounds.count)")
         guard !roundsToSave.isEmpty else {
             print("ComputerGameView.saveGameHistory: guard failed — no rounds")
             return
@@ -286,32 +256,13 @@ struct ComputerGameView: View {
             for old in all.dropFirst(10) { modelContext.delete(old) }
         }
         try? modelContext.save()
-
-        let capturedNames   = names
-        let capturedScores  = finalScores
-        let capturedWinner  = winnerIndex
-        let capturedRounds  = roundsToSave
-        let capturedMode    = mode
-        let capturedAISeats = (0..<6).filter { !game.humanPlayerIndices.contains($0) }
-        // Truncate to 8 alphanumeric chars so the server treats it as a valid sessionCode
-        // and uses the transaction dedup path (first-write-wins). Full UUID fails the
-        // server's ≤10 alphanumeric char check and falls through to the non-deduped batch path.
-        let capturedGameId  = String(game.gameId.replacingOccurrences(of: "-", with: "").prefix(8))
-        Task {
-            await LeaderboardService.shared.recordGame(
-                gameMode:    capturedMode,
-                playerNames: capturedNames,
-                finalScores: capturedScores,
-                winnerIndex: capturedWinner,
-                aiSeats:     capturedAISeats,
-                rounds:      capturedRounds,
-                sessionCode: capturedGameId
-            )
-        }
     }
 
-    private func saveAndQuit() {
-        // Capture the completed round currently showing in RoundCompleteView
+    private func currentGameMode() -> String {
+        game.isPassAndPlay ? "PassAndPlay" : (game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer")
+    }
+
+    private func currentRoundSnapshot() -> (HistoryRound, [Int]) {
         let builtRound = game.buildRound(nextRoundNumber: game.roundNumber)
         var updated = runningScores
         for i in 0..<6 { updated[i] += builtRound.score(for: i) }
@@ -329,12 +280,66 @@ struct ComputerGameView: View {
             defensePointsCaught: builtRound.defensePointsCaught,
             runningScores: updated
         )
-        var allRounds = savedHistoryRounds
-        allRounds.append(hr)
-        let mode = game.isPassAndPlay ? "PassAndPlay" : (game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer")
+        return (hr, updated)
+    }
+
+    private func appendCurrentRoundIfNeeded() -> (HistoryRound, [Int]) {
+        if let existing = savedHistoryRounds.first(where: { $0.roundNumber == game.roundNumber }) {
+            return (existing, existing.runningScores)
+        }
+        let (hr, updated) = currentRoundSnapshot()
+        savedHistoryRounds.append(hr)
+        runningScores = updated
+        return (hr, updated)
+    }
+
+    private func saveCurrentCompletedRoundToLeaderboardIfNeeded() {
+        let (hr, _) = currentRoundSnapshot()
+        saveRoundToLeaderboardIfNeeded(hr, mode: currentGameMode())
+    }
+
+    private func saveRoundToLeaderboardIfNeeded(_ round: HistoryRound, mode: String) {
+        guard !savedLeaderboardRoundNumbers.contains(round.roundNumber) else { return }
+        savedLeaderboardRoundNumbers.insert(round.roundNumber)
+        let capturedNames = (0..<6).map { game.playerName($0) }
+        let capturedScores = round.runningScores
+        let capturedWinner = (0..<6).max(by: { capturedScores[$0] < capturedScores[$1] }) ?? 0
+        let capturedAISeats = (0..<6).filter { !game.humanPlayerIndices.contains($0) }
+        let capturedGameId = game.gameId
+        Task {
+            await LeaderboardService.shared.recordGame(
+                gameMode:    mode,
+                playerNames: capturedNames,
+                finalScores: capturedScores,
+                winnerIndex: capturedWinner,
+                aiSeats:     capturedAISeats,
+                rounds:      [round],
+                sessionCode: capturedGameId
+            )
+        }
+    }
+
+    private func finishAfterCompletedRound() {
+        let (hr, updated) = appendCurrentRoundIfNeeded()
+        let mode = currentGameMode()
+        saveRoundToLeaderboardIfNeeded(hr, mode: mode)
         soloGameSaved = true
-        saveGameHistory(finalScores: updated, rounds: allRounds, mode: mode)
-        dismiss()
+        saveGameHistory(finalScores: updated, rounds: savedHistoryRounds, mode: mode)
+        isGameOver = true
+    }
+
+    private func endMidRoundWithoutLeaderboardSave() {
+        soloGameSaved = true
+        if savedHistoryRounds.isEmpty {
+            LeaderboardService.shared.markScoreNotSaved("No completed round to save; leaderboard was not updated.")
+        } else {
+            LeaderboardService.shared.markScoreNotSaved("Current round discarded; no leaderboard update for unfinished round.")
+        }
+        if !savedHistoryRounds.isEmpty {
+            saveGameHistory(finalScores: runningScores, mode: currentGameMode())
+        }
+        game.cancelAllContinuationsIfNeeded()
+        isGameOver = true
     }
 
     private func playAgain() {
@@ -342,6 +347,8 @@ struct ComputerGameView: View {
         savedHistoryRounds = []
         isGameOver = false
         soloGameSaved = false
+        savedLeaderboardRoundNumbers = []
+        LeaderboardService.shared.resetScoreSaveStatus()
         let nextDealer = (game.dealerIndex + 1) % 6
         let newGame: ComputerGameViewModel
         if !game._allPlayerNames.isEmpty {
@@ -1729,9 +1736,10 @@ private struct RoundCompleteView: View {
     var game: ComputerGameViewModel
     let previousRunningScores: [Int]
     let previousRounds: [HistoryRound]
-    let targetScore: Int
     let onNextRound: () -> Void
+    let onEndGame: () -> Void
     let onQuit: () -> Void
+    @State private var lbService = LeaderboardService.shared
 
     private var isSet: Bool { game.offensePoints < game.highBid }
 
@@ -1787,6 +1795,9 @@ private struct RoundCompleteView: View {
                             .adaptiveContentFrame(maxWidth: 500)
                     }
                     .padding(.top, 52)
+
+                    ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                        .padding(.horizontal, 20)
 
                     // Award breakdown
                     HStack(spacing: 8) {
@@ -1870,6 +1881,21 @@ private struct RoundCompleteView: View {
                         .buttonStyle(ComicButtonStyle())
 
                         Button {
+                            HapticManager.success()
+                            onEndGame()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text("End Game & Save").fontWeight(.black)
+                                Image(systemName: "flag.checkered")
+                            }
+                            .font(.system(size: 18, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Comic.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                        }
+                        .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
+
+                        Button {
                             HapticManager.impact(.light)
                             onQuit()
                         } label: {
@@ -1905,6 +1931,10 @@ private struct RoundCompleteView: View {
                     }
                     .padding(.horizontal, 14)
 
+                    ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                        .padding(.horizontal, 14)
+                        .padding(.top, 8)
+
                     HStack(spacing: 8) {
                         AwardPill(label: "Bidder",
                                   points: isSet ? -game.highBid : game.highBid,
@@ -1938,6 +1968,21 @@ private struct RoundCompleteView: View {
                             .padding(.vertical, 18)
                         }
                         .buttonStyle(ComicButtonStyle())
+
+                        Button {
+                            HapticManager.success()
+                            onEndGame()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text("End Game & Save").fontWeight(.black)
+                                Image(systemName: "flag.checkered")
+                            }
+                            .font(.system(size: 17, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Comic.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                        }
+                        .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
 
                         Button {
                             HapticManager.impact(.light)
@@ -2217,7 +2262,7 @@ private struct GameOverView: View {
                         VStack(spacing: 10) {
                             Text("🏆")
                                 .font(.system(size: 64))
-                            Text("Game Over!")
+                            Text("Final Standings")
                                 .font(.system(size: 38, weight: .black))
                                 .foregroundStyle(.masterGold)
                             let winner = sortedIndices[0]
@@ -2334,7 +2379,7 @@ private struct GameOverView: View {
 
                         VStack(spacing: 10) {
                             Text("🏆").font(.system(size: 56))
-                            Text("Game Over!")
+                            Text("Final Standings")
                                 .font(.system(size: 32, weight: .black))
                                 .foregroundStyle(.masterGold)
                             let winner = sortedIndices[0]

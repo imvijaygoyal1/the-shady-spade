@@ -17,6 +17,52 @@ struct OnlineGameView: View {
     @State private var droppedPlayerName = ""
     @State private var showRemovedFromGameAlert = false
     @State private var showHostEndedGameAlert = false
+    @State private var savedLeaderboardRoundNumbers = Set<Int>()
+
+    private var connectionTone: MultiplayerConnectionTone {
+        if game.wasRemovedFromGame || game.hostEndedGame { return .error }
+        if game.errorMessage?.isEmpty == false { return .warning }
+        if connectionImpactMessage != nil { return .warning }
+        return .normal
+    }
+
+    private var connectionTitle: String {
+        if game.wasRemovedFromGame { return "You were replaced by AI" }
+        if game.hostEndedGame { return "Host ended the table" }
+        if game.errorMessage?.isEmpty == false { return "Online connection issue" }
+        if connectionImpactMessage != nil { return "Table changed" }
+        return game.isHost ? "Online table - you are host" : "Online table - host controls table"
+    }
+
+    private var connectionDetail: String {
+        if let error = game.errorMessage, !error.isEmpty { return error }
+        if let message = connectionImpactMessage { return message }
+        let aiSeatSet = Set(game.aiSeats)
+        let humans = (0..<6)
+            .filter { !aiSeatSet.contains($0) }
+            .map { game.playerName($0) }
+            .joined(separator: ", ")
+        let aiPlayers = aiSeatSet
+            .sorted()
+            .map { game.playerName($0) }
+            .joined(separator: ", ")
+        if aiPlayers.isEmpty {
+            return "Room \(game.sessionCode) | Humans: \(humans)"
+        }
+        return "Room \(game.sessionCode) | Humans: \(humans) | AI: \(aiPlayers)"
+    }
+
+    private var connectionImpactMessage: String? {
+        let trimmed = game.message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let lower = trimmed.lowercased()
+        if lower.contains("ai took over") ||
+            lower.contains("was removed") ||
+            lower.contains("taking too long") {
+            return trimmed
+        }
+        return nil
+    }
 
     var body: some View {
         ZStack {
@@ -43,8 +89,12 @@ struct OnlineGameView: View {
                 OnlineRoundCompleteView(game: game) {
                     guard game.isHost else { return }
                     Task { await game.startNextRound() }
+                } onEndGame: {
+                    guard game.isHost else { return }
+                    saveLatestCompletedRoundToLeaderboardIfNeeded()
+                    Task { await game.endGame() }
                 } onQuit: {
-                    saveOnQuit()   // save completed rounds before teardown
+                    saveOnQuit()
                     Task {
                         if game.isHost { await game.notifyHostEndedGame() }
                         game.cleanup()
@@ -53,15 +103,12 @@ struct OnlineGameView: View {
                 }
             case .gameOver:
                 OnlineGameOverView(game: game) {
-                    saveOnQuit()   // save completed rounds before teardown
+                    saveOnQuit()
                     Task {
-                        if game.isHost { await game.notifyHostEndedGame() }
                         game.cleanup()
                         dismiss()
                     }
                 }
-                // MED-14: save is triggered by .task(id: game.phase) at the root level
-                // when phase transitions to .gameOver — no duplicate .onAppear needed.
             }
 
             // Bid winner banner — floats above all phase views
@@ -77,26 +124,51 @@ struct OnlineGameView: View {
 
         }
         .animation(.easeInOut(duration: 0.3), value: game.bidWinnerInfo != nil)
+        .overlay(alignment: .topLeading) {
+            MultiplayerConnectionStatusRibbon(
+                title: connectionTitle,
+                detail: connectionDetail,
+                tone: connectionTone
+            )
+            .padding(.top, 8)
+            .padding(.leading, 12)
+            .padding(.trailing, 58)
+        }
         .confirmationDialog(
             game.isHost ? "End Game for Everyone?" : "Leave Game?",
             isPresented: $showQuitConfirm,
             titleVisibility: .visible
         ) {
-            Button(game.isHost ? "End Game" : "Leave", role: .destructive) {
-                saveOnQuit()   // save completed rounds before teardown
-                Task {
-                    if game.isHost { await game.notifyHostEndedGame() }
-                    game.cleanup()
-                    dismiss()
+            if game.isHost {
+                Button("End Game", role: .destructive) {
+                    markDiscardedRoundNotSaved()
+                    Task { await game.endGame() }
+                }
+                Button("Quit to Menu") {
+                    saveOnQuit()
+                    Task {
+                        await game.notifyHostEndedGame()
+                        game.cleanup()
+                        dismiss()
+                    }
+                }
+            } else {
+                Button("Leave", role: .destructive) {
+                    saveOnQuit()
+                    Task {
+                        game.cleanup()
+                        dismiss()
+                    }
                 }
             }
             Button("Stay", role: .cancel) { }
         } message: {
             Text(game.isHost
-                 ? "As the host, leaving will end the game for all players."
+                 ? "Ending now discards the current round. The leaderboard will not update for this unfinished round."
                  : "Other players will be notified that you left.")
         }
         .task {
+            LeaderboardService.shared.resetScoreSaveStatus()
             game.attachListener()
             game.startPresenceTracking()
             game.monitorPresence()
@@ -146,6 +218,7 @@ struct OnlineGameView: View {
         }
         .onChange(of: game.phase) { _, newPhase in
             if newPhase == .roundComplete {
+                saveLatestCompletedRoundToLeaderboardIfNeeded()
                 HapticManager.success()
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                     showRoundResultBanner = true
@@ -154,20 +227,8 @@ struct OnlineGameView: View {
                 showRoundResultBanner = false
             }
         }
-        .task(id: game.phase) {
-            if game.phase == .gameOver {
-                saveOnlineGameHistory()
-            }
-        }
-        // Re-attempt save if partner indices arrive after the gameOver phase transition.
-        // This covers the case where parseGameState publishes `phase` before `partner1Index`
-        // in the same @Observable batch, or where resolvePartners had stale allHands and
-        // the indices were later corrected by a follow-up snapshot.
-        .onChange(of: game.partner1Index) { _, newIdx in
-            if game.phase == .gameOver && newIdx >= 0 { saveOnlineGameHistory() }
-        }
-        .onChange(of: game.partner2Index) { _, newIdx in
-            if game.phase == .gameOver && newIdx >= 0 { saveOnlineGameHistory() }
+        .task(id: game.completedRounds.count) {
+            saveLatestCompletedRoundToLeaderboardIfNeeded()
         }
         .overlay {
             // Guard: banner only valid while phase is roundComplete; stale state can't leak onto other screens
@@ -202,39 +263,14 @@ struct OnlineGameView: View {
         }
     }
 
-    /// Saves completed rounds when the player quits mid-game (X button or Quit to Menu).
-    /// Unlike saveOnlineGameHistory(), does not require highBidderIndex/partnerIndex to be
-    /// valid — it guards on completedRounds being non-empty instead.
+    /// Saves local completed-round history when the player quits. Leaderboard rows
+    /// are submitted per completed round by saveLatestCompletedRoundToLeaderboardIfNeeded().
     private func saveOnQuit() {
         ogLog.info("saveOnQuit: triggered isHost=\(game.isHost) phase=\(game.phase.rawValue) alreadySaved=\(game.gameHistorySaved)")
-        // Non-hosts can save at game-over (all clients have full final state).
-        // Mid-game quits are host-only — non-hosts don't drive game logic.
-        if !game.isHost && game.phase != .gameOver { return }
         guard !game.gameHistorySaved else { return }
-        let finalScores = game.runningScores
-        // Use accumulated rounds; fall back to synthetic round if a Firestore snapshot
-        // race caused .gameOver to arrive before completedRounds was populated.
-        let rounds: [HistoryRound]
-        if !game.completedRounds.isEmpty {
-            rounds = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
-        } else if game.highBidderIndex >= 0 && game.partner1Index >= 0 && game.partner2Index >= 0 {
-            rounds = [HistoryRound(
-                roundNumber: game.roundNumber,
-                dealerIndex: game.dealerIndex,
-                bidderIndex: game.highBidderIndex,
-                bidAmount: game.highBid,
-                trumpSuit: game.trumpSuit,
-                callCard1: game.calledCard1,
-                callCard2: game.calledCard2,
-                partner1Index: game.partner1Index,
-                partner2Index: game.partner2Index,
-                offensePointsCaught: game.offensePoints,
-                defensePointsCaught: game.defensePoints,
-                runningScores: finalScores
-            )]
-        } else {
-            return  // no round data at all, nothing to save
-        }
+        let rounds = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
+        guard let lastRound = rounds.last else { return }
+        let finalScores = lastRound.runningScores
         game.gameHistorySaved = true
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
@@ -246,14 +282,27 @@ struct OnlineGameView: View {
             winnerIndex: winnerIndex,
             gameMode: mode
         )
+        for round in rounds { modelContext.insert(round) }
+        history.historyRounds = rounds
         modelContext.insert(history)
         let descriptor = FetchDescriptor<GameHistory>(sortBy: [SortDescriptor(\.date, order: .reverse)])
         if let all = try? modelContext.fetch(descriptor), all.count > 10 {
             for old in all.dropFirst(10) { modelContext.delete(old) }
         }
         try? modelContext.save()
+    }
+
+    private func saveLatestCompletedRoundToLeaderboardIfNeeded() {
+        guard game.isHost else { return }
+        guard let round = game.completedRounds.sorted(by: { $0.roundNumber < $1.roundNumber }).last else { return }
+        guard !savedLeaderboardRoundNumbers.contains(round.roundNumber) else { return }
+        savedLeaderboardRoundNumbers.insert(round.roundNumber)
+        let finalScores = round.runningScores
+        let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
+        let mode = game.aiSeats.isEmpty ? "Online" : "Multiplayer"
         let capturedAISeats = game.aiSeats
         let capturedCode = game.sessionCode
+        let names = game.playerNames
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    mode,
@@ -261,84 +310,17 @@ struct OnlineGameView: View {
                 finalScores: finalScores,
                 winnerIndex: winnerIndex,
                 aiSeats:     capturedAISeats,
-                rounds:      rounds,
+                rounds:      [round],
                 sessionCode: capturedCode
             )
         }
     }
 
-    private func saveOnlineGameHistory() {
-        guard !game.gameHistorySaved else { return }
-        // MED-03: claim the flag immediately so concurrent triggers (.task + .onChange)
-        // can't both pass the guard and both reach recordGame(). Release below if deferred.
-        game.gameHistorySaved = true
-        ogLog.info("saveOnlineGameHistory: flag claimed")
-        let finalScores = game.runningScores
-        guard game.highBidderIndex >= 0,
-              game.partner1Index >= 0,
-              game.partner2Index >= 0 else {
-            game.gameHistorySaved = false  // release so .onChange retry can still save
-            ogLog.warning("saveOnlineGameHistory: deferred — bidder=\(game.highBidderIndex) p1=\(game.partner1Index) p2=\(game.partner2Index)")
-            return
-        }
-        // flag stays true — proceed with save
-        ogLog.info("saveOnlineGameHistory: proceeding — rounds=\(game.completedRounds.count)")
-        let names = game.playerNames
-        let winnerIndex = (0..<6).max(by: {
-            finalScores[$0] < finalScores[$1]
-        }) ?? 0
-        let mode = game.aiSeats.isEmpty ? "Online" : "Multiplayer"
-        let history = GameHistory(
-            date: Date(),
-            playerNames: names,
-            finalScores: finalScores,
-            winnerIndex: winnerIndex,
-            gameMode: mode
-        )
-        modelContext.insert(history)
-        let descriptor = FetchDescriptor<GameHistory>(
-            sortBy: [SortDescriptor(\.date, order: .reverse)])
-        if let all = try? modelContext.fetch(descriptor), all.count > 10 {
-            for old in all.dropFirst(10) { modelContext.delete(old) }
-        }
-        try? modelContext.save()
-        let capturedAISeats = game.aiSeats
-        // LB4: Use completedRounds which accumulates all rounds; fall back to a
-        // synthetic last-round record if the array is unexpectedly empty.
-        let roundsToSend: [HistoryRound]
-        if !game.completedRounds.isEmpty {
-            // HIGH-06: sort by roundNumber in case out-of-order snapshots appended rounds
-            // non-sequentially; the leaderboard Cloud Function expects ascending order.
-            roundsToSend = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
+    private func markDiscardedRoundNotSaved() {
+        if game.completedRounds.isEmpty {
+            LeaderboardService.shared.markScoreNotSaved("No completed round to save; leaderboard was not updated.")
         } else {
-            // Single-element array — sort is a no-op but applied for parity with
-            // the completedRounds path above so both branches produce sorted output.
-            roundsToSend = [HistoryRound(
-                roundNumber: game.roundNumber,
-                dealerIndex: game.dealerIndex,
-                bidderIndex: game.highBidderIndex,
-                bidAmount: game.highBid,
-                trumpSuit: game.trumpSuit,
-                callCard1: game.calledCard1,
-                callCard2: game.calledCard2,
-                partner1Index: game.partner1Index,
-                partner2Index: game.partner2Index,
-                offensePointsCaught: game.offensePoints,
-                defensePointsCaught: game.defensePoints,
-                runningScores: finalScores
-            )].sorted { $0.roundNumber < $1.roundNumber }
-        }
-        let capturedCode = game.sessionCode
-        Task {
-            await LeaderboardService.shared.recordGame(
-                gameMode:    mode,
-                playerNames: names,
-                finalScores: finalScores,
-                winnerIndex: winnerIndex,
-                aiSeats:     capturedAISeats,
-                rounds:      roundsToSend,
-                sessionCode: capturedCode
-            )
+            LeaderboardService.shared.markScoreNotSaved("Current round discarded; no leaderboard update for unfinished round.")
         }
     }
 }
@@ -1688,11 +1670,17 @@ private struct OnlineRoundCompleteView: View {
     @EnvironmentObject var themeManager: ThemeManager
     var game: OnlineGameViewModel
     let onNext: () -> Void
+    let onEndGame: () -> Void
     let onQuit: () -> Void
     @State private var lbService = LeaderboardService.shared
 
     private var isSet: Bool { game.offensePoints < game.highBid }
-    private let targetScore = OnlineGameViewModel.winningScore
+    private var leaderboardStatus: ScoreSaveStatus {
+        if game.isHost {
+            return lbService.scoreSaveStatus
+        }
+        return .handledByHost("Host saves completed rounds to leaderboard.")
+    }
 
     var body: some View {
         let scoring = ScoringEngine.calculateRoundScores(
@@ -1731,7 +1719,7 @@ private struct OnlineRoundCompleteView: View {
                     }
                     .padding(.top, 52)
 
-                    ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                    ScoreSaveStatusRow(status: leaderboardStatus)
                         .padding(.horizontal, 20)
 
                     // Award breakdown
@@ -1814,6 +1802,19 @@ private struct OnlineRoundCompleteView: View {
                                 .frame(maxWidth: .infinity).padding(.vertical, 18)
                             }
                             .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
+
+                            Button {
+                                HapticManager.success()
+                                onEndGame()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Text("End Game & Save").fontWeight(.bold)
+                                    Image(systemName: "flag.checkered")
+                                }
+                                .font(.title3)
+                                .frame(maxWidth: .infinity).padding(.vertical, 16)
+                            }
+                            .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
                         } else {
                             // Non-host: grey non-interactive row + waiting text directly below
                             VStack(spacing: 6) {
@@ -1867,7 +1868,7 @@ private struct OnlineRoundCompleteView: View {
                     }
                     .padding(.horizontal, 14)
 
-                    ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                    ScoreSaveStatusRow(status: leaderboardStatus)
                         .padding(.horizontal, 14)
                         .padding(.top, 8)
 
@@ -1901,6 +1902,19 @@ private struct OnlineRoundCompleteView: View {
                                 }
                                 .font(.title3)
                                 .frame(maxWidth: .infinity).padding(.vertical, 18)
+                            }
+                            .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
+
+                            Button {
+                                HapticManager.success()
+                                onEndGame()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Text("End Game & Save").fontWeight(.bold)
+                                    Image(systemName: "flag.checkered")
+                                }
+                                .font(.title3)
+                                .frame(maxWidth: .infinity).padding(.vertical, 14)
                             }
                             .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
                         } else {
@@ -2043,9 +2057,19 @@ private struct OnlineAwardPill: View {
 private struct OnlineGameOverView: View {
     var game: OnlineGameViewModel
     let onQuit: () -> Void
+    @State private var lbService = LeaderboardService.shared
 
     private var sortedIndices: [Int] { (0..<6).sorted { game.runningScores[$0] > game.runningScores[$1] } }
     private let medals = ["🥇", "🥈", "🥉"]
+    private var leaderboardStatus: ScoreSaveStatus {
+        if game.completedRounds.isEmpty {
+            return .notSaved("No completed round to save; leaderboard was not updated.")
+        }
+        if game.isHost {
+            return lbService.scoreSaveStatus
+        }
+        return .handledByHost("Host saves completed rounds to leaderboard.")
+    }
 
     var body: some View {
         GameAdaptiveLayout(
@@ -2054,7 +2078,7 @@ private struct OnlineGameOverView: View {
                     VStack(spacing: 24) {
                         VStack(spacing: 10) {
                             Text("🏆").font(.system(size: 64))
-                            Text("Game Over!")
+                            Text("Final Standings")
                                 .font(.system(size: 38, weight: .black)).foregroundStyle(.masterGold)
                             let winner = sortedIndices[0]
                             let isMe = winner == game.myPlayerIndex
@@ -2062,6 +2086,9 @@ private struct OnlineGameOverView: View {
                                 .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         }
                         .padding(.top, 52)
+
+                        ScoreSaveStatusRow(status: leaderboardStatus)
+                            .padding(.horizontal, 20)
 
                         VStack(spacing: 0) {
                             ForEach(Array(sortedIndices.enumerated()), id: \.element) { rank, i in
@@ -2086,7 +2113,7 @@ private struct OnlineGameOverView: View {
                                             .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
                                     }
                                     Spacer()
-                                    Text("\(max(score, 0))")
+                                    Text("\(score)")
                                         .font(.title3.bold().monospacedDigit())
                                         .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
                                 }
@@ -2114,13 +2141,17 @@ private struct OnlineGameOverView: View {
 
                         VStack(spacing: 10) {
                             Text("🏆").font(.system(size: 64))
-                            Text("Game Over!")
+                            Text("Final Standings")
                                 .font(.system(size: 38, weight: .black)).foregroundStyle(.masterGold)
                             let winner = sortedIndices[0]
                             let isMe = winner == game.myPlayerIndex
                             Text("\(isMe ? "You win" : "\(game.playerName(winner)) wins") with \(game.runningScores[winner]) pts!")
                                 .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         }
+
+                        ScoreSaveStatusRow(status: leaderboardStatus)
+                            .padding(.horizontal, 14)
+                            .padding(.top, 8)
 
                         Spacer()
 
@@ -2167,7 +2198,7 @@ private struct OnlineGameOverView: View {
                                             .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
                                     }
                                     Spacer()
-                                    Text("\(max(score, 0))")
+                                    Text("\(score)")
                                         .font(.title3.bold().monospacedDigit())
                                         .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
                                 }

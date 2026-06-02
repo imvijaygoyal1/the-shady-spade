@@ -262,6 +262,7 @@ exports.recordGame = onRequest(
         partner2Score: roundScores[partner2Index],
         defense: defensePlayers,
         defensePointsCaught,
+        roundCount,
       };
 
       const playerUpdates = [];

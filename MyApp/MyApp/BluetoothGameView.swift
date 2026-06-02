@@ -15,6 +15,60 @@ struct BluetoothGameView: View {
     @State private var showRoundResultBanner = false
     @State private var disconnectedAlert = false
     @State private var showHostEndedGameAlert = false
+    @State private var savedLeaderboardRoundNumbers = Set<Int>()
+
+    private var connectionTone: MultiplayerConnectionTone {
+        if game.wasRemovedFromGame || game.hostEndedGame { return .error }
+        if game.isMigrating || game.isReconnecting { return .warning }
+        if game.errorMessage?.isEmpty == false { return .warning }
+        if connectionImpactMessage != nil { return .warning }
+        return .normal
+    }
+
+    private var connectionTitle: String {
+        if game.wasRemovedFromGame { return "You were replaced by AI" }
+        if game.hostEndedGame { return "Host ended the table" }
+        if game.isMigrating { return "Replacing host" }
+        if game.isReconnecting { return "Reconnecting to host" }
+        if game.errorMessage?.isEmpty == false { return "Bluetooth connection issue" }
+        if connectionImpactMessage != nil { return "Table changed" }
+        return game.isHost ? "Bluetooth table - you are host" : "Bluetooth table - connected to host"
+    }
+
+    private var connectionDetail: String {
+        if game.hostEndedGame { return "Final standings are shown." }
+        if game.isMigrating { return "Finding a connected player to continue the table." }
+        if game.isReconnecting { return "Retrying your action automatically." }
+        if let error = game.errorMessage, !error.isEmpty { return error }
+        if let message = connectionImpactMessage { return message }
+        let aiSeatSet = Set(game.aiSeats)
+        let humans = game.connectedPlayerSlots.enumerated()
+            .filter { pair in pair.element.joined && !aiSeatSet.contains(pair.offset) }
+            .map { pair in pair.element.name.isEmpty ? game.playerName(pair.offset) : pair.element.name }
+            .joined(separator: ", ")
+        let humanText = humans.isEmpty ? "none yet" : humans
+        let aiPlayers = aiSeatSet
+            .sorted()
+            .map { game.playerName($0) }
+            .joined(separator: ", ")
+        if aiPlayers.isEmpty {
+            return "Connected: \(humanText)"
+        }
+        return "Connected: \(humanText) | AI: \(aiPlayers)"
+    }
+
+    private var connectionImpactMessage: String? {
+        let trimmed = game.message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let lower = trimmed.lowercased()
+        if lower.contains("ai took over") ||
+            lower.contains("disconnected") ||
+            lower.contains("now the host") ||
+            lower.contains("taking too long") {
+            return trimmed
+        }
+        return nil
+    }
 
     var body: some View {
         ZStack {
@@ -41,8 +95,12 @@ struct BluetoothGameView: View {
                 BTRoundCompleteView(game: game) {
                     guard game.isHost else { return }
                     Task { await game.startNextRound() }
+                } onEndGame: {
+                    guard game.isHost else { return }
+                    saveLatestCompletedRoundToLeaderboardIfNeeded()
+                    game.endGame()
                 } onQuit: {
-                    saveOnQuit()   // save completed rounds before teardown
+                    saveOnQuit()
                     if game.isHost {
                         game.notifyHostEndedGame()
                         Task {
@@ -57,14 +115,10 @@ struct BluetoothGameView: View {
                 }
             case .gameOver:
                 BTGameOverView(game: game) {
-                    saveOnQuit()   // save completed rounds before teardown
+                    saveOnQuit()
                     if game.isHost {
-                        game.notifyHostEndedGame()
-                        Task {
-                            do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch {}
-                            game.cleanup()
-                            dismiss()
-                        }
+                        game.cleanup()
+                        dismiss()
                     } else {
                         game.cleanup()
                         dismiss()
@@ -84,21 +138,38 @@ struct BluetoothGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: game.bidWinnerInfo != nil)
+        .overlay(alignment: .topLeading) {
+            MultiplayerConnectionStatusRibbon(
+                title: connectionTitle,
+                detail: connectionDetail,
+                tone: connectionTone
+            )
+            .padding(.top, 8)
+            .padding(.leading, 12)
+            .padding(.trailing, 58)
+        }
         .confirmationDialog(
             game.isHost ? "End Game for Everyone?" : "Leave Game?",
             isPresented: $showQuitConfirm,
             titleVisibility: .visible
         ) {
-            Button(game.isHost ? "End Game" : "Leave", role: .destructive) {
-                saveOnQuit()   // save completed rounds before teardown
-                if game.isHost {
+            if game.isHost {
+                Button("End Game", role: .destructive) {
+                    markDiscardedRoundNotSaved()
+                    game.endGame()
+                }
+                Button("Quit to Menu") {
+                    saveOnQuit()
                     game.notifyHostEndedGame()
                     Task {
                         do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch {}
                         game.cleanup()
                         dismiss()
                     }
-                } else {
+                }
+            } else {
+                Button("Leave", role: .destructive) {
+                    saveOnQuit()
                     game.cleanup()
                     dismiss()
                 }
@@ -106,11 +177,12 @@ struct BluetoothGameView: View {
             Button("Stay", role: .cancel) { }
         } message: {
             Text(game.isHost
-                 ? "As the host, leaving will end the game for all players."
+                 ? "Ending now discards the current round. The leaderboard will not update for this unfinished round."
                  : "Other players will be notified that you left.")
         }
         .onChange(of: game.phase) { _, newPhase in
             if newPhase == .roundComplete {
+                saveLatestCompletedRoundToLeaderboardIfNeeded()
                 HapticManager.success()
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                     showRoundResultBanner = true
@@ -119,17 +191,8 @@ struct BluetoothGameView: View {
                 showRoundResultBanner = false
             }
         }
-        .task(id: game.phase) {
-            if game.phase == .gameOver {
-                saveBTGameHistory()
-            }
-        }
-        // Re-attempt save if partner indices arrive after the gameOver phase transition.
-        .onChange(of: game.partner1Index) { _, newIdx in
-            if game.phase == .gameOver && newIdx >= 0 { saveBTGameHistory() }
-        }
-        .onChange(of: game.partner2Index) { _, newIdx in
-            if game.phase == .gameOver && newIdx >= 0 { saveBTGameHistory() }
+        .task(id: game.completedRounds.count) {
+            saveLatestCompletedRoundToLeaderboardIfNeeded()
         }
         .overlay {
             if showRoundResultBanner && game.phase == .roundComplete {
@@ -220,47 +283,19 @@ struct BluetoothGameView: View {
             game.cleanup()
         }
         .task {
+            LeaderboardService.shared.resetScoreSaveStatus()
             if game.isHost { await game.startGame() }
         }
     }
 
-    /// Saves completed rounds when the player quits mid-game (X button or Quit to Menu).
-    /// Unlike saveBTGameHistory(), does not require highBidderIndex/partnerIndex to be
-    /// valid — it guards on completedRounds being non-empty instead.
+    /// Saves local completed-round history when the player quits. Leaderboard rows
+    /// are submitted per completed round by saveLatestCompletedRoundToLeaderboardIfNeeded().
     private func saveOnQuit() {
         btLog.info("saveOnQuit: triggered isHost=\(game.isHost) phase=\(game.phase.rawValue) alreadySaved=\(game.gameHistorySaved)")
-        // Non-hosts can save at game-over (full final state synced via MC).
-        // Mid-game quits are host-only — non-hosts don't drive game logic.
-        // BT-GAP-07: Allow non-host to save accumulated completed rounds even when
-        // not at .gameOver — covers mid-game quit after e.g. 3 of 5 rounds.
-        if !game.isHost && game.phase != .gameOver && game.completedRounds.isEmpty { return }
         guard !game.gameHistorySaved else { return }
-        let finalScores = game.runningScores
-        // Use accumulated rounds; fall back to synthetic round if an MC snapshot
-        // race caused .gameOver to arrive before completedRounds was populated.
-        let rounds: [HistoryRound]
-        if !game.completedRounds.isEmpty {
-            rounds = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
-        } else if game.highBidderIndex >= 0 && game.partner1Index >= 0 && game.partner2Index >= 0 {
-            // Single-element array — sort is a no-op but applied for parity with
-            // the completedRounds path above so both branches produce sorted output.
-            rounds = [HistoryRound(
-                roundNumber: game.roundNumber,
-                dealerIndex: game.dealerIndex,
-                bidderIndex: game.highBidderIndex,
-                bidAmount: game.highBid,
-                trumpSuit: game.trumpSuit,
-                callCard1: game.calledCard1,
-                callCard2: game.calledCard2,
-                partner1Index: game.partner1Index,
-                partner2Index: game.partner2Index,
-                offensePointsCaught: game.offensePoints,
-                defensePointsCaught: game.defensePoints,
-                runningScores: finalScores
-            )].sorted { $0.roundNumber < $1.roundNumber }
-        } else {
-            return  // no round data at all, nothing to save
-        }
+        let rounds = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
+        guard let lastRound = rounds.last else { return }
+        let finalScores = lastRound.runningScores
         game.gameHistorySaved = true
         let names = game.playerNames
         let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
@@ -271,16 +306,28 @@ struct BluetoothGameView: View {
             winnerIndex: winnerIndex,
             gameMode: "Bluetooth"
         )
+        for round in rounds { modelContext.insert(round) }
+        history.historyRounds = rounds
         modelContext.insert(history)
         let descriptor = FetchDescriptor<GameHistory>(sortBy: [SortDescriptor(\.date, order: .reverse)])
         if let all = try? modelContext.fetch(descriptor), all.count > 10 {
             for old in all.dropFirst(10) { modelContext.delete(old) }
         }
         try? modelContext.save()
+    }
+
+    private func saveLatestCompletedRoundToLeaderboardIfNeeded() {
+        guard game.isHost else { return }
+        guard let round = game.completedRounds.sorted(by: { $0.roundNumber < $1.roundNumber }).last else { return }
+        guard !savedLeaderboardRoundNumbers.contains(round.roundNumber) else { return }
+        savedLeaderboardRoundNumbers.insert(round.roundNumber)
+        let finalScores = round.runningScores
+        let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
         let capturedAISeats = game.aiSeats
         let capturedCode = game.gameSessionId.isEmpty
             ? (UserDefaults.standard.string(forKey: "bt_active_game_session_id") ?? "")
             : game.gameSessionId
+        let names = game.playerNames
         Task {
             await LeaderboardService.shared.recordGame(
                 gameMode:    "Bluetooth",
@@ -288,79 +335,17 @@ struct BluetoothGameView: View {
                 finalScores: finalScores,
                 winnerIndex: winnerIndex,
                 aiSeats:     capturedAISeats,
-                rounds:      rounds,
+                rounds:      [round],
                 sessionCode: capturedCode
             )
         }
     }
 
-    private func saveBTGameHistory() {
-        btLog.info("saveBTGameHistory: triggered alreadySaved=\(game.gameHistorySaved)")
-        guard !game.gameHistorySaved else { return }
-        let finalScores = game.runningScores
-        // Use completedRounds (accumulated across all rounds) as primary path.
-        // completedRounds is populated in applyGameState() for ALL clients when
-        // phase transitions to .roundComplete/.gameOver — partner indices -1 are
-        // already normalised to 0 there, so no hard guard needed here.
-        // Fall back to synthetic round from live state if completedRounds is empty.
-        let roundsToSend: [HistoryRound]
-        if !game.completedRounds.isEmpty {
-            roundsToSend = game.completedRounds.sorted { $0.roundNumber < $1.roundNumber }
-        } else if game.highBidderIndex >= 0 && game.partner1Index >= 0 && game.partner2Index >= 0 {
-            // Single-element array — sort is a no-op but applied for parity with
-            // the completedRounds path above so both branches produce sorted output.
-            roundsToSend = [HistoryRound(
-                roundNumber: game.roundNumber,
-                dealerIndex: game.dealerIndex,
-                bidderIndex: game.highBidderIndex,
-                bidAmount: game.highBid,
-                trumpSuit: game.trumpSuit,
-                callCard1: game.calledCard1,
-                callCard2: game.calledCard2,
-                partner1Index: game.partner1Index,
-                partner2Index: game.partner2Index,
-                offensePointsCaught: game.offensePoints,
-                defensePointsCaught: game.defensePoints,
-                runningScores: finalScores
-            )].sorted { $0.roundNumber < $1.roundNumber }
+    private func markDiscardedRoundNotSaved() {
+        if game.completedRounds.isEmpty {
+            LeaderboardService.shared.markScoreNotSaved("No completed round to save; leaderboard was not updated.")
         } else {
-            btLog.warning("saveBTGameHistory: no round data — bidder=\(game.highBidderIndex) p1=\(game.partner1Index) p2=\(game.partner2Index), skipping")
-            return
-        }
-        game.gameHistorySaved = true
-        btLog.info("saveBTGameHistory: proceeding — rounds=\(game.completedRounds.count)")
-        let names = game.playerNames
-        let winnerIndex = (0..<6).max(by: {
-            finalScores[$0] < finalScores[$1]
-        }) ?? 0
-        let history = GameHistory(
-            date: Date(),
-            playerNames: names,
-            finalScores: finalScores,
-            winnerIndex: winnerIndex,
-            gameMode: "Bluetooth"
-        )
-        modelContext.insert(history)
-        let descriptor = FetchDescriptor<GameHistory>(
-            sortBy: [SortDescriptor(\.date, order: .reverse)])
-        if let all = try? modelContext.fetch(descriptor), all.count > 10 {
-            for old in all.dropFirst(10) { modelContext.delete(old) }
-        }
-        try? modelContext.save()
-        let capturedAISeats = game.aiSeats
-        let capturedCode = game.gameSessionId.isEmpty
-            ? (UserDefaults.standard.string(forKey: "bt_active_game_session_id") ?? "")
-            : game.gameSessionId
-        Task {
-            await LeaderboardService.shared.recordGame(
-                gameMode:    "Bluetooth",
-                playerNames: names,
-                finalScores: finalScores,
-                winnerIndex: winnerIndex,
-                aiSeats:     capturedAISeats,
-                rounds:      roundsToSend,
-                sessionCode: capturedCode
-            )
+            LeaderboardService.shared.markScoreNotSaved("Current round discarded; no leaderboard update for unfinished round.")
         }
     }
 }
@@ -1547,11 +1532,17 @@ struct BTRoundCompleteView: View {
     @EnvironmentObject var themeManager: ThemeManager
     var game: BluetoothGameViewModel
     let onNext: () -> Void
+    let onEndGame: () -> Void
     let onQuit: () -> Void
     @State private var lbService = LeaderboardService.shared
 
     private var isSet: Bool { game.offensePoints < game.highBid }
-    private let targetScore = BluetoothGameViewModel.winningScore
+    private var leaderboardStatus: ScoreSaveStatus {
+        if game.isHost {
+            return lbService.scoreSaveStatus
+        }
+        return .handledByHost("Host saves completed rounds to leaderboard.")
+    }
 
     var body: some View {
         let scoring = ScoringEngine.calculateRoundScores(
@@ -1590,7 +1581,7 @@ struct BTRoundCompleteView: View {
                     }
                     .padding(.top, 52)
 
-                    ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                    ScoreSaveStatusRow(status: leaderboardStatus)
                         .padding(.horizontal, 20)
 
                     HStack(spacing: 8) {
@@ -1659,6 +1650,19 @@ struct BTRoundCompleteView: View {
                                 .frame(maxWidth: .infinity).padding(.vertical, 18)
                             }
                             .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
+
+                            Button {
+                                HapticManager.success()
+                                onEndGame()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Text("End Game & Save").fontWeight(.bold)
+                                    Image(systemName: "flag.checkered")
+                                }
+                                .font(.title3)
+                                .frame(maxWidth: .infinity).padding(.vertical, 16)
+                            }
+                            .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
                         } else {
                             VStack(spacing: 6) {
                                 HStack(spacing: 10) {
@@ -1708,7 +1712,7 @@ struct BTRoundCompleteView: View {
                     }
                     .padding(.horizontal, 14)
 
-                    ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                    ScoreSaveStatusRow(status: leaderboardStatus)
                         .padding(.horizontal, 14)
                         .padding(.top, 8)
 
@@ -1736,6 +1740,19 @@ struct BTRoundCompleteView: View {
                                 }
                                 .font(.title3)
                                 .frame(maxWidth: .infinity).padding(.vertical, 18)
+                            }
+                            .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
+
+                            Button {
+                                HapticManager.success()
+                                onEndGame()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Text("End Game & Save").fontWeight(.bold)
+                                    Image(systemName: "flag.checkered")
+                                }
+                                .font(.title3)
+                                .frame(maxWidth: .infinity).padding(.vertical, 14)
                             }
                             .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black))
                         } else {
@@ -1863,6 +1880,15 @@ private struct BTGameOverView: View {
 
     private var sortedIndices: [Int] { (0..<6).sorted { game.runningScores[$0] > game.runningScores[$1] } }
     private let medals = ["🥇", "🥈", "🥉"]
+    private var leaderboardStatus: ScoreSaveStatus {
+        if game.completedRounds.isEmpty {
+            return .notSaved("No completed round to save; leaderboard was not updated.")
+        }
+        if game.isHost {
+            return lbService.scoreSaveStatus
+        }
+        return .handledByHost("Host saves completed rounds to leaderboard.")
+    }
 
     var body: some View {
         GameAdaptiveLayout(
@@ -1871,7 +1897,7 @@ private struct BTGameOverView: View {
                     VStack(spacing: 24) {
                         VStack(spacing: 10) {
                             Text("🏆").font(.system(size: 64))
-                            Text("Game Over!")
+                            Text("Final Standings")
                                 .font(.system(size: 38, weight: .black)).foregroundStyle(.masterGold)
                             let winner = sortedIndices[0]
                             let isMe = winner == game.myPlayerIndex
@@ -1880,7 +1906,7 @@ private struct BTGameOverView: View {
                         }
                         .padding(.top, 52)
 
-                        ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                        ScoreSaveStatusRow(status: leaderboardStatus)
                             .padding(.horizontal, 20)
 
                         VStack(spacing: 0) {
@@ -1906,7 +1932,7 @@ private struct BTGameOverView: View {
                                             .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
                                     }
                                     Spacer()
-                                    Text("\(max(score, 0))")
+                                    Text("\(score)")
                                         .font(.title3.bold().monospacedDigit())
                                         .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
                                 }
@@ -1934,13 +1960,17 @@ private struct BTGameOverView: View {
 
                         VStack(spacing: 10) {
                             Text("🏆").font(.system(size: 64))
-                            Text("Game Over!")
+                            Text("Final Standings")
                                 .font(.system(size: 38, weight: .black)).foregroundStyle(.masterGold)
                             let winner = sortedIndices[0]
                             let isMe = winner == game.myPlayerIndex
                             Text("\(isMe ? "You win" : "\(game.playerName(winner)) wins") with \(game.runningScores[winner]) pts!")
                                 .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         }
+
+                        ScoreSaveStatusRow(status: leaderboardStatus)
+                            .padding(.horizontal, 14)
+                            .padding(.top, 8)
 
                         Spacer()
 
@@ -1987,7 +2017,7 @@ private struct BTGameOverView: View {
                                             .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
                                     }
                                     Spacer()
-                                    Text("\(max(score, 0))")
+                                    Text("\(score)")
                                         .font(.title3.bold().monospacedDigit())
                                         .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
                                 }

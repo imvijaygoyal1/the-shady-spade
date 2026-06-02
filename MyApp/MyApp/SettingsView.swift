@@ -82,7 +82,9 @@ private struct HowToPlayView: View {
 
             The goal is to capture as many points as possible by winning hands (tricks). Each round one player wins the bid, declares trump, and secretly calls 2 partner cards to form their team.
 
-            The round ends when all 8 hands are played. Scores are calculated and the next round begins. The first team whose bidder reaches 500 points wins the game.
+            A round is complete only after all 8 hands are successfully played. Scores are calculated after each completed round, and the leaderboard records that completed round.
+
+            Games do not end because of a score threshold. Players keep playing rounds until the game is ended manually, then Final Standings shows the highest running score.
             """
         ),
         HowToPlayTopic(
@@ -165,7 +167,7 @@ private struct HowToPlayView: View {
             · Each Partner loses: −bid amount ÷ 2, rounded up (e.g. −75 pts)
             · Each Defense player: 0 pts (score unchanged)
 
-            Scores accumulate across rounds and can go negative. The first bidder to reach 500 points wins the game. Tap any bar in the score chart to see a player's round-by-round history.
+            Scores accumulate across rounds and can go negative. Tap any bar in the score chart to see a player's round-by-round history.
             """
         ),
         HowToPlayTopic(
@@ -180,13 +182,13 @@ private struct HowToPlayView: View {
 
             TV Dashboard (Bluetooth) — When hosting a Bluetooth game, tap the TV icon in the lobby to get a local web URL and QR code. Open that URL in any browser on the same Wi-Fi to display a live game board on a TV or shared screen. No internet connection required.
 
-            Pass & Play — Everyone shares one device, passing it around for their turn. Ideal when all players are in the same room and prefer not to use Bluetooth. Leaderboard stats are recorded at game end.
+            Pass & Play — Everyone shares one device, passing it around for their turn. Ideal when all players are in the same room and prefer not to use Bluetooth. Leaderboard stats are recorded after each completed round.
 
             Join a Game — Have a room code? Tap "Join a Game" on the home screen to go straight to code entry.
 
             Joining — In the join screen, tap the QR icon to open the in-app scanner and point it at the host's QR code. Or open your iPhone Camera app and scan the QR code to launch straight into the game — this works even when the app is closed. You can also type the 6-character room code manually.
 
-            The host controls when each round starts. Non-host players see a "Waiting for host" indicator between rounds.
+            The host controls when each round starts and when Online or Bluetooth games end. If a game is ended mid-round, the current unfinished round is discarded and no leaderboard update is sent for it.
             """
         ),
         HowToPlayTopic(

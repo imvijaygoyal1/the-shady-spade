@@ -16,8 +16,6 @@ enum OnlineGamePhase: String {
 @Observable @MainActor
 final class OnlineGameViewModel {
 
-    static let winningScore = 500
-
     // MARK: Identity
     let myPlayerIndex: Int
     let isHost: Bool
@@ -300,6 +298,22 @@ final class OnlineGameViewModel {
         dealerIndex = (dealerIndex + 1) % 6
         roundNumber += 1
         await startGame()
+    }
+
+    func endGame() async {
+        guard isHost else { return }
+        var gs = buildGS(
+            phase: .gameOver,
+            currentActionPlayer: -1,
+            bids: bids,
+            highBid: highBid,
+            highBidderIndex: highBidderIndex,
+            playerHasPassed: playerHasPassed,
+            bidHistory: bidHistory,
+            message: "Final standings"
+        )
+        gs["currentTrick"] = [] as [[String: Any]]
+        await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
     }
 
     func startBidding() async {
@@ -687,7 +701,7 @@ final class OnlineGameViewModel {
 
         // LB4: Accumulate a HistoryRound whenever a round ends so the leaderboard
         // receives stats for every round, not just the last one.
-        if (newPhase == .roundComplete || newPhase == .gameOver) {
+        if newPhase == .roundComplete {
             if !completedRounds.contains(where: { $0.roundNumber == roundNumber }) {
                 completedRounds.append(HistoryRound(
                     roundNumber: roundNumber,
@@ -978,8 +992,7 @@ final class OnlineGameViewModel {
                     var newRS = capturedRunningScores
                     for i in 0..<6 { newRS[i] += scoring.playerDeltas[i] }
 
-                    let nextPhase: OnlineGamePhase = (newRS.max() ?? 0) >= Self.winningScore ? .gameOver : .roundComplete
-                    var gs = buildGS(phase: nextPhase, currentActionPlayer: -1,
+                    var gs = buildGS(phase: .roundComplete, currentActionPlayer: -1,
                         bids: bids, highBid: highBid, highBidderIndex: highBidderIndex,
                         message: "\(playerName(winner)) wins! \(bidMade ? "Bid made!" : "SET!")")
                     // Include the completed trick so clients that missed the show-state
@@ -1004,7 +1017,7 @@ final class OnlineGameViewModel {
                         currentLeaderIndex = winner
                         partner1Index = hostPartner1
                         partner2Index = hostPartner2
-                        phase = nextPhase
+                        phase = .roundComplete
                     }
                 } else {
                     var gs = buildGS(phase: .playing, currentActionPlayer: winner,

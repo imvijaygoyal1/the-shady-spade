@@ -1,0 +1,137 @@
+# The Shady Spade Priority Improvements
+
+Date: 2026-06-02
+Status: Game-ending flow, leaderboard save UX, and multiplayer connection clarity implemented locally for v2.0; `recordGame` backend deployed. Remaining items are future product improvements.
+
+## Implementation Status
+
+- Manual Final Standings, per-round leaderboard saves, mid-round no-save ending, and host-only multiplayer saves have been implemented locally for v2.0.
+- `recordGame` was deployed to Firebase project `shadyspade-d6b84` on 2026-06-02 using `firebase deploy --only functions:recordGame --project shadyspade-d6b84 --non-interactive`.
+- Post-deploy verification confirmed `recordGame` is listed as a v2 HTTPS function in `us-central1` on `nodejs24`.
+- Leaderboard save UX has a first-pass v2.0 implementation: Round Complete, Final Standings, and the Leaderboard screen now surface saved, queued, not-saved, failed, and host-managed save states without changing leaderboard submission rules.
+- Multiplayer connection clarity has a first-pass v2.0 implementation: Online and Bluetooth game screens show a display-only connection ribbon for host ownership, human/AI seats, AI takeovers, removals, reconnecting, host migration, host-ended states, and connection errors.
+
+## Priority Order
+
+1. Define the game-ending flow
+   - Since score 500 no longer ends or impacts the game, the app needs an intentional ending model.
+   - This affects round-complete actions, leaderboard saves, Game Over / Final Standings screens, host behavior, and user expectations.
+
+2. Tighten leaderboard save behavior
+   - First-pass v2.0 UX implemented.
+   - Make it obvious when a game was saved, queued, synced, or not saved.
+   - The current save logic is defensive, but the UX should clearly communicate the save state.
+
+3. Improve multiplayer connection clarity
+   - First-pass v2.0 UX implemented.
+   - Show who is connected, reconnecting, replaced by AI, removed, or affected by host ending the game.
+   - This is especially important for Online and Bluetooth games.
+
+4. Update How to Play into a stronger rules guide
+   - Cover bidding, calling cards, partner reveal, scoring, round flow, modes, quitting, and multiplayer behavior.
+   - Avoid any unconfirmed win condition or score-threshold rule.
+
+5. Add public table messages
+   - Start with canned/public messages and system messages.
+   - Avoid private strategy chat and unrestricted free-form chat at first.
+
+6. Add a guided first-game tutorial
+   - Help new players learn bidding, trump, called cards, and scoring through the actual game flow.
+
+7. Improve post-round review
+   - Make Round Complete clearer: bid, bidder, partners, trump, offense points, defense points, score deltas, and why the bid made or failed.
+
+8. Add configurable game/session options
+   - Possible options: number of rounds, AI difficulty, deal speed, animation speed, and auto-advance preferences.
+
+9. Improve AI transparency and difficulty
+   - Add simple difficulty labels such as Casual, Balanced, and Aggressive.
+
+10. Accessibility and layout polish
+    - Review large text, VoiceOver labels, contrast, landscape, and small-screen clipping.
+
+## Game-Ending Flow Decisions
+
+The user confirmed the intended game-ending behavior now that reaching 500 points does not matter.
+
+Confirmed decisions:
+
+1. Game ending is manual only.
+   - There is no automatic ending based on score.
+   - There is no configured round-count ending in the first pass.
+   - Players keep playing until someone chooses to end the game.
+
+2. End Game is allowed mid-round.
+   - If a game is ended mid-round, discard the in-progress round.
+   - Do not send a leaderboard update for a game ended mid-round.
+   - The final standings should reflect the last completed round's running scores.
+
+3. The final screen should be called Final Standings.
+   - Avoid "Game Over" terminology for this flow.
+
+4. Winner is determined by highest running score.
+   - Use the highest running score at the moment the game is ended.
+   - If ended mid-round, use the scores from the last completed round.
+
+5. Mode ownership:
+   - Solo: player can end after any round.
+   - Pass & Play: players can end after any round.
+   - Online: host ends for everyone; non-hosts can leave without ending the table.
+   - Bluetooth: host ends for everyone; non-hosts can leave without ending the table.
+
+6. Leaderboard save policy:
+   - Save after each completed round so the leaderboard can reflect every round's score history.
+   - A round is complete only after the last hand/trick has been played successfully for all players.
+   - Create one leaderboard record per completed round.
+   - Save when the user chooses End Game & Save after a completed final round.
+   - Do not leaderboard-save if the game is ended mid-round.
+   - Do not save an in-progress round.
+
+7. Round Complete buttons:
+   - Next Round.
+   - End Game & Save.
+   - Quit.
+
+Open clarification:
+
+- Quit behavior still needs a final product choice. The likely interpretation is that Quit leaves without a formal leaderboard save unless it is the same action as End Game & Save. If partial completed-game tracking is desired later, it should be labeled clearly as a partial or ended-early record.
+
+## Implementation Decisions Confirmed
+
+1. Leaderboard record shape:
+   - Create one leaderboard record per completed round.
+   - Do not update a single long-lived game/session record with multiple rounds.
+
+2. Multiplayer save ownership:
+   - Online and Bluetooth leaderboard saves are host-only to avoid duplicates.
+   - If host migration/replacement occurs, the new/replacement host becomes responsible for saving future completed rounds.
+
+3. Mid-round end with no completed rounds:
+   - Show Final Standings with all zeroes.
+   - Do not send a leaderboard update.
+
+4. Round-completion authority:
+   - Treat the app's authoritative state transition to `roundComplete` as the completion point.
+   - Do not require every client to acknowledge receipt before considering the round complete.
+
+5. Mid-round End Game wording:
+   - The action can remain End Game.
+   - Use a confirmation dialog that clearly says the current round will be discarded and leaderboard will not update.
+
+## Recommended First Product Direction
+
+Use a manual end-of-game model:
+
+- No score threshold ends the game.
+- Round Complete shows Next Round, End Game & Save, and Quit.
+- Final Standings replaces or reframes Game Over.
+- Winner is the player with the highest running score at the time End Game & Save is tapped.
+- Mid-round End Game is allowed, but does not send a leaderboard update.
+- When the game is ended mid-round, discard the current round and show Final Standings based on the last completed round.
+- Leaderboard save happens after every completed round, where completion means the last hand/trick was successfully played for all players.
+- Each completed round creates its own leaderboard record.
+- In Online and Bluetooth, only the current host saves completed rounds; after host replacement, the replacement host saves future rounds.
+- End Game & Save after a completed round should ensure the final completed-round state is saved and then show Final Standings.
+- In Online and Bluetooth, only the host can end the game for everyone; non-hosts can leave and be replaced by AI when possible.
+
+This keeps gameplay flexible and avoids inventing a new hidden win condition.

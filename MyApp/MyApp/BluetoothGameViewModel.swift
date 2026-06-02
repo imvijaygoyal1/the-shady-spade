@@ -25,7 +25,6 @@ enum BTSessionState: Equatable {
 final class BluetoothGameViewModel: NSObject {
 
     static let serviceType = "shady-spade"
-    static let winningScore = 500
 
     // MARK: Identity
     var myPlayerIndex: Int = 0
@@ -91,9 +90,8 @@ final class BluetoothGameViewModel: NSObject {
     var aiSeats: [Int] = []
 
     /// Stable identifier for this BT game session — generated once by the host in
-    /// startHosting() and broadcast to all peers via gameState. Used as sessionCode
-    /// so all 6 clients can submit leaderboard records independently; the Cloud
-    /// Function's transaction makes duplicate submissions silent no-ops.
+    /// startHosting() and broadcast to all peers via gameState. The current host
+    /// uses it as the base for round-scoped leaderboard dedupe keys.
     var gameSessionId: String = ""
 
     // MARK: Local web dashboard (host only)
@@ -392,6 +390,15 @@ final class BluetoothGameViewModel: NSObject {
         dealerIndex = (dealerIndex + 1) % 6
         roundNumber += 1
         await startGame()
+    }
+
+    func endGame() {
+        guard isHost else { return }
+        currentActionPlayer = -1
+        currentTrick = []
+        message = "Final standings"
+        phase = .gameOver
+        broadcastGameState()
     }
 
     func startBidding() async {
@@ -824,8 +831,7 @@ final class BluetoothGameViewModel: NSObject {
                 partner2Index = hostPartner2
                 message = "\(playerName(winner)) wins! \(bidMade ? "Bid made!" : "SET!")"
 
-                let nextPhase: OnlineGamePhase = (newRS.max() ?? 0) >= Self.winningScore ? .gameOver : .roundComplete
-                phase = nextPhase
+                phase = .roundComplete
                 broadcastGameState()
                 currentTrick = []  // clear after broadcast so host UI shows no active trick
             } else {
@@ -1180,7 +1186,7 @@ final class BluetoothGameViewModel: NSObject {
 
         // LB4: Accumulate a HistoryRound whenever a round ends so the leaderboard
         // receives stats for every round, not just the last one.
-        if (newPhase == .roundComplete || newPhase == .gameOver) {
+        if newPhase == .roundComplete {
             // BT-GAP-08: Require valid partner indices — normalizing -1 to 0 falsely
             // marks Player 0 as partner and inflates their stats. The host-synced
             // completedRounds (above) provides correction for reconnecting clients.
@@ -1209,25 +1215,6 @@ final class BluetoothGameViewModel: NSObject {
                 let rn = roundNumber; let existing = completedRounds.map(\.roundNumber)
                 aiLog.warning("[completedRounds] duplicate blocked round=\(rn) — already in \(existing)")
             }
-        }
-
-        // BT-GAP-03: Pre-persist the record to disk at .gameOver so it survives any
-        // process suspension before the SwiftUI .task(id: game.phase) fires.
-        if newPhase == .gameOver && !gameHistorySaved && !completedRounds.isEmpty {
-            let finalScores = runningScores
-            let winner = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
-            let capturedCode = gameSessionId.isEmpty
-                ? (UserDefaults.standard.string(forKey: "bt_active_game_session_id") ?? "")
-                : gameSessionId
-            LeaderboardService.shared.preEnqueue(
-                sessionCode: capturedCode,
-                gameMode:    "Bluetooth",
-                playerNames: playerNames,
-                finalScores: finalScores,
-                winnerIndex: winner,
-                aiSeats:     aiSeats,
-                rounds:      completedRounds.sorted { $0.roundNumber < $1.roundNumber }
-            )
         }
 
         // Per-turn watchdog (host only): start a 60-second timer when a human player's
