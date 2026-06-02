@@ -16,6 +16,7 @@ struct BluetoothGameView: View {
     @State private var disconnectedAlert = false
     @State private var showHostEndedGameAlert = false
     @State private var savedLeaderboardRoundNumbers = Set<Int>()
+    @State private var showTableMessages = false
 
     private var connectionTone: MultiplayerConnectionTone {
         if game.wasRemovedFromGame || game.hostEndedGame { return .error }
@@ -256,6 +257,24 @@ struct BluetoothGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: game.isMigrating)
+        .overlay(alignment: .bottomTrailing) {
+            if !showTableMessages && !game.isMigrating && game.phase != .gameOver {
+                TableMessagesButton(latestMessage: game.tableMessages.last) {
+                    showTableMessages = true
+                }
+                .padding(.trailing, 16)
+                .padding(.bottom, 86)
+            }
+        }
+        .overlay {
+            if showTableMessages {
+                TableMessagesOverlay(messages: game.tableMessages) { text in
+                    game.sendTableMessage(text)
+                } onClose: {
+                    showTableMessages = false
+                }
+            }
+        }
         .alert("Player Disconnected", isPresented: $disconnectedAlert) {
             Button("OK", role: .cancel) { }
         } message: {

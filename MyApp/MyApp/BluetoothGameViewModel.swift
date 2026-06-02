@@ -56,6 +56,7 @@ final class BluetoothGameViewModel: NSObject {
     var wonPointsPerPlayer: [Int] = Array(repeating: 0, count: 6)
     var runningScores: [Int] = Array(repeating: 0, count: 6)
     var message: String = ""
+    var tableMessages: [PublicTableMessage] = []
     /// Accumulates one HistoryRound per completed round — used by LB4 fix so
     /// multi-round games report all rounds to the leaderboard, not just the last.
     var completedRounds: [HistoryRound] = []
@@ -133,6 +134,8 @@ final class BluetoothGameViewModel: NSObject {
     private var hasInitializedCalling = false
     private var lastProcessedActionId: String = ""
     private var lastActionSentAt: Date = .distantPast
+    private var lastTableMessageSentAt: Date = .distantPast
+    private var processedTableMessageRequestIDs: Set<String> = []
     /// Prevents two concurrent AI tasks (from back-to-back MC messages) from both
     /// passing the post-sleep guard and double-playing the same seat. Reset to false
     /// before every recursive re-trigger and before each action so processPlayCard's
@@ -398,6 +401,7 @@ final class BluetoothGameViewModel: NSObject {
         currentTrick = []
         message = "Final standings"
         phase = .gameOver
+        publishSystemTableMessage("Host ended the table.")
         broadcastGameState()
     }
 
@@ -489,6 +493,64 @@ final class BluetoothGameViewModel: NSObject {
         bidWinnerInfo = nil
     }
 
+    func sendTableMessage(_ text: String) {
+        guard let presetText = TableMessagePreset.allowedText(text) else { return }
+        guard Date().timeIntervalSince(lastTableMessageSentAt) > 1 else { return }
+        lastTableMessageSentAt = Date()
+
+        if isHost {
+            let message = PublicTableMessage.make(
+                kind: .player,
+                senderIndex: myPlayerIndex,
+                senderName: playerName(myPlayerIndex),
+                text: presetText,
+                roundNumber: roundNumber
+            )
+            appendTableMessage(message, rebroadcast: true)
+        } else {
+            sendToHost([
+                "type": "tableMessageRequest",
+                "text": presetText,
+                "requestId": UUID().uuidString
+            ])
+        }
+    }
+
+    private func publishSystemTableMessage(_ text: String) {
+        guard isHost else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let message = PublicTableMessage.make(
+            kind: .system,
+            senderIndex: -1,
+            senderName: "Table",
+            text: trimmed,
+            roundNumber: roundNumber
+        )
+        appendTableMessage(message, rebroadcast: true)
+    }
+
+    private func appendTableMessage(_ message: PublicTableMessage, rebroadcast: Bool) {
+        guard !tableMessages.contains(where: { $0.id == message.id }) else { return }
+        tableMessages.append(message)
+        tableMessages = Array(tableMessages.sorted { $0.createdAt < $1.createdAt }.suffix(40))
+        if rebroadcast {
+            sendToAll(["type": "tableMessage", "message": message.payload])
+        }
+    }
+
+    private func mergeTableMessages(_ raw: Any?) {
+        let rawMessages = (raw as? [[String: Any]])
+            ?? (raw as? [Any])?.compactMap { $0 as? [String: Any] }
+            ?? []
+        for message in rawMessages.compactMap(PublicTableMessage.fromPayload) {
+            if !tableMessages.contains(where: { $0.id == message.id }) {
+                tableMessages.append(message)
+            }
+        }
+        tableMessages = Array(tableMessages.sorted { $0.createdAt < $1.createdAt }.suffix(40))
+    }
+
     // MARK: - Host Migration (Issue 1)
 
     private func triggerHostMigration() {
@@ -521,6 +583,17 @@ final class BluetoothGameViewModel: NSObject {
     private func becomeNewHost(newHostSlot: Int) {
         isHost = true
         hasInitializedCalling = false  // BT-GAP-11: reset so smart defaults fire as new host
+        message = "\(playerName(newHostSlot)) is now the host."
+        appendTableMessage(
+            PublicTableMessage.make(
+                kind: .system,
+                senderIndex: -1,
+                senderName: "Table",
+                text: message,
+                roundNumber: roundNumber
+            ),
+            rebroadcast: false
+        )
         let gs = buildGameStateDict()
         let migrationMsg: [String: Any] = [
             "type": "hostMigration",
@@ -531,7 +604,6 @@ final class BluetoothGameViewModel: NSObject {
         isMigrating = false
         migrationTimeoutTask?.cancel()
         migrationTimeoutTask = nil
-        message = "\(playerName(newHostSlot)) is now the host."
         if aiSeats.contains(currentActionPlayer) {
             Task { [weak self] in await self?.processAITurnIfNeeded() }
         }
@@ -591,6 +663,9 @@ final class BluetoothGameViewModel: NSObject {
         migrationFailureCount = 0  // BT-GAP-13: prevent bleed into next session
         isProcessingAction = false
         pendingActions = []
+        tableMessages = []
+        lastTableMessageSentAt = .distantPast
+        processedTableMessageRequestIDs = []
         pendingResyncPeers = []
         advertiser?.stopAdvertisingPeer()
         advertiser = nil
@@ -613,6 +688,7 @@ final class BluetoothGameViewModel: NSObject {
     /// farewell alert before the session disconnects. Call before cleanup() so peers
     /// are still connected to receive it.
     func notifyHostEndedGame() {
+        publishSystemTableMessage("Host ended the table.")
         // BT-GAP-01: Drain peers that missed the .gameOver broadcast before sending the
         // farewell. Without this, a peer in pendingResyncPeers sees a raw MC disconnect
         // on slot 0, triggers host migration instead of clean exit, and never saves.
@@ -920,6 +996,7 @@ final class BluetoothGameViewModel: NSObject {
             "wonPointsPerPlayer": wonPointsPerPlayer,
             "runningScores": runningScores,
             "message": message,
+            "tableMessages": tableMessages.map(\.payload),
             "playerNames": playerNames,
             "playerAvatars": playerAvatars,
             "aiSeats": aiSeats,
@@ -1023,6 +1100,7 @@ final class BluetoothGameViewModel: NSObject {
         if let sid = gs["gameSessionId"] as? String, !sid.isEmpty {
             gameSessionId = sid
         }
+        mergeTableMessages(gs["tableMessages"])
 
         phase = newPhase
 
@@ -1373,6 +1451,13 @@ final class BluetoothGameViewModel: NSObject {
                   let state = dict["state"] as? [String: Any] else { return }
             applyGameState(state)
 
+        case "tableMessage":
+            guard !isHost,
+                  let hostPeer = playerIndexToPeer[0], peer == hostPeer,
+                  let payload = dict["message"] as? [String: Any],
+                  let message = PublicTableMessage.fromPayload(payload) else { return }
+            appendTableMessage(message, rebroadcast: false)
+
         case "hostEndedGame":
             // Only accept from the host; set flag so view can show a farewell alert
             guard let hostPeer = playerIndexToPeer[0], peer == hostPeer, !isHost else { return }
@@ -1430,6 +1515,26 @@ final class BluetoothGameViewModel: NSObject {
             var enriched = dict
             enriched["_playerIndex"] = playerIndex
             enqueueAction(enriched)
+
+        case "tableMessageRequest":
+            guard isHost,
+                  let playerIndex = peerToPlayerIndex[peer],
+                  let text = dict["text"] as? String,
+                  let presetText = TableMessagePreset.allowedText(text) else { return }
+            let requestId = dict["requestId"] as? String ?? ""
+            guard !requestId.isEmpty, !processedTableMessageRequestIDs.contains(requestId) else { return }
+            processedTableMessageRequestIDs.insert(requestId)
+            if processedTableMessageRequestIDs.count > 80 {
+                processedTableMessageRequestIDs.removeAll(keepingCapacity: true)
+            }
+            let message = PublicTableMessage.make(
+                kind: .player,
+                senderIndex: playerIndex,
+                senderName: playerName(playerIndex),
+                text: presetText,
+                roundNumber: roundNumber
+            )
+            appendTableMessage(message, rebroadcast: true)
 
         case "lobbyUpdate":
             // Client receives info about who else joined — only trust the host
@@ -1499,6 +1604,7 @@ final class BluetoothGameViewModel: NSObject {
             self.aiSeats.append(seat)
             self.aiSeats.sort()
             self.message = "\(name) is taking too long. AI took over."
+            self.publishSystemTableMessage(self.message)
             self.broadcastGameState()
             await self.processAITurnIfNeeded()
         }
@@ -1812,8 +1918,11 @@ extension BluetoothGameViewModel: MCSessionDelegate {
                             if self.phase == .playing || self.phase == .bidding ||
                                self.phase == .calling || self.phase == .lookingAtCards {
                                 if !self.aiSeats.contains(playerIdx) {
+                                    let replacedName = self.playerName(playerIdx)
                                     self.aiSeats.append(playerIdx)
                                     self.aiSeats.sort()
+                                    self.message = "\(replacedName) disconnected. AI took over."
+                                    self.publishSystemTableMessage(self.message)
                                     self.broadcastGameState()
                                     Task { await self.processAITurnIfNeeded() }
                                 }

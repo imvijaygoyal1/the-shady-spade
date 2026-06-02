@@ -47,6 +47,7 @@ final class OnlineGameViewModel {
     var wonPointsPerPlayer: [Int] = Array(repeating: 0, count: 6)
     var runningScores: [Int] = Array(repeating: 0, count: 6)
     var message: String = ""
+    var tableMessages: [PublicTableMessage] = []
     /// Accumulates one HistoryRound per completed round — used by LB4 fix so
     /// multi-round games report all rounds to the leaderboard, not just the last.
     var completedRounds: [HistoryRound] = []
@@ -85,6 +86,7 @@ final class OnlineGameViewModel {
     private var listener: ListenerRegistration?
     private var lastProcessedNonce: String = ""
     private var lastActionSentAt: Date = .distantPast
+    private var lastTableMessageSentAt: Date = .distantPast
     /// Prevents two concurrent AI tasks from both passing the post-sleep guard and
     /// double-playing. Reset to false before every recursive re-trigger so the next
     /// processAITurnIfNeeded call can proceed.
@@ -146,6 +148,8 @@ final class OnlineGameViewModel {
         biddingToastTask?.cancel()
         biddingToastTask = nil
         gameHistorySaved = false
+        tableMessages = []
+        lastTableMessageSentAt = .distantPast
         wasRemovedFromGame = false
         hostEndedGame = false
     }
@@ -157,6 +161,7 @@ final class OnlineGameViewModel {
         for attempt in 1...3 {
             do {
                 try await ref.updateData(["gameState.hostEndedGame": true])
+                await publishSystemTableMessage("Host ended the table.")
                 return
             } catch {
                 ogVMLog.warning("[notifyHostEndedGame] attempt \(attempt)/3 failed: \(error.localizedDescription)")
@@ -313,7 +318,10 @@ final class OnlineGameViewModel {
             message: "Final standings"
         )
         gs["currentTrick"] = [] as [[String: Any]]
-        await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
+        let writeOk = await criticalWrite(["gameState": gs, "pendingAction": [:] as [String: Any]])
+        if writeOk {
+            await publishSystemTableMessage("Host ended the table.")
+        }
     }
 
     func startBidding() async {
@@ -387,6 +395,7 @@ final class OnlineGameViewModel {
                 "removedSlot": index,
                 "gameState.message": "\(removedName) was removed. AI took over."
             ])
+            await publishSystemTableMessage("\(removedName) was removed. AI took over.")
         } catch {
             ogVMLog.error("[removePlayerMidGame] write failed for slot \(index): \(error.localizedDescription)")
         }
@@ -440,6 +449,7 @@ final class OnlineGameViewModel {
                         "droppedPlayers": FieldValue.arrayUnion(droppedNames),
                         "gameState.message": "\(droppedMsg) left. AI took over."
                     ])
+                    await self.publishSystemTableMessage("\(droppedMsg) left. AI took over.")
                 }
             }
         }
@@ -477,6 +487,8 @@ final class OnlineGameViewModel {
     }
 
     private func handleSnapshot(_ data: [String: Any]) async {
+        parseTableMessages(data["tableMessages"])
+
         // Sync aiSeats from session document root, or gameState.aiSeats if updated mid-game
         let rawAI = (data["aiSeats"] as? [Any])
             ?? (data["gameState"] as? [String: Any])?["aiSeats"] as? [Any]
@@ -781,6 +793,56 @@ final class OnlineGameViewModel {
 
     func proceedFromBidWinner() {
         bidWinnerInfo = nil
+    }
+
+    func sendTableMessage(_ text: String) async {
+        guard let presetText = TableMessagePreset.allowedText(text) else { return }
+        guard Date().timeIntervalSince(lastTableMessageSentAt) > 1 else { return }
+        lastTableMessageSentAt = Date()
+
+        let message = PublicTableMessage.make(
+            kind: .player,
+            senderIndex: myPlayerIndex,
+            senderName: playerName(myPlayerIndex),
+            text: presetText,
+            roundNumber: roundNumber
+        )
+        await appendTableMessage(message)
+    }
+
+    private func publishSystemTableMessage(_ text: String) async {
+        guard isHost else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let message = PublicTableMessage.make(
+            kind: .system,
+            senderIndex: -1,
+            senderName: "Table",
+            text: trimmed,
+            roundNumber: roundNumber
+        )
+        await appendTableMessage(message)
+    }
+
+    private func appendTableMessage(_ message: PublicTableMessage) async {
+        let ref = Firestore.firestore().collection("sessions").document(sessionCode)
+        do {
+            try await ref.updateData([
+                "tableMessages": FieldValue.arrayUnion([message.payload])
+            ])
+        } catch {
+            ogVMLog.warning("[tableMessages] append failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func parseTableMessages(_ raw: Any?) {
+        let rawMessages = (raw as? [[String: Any]])
+            ?? (raw as? [Any])?.compactMap { $0 as? [String: Any] }
+            ?? []
+        let parsed = rawMessages
+            .compactMap(PublicTableMessage.fromPayload)
+            .sorted { $0.createdAt < $1.createdAt }
+        tableMessages = Array(parsed.suffix(40))
     }
 
 
@@ -1231,6 +1293,7 @@ final class OnlineGameViewModel {
                 "gameState.aiSeats": self.aiSeats,
                 "gameState.message": self.message
             ])
+            await self.publishSystemTableMessage("\(name) is taking too long. AI took over.")
             await self.processAITurnIfNeeded()
         }
     }

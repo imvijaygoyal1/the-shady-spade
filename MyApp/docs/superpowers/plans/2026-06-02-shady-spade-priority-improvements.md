@@ -1,7 +1,7 @@
 # The Shady Spade Priority Improvements
 
 Date: 2026-06-02
-Status: Game-ending flow, leaderboard save UX, multiplayer connection clarity, and full How to Play guide implemented locally for v2.0; `recordGame` backend deployed. Remaining items are future product improvements.
+Status: Game-ending flow, leaderboard save UX, multiplayer connection clarity, full How to Play guide, and public in-game table messages implemented locally for v2.0; `recordGame` backend deployed. Remaining items are future product improvements.
 
 ## Implementation Status
 
@@ -11,6 +11,8 @@ Status: Game-ending flow, leaderboard save UX, multiplayer connection clarity, a
 - Leaderboard save UX has a first-pass v2.0 implementation: Round Complete, Final Standings, and the Leaderboard screen now surface saved, queued, not-saved, failed, and host-managed save states without changing leaderboard submission rules.
 - Multiplayer connection clarity has a first-pass v2.0 implementation: Online and Bluetooth game screens show a display-only connection ribbon for host ownership, human/AI seats, AI takeovers, removals, reconnecting, host migration, host-ended states, and connection errors.
 - How to Play has been upgraded into a full in-app rules guide covering round flow, bidding, calling, partner reveal, hand play, scoring, manual ending, leaderboard saves, modes, host behavior, and strategy tips.
+- Public in-game table messages have a first-pass v2.0 implementation: Online and Bluetooth game screens expose preset-only public messages, recent table-message history, and host-authored system messages for AI replacement, host ending, and Bluetooth host replacement.
+- Public table messages verification: Swift parse and `git diff --check` passed; a TTY-backed generic iOS Simulator build passed after non-TTY `xcodebuild` attempts hung in Xcode's SDK-probe stage; the resulting app was installed and launched on the booted iPhone 17 Pro simulator.
 
 ## Priority Order
 
@@ -34,6 +36,7 @@ Status: Game-ending flow, leaderboard save UX, multiplayer connection clarity, a
    - Avoid any unconfirmed win condition or score-threshold rule.
 
 5. Add public table messages
+   - First-pass v2.0 UX implemented.
    - Start with canned/public messages and system messages.
    - Avoid private strategy chat and unrestricted free-form chat at first.
 
@@ -119,6 +122,35 @@ Open clarification:
 5. Mid-round End Game wording:
    - The action can remain End Game.
    - Use a confirmation dialog that clearly says the current round will be discarded and leaderboard will not update.
+
+## Public Table Messages Decisions
+
+The first implementation intentionally uses public preset messages and system messages only.
+
+1. Message scope:
+   - Messages are public to the table.
+   - No private messages.
+   - No free-form chat in the first pass.
+   - Player presets include short reactions such as "Nice hand", "Good bid", "Ouch", "Big points", "Set them!", "One sec", "I'm ready", and "Good game".
+
+2. Online behavior:
+   - Store recent messages on the session document in a root `tableMessages` array.
+   - Player messages do not use `pendingAction`, so they cannot overwrite or delay game actions.
+   - Host-authored system messages are added for host ending, host end-table notification, player removal, dropped-player AI takeover, and turn-timeout AI takeover.
+
+3. Bluetooth behavior:
+   - Non-host players send preset requests to the current host.
+   - The current host creates and broadcasts the authoritative public message.
+   - Recent messages are included in full game-state payloads so reconnects and resyncs recover table history.
+
+4. AI and host replacement:
+   - AI bots do not send player-style chat.
+   - When a player is replaced by AI, the host writes a system message.
+   - During Bluetooth host replacement, the new host appends the host-replacement system message locally and includes it inside the `hostMigration` game-state payload so clients accept it while remapping the host.
+
+5. Non-goals:
+   - Do not use table messages for scoring, leaderboard save decisions, turn validation, game ending, or any gameplay authority.
+   - Do not add moderation, profanity filtering, reports, or user-generated text until/unless free-form chat is explicitly chosen later.
 
 ## Recommended First Product Direction
 

@@ -661,6 +661,320 @@ struct MultiplayerConnectionStatusRibbon: View {
     }
 }
 
+// MARK: - Public Table Messages
+
+enum PublicTableMessageKind: String {
+    case player
+    case system
+}
+
+struct PublicTableMessage: Identifiable, Hashable {
+    let id: String
+    let kind: PublicTableMessageKind
+    let senderIndex: Int
+    let senderName: String
+    let text: String
+    let createdAt: Date
+    let roundNumber: Int
+
+    var isSystem: Bool { kind == .system }
+
+    static func make(
+        kind: PublicTableMessageKind,
+        senderIndex: Int,
+        senderName: String,
+        text: String,
+        roundNumber: Int
+    ) -> PublicTableMessage {
+        PublicTableMessage(
+            id: UUID().uuidString,
+            kind: kind,
+            senderIndex: senderIndex,
+            senderName: senderName,
+            text: String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(120)),
+            createdAt: Date(),
+            roundNumber: roundNumber
+        )
+    }
+
+    var payload: [String: Any] {
+        [
+            "id": id,
+            "kind": kind.rawValue,
+            "senderIndex": senderIndex,
+            "senderName": senderName,
+            "text": text,
+            "createdAt": createdAt.timeIntervalSince1970,
+            "roundNumber": roundNumber
+        ]
+    }
+
+    static func fromPayload(_ payload: [String: Any]) -> PublicTableMessage? {
+        guard let id = payload["id"] as? String, !id.isEmpty,
+              let kindRaw = payload["kind"] as? String,
+              let kind = PublicTableMessageKind(rawValue: kindRaw),
+              let text = payload["text"] as? String, !text.isEmpty else { return nil }
+
+        let senderIndex = (payload["senderIndex"] as? Int)
+            ?? (payload["senderIndex"] as? Int64).map(Int.init)
+            ?? -1
+        let senderName = payload["senderName"] as? String ?? (kind == .system ? "Table" : "Player")
+        let roundNumber = (payload["roundNumber"] as? Int)
+            ?? (payload["roundNumber"] as? Int64).map(Int.init)
+            ?? 1
+        let createdAt: Date
+        if let seconds = payload["createdAt"] as? Double {
+            createdAt = Date(timeIntervalSince1970: seconds)
+        } else if let seconds = payload["createdAt"] as? Int {
+            createdAt = Date(timeIntervalSince1970: TimeInterval(seconds))
+        } else if let seconds = payload["createdAt"] as? Int64 {
+            createdAt = Date(timeIntervalSince1970: TimeInterval(seconds))
+        } else if let date = payload["createdAt"] as? Date {
+            createdAt = date
+        } else {
+            createdAt = Date()
+        }
+
+        return PublicTableMessage(
+            id: id,
+            kind: kind,
+            senderIndex: senderIndex,
+            senderName: senderName,
+            text: String(text.prefix(120)),
+            createdAt: createdAt,
+            roundNumber: roundNumber
+        )
+    }
+}
+
+struct TableMessagePreset: Identifiable, Hashable {
+    let id: String
+    let text: String
+    let iconName: String
+
+    init(_ text: String, iconName: String) {
+        self.id = text
+        self.text = text
+        self.iconName = iconName
+    }
+
+    static let presets: [TableMessagePreset] = [
+        TableMessagePreset("Nice hand", iconName: "hand.thumbsup.fill"),
+        TableMessagePreset("Good bid", iconName: "megaphone.fill"),
+        TableMessagePreset("Ouch", iconName: "exclamationmark.triangle.fill"),
+        TableMessagePreset("Big points", iconName: "star.fill"),
+        TableMessagePreset("Set them!", iconName: "bolt.fill"),
+        TableMessagePreset("One sec", iconName: "clock.fill"),
+        TableMessagePreset("I'm ready", iconName: "checkmark.circle.fill"),
+        TableMessagePreset("Good game", iconName: "flag.fill")
+    ]
+
+    static func allowedText(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return presets.first { $0.text == trimmed }?.text
+    }
+}
+
+struct TableMessagesButton: View {
+    let latestMessage: PublicTableMessage?
+    let onTap: () -> Void
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            if let latestMessage {
+                HStack(spacing: 7) {
+                    Image(systemName: latestMessage.isSystem ? "info.circle.fill" : "bubble.left.and.bubble.right.fill")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundStyle(latestMessage.isSystem ? Color.masterGold : Color.offenseBlue)
+                    Text(latestMessage.isSystem ? latestMessage.text : "\(latestMessage.senderName): \(latestMessage.text)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(maxWidth: 248, alignment: .leading)
+                .background(Comic.containerBG.opacity(0.95))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Comic.containerBorder.opacity(0.7), lineWidth: 1.2)
+                )
+                .shadow(color: Comic.black.opacity(0.18), radius: 8, x: 0, y: 3)
+                .allowsHitTesting(false)
+            }
+
+            Button {
+                HapticManager.impact(.light)
+                onTap()
+            } label: {
+                Image(systemName: "bubble.left.and.bubble.right.fill")
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundStyle(Comic.black)
+                    .frame(width: 48, height: 48)
+                    .background(Comic.yellow)
+                    .clipShape(Circle())
+                    .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
+                    .shadow(color: Comic.black.opacity(0.35), radius: 0, x: 3, y: 3)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open public table messages")
+        }
+    }
+}
+
+struct TableMessagesOverlay: View {
+    let messages: [PublicTableMessage]
+    let onSend: (String) -> Void
+    let onClose: () -> Void
+
+    private var recentMessages: [PublicTableMessage] {
+        Array(messages.suffix(40))
+    }
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
+    ]
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            Color.black.opacity(0.48)
+                .ignoresSafeArea()
+                .onTapGesture { onClose() }
+
+            VStack(spacing: 12) {
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Public Table Messages")
+                            .font(.system(size: 18, weight: .black, design: .rounded))
+                            .foregroundStyle(Comic.textPrimary)
+                        Text("Preset-only messages visible to everyone.")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(Comic.textSecondary)
+                    }
+                    Spacer()
+                    Button {
+                        HapticManager.impact(.light)
+                        onClose()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .black))
+                            .foregroundStyle(Comic.white)
+                            .frame(width: 30, height: 30)
+                            .background(Comic.black)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close table messages")
+                }
+
+                ScrollView {
+                    if recentMessages.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundStyle(Comic.textSecondary)
+                            Text("No table messages yet.")
+                                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.textSecondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 26)
+                    } else {
+                        LazyVStack(spacing: 8) {
+                            ForEach(recentMessages) { message in
+                                TableMessageRow(message: message)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .frame(maxHeight: 240)
+
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(TableMessagePreset.presets) { preset in
+                        Button {
+                            HapticManager.impact(.light)
+                            onSend(preset.text)
+                        } label: {
+                            HStack(spacing: 7) {
+                                Image(systemName: preset.iconName)
+                                    .font(.system(size: 11, weight: .black))
+                                Text(preset.text)
+                                    .font(.system(size: 12, weight: .black, design: .rounded))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
+                            }
+                            .foregroundStyle(Comic.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 10)
+                            .background(Comic.containerBG.opacity(0.72))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(Comic.containerBorder.opacity(0.65), lineWidth: 1.2)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: 420)
+            .background(Comic.containerBG)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Comic.containerBorder, lineWidth: Comic.borderWidth)
+            )
+            .shadow(color: Comic.black.opacity(0.32), radius: 18, x: 0, y: 8)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 14)
+        }
+    }
+}
+
+private struct TableMessageRow: View {
+    let message: PublicTableMessage
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: message.isSystem ? "info.circle.fill" : "person.crop.circle.fill")
+                .font(.system(size: 15, weight: .black))
+                .foregroundStyle(message.isSystem ? Color.masterGold : Color.offenseBlue)
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(message.isSystem ? "Table" : message.senderName)
+                        .font(.system(size: 11, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                        .lineLimit(1)
+                    Text("R\(message.roundNumber)")
+                        .font(.system(size: 10, weight: .heavy, design: .rounded).monospacedDigit())
+                        .foregroundStyle(Comic.textSecondary)
+                    Spacer(minLength: 4)
+                    Text(message.createdAt.formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                        .lineLimit(1)
+                }
+
+                Text(message.text)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .background(message.isSystem ? Color.masterGold.opacity(0.10) : Comic.black.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
 // MARK: - Bid Winner Banner
 
 struct BidWinnerInfo {
