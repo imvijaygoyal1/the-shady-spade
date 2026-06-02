@@ -1,7 +1,7 @@
 # The Shady Spade Priority Improvements
 
 Date: 2026-06-02
-Status: Game-ending flow, leaderboard save UX, and multiplayer connection clarity implemented locally for v2.0; `recordGame` backend deployed. Remaining items are future product improvements.
+Status: Game-ending flow, leaderboard save UX, multiplayer connection clarity, and full How to Play guide implemented locally for v2.0; `recordGame` backend deployed. Remaining items are future product improvements.
 
 ## Implementation Status
 
@@ -10,6 +10,7 @@ Status: Game-ending flow, leaderboard save UX, and multiplayer connection clarit
 - Post-deploy verification confirmed `recordGame` is listed as a v2 HTTPS function in `us-central1` on `nodejs24`.
 - Leaderboard save UX has a first-pass v2.0 implementation: Round Complete, Final Standings, and the Leaderboard screen now surface saved, queued, not-saved, failed, and host-managed save states without changing leaderboard submission rules.
 - Multiplayer connection clarity has a first-pass v2.0 implementation: Online and Bluetooth game screens show a display-only connection ribbon for host ownership, human/AI seats, AI takeovers, removals, reconnecting, host migration, host-ended states, and connection errors.
+- How to Play has been upgraded into a full in-app rules guide covering round flow, bidding, calling, partner reveal, hand play, scoring, manual ending, leaderboard saves, modes, host behavior, and strategy tips.
 
 ## Priority Order
 
@@ -28,6 +29,7 @@ Status: Game-ending flow, leaderboard save UX, and multiplayer connection clarit
    - This is especially important for Online and Bluetooth games.
 
 4. Update How to Play into a stronger rules guide
+   - Full v2.0 rules guide implemented.
    - Cover bidding, calling cards, partner reveal, scoring, round flow, modes, quitting, and multiplayer behavior.
    - Avoid any unconfirmed win condition or score-threshold rule.
 

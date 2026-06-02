@@ -76,35 +76,47 @@ private struct HowToPlayView: View {
     private let topics: [HowToPlayTopic] = [
         HowToPlayTopic(
             emoji: "♠️",
-            title: "Game Overview",
+            title: "Rules at a Glance",
             content: """
-            The Shady Spade is a 6-player trick-taking card game played with a 48-card deck. Players are secretly divided into two teams of 3 — the Bidding Team and the Defense Team.
+            The Shady Spade is a 6-player trick-taking card game played with a 48-card deck. Each player gets 8 cards, so each round has 8 hands, also called tricks.
 
-            The goal is to capture as many points as possible by winning hands (tricks). Each round one player wins the bid, declares trump, and secretly calls 2 partner cards to form their team.
+            Each round has two sides:
+            · Offense - the bidder and the players holding the 2 called cards
+            · Defense - everyone else
 
-            A round is complete only after all 8 hands are successfully played. Scores are calculated after each completed round, and the leaderboard records that completed round.
+            The bidder chooses trump and calls 2 cards. The players holding those called cards become the bidder's secret partners.
 
-            Games do not end because of a score threshold. Players keep playing rounds until the game is ended manually, then Final Standings shows the highest running score.
+            The offense tries to catch at least the bid amount in card points. The defense tries to stop them.
+
+            A round is complete only after all 8 hands are successfully played. Scores are calculated after each completed round.
+
+            Games do not end because of any score threshold. Keep playing rounds until the game is ended manually. Final Standings ranks players by highest running score.
             """
         ),
         HowToPlayTopic(
-            emoji: "🤝",
-            title: "Teams & Partners",
+            emoji: "🔁",
+            title: "Round Flow",
             content: """
-            Teams are secret and dynamic — they change every round.
+            1. Deal - each player receives 8 cards.
 
-            After winning the bid, the bidder calls 2 cards (e.g. Ace of Hearts, King of Spades). The players holding those cards become the bidder's secret partners.
+            2. Bidding - starting with the player after the dealer, players bid or pass until one bidder remains.
 
-            Partners are only revealed when their called card is physically played during a hand. Until then, nobody knows who is on which team — not even the partners know each other.
+            3. Calling - the winning bidder chooses trump and calls 2 cards they do not hold.
 
-            The bidder always knows their own called cards, but partners discover each other organically during play.
+            4. Play - players take turns playing 8 hands. The winner of each hand leads the next hand.
+
+            5. Round Complete - the app totals the card points caught by the offense and defense, applies score changes, and saves the completed round to the leaderboard.
+
+            6. Next Round or End Game - continue playing or use End Game & Save to show Final Standings.
+
+            The dealer rotates each round.
             """
         ),
         HowToPlayTopic(
             emoji: "🃏",
-            title: "Card Point Values",
+            title: "Deck & Card Points",
             content: """
-            The 48-card deck contains point cards and non-point cards.
+            The deck has 48 cards: A, K, Q, J, 10, 9, 8, 7, 6, 5, 4, 3 in each suit.
 
             Point cards:
             · Aces, Kings, Queens, Jacks, 10s = 10 pts each
@@ -115,22 +127,29 @@ private struct HowToPlayView: View {
 
             Total points available per round = 250 pts
 
-            The 3♠ (Three of Spades) is the legendary Shady Spade card — the single most valuable card in the game worth 30 points. Capturing it can swing the entire round.
+            Card rank for winning hands is A high down to 3 low. The 3♠ is worth 30 points, but it is not automatically the highest card. It still follows normal trick-taking rank rules.
             """
         ),
         HowToPlayTopic(
             emoji: "🎯",
             title: "How Bidding Works",
             content: """
-            Bidding determines who controls the round. The minimum bid is 130 and the maximum is 250.
+            Bidding determines who controls the round and how many points the offense must catch.
 
-            Bidding goes clockwise starting from the player after the dealer. On your turn you can:
-            · Bid higher than the current highest bid (in steps of +5)
-            · Pass — you cannot bid again once you pass
+            Bid range:
+            · Minimum bid: 130
+            · Maximum bid: 250
+            · Bids increase in steps of 5
 
-            The player with the highest bid when all others pass wins the bid. They become the Bidder and must capture at least their bid amount in points to succeed.
+            Bidding starts with the player after the dealer. The first bidder must open because no bid exists yet.
 
-            Tap + or − to adjust your bid in increments of 5.
+            After a bid exists, each player may:
+            · Bid higher than the current highest bid
+            · Pass
+
+            Once you pass, you are out of bidding for that round. Bidding ends when only one player has not passed. That player wins the bid.
+
+            The winning bidder takes the risk: if their team catches enough points, the offense scores. If they fall short, the bidder and partners lose points.
             """
         ),
         HowToPlayTopic(
@@ -143,9 +162,9 @@ private struct HowToPlayView: View {
 
             2. Call 2 Cards — choose any 2 cards not in your own hand. The players holding those cards become your secret partners.
 
-            Cards already in your hand are automatically hidden from the selection — the app prevents you from accidentally calling a card you already hold. Choose cards strategically — call high-value cards likely held by strong players.
+            Cards already in your hand are hidden from the calling list. The app prevents you from calling a card you already hold.
 
-            Partners are only revealed when they play their called card. Until then the teams remain secret from everyone.
+            Partners are only revealed when they play their called card. Until then, the teams remain hidden. Even partners may not know each other until the called cards appear.
 
             Visual cues in your hand:
             · Trump cards — warm yellow tint with gold border
@@ -154,50 +173,166 @@ private struct HowToPlayView: View {
             """
         ),
         HowToPlayTopic(
-            emoji: "📊",
-            title: "Scoring",
+            emoji: "✋",
+            title: "How to Play a Hand",
             content: """
-            BID MADE (bidding team reaches or exceeds their bid):
+            The leader plays the first card of a hand. Play then continues around the table.
+
+            Follow suit if you can:
+            · If the leader plays hearts and you have hearts, you must play a heart.
+            · If you do not have the led suit, you may play any card, including trump.
+
+            How the hand winner is chosen:
+            · If any trump cards are played, the highest trump wins.
+            · If no trump is played, the highest card in the led suit wins.
+            · Cards outside the led suit cannot win unless they are trump.
+
+            The hand winner collects all card points in that hand and leads the next hand.
+
+            The app highlights which cards are legal to play, so you cannot accidentally break the follow-suit rule.
+            """
+        ),
+        HowToPlayTopic(
+            emoji: "🤝",
+            title: "Teams & Partner Reveal",
+            content: """
+            Teams change every round.
+
+            The bidder is always on offense. The 2 called cards identify the bidder's partners.
+
+            Partner reveal is public:
+            · If you play a called card, you are revealed as a partner.
+            · If someone else plays a called card, that player is revealed as a partner.
+            · Until a called card is played, that partner remains hidden.
+
+            This means players have to read the table. Someone feeding points to the bidder may be a hidden partner, or they may be trying to mislead the defense.
+
+            The defense does not need to know every partner to win the round. The defense only needs to keep the offense below the bid.
+            """
+        ),
+        HowToPlayTopic(
+            emoji: "📊",
+            title: "Round Scoring",
+            content: """
+            At the end of the round, the app totals all card points caught by the offense.
+
+            Bid Made - offense reaches or beats the bid:
             · Bidder gains: +bid amount (e.g. bid 150 → +150 pts)
             · Each Partner gains: +bid amount ÷ 2, rounded down (e.g. +75 pts)
             · Each Defense player: 0 pts (score unchanged)
 
-            BID FAILED / SET (bidding team falls short of their bid):
+            Set - offense falls short of the bid:
             · Bidder loses: −bid amount (e.g. bid 150 → −150 pts)
             · Each Partner loses: −bid amount ÷ 2, rounded up (e.g. −75 pts)
             · Each Defense player: 0 pts (score unchanged)
 
-            Scores accumulate across rounds and can go negative. Tap any bar in the score chart to see a player's round-by-round history.
+            Defense score does not increase directly when the defense sets the bidder. The defensive reward is blocking the offense and avoiding their score gain.
+
+            Scores accumulate across rounds and can go negative.
+            """
+        ),
+        HowToPlayTopic(
+            emoji: "🏁",
+            title: "Ending a Game",
+            content: """
+            Game ending is manual only.
+
+            There is no score threshold that ends the game or changes the rules. A high score is just the current running total.
+
+            After a completed round, the host or local player can choose:
+            · Next Round - keep playing
+            · End Game & Save - save the completed round and show Final Standings
+            · Quit to Menu - leave the table/menu flow
+
+            Mid-round End Game is allowed. If the game is ended mid-round:
+            · The current unfinished round is discarded
+            · No leaderboard update is sent for that unfinished round
+            · Final Standings uses the last completed round's running scores
+            · If no round was completed, Final Standings shows zeroes
+
+            Final Standings ranks players by highest running score.
+            """
+        ),
+        HowToPlayTopic(
+            emoji: "🏆",
+            title: "Leaderboard & History",
+            content: """
+            The leaderboard records completed rounds, not unfinished hands.
+
+            A completed round means all 8 hands were successfully played and the app reached Round Complete.
+
+            Each completed round creates one leaderboard record. Long games can therefore create many leaderboard entries, one per completed round.
+
+            In Online and Bluetooth games, only the current host saves leaderboard records. If the host is replaced, the new host saves future completed rounds.
+
+            If a leaderboard save cannot be sent immediately, the app can queue it and sync later. The save status row tells you whether a round was saved, queued, failed, host-managed, or not saved.
+
+            Local Game History keeps recent completed game summaries on your device.
             """
         ),
         HowToPlayTopic(
             emoji: "🎮",
             title: "Game Modes",
             content: """
-            Solo — Face 5 AI opponents on your device. Great for practice. AI players are automatically assigned unique names and avatars from the character roster.
+            Solo - Face 5 AI opponents on your device. Great for learning the flow.
 
-            Online — Host a game and share the 6-character room code with up to 5 friends over the internet. AI players fill empty slots until humans join; they are replaced as real players join via code or QR scan.
+            New Game / Online - Host a game and share the 6-character room code with up to 5 friends over the internet. AI players can fill empty seats.
 
-            Bluetooth / Local — Play with friends in the same room over Bluetooth or local Wi-Fi (no internet required). Uses Apple's Multipeer Connectivity. Host a game or join one nearby — no room code needed.
+            Bluetooth / Local - Play with friends nearby over Bluetooth or local Wi-Fi. No room code is needed.
 
-            TV Dashboard (Bluetooth) — When hosting a Bluetooth game, tap the TV icon in the lobby to get a local web URL and QR code. Open that URL in any browser on the same Wi-Fi to display a live game board on a TV or shared screen. No internet connection required.
+            Pass & Play - Share one device and pass it around for each turn. The app hides private hands between turns.
 
-            Pass & Play — Everyone shares one device, passing it around for their turn. Ideal when all players are in the same room and prefer not to use Bluetooth. Leaderboard stats are recorded after each completed round.
+            Join a Game - Enter a room code or scan a QR code to join an Online table.
 
-            Join a Game — Have a room code? Tap "Join a Game" on the home screen to go straight to code entry.
-
-            Joining — In the join screen, tap the QR icon to open the in-app scanner and point it at the host's QR code. Or open your iPhone Camera app and scan the QR code to launch straight into the game — this works even when the app is closed. You can also type the 6-character room code manually.
-
-            The host controls when each round starts and when Online or Bluetooth games end. If a game is ended mid-round, the current unfinished round is discarded and no leaderboard update is sent for it.
+            TV Dashboard for Bluetooth - The Bluetooth host can show a local web dashboard on another screen using the lobby's TV option. It shows public table information, not private hands.
             """
         ),
         HowToPlayTopic(
-            emoji: "🎨",
-            title: "Avatars & Themes",
+            emoji: "📡",
+            title: "Online & Bluetooth Tables",
             content: """
-            Avatars — Choose from 24 character avatars including heroes, villains, fantasy creatures, rogues, and animals. AI players are automatically assigned unique avatars each game — no two players ever share the same avatar.
+            The host controls the table.
 
-            Theme — The app uses the Casino Night theme: classic casino green felt with gold accents. Dark mode only.
+            Host responsibilities:
+            · Start the first round
+            · Start the next round after Round Complete
+            · End the table for everyone
+            · Save leaderboard records for completed rounds
+
+            Non-host players can leave, but they do not end the whole table.
+
+            If a player disconnects, is removed, or takes too long, AI may take over that seat so the game can continue.
+
+            Bluetooth can replace the host when needed. If host replacement succeeds, the new host continues the table and handles future completed-round leaderboard saves.
+
+            The multiplayer connection ribbon shows who is host, who is connected, which seats are AI, and whether the table is reconnecting or changing.
+            """
+        ),
+        HowToPlayTopic(
+            emoji: "💡",
+            title: "Strategy Tips",
+            content: """
+            When bidding:
+            · Count your point cards
+            · Look at suit strength before choosing a trump plan
+            · Remember that partners are unknown until called cards appear
+
+            When calling:
+            · Call cards you do not hold
+            · High point cards can bring points and identify partners
+            · Calling strong trump cards can help you control hands
+
+            When playing offense:
+            · Protect the bidder's point goal
+            · Feed points when your team can safely win the hand
+            · Reveal timing matters if you hold a called card
+
+            When playing defense:
+            · Watch who helps the bidder
+            · Save trump for important hands
+            · Try to capture point-heavy hands or force offense to waste trump
+
+            The 3♠ is worth 30 points. Capturing it can swing a round, but playing it at the wrong time can give those points away.
             """
         ),
     ]
