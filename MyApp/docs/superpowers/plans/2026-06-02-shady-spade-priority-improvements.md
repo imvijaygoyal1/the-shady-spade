@@ -1,7 +1,7 @@
 # The Shady Spade Priority Improvements
 
 Date: 2026-06-02
-Status: Game-ending flow, leaderboard save UX, multiplayer connection clarity, full How to Play guide, and public in-game table messages implemented locally for v2.0; `recordGame` backend deployed. Remaining items are future product improvements.
+Status: Game-ending flow, leaderboard save UX, full How to Play guide, and public in-game table-message plumbing implemented locally for v2.0; visible multiplayer connection ribbon and table-message gameplay UI removed after overlap/placement issues; `recordGame` backend deployed. Remaining items are future product improvements.
 
 ## Implementation Status
 
@@ -9,12 +9,12 @@ Status: Game-ending flow, leaderboard save UX, multiplayer connection clarity, f
 - `recordGame` was deployed to Firebase project `shadyspade-d6b84` on 2026-06-02 using `firebase deploy --only functions:recordGame --project shadyspade-d6b84 --non-interactive`.
 - Post-deploy verification confirmed `recordGame` is listed as a v2 HTTPS function in `us-central1` on `nodejs24`.
 - Leaderboard save UX has a first-pass v2.0 implementation: Round Complete, Final Standings, and the Leaderboard screen now surface saved, queued, not-saved, failed, and host-managed save states without changing leaderboard submission rules.
-- Multiplayer connection clarity has a first-pass v2.0 implementation: Online and Bluetooth game screens show a display-only connection ribbon for host ownership, human/AI seats, AI takeovers, removals, reconnecting, host migration, host-ended states, and connection errors.
+- Multiplayer connection clarity ribbon was removed from Online and Bluetooth game screens after the persistent top overlay conflicted with gameplay placement expectations; underlying connection, host, AI replacement, reconnect, and alert logic remains unchanged.
 - How to Play has been upgraded into a full in-app rules guide covering round flow, bidding, calling, partner reveal, hand play, scoring, manual ending, leaderboard saves, modes, host behavior, and strategy tips.
-- Public in-game table messages have a first-pass v2.0 implementation: Online and Bluetooth game screens expose preset-only public messages, recent table-message history, and host-authored system messages for AI replacement, host ending, and Bluetooth host replacement.
+- Public in-game table messages have first-pass data/network plumbing, but visible gameplay controls were removed after placement issues. Online and Bluetooth still preserve preset-only public message state and host-authored system messages for AI replacement, host ending, and Bluetooth host replacement.
 - Public table messages verification: Swift parse and `git diff --check` passed; a TTY-backed generic iOS Simulator build passed after non-TTY `xcodebuild` attempts hung in Xcode's SDK-probe stage; the resulting app was installed and launched on the booted iPhone 17 Pro simulator.
 - Public table messages UI follow-up: removed the floating latest-message preview that could cover cards, moved the trigger to the top-right control stack, and changed the message panel from bottom-attached to centered/size-limited so it does not sit on the card/seat area.
-- Public table messages follow-up on 2026-06-03: moved the entire control into a bottom safe-area dock so the trigger and expanded panel reserve layout space instead of floating over gameplay.
+- Public table messages follow-up on 2026-06-03: removed the visible chat bubble, overlay, and bottom dock from active gameplay; future message UI needs a first-class, non-overlapping screen area.
 
 ## Priority Order
 
@@ -28,7 +28,7 @@ Status: Game-ending flow, leaderboard save UX, multiplayer connection clarity, f
    - The current save logic is defensive, but the UX should clearly communicate the save state.
 
 3. Improve multiplayer connection clarity
-   - First-pass v2.0 UX implemented.
+   - First-pass ribbon UI was removed because it could not be placed without conflicting with gameplay UI.
    - Show who is connected, reconnecting, replaced by AI, removed, or affected by host ending the game.
    - This is especially important for Online and Bluetooth games.
 

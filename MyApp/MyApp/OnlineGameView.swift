@@ -19,51 +19,6 @@ struct OnlineGameView: View {
     @State private var showHostEndedGameAlert = false
     @State private var savedLeaderboardRoundNumbers = Set<Int>()
 
-    private var connectionTone: MultiplayerConnectionTone {
-        if game.wasRemovedFromGame || game.hostEndedGame { return .error }
-        if game.errorMessage?.isEmpty == false { return .warning }
-        if connectionImpactMessage != nil { return .warning }
-        return .normal
-    }
-
-    private var connectionTitle: String {
-        if game.wasRemovedFromGame { return "You were replaced by AI" }
-        if game.hostEndedGame { return "Host ended the table" }
-        if game.errorMessage?.isEmpty == false { return "Online connection issue" }
-        if connectionImpactMessage != nil { return "Table changed" }
-        return game.isHost ? "Online table - you are host" : "Online table - host controls table"
-    }
-
-    private var connectionDetail: String {
-        if let error = game.errorMessage, !error.isEmpty { return error }
-        if let message = connectionImpactMessage { return message }
-        let aiSeatSet = Set(game.aiSeats)
-        let humans = (0..<6)
-            .filter { !aiSeatSet.contains($0) }
-            .map { game.playerName($0) }
-            .joined(separator: ", ")
-        let aiPlayers = aiSeatSet
-            .sorted()
-            .map { game.playerName($0) }
-            .joined(separator: ", ")
-        if aiPlayers.isEmpty {
-            return "Room \(game.sessionCode) | Humans: \(humans)"
-        }
-        return "Room \(game.sessionCode) | Humans: \(humans) | AI: \(aiPlayers)"
-    }
-
-    private var connectionImpactMessage: String? {
-        let trimmed = game.message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let lower = trimmed.lowercased()
-        if lower.contains("ai took over") ||
-            lower.contains("was removed") ||
-            lower.contains("taking too long") {
-            return trimmed
-        }
-        return nil
-    }
-
     var body: some View {
         ZStack {
             Comic.bg.ignoresSafeArea()
@@ -124,16 +79,6 @@ struct OnlineGameView: View {
 
         }
         .animation(.easeInOut(duration: 0.3), value: game.bidWinnerInfo != nil)
-        .overlay(alignment: .topLeading) {
-            MultiplayerConnectionStatusRibbon(
-                title: connectionTitle,
-                detail: connectionDetail,
-                tone: connectionTone
-            )
-            .padding(.top, 8)
-            .padding(.leading, 12)
-            .padding(.trailing, 58)
-        }
         .confirmationDialog(
             game.isHost ? "End Game for Everyone?" : "Leave Game?",
             isPresented: $showQuitConfirm,

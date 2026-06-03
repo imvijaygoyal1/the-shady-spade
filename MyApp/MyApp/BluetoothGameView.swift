@@ -17,59 +17,6 @@ struct BluetoothGameView: View {
     @State private var showHostEndedGameAlert = false
     @State private var savedLeaderboardRoundNumbers = Set<Int>()
 
-    private var connectionTone: MultiplayerConnectionTone {
-        if game.wasRemovedFromGame || game.hostEndedGame { return .error }
-        if game.isMigrating || game.isReconnecting { return .warning }
-        if game.errorMessage?.isEmpty == false { return .warning }
-        if connectionImpactMessage != nil { return .warning }
-        return .normal
-    }
-
-    private var connectionTitle: String {
-        if game.wasRemovedFromGame { return "You were replaced by AI" }
-        if game.hostEndedGame { return "Host ended the table" }
-        if game.isMigrating { return "Replacing host" }
-        if game.isReconnecting { return "Reconnecting to host" }
-        if game.errorMessage?.isEmpty == false { return "Bluetooth connection issue" }
-        if connectionImpactMessage != nil { return "Table changed" }
-        return game.isHost ? "Bluetooth table - you are host" : "Bluetooth table - connected to host"
-    }
-
-    private var connectionDetail: String {
-        if game.hostEndedGame { return "Final standings are shown." }
-        if game.isMigrating { return "Finding a connected player to continue the table." }
-        if game.isReconnecting { return "Retrying your action automatically." }
-        if let error = game.errorMessage, !error.isEmpty { return error }
-        if let message = connectionImpactMessage { return message }
-        let aiSeatSet = Set(game.aiSeats)
-        let humans = game.connectedPlayerSlots.enumerated()
-            .filter { pair in pair.element.joined && !aiSeatSet.contains(pair.offset) }
-            .map { pair in pair.element.name.isEmpty ? game.playerName(pair.offset) : pair.element.name }
-            .joined(separator: ", ")
-        let humanText = humans.isEmpty ? "none yet" : humans
-        let aiPlayers = aiSeatSet
-            .sorted()
-            .map { game.playerName($0) }
-            .joined(separator: ", ")
-        if aiPlayers.isEmpty {
-            return "Connected: \(humanText)"
-        }
-        return "Connected: \(humanText) | AI: \(aiPlayers)"
-    }
-
-    private var connectionImpactMessage: String? {
-        let trimmed = game.message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let lower = trimmed.lowercased()
-        if lower.contains("ai took over") ||
-            lower.contains("disconnected") ||
-            lower.contains("now the host") ||
-            lower.contains("taking too long") {
-            return trimmed
-        }
-        return nil
-    }
-
     var body: some View {
         ZStack {
             Comic.bg.ignoresSafeArea()
@@ -138,16 +85,6 @@ struct BluetoothGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: game.bidWinnerInfo != nil)
-        .overlay(alignment: .topLeading) {
-            MultiplayerConnectionStatusRibbon(
-                title: connectionTitle,
-                detail: connectionDetail,
-                tone: connectionTone
-            )
-            .padding(.top, 8)
-            .padding(.leading, 12)
-            .padding(.trailing, 58)
-        }
         .confirmationDialog(
             game.isHost ? "End Game for Everyone?" : "Leave Game?",
             isPresented: $showQuitConfirm,
