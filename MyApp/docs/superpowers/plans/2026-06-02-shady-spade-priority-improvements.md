@@ -1,7 +1,7 @@
 # The Shady Spade Priority Improvements
 
 Date: 2026-06-02
-Status: Game-ending flow, leaderboard save UX, full How to Play guide, and public in-game table-message plumbing implemented locally for v2.0; visible multiplayer connection ribbon and table-message gameplay UI removed after overlap/placement issues; `recordGame` backend deployed. Remaining items are future product improvements.
+Status: Game-ending flow, leaderboard save UX, full How to Play guide, guided first-game tutorial, and factual post-round review implemented locally for v2.0; public in-game table-message plumbing exists but visible message gameplay UI was removed after overlap/placement issues; multiplayer connection ribbon was also removed for placement reasons; `recordGame` backend deployed. Remaining items are future product improvements.
 
 ## Implementation Status
 
@@ -15,6 +15,9 @@ Status: Game-ending flow, leaderboard save UX, full How to Play guide, and publi
 - Public table messages verification: Swift parse and `git diff --check` passed; a TTY-backed generic iOS Simulator build passed after non-TTY `xcodebuild` attempts hung in Xcode's SDK-probe stage; the resulting app was installed and launched on the booted iPhone 17 Pro simulator.
 - Public table messages UI follow-up: removed the floating latest-message preview that could cover cards, moved the trigger to the top-right control stack, and changed the message panel from bottom-attached to centered/size-limited so it does not sit on the card/seat area.
 - Public table messages follow-up on 2026-06-03: removed the visible chat bubble, overlay, and bottom dock from active gameplay; future message UI needs a first-class, non-overlapping screen area.
+- Guided First Game is now opt-in for first-time one-player Solo: users choose Guided First Game, Play Normal Solo, or Cancel. Guided rounds use full-screen coach pages, include Quit to Menu before gameplay starts, run one round, and do not save leaderboard/history.
+- Better Post-Round Review is implemented for Solo, Online, and Bluetooth Round Complete screens using factual existing round state: summary, teams/roles/deltas, captured point cards, key hands, and collapsible full trick history. It does not change score, save, host, or leaderboard behavior.
+- Latest pushed feature commit before this handoff was `37acb01 Add factual post-round review`; the simulator build was installed and launched with PID `18700`.
 
 ## Priority Order
 
