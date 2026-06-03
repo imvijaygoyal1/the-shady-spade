@@ -154,11 +154,9 @@ The first implementation intentionally uses public preset messages and system me
    - Do not use table messages for scoring, leaderboard save decisions, turn validation, game ending, or any gameplay authority.
    - Do not add moderation, profanity filtering, reports, or user-generated text until/unless free-form chat is explicitly chosen later.
 
-6. Placement:
-   - Keep the message trigger out of the bottom card area.
-   - Do not show floating latest-message previews over active gameplay.
-   - Use a size-limited centered panel for message history/presets instead of a bottom drawer.
-   - Prefer a safe-area dock that pushes the gameplay content rather than overlaying it.
+6. Placement correction:
+   - The visible in-game chat bubble, overlay, and bottom dock were removed after repeated overlap with avatars, cards, and bottom game buttons.
+   - Keep the Online/Bluetooth public-message data plumbing, but do not render chat controls inside active gameplay until a first-class, non-overlapping screen area is designed.
 
 ## Recommended First Product Direction
 

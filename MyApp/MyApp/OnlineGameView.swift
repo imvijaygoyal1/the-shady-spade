@@ -18,7 +18,6 @@ struct OnlineGameView: View {
     @State private var showRemovedFromGameAlert = false
     @State private var showHostEndedGameAlert = false
     @State private var savedLeaderboardRoundNumbers = Set<Int>()
-    @State private var showTableMessages = false
 
     private var connectionTone: MultiplayerConnectionTone {
         if game.wasRemovedFromGame || game.hostEndedGame { return .error }
@@ -263,16 +262,6 @@ struct OnlineGameView: View {
             }
             .padding(.top, 8)
             .padding(.trailing, 16)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if game.phase != .gameOver {
-                TableMessagesDock(
-                    isPresented: $showTableMessages,
-                    messages: game.tableMessages,
-                    onSend: { text in Task { await game.sendTableMessage(text) } },
-                    hasMessages: !game.tableMessages.isEmpty
-                )
-            }
         }
     }
 
