@@ -8,6 +8,8 @@ struct ComputerGameView: View {
     var vm: GameViewModel?
     let humanName: String
     let humanAvatar: String
+    let guidedFirstGame: Bool
+    let onGuidedTutorialComplete: () -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @State private var game: ComputerGameViewModel
@@ -20,13 +22,25 @@ struct ComputerGameView: View {
     @State private var dealAnimDone = false
     @State private var soloGameSaved = false
     @State private var savedLeaderboardRoundNumbers = Set<Int>()
+    @State private var guidedStep: GuidedTutorialStep? = nil
+    @State private var pendingGuidedSteps: [GuidedTutorialStep] = []
+    @State private var shownGuidedSteps = Set<GuidedTutorialStep>()
+    @State private var guidedTutorialCompleted = false
     private static let firstSessionRoundNumber = 1
     private static func randomInitialDealerIndex() -> Int { Int.random(in: 0..<6) }
 
-    init(vm: GameViewModel, humanName: String, humanAvatar: String = "🦁") {
+    init(
+        vm: GameViewModel,
+        humanName: String,
+        humanAvatar: String = "🦁",
+        guidedFirstGame: Bool = false,
+        onGuidedTutorialComplete: @escaping () -> Void = {}
+    ) {
         self.vm = vm
         self.humanName = humanName
         self.humanAvatar = humanAvatar
+        self.guidedFirstGame = guidedFirstGame
+        self.onGuidedTutorialComplete = onGuidedTutorialComplete
         _game = State(initialValue: ComputerGameViewModel(
             humanName: humanName,
             humanAvatar: humanAvatar,
@@ -36,10 +50,16 @@ struct ComputerGameView: View {
     }
 
     /// Custom game init — pre-built ViewModel passed in directly.
-    init(vm: ComputerGameViewModel) {
+    init(
+        vm: ComputerGameViewModel,
+        guidedFirstGame: Bool = false,
+        onGuidedTutorialComplete: @escaping () -> Void = {}
+    ) {
         self.vm = nil
         self.humanName = vm.humanName
         self.humanAvatar = vm.humanAvatar
+        self.guidedFirstGame = guidedFirstGame
+        self.onGuidedTutorialComplete = onGuidedTutorialComplete
         _game = State(initialValue: vm)
     }
 
@@ -48,7 +68,12 @@ struct ComputerGameView: View {
             Comic.bg.ignoresSafeArea()
             ThemedBackground().ignoresSafeArea()
 
-            if !dealAnimDone {
+            if let step = guidedStep {
+                GuidedTutorialStepView(step: step) {
+                    continueGuidedTutorial()
+                }
+                .transition(.opacity)
+            } else if !dealAnimDone {
                 CardDealAnimationView(
                     playerNames: (0..<6).map { game.playerName($0) },
                     playerAvatars: (0..<6).map { game.playerAvatar($0) },
@@ -92,13 +117,17 @@ struct ComputerGameView: View {
                         previousRunningScores: runningScores,
                         previousRounds: savedHistoryRounds,
                         onNextRound: { Task { nextRound() } },
-                        onEndGame: { finishAfterCompletedRound() },
-                        onQuit: { dismiss() }
+                        onEndGame: { guidedFirstGame ? finishGuidedTutorialGame() : finishAfterCompletedRound() },
+                        onQuit: { dismiss() },
+                        showsScoreSaveStatus: !guidedFirstGame,
+                        allowsNextRound: !guidedFirstGame,
+                        endGameButtonTitle: guidedFirstGame ? "Finish Tutorial" : "End Game & Save",
+                        endGameButtonIcon: guidedFirstGame ? "checkmark.circle.fill" : "flag.checkered"
                     )
                 }
             }
             // Bid winner banner — floats above all phase views
-            if let info = game.bidWinnerInfo {
+            if guidedStep == nil, let info = game.bidWinnerInfo {
                 BidWinnerBanner(
                     info: info,
                     showContinue: game.humanPlayerIndices.contains(game.highBidderIndex),
@@ -125,13 +154,36 @@ struct ComputerGameView: View {
             Text("Ending now discards the current round. The leaderboard will not update for this unfinished round.")
         }
         .task {
+            if guidedFirstGame {
+                enqueueGuidedStepIfNeeded(.welcome)
+            }
             LeaderboardService.shared.resetScoreSaveStatus()
             game.deal()
             await game.waitForCardViewing()
             await game.startBiddingPhase()
         }
+        .onChange(of: dealAnimDone) { _, done in
+            if done {
+                enqueueGuidedStepIfNeeded(.handIntro)
+            }
+        }
         .onChange(of: game.phase) { _, newPhase in
-            if newPhase == .roundComplete {
+            if guidedFirstGame {
+                switch newPhase {
+                case .humanBidding:
+                    enqueueGuidedStepIfNeeded(.biddingIntro)
+                case .callingCards, .aiCalling:
+                    enqueueGuidedStepIfNeeded(.callingIntro)
+                case .humanPlaying:
+                    enqueueGuidedStepIfNeeded(.playingIntro)
+                case .roundComplete:
+                    enqueueGuidedStepIfNeeded(.scoringIntro)
+                default:
+                    break
+                }
+            }
+
+            if newPhase == .roundComplete && !guidedFirstGame {
                 saveCurrentCompletedRoundToLeaderboardIfNeeded()
                 HapticManager.success()
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
@@ -143,7 +195,7 @@ struct ComputerGameView: View {
         }
         .overlay {
             // Guard: banner only valid while phase is roundComplete; stale state can't leak onto other screens
-            if showRoundResultBanner && game.phase == .roundComplete {
+            if !guidedFirstGame && showRoundResultBanner && game.phase == .roundComplete {
                 RoundResultBanner(game: game) {
                     withAnimation(.easeOut(duration: 0.25)) { showRoundResultBanner = false }
                 }
@@ -167,7 +219,7 @@ struct ComputerGameView: View {
         .onDisappear {
             // GAP-1: last-resort save if system dismisses the fullScreenCover.
             // Sheets presented over the cover don't trigger this, so it's safe.
-            if !soloGameSaved && !savedHistoryRounds.isEmpty {
+            if !guidedFirstGame && !soloGameSaved && !savedHistoryRounds.isEmpty {
                 soloGameSaved = true
                 let mode = game.isPassAndPlay ? "PassAndPlay" : (game._allPlayerNames.isEmpty ? "Solo" : "Multiplayer")
                 saveGameHistory(finalScores: runningScores, mode: mode)
@@ -176,7 +228,7 @@ struct ComputerGameView: View {
         }
         // Quit button — top-right safe area, above all content
         .overlay(alignment: .topTrailing) {
-            let activePhase = !isGameOver && game.phase != .roundComplete
+            let activePhase = guidedStep == nil && !isGameOver && game.phase != .roundComplete
             if activePhase {
                 Button {
                     HapticManager.impact(.light)
@@ -200,7 +252,7 @@ struct ComputerGameView: View {
     private func nextRound() {
         let completedRoundNum = game.roundNumber
         let nextRoundNum = completedRoundNum + 1
-        let (hr, updated) = appendCurrentRoundIfNeeded()
+        let (hr, _) = appendCurrentRoundIfNeeded()
         saveRoundToLeaderboardIfNeeded(hr, mode: currentGameMode())
 
         let nextDealer = (game.dealerIndex + 1) % 6
@@ -230,7 +282,38 @@ struct ComputerGameView: View {
         }
     }
 
+    private func enqueueGuidedStepIfNeeded(_ step: GuidedTutorialStep) {
+        guard guidedFirstGame, !guidedTutorialCompleted else { return }
+        guard !shownGuidedSteps.contains(step) else { return }
+        shownGuidedSteps.insert(step)
+        if guidedStep == nil {
+            guidedStep = step
+        } else {
+            pendingGuidedSteps.append(step)
+        }
+    }
+
+    private func continueGuidedTutorial() {
+        let completedStep = guidedStep
+        guidedStep = nil
+
+        if completedStep == .scoringIntro {
+            completeGuidedTutorial()
+        }
+
+        if !pendingGuidedSteps.isEmpty {
+            guidedStep = pendingGuidedSteps.removeFirst()
+        }
+    }
+
+    private func completeGuidedTutorial() {
+        guard !guidedTutorialCompleted else { return }
+        guidedTutorialCompleted = true
+        onGuidedTutorialComplete()
+    }
+
     private func saveGameHistory(finalScores: [Int], rounds: [HistoryRound]? = nil, mode: String = "Solo") {
+        guard !guidedFirstGame else { return }
         let roundsToSave = rounds ?? savedHistoryRounds
         print("ComputerGameView.saveGameHistory(local): mode=\(mode) rounds=\(roundsToSave.count) savedRounds=\(savedHistoryRounds.count)")
         guard !roundsToSave.isEmpty else {
@@ -294,11 +377,13 @@ struct ComputerGameView: View {
     }
 
     private func saveCurrentCompletedRoundToLeaderboardIfNeeded() {
+        guard !guidedFirstGame else { return }
         let (hr, _) = currentRoundSnapshot()
         saveRoundToLeaderboardIfNeeded(hr, mode: currentGameMode())
     }
 
     private func saveRoundToLeaderboardIfNeeded(_ round: HistoryRound, mode: String) {
+        guard !guidedFirstGame else { return }
         guard !savedLeaderboardRoundNumbers.contains(round.roundNumber) else { return }
         savedLeaderboardRoundNumbers.insert(round.roundNumber)
         let capturedNames = (0..<6).map { game.playerName($0) }
@@ -325,6 +410,14 @@ struct ComputerGameView: View {
         saveRoundToLeaderboardIfNeeded(hr, mode: mode)
         soloGameSaved = true
         saveGameHistory(finalScores: updated, rounds: savedHistoryRounds, mode: mode)
+        isGameOver = true
+    }
+
+    private func finishGuidedTutorialGame() {
+        _ = appendCurrentRoundIfNeeded()
+        soloGameSaved = true
+        completeGuidedTutorial()
+        LeaderboardService.shared.markScoreNotSaved("Guided tutorial games are not saved to the leaderboard.")
         isGameOver = true
     }
 
@@ -372,6 +465,189 @@ struct ComputerGameView: View {
             newGame.deal()
             await newGame.waitForCardViewing()
             await newGame.startBiddingPhase()
+        }
+    }
+}
+
+private enum GuidedTutorialStep: Hashable {
+    case welcome
+    case handIntro
+    case biddingIntro
+    case callingIntro
+    case playingIntro
+    case scoringIntro
+
+    var iconName: String {
+        switch self {
+        case .welcome: return "graduationcap.fill"
+        case .handIntro: return "rectangle.stack.fill"
+        case .biddingIntro: return "megaphone.fill"
+        case .callingIntro: return "suit.spade.fill"
+        case .playingIntro: return "hand.tap.fill"
+        case .scoringIntro: return "chart.bar.fill"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .welcome: return "Guided First Game"
+        case .handIntro: return "Read Your Hand"
+        case .biddingIntro: return "Bidding"
+        case .callingIntro: return "Trump and Partners"
+        case .playingIntro: return "Playing Tricks"
+        case .scoringIntro: return "Round Scoring"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .welcome:
+            return "This solo round teaches the flow without saving anything to leaderboard stats."
+        case .handIntro:
+            return "Start by looking at suits, point cards, and the 3 of spades."
+        case .biddingIntro:
+            return "Bidding is a promise about how many points your team can catch."
+        case .callingIntro:
+            return "The high bidder chooses trump and two partner cards."
+        case .playingIntro:
+            return "Follow suit when you can. The strongest card in the trick wins it."
+        case .scoringIntro:
+            return "Scores are applied after all eight tricks are complete."
+        }
+    }
+
+    var bullets: [String] {
+        switch self {
+        case .welcome:
+            return [
+                "You will play one solo round against AI.",
+                "Tutorial pages appear between game moments, not over cards or buttons.",
+                "This guided round will not update leaderboard or game history."
+            ]
+        case .handIntro:
+            return [
+                "A, K, Q, J, and 10 are worth 10 points.",
+                "Every 5 is worth 5 points.",
+                "The 3 of spades is worth 30 points."
+            ]
+        case .biddingIntro:
+            return [
+                "The first bid starts at 130.",
+                "Later bids must beat the current high bid.",
+                "You can pass once another player has opened the bidding."
+            ]
+        case .callingIntro:
+            return [
+                "Trump beats non-trump suits.",
+                "The called cards identify your partners when they are played.",
+                "If an AI wins the bid, it chooses trump and called cards automatically."
+            ]
+        case .playingIntro:
+            return [
+                "Tap one legal card when it is your turn.",
+                "If you have the suit led, you must follow it.",
+                "Captured point cards determine whether the bid is made or set."
+            ]
+        case .scoringIntro:
+            return [
+                "If the offense catches enough points, the bid team scores.",
+                "If the offense misses the bid, the bidder and partners lose points.",
+                "This tutorial round is complete and was not saved to leaderboard stats."
+            ]
+        }
+    }
+
+    var buttonTitle: String {
+        switch self {
+        case .welcome: return "Start Tutorial"
+        case .scoringIntro: return "See Round Results"
+        default: return "Continue"
+        }
+    }
+}
+
+private struct GuidedTutorialStepView: View {
+    let step: GuidedTutorialStep
+    let onContinue: () -> Void
+
+    var body: some View {
+        AdaptiveLayout {
+            tutorialContent(maxWidth: 520)
+        } landscapeLeft: {
+            BrandingPanel(
+                subtitle: "Guided first game",
+                showButtons: false
+            )
+        } landscapeRight: {
+            tutorialContent(maxWidth: 520)
+                .padding(12)
+        }
+    }
+
+    private func tutorialContent(maxWidth: CGFloat) -> some View {
+        ZStack {
+            Comic.bg.ignoresSafeArea()
+            ThemedBackground().ignoresSafeArea()
+
+            VStack(spacing: 22) {
+                Spacer()
+
+                Image(systemName: step.iconName)
+                    .font(.system(size: 54, weight: .black))
+                    .foregroundStyle(Comic.yellow)
+                    .shadow(color: Comic.black, radius: 0, x: 3, y: 3)
+
+                VStack(spacing: 8) {
+                    Text(step.title)
+                        .font(.system(size: 30, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                        .multilineTextAlignment(.center)
+
+                    Text(step.subtitle)
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(step.bullets, id: \.self) { bullet in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 15, weight: .black))
+                                .foregroundStyle(Comic.yellow)
+                                .padding(.top, 1)
+
+                            Text(bullet)
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundStyle(Comic.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(16)
+                .comicContainer(cornerRadius: 16)
+
+                Button {
+                    HapticManager.impact(.medium)
+                    onContinue()
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(step.buttonTitle)
+                            .fontWeight(.black)
+                        Image(systemName: "arrow.right")
+                    }
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Comic.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                }
+                .buttonStyle(ComicButtonStyle())
+
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .adaptiveContentFrame(maxWidth: maxWidth)
         }
     }
 }
@@ -1739,6 +2015,10 @@ private struct RoundCompleteView: View {
     let onNextRound: () -> Void
     let onEndGame: () -> Void
     let onQuit: () -> Void
+    var showsScoreSaveStatus: Bool = true
+    var allowsNextRound: Bool = true
+    var endGameButtonTitle: String = "End Game & Save"
+    var endGameButtonIcon: String = "flag.checkered"
     @State private var lbService = LeaderboardService.shared
 
     private var isSet: Bool { game.offensePoints < game.highBid }
@@ -1796,8 +2076,10 @@ private struct RoundCompleteView: View {
                     }
                     .padding(.top, 52)
 
-                    ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
-                        .padding(.horizontal, 20)
+                    if showsScoreSaveStatus {
+                        ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                            .padding(.horizontal, 20)
+                    }
 
                     // Award breakdown
                     HStack(spacing: 8) {
@@ -1865,28 +2147,30 @@ private struct RoundCompleteView: View {
 
                     // Action buttons
                     VStack(spacing: 12) {
-                        Button {
-                            HapticManager.success()
-                            onNextRound()
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text("Next Round").fontWeight(.black)
-                                Image(systemName: "arrow.right")
+                        if allowsNextRound {
+                            Button {
+                                HapticManager.success()
+                                onNextRound()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Text("Next Round").fontWeight(.black)
+                                    Image(systemName: "arrow.right")
+                                }
+                                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 18)
                             }
-                            .font(.system(size: 20, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Comic.black)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 18)
+                            .buttonStyle(ComicButtonStyle())
                         }
-                        .buttonStyle(ComicButtonStyle())
 
                         Button {
                             HapticManager.success()
                             onEndGame()
                         } label: {
                             HStack(spacing: 10) {
-                                Text("End Game & Save").fontWeight(.black)
-                                Image(systemName: "flag.checkered")
+                                Text(endGameButtonTitle).fontWeight(.black)
+                                Image(systemName: endGameButtonIcon)
                             }
                             .font(.system(size: 18, weight: .heavy, design: .rounded))
                             .foregroundStyle(Comic.black)
@@ -1931,9 +2215,11 @@ private struct RoundCompleteView: View {
                     }
                     .padding(.horizontal, 14)
 
-                    ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
-                        .padding(.horizontal, 14)
-                        .padding(.top, 8)
+                    if showsScoreSaveStatus {
+                        ScoreSaveStatusRow(status: lbService.scoreSaveStatus)
+                            .padding(.horizontal, 14)
+                            .padding(.top, 8)
+                    }
 
                     HStack(spacing: 8) {
                         AwardPill(label: "Bidder",
@@ -1954,28 +2240,30 @@ private struct RoundCompleteView: View {
                     Divider().background(Comic.containerBorder)
 
                     VStack(spacing: 8) {
-                        Button {
-                            HapticManager.success()
-                            onNextRound()
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text("Next Round").fontWeight(.black)
-                                Image(systemName: "arrow.right")
+                        if allowsNextRound {
+                            Button {
+                                HapticManager.success()
+                                onNextRound()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Text("Next Round").fontWeight(.black)
+                                    Image(systemName: "arrow.right")
+                                }
+                                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 18)
                             }
-                            .font(.system(size: 20, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Comic.black)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 18)
+                            .buttonStyle(ComicButtonStyle())
                         }
-                        .buttonStyle(ComicButtonStyle())
 
                         Button {
                             HapticManager.success()
                             onEndGame()
                         } label: {
                             HStack(spacing: 10) {
-                                Text("End Game & Save").fontWeight(.black)
-                                Image(systemName: "flag.checkered")
+                                Text(endGameButtonTitle).fontWeight(.black)
+                                Image(systemName: endGameButtonIcon)
                             }
                             .font(.system(size: 17, weight: .heavy, design: .rounded))
                             .foregroundStyle(Comic.black)

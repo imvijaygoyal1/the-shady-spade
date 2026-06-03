@@ -158,6 +158,23 @@ The first implementation intentionally uses public preset messages and system me
    - The visible in-game chat bubble, overlay, and bottom dock were removed after repeated overlap with avatars, cards, and bottom game buttons.
    - Keep the Online/Bluetooth public-message data plumbing, but do not render chat controls inside active gameplay until a first-class, non-overlapping screen area is designed.
 
+## Guided First-Game Tutorial Decisions
+
+The first guided tutorial implementation is intentionally Solo-only and avoids gameplay overlays.
+
+1. Scope:
+   - Launch automatically for the first one-player Solo game using `hasCompletedGuidedFirstGame`.
+   - Teach one round only: hand review, bidding, calling, trick play, and scoring.
+   - Do not include Online, Bluetooth, or Pass & Play in the first version.
+
+2. UI placement:
+   - Use full-screen coach steps between gameplay moments.
+   - Do not use floating bubbles, spotlight overlays, arrows, bottom docks, or persistent top/bottom status UI.
+
+3. Save behavior:
+   - Guided tutorial rounds do not save to leaderboard or game history.
+   - Round Complete hides leaderboard save status and replaces the normal ending action with `Finish Tutorial`.
+
 ## Recommended First Product Direction
 
 Use a manual end-of-game model:

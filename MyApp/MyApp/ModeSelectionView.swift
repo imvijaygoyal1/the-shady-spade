@@ -23,8 +23,10 @@ struct ModeSelectionView: View {
     @State private var playerCountConfirmed = false
     @State private var confirmedIsBluetooth = false
     @State private var confirmedIsJoin = false
+    @State private var launchGuidedSolo = false
     @AppStorage("soloPlayerName") private var soloPlayerName = ""
     @AppStorage("soloPlayerAvatar") private var soloPlayerAvatar = "🦁"
+    @AppStorage("hasCompletedGuidedFirstGame") private var hasCompletedGuidedFirstGame = false
     @State private var deepLink = DeepLinkManager.shared
 
 
@@ -259,8 +261,10 @@ struct ModeSelectionView: View {
                     if playerCountConfirmed {
                         playerCountConfirmed = false
                         if selectedPlayerCount == 1 {
+                            launchGuidedSolo = !hasCompletedGuidedFirstGame
                             showingSolo = true
                         } else {
+                            launchGuidedSolo = false
                             showingOnline = true
                         }
                     }
@@ -276,7 +280,11 @@ struct ModeSelectionView: View {
                 ComputerGameView(
                     vm: vm,
                     humanName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
-                    humanAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                    humanAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar,
+                    guidedFirstGame: launchGuidedSolo,
+                    onGuidedTutorialComplete: {
+                        hasCompletedGuidedFirstGame = true
+                    }
                 )
                 .environmentObject(themeManager)
             }
