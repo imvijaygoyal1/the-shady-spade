@@ -25,6 +25,7 @@ struct ModeSelectionView: View {
     @State private var confirmedIsJoin = false
     @State private var launchGuidedSolo = false
     @State private var showingGuidedSoloChoice = false
+    @State private var guidedSoloChoiceConfirmed = false
     @AppStorage("soloPlayerName") private var soloPlayerName = ""
     @AppStorage("soloPlayerAvatar") private var soloPlayerAvatar = "🦁"
     @AppStorage("hasCompletedGuidedFirstGame") private var hasCompletedGuidedFirstGame = false
@@ -280,20 +281,29 @@ struct ModeSelectionView: View {
                     showingPlayerCount = false
                 }
             }
-            NoAnimationCover(isPresented: $showingGuidedSoloChoice) {
+            NoAnimationCover(
+                isPresented: $showingGuidedSoloChoice,
+                onDismiss: {
+                    if guidedSoloChoiceConfirmed {
+                        guidedSoloChoiceConfirmed = false
+                        showingSolo = true
+                    }
+                }
+            ) {
                 GuidedFirstGameChoiceView(
                     onGuided: {
                         launchGuidedSolo = true
+                        guidedSoloChoiceConfirmed = true
                         showingGuidedSoloChoice = false
-                        showingSolo = true
                     },
                     onNormal: {
                         launchGuidedSolo = false
+                        guidedSoloChoiceConfirmed = true
                         showingGuidedSoloChoice = false
-                        showingSolo = true
                     },
                     onCancel: {
                         launchGuidedSolo = false
+                        guidedSoloChoiceConfirmed = false
                         showingGuidedSoloChoice = false
                     }
                 )
