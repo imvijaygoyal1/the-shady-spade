@@ -13,6 +13,7 @@ Status: Game-ending flow, leaderboard save UX, multiplayer connection clarity, f
 - How to Play has been upgraded into a full in-app rules guide covering round flow, bidding, calling, partner reveal, hand play, scoring, manual ending, leaderboard saves, modes, host behavior, and strategy tips.
 - Public in-game table messages have a first-pass v2.0 implementation: Online and Bluetooth game screens expose preset-only public messages, recent table-message history, and host-authored system messages for AI replacement, host ending, and Bluetooth host replacement.
 - Public table messages verification: Swift parse and `git diff --check` passed; a TTY-backed generic iOS Simulator build passed after non-TTY `xcodebuild` attempts hung in Xcode's SDK-probe stage; the resulting app was installed and launched on the booted iPhone 17 Pro simulator.
+- Public table messages UI follow-up: removed the floating latest-message preview that could cover cards, moved the trigger to the top-right control stack, and changed the message panel from bottom-attached to centered/size-limited so it does not sit on the card/seat area.
 
 ## Priority Order
 
@@ -151,6 +152,11 @@ The first implementation intentionally uses public preset messages and system me
 5. Non-goals:
    - Do not use table messages for scoring, leaderboard save decisions, turn validation, game ending, or any gameplay authority.
    - Do not add moderation, profanity filtering, reports, or user-generated text until/unless free-form chat is explicitly chosen later.
+
+6. Placement:
+   - Keep the message trigger out of the bottom card area.
+   - Do not show floating latest-message previews over active gameplay.
+   - Use a size-limited centered panel for message history/presets instead of a bottom drawer.
 
 ## Recommended First Product Direction
 

@@ -244,32 +244,31 @@ struct OnlineGameView: View {
         // Quit button — top-right safe area, above all content
         .overlay(alignment: .topTrailing) {
             let activePhase = ![.roundComplete, .gameOver].contains(game.phase)
-            if activePhase {
-                Button {
-                    HapticManager.impact(.light)
-                    showQuitConfirm = true
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .black))
-                        .foregroundStyle(Comic.white)
-                        .frame(width: 32, height: 32)
-                        .background(Comic.black)
-                        .clipShape(Circle())
-                        .overlay(Circle().strokeBorder(Comic.white, lineWidth: 2))
+            VStack(spacing: 8) {
+                if activePhase {
+                    Button {
+                        HapticManager.impact(.light)
+                        showQuitConfirm = true
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .black))
+                            .foregroundStyle(Comic.white)
+                            .frame(width: 32, height: 32)
+                            .background(Comic.black)
+                            .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(Comic.white, lineWidth: 2))
+                    }
+                    .transition(.opacity)
                 }
-                .padding(.top, 8)
-                .padding(.trailing, 16)
-                .transition(.opacity)
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if !showTableMessages && game.phase != .gameOver {
-                TableMessagesButton(latestMessage: game.tableMessages.last) {
-                    showTableMessages = true
+
+                if !showTableMessages && game.phase != .gameOver {
+                    TableMessagesButton(hasMessages: !game.tableMessages.isEmpty) {
+                        showTableMessages = true
+                    }
                 }
-                .padding(.trailing, 16)
-                .padding(.bottom, 86)
             }
+            .padding(.top, 8)
+            .padding(.trailing, 16)
         }
         .overlay {
             if showTableMessages {
