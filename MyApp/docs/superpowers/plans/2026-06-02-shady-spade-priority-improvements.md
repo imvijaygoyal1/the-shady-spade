@@ -14,6 +14,7 @@ Status: Game-ending flow, leaderboard save UX, multiplayer connection clarity, f
 - Public in-game table messages have a first-pass v2.0 implementation: Online and Bluetooth game screens expose preset-only public messages, recent table-message history, and host-authored system messages for AI replacement, host ending, and Bluetooth host replacement.
 - Public table messages verification: Swift parse and `git diff --check` passed; a TTY-backed generic iOS Simulator build passed after non-TTY `xcodebuild` attempts hung in Xcode's SDK-probe stage; the resulting app was installed and launched on the booted iPhone 17 Pro simulator.
 - Public table messages UI follow-up: removed the floating latest-message preview that could cover cards, moved the trigger to the top-right control stack, and changed the message panel from bottom-attached to centered/size-limited so it does not sit on the card/seat area.
+- Public table messages follow-up on 2026-06-03: moved the entire control into a bottom safe-area dock so the trigger and expanded panel reserve layout space instead of floating over gameplay.
 
 ## Priority Order
 
@@ -157,6 +158,7 @@ The first implementation intentionally uses public preset messages and system me
    - Keep the message trigger out of the bottom card area.
    - Do not show floating latest-message previews over active gameplay.
    - Use a size-limited centered panel for message history/presets instead of a bottom drawer.
+   - Prefer a safe-area dock that pushes the gameplay content rather than overlaying it.
 
 ## Recommended First Product Direction
 

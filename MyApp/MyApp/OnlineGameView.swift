@@ -260,23 +260,18 @@ struct OnlineGameView: View {
                     }
                     .transition(.opacity)
                 }
-
-                if !showTableMessages && game.phase != .gameOver {
-                    TableMessagesButton(hasMessages: !game.tableMessages.isEmpty) {
-                        showTableMessages = true
-                    }
-                }
             }
             .padding(.top, 8)
             .padding(.trailing, 16)
         }
-        .overlay {
-            if showTableMessages {
-                TableMessagesOverlay(messages: game.tableMessages) { text in
-                    Task { await game.sendTableMessage(text) }
-                } onClose: {
-                    showTableMessages = false
-                }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if game.phase != .gameOver {
+                TableMessagesDock(
+                    isPresented: $showTableMessages,
+                    messages: game.tableMessages,
+                    onSend: { text in Task { await game.sendTableMessage(text) } },
+                    hasMessages: !game.tableMessages.isEmpty
+                )
             }
         }
     }

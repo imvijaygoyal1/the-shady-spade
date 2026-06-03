@@ -775,6 +775,138 @@ struct TableMessagePreset: Identifiable, Hashable {
     }
 }
 
+struct TableMessagesDock: View {
+    @Binding var isPresented: Bool
+    let messages: [PublicTableMessage]
+    let onSend: (String) -> Void
+    let hasMessages: Bool
+
+    private var recentMessages: [PublicTableMessage] {
+        Array(messages.suffix(40))
+    }
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
+    ]
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Button {
+                HapticManager.impact(.light)
+                isPresented.toggle()
+            } label: {
+                HStack(spacing: 10) {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "bubble.left.and.bubble.right.fill")
+                            .font(.system(size: 15, weight: .black))
+                            .foregroundStyle(Comic.black)
+                            .frame(width: 38, height: 38)
+                            .background(Comic.yellow)
+                            .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
+
+                        if hasMessages {
+                            Circle()
+                                .fill(Color.offenseBlue)
+                                .frame(width: 10, height: 10)
+                                .overlay(Circle().strokeBorder(Comic.black, lineWidth: 1.2))
+                                .offset(x: 1, y: -1)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Messages")
+                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .foregroundStyle(Comic.textPrimary)
+                        Text(isPresented ? "Hide public table messages" : "Open public table messages")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(Comic.textSecondary)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: isPresented ? "chevron.down" : "chevron.up")
+                        .font(.system(size: 12, weight: .black))
+                        .foregroundStyle(Comic.textSecondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Comic.containerBG.opacity(0.94))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Comic.containerBorder, lineWidth: 1.25)
+                )
+            }
+            .buttonStyle(.plain)
+
+            if isPresented {
+                ScrollView {
+                    if recentMessages.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundStyle(Comic.textSecondary)
+                            Text("No table messages yet.")
+                                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Comic.textSecondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                    } else {
+                        LazyVStack(spacing: 8) {
+                            ForEach(recentMessages) { message in
+                                TableMessageRow(message: message)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .frame(maxHeight: 150)
+
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(TableMessagePreset.presets) { preset in
+                        Button {
+                            HapticManager.impact(.light)
+                            onSend(preset.text)
+                        } label: {
+                            HStack(spacing: 7) {
+                                Image(systemName: preset.iconName)
+                                    .font(.system(size: 11, weight: .black))
+                                Text(preset.text)
+                                    .font(.system(size: 12, weight: .black, design: .rounded))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
+                            }
+                            .foregroundStyle(Comic.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 10)
+                            .background(Comic.containerBG.opacity(0.72))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(Comic.containerBorder.opacity(0.65), lineWidth: 1.2)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(Comic.containerBG)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Comic.containerBorder, lineWidth: Comic.borderWidth)
+        )
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+    }
+}
+
 struct TableMessagesButton: View {
     let hasMessages: Bool
     let onTap: () -> Void

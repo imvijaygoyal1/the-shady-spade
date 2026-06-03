@@ -236,12 +236,6 @@ struct BluetoothGameView: View {
                     }
                     .transition(.opacity)
                 }
-
-                if !showTableMessages && !game.isMigrating && game.phase != .gameOver {
-                    TableMessagesButton(hasMessages: !game.tableMessages.isEmpty) {
-                        showTableMessages = true
-                    }
-                }
             }
             .padding(.top, 8)
             .padding(.trailing, 16)
@@ -265,13 +259,14 @@ struct BluetoothGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: game.isMigrating)
-        .overlay {
-            if showTableMessages {
-                TableMessagesOverlay(messages: game.tableMessages) { text in
-                    game.sendTableMessage(text)
-                } onClose: {
-                    showTableMessages = false
-                }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if game.phase != .gameOver && !game.isMigrating {
+                TableMessagesDock(
+                    isPresented: $showTableMessages,
+                    messages: game.tableMessages,
+                    onSend: { text in game.sendTableMessage(text) },
+                    hasMessages: !game.tableMessages.isEmpty
+                )
             }
         }
         .alert("Player Disconnected", isPresented: $disconnectedAlert) {
