@@ -163,13 +163,14 @@ The first implementation intentionally uses public preset messages and system me
 The first guided tutorial implementation is intentionally Solo-only and avoids gameplay overlays.
 
 1. Scope:
-   - Launch automatically for the first one-player Solo game using `hasCompletedGuidedFirstGame`.
+   - Offer a first-time Solo choice using `hasCompletedGuidedFirstGame`: Guided First Game, Play Normal Solo, or Cancel.
    - Teach one round only: hand review, bidding, calling, trick play, and scoring.
    - Do not include Online, Bluetooth, or Pass & Play in the first version.
 
 2. UI placement:
    - Use full-screen coach steps between gameplay moments.
    - Do not use floating bubbles, spotlight overlays, arrows, bottom docks, or persistent top/bottom status UI.
+   - The guided welcome screen must include `Quit to Menu` before gameplay starts.
 
 3. Save behavior:
    - Guided tutorial rounds do not save to leaderboard or game history.

@@ -69,9 +69,16 @@ struct ComputerGameView: View {
             ThemedBackground().ignoresSafeArea()
 
             if let step = guidedStep {
-                GuidedTutorialStepView(step: step) {
-                    continueGuidedTutorial()
-                }
+                GuidedTutorialStepView(
+                    step: step,
+                    onContinue: {
+                        continueGuidedTutorial()
+                    },
+                    onQuit: step == .welcome ? {
+                        game.cancelAllContinuationsIfNeeded()
+                        dismiss()
+                    } : nil
+                )
                 .transition(.opacity)
             } else if !dealAnimDone {
                 CardDealAnimationView(
@@ -569,6 +576,7 @@ private enum GuidedTutorialStep: Hashable {
 private struct GuidedTutorialStepView: View {
     let step: GuidedTutorialStep
     let onContinue: () -> Void
+    var onQuit: (() -> Void)? = nil
 
     var body: some View {
         AdaptiveLayout {
@@ -643,6 +651,20 @@ private struct GuidedTutorialStepView: View {
                     .padding(.vertical, 16)
                 }
                 .buttonStyle(ComicButtonStyle())
+
+                if let onQuit {
+                    Button {
+                        HapticManager.impact(.light)
+                        onQuit()
+                    } label: {
+                        Text("Quit to Menu")
+                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Comic.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 Spacer()
             }

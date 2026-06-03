@@ -24,6 +24,7 @@ struct ModeSelectionView: View {
     @State private var confirmedIsBluetooth = false
     @State private var confirmedIsJoin = false
     @State private var launchGuidedSolo = false
+    @State private var showingGuidedSoloChoice = false
     @AppStorage("soloPlayerName") private var soloPlayerName = ""
     @AppStorage("soloPlayerAvatar") private var soloPlayerAvatar = "🦁"
     @AppStorage("hasCompletedGuidedFirstGame") private var hasCompletedGuidedFirstGame = false
@@ -261,8 +262,12 @@ struct ModeSelectionView: View {
                     if playerCountConfirmed {
                         playerCountConfirmed = false
                         if selectedPlayerCount == 1 {
-                            launchGuidedSolo = !hasCompletedGuidedFirstGame
-                            showingSolo = true
+                            if hasCompletedGuidedFirstGame {
+                                launchGuidedSolo = false
+                                showingSolo = true
+                            } else {
+                                showingGuidedSoloChoice = true
+                            }
                         } else {
                             launchGuidedSolo = false
                             showingOnline = true
@@ -274,6 +279,24 @@ struct ModeSelectionView: View {
                     playerCountConfirmed = true
                     showingPlayerCount = false
                 }
+            }
+            NoAnimationCover(isPresented: $showingGuidedSoloChoice) {
+                GuidedFirstGameChoiceView(
+                    onGuided: {
+                        launchGuidedSolo = true
+                        showingGuidedSoloChoice = false
+                        showingSolo = true
+                    },
+                    onNormal: {
+                        launchGuidedSolo = false
+                        showingGuidedSoloChoice = false
+                        showingSolo = true
+                    },
+                    onCancel: {
+                        launchGuidedSolo = false
+                        showingGuidedSoloChoice = false
+                    }
+                )
             }
             // Game views
             NoAnimationCover(isPresented: $showingSolo) {
@@ -661,6 +684,109 @@ private struct ModeCard: View {
             .comicContainer(cornerRadius: 20)
         }
         .buttonStyle(BouncyButton())
+    }
+}
+
+private struct GuidedFirstGameChoiceView: View {
+    let onGuided: () -> Void
+    let onNormal: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        AdaptiveLayout {
+            content(maxWidth: 520)
+        } landscapeLeft: {
+            BrandingPanel(
+                subtitle: "Solo game",
+                showButtons: false
+            )
+        } landscapeRight: {
+            content(maxWidth: 520)
+                .padding(12)
+        }
+    }
+
+    private func content(maxWidth: CGFloat) -> some View {
+        ZStack {
+            Comic.bg.ignoresSafeArea()
+            ThemedBackground().ignoresSafeArea()
+
+            VStack(spacing: 22) {
+                Spacer()
+
+                Image(systemName: "graduationcap.fill")
+                    .font(.system(size: 56, weight: .black))
+                    .foregroundStyle(Comic.yellow)
+                    .shadow(color: Comic.black, radius: 0, x: 3, y: 3)
+
+                VStack(spacing: 8) {
+                    Text("Start Solo Game")
+                        .font(.system(size: 30, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                        .multilineTextAlignment(.center)
+
+                    Text("Choose whether to learn with a guided first round or start a normal Solo game.")
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Guided mode teaches one round and does not save leaderboard or history.", systemImage: "checkmark.circle.fill")
+                    Label("Normal Solo starts the regular game immediately.", systemImage: "play.circle.fill")
+                }
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(Comic.textPrimary)
+                .padding(16)
+                .comicContainer(cornerRadius: 16)
+
+                VStack(spacing: 12) {
+                    Button {
+                        HapticManager.impact(.medium)
+                        onGuided()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text("Guided First Game").fontWeight(.black)
+                            Image(systemName: "arrow.right")
+                        }
+                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                    }
+                    .buttonStyle(ComicButtonStyle())
+
+                    Button {
+                        HapticManager.impact(.light)
+                        onNormal()
+                    } label: {
+                        Text("Play Normal Solo")
+                            .font(.system(size: 16, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Comic.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                    }
+                    .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.textPrimary, borderColor: Comic.containerBorder))
+
+                    Button {
+                        HapticManager.impact(.light)
+                        onCancel()
+                    } label: {
+                        Text("Cancel")
+                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Comic.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .adaptiveContentFrame(maxWidth: maxWidth)
+        }
     }
 }
 
