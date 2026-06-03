@@ -2078,6 +2078,32 @@ private struct RoundCompleteView: View {
                 roundHistory: rowHistory
             )
         }.sorted { $0.score > $1.score }
+        let reviewPlayers = (0..<6).map { i in
+            PostRoundReviewPlayer(
+                index: i,
+                name: game.playerName(i),
+                avatar: game.playerAvatar(i),
+                role: builtRound.role(of: i).label,
+                delta: builtRound.score(for: i)
+            )
+        }
+        let offenseReviewPlayers = reviewPlayers
+            .filter { game.offenseSet.contains($0.index) }
+            .sorted {
+                if $0.index == game.highBidderIndex { return true }
+                if $1.index == game.highBidderIndex { return false }
+                return $0.index < $1.index
+            }
+        let defenseReviewPlayers = reviewPlayers
+            .filter { !game.offenseSet.contains($0.index) }
+            .sorted { $0.index < $1.index }
+        let reviewTricks = makePostRoundReviewTricks(
+            completedTricks: game.completedTricks,
+            trickWinners: game.trickWinners,
+            offenseSet: game.offenseSet,
+            playerName: { game.playerName($0) },
+            playerAvatar: { game.playerAvatar($0) }
+        )
 
         GameAdaptiveLayout {
             // PORTRAIT — unchanged
@@ -2116,6 +2142,20 @@ private struct RoundCompleteView: View {
                                   color: .secondary)
                     }
                     .padding(.horizontal, 20)
+
+                    PostRoundReviewSection(
+                        bidMade: !isSet,
+                        bidderName: game.playerName(game.highBidderIndex),
+                        bidderAvatar: game.playerAvatar(game.highBidderIndex),
+                        bidAmount: game.highBid,
+                        trumpSuit: game.trumpSuit,
+                        offensePoints: game.offensePoints,
+                        defensePoints: game.defensePoints,
+                        offensePlayers: offenseReviewPlayers,
+                        defensePlayers: defenseReviewPlayers,
+                        tricks: reviewTricks
+                    )
+                    .padding(.horizontal, 16)
 
                     // Per-player breakdown (this round)
                     VStack(spacing: 0) {
@@ -2319,6 +2359,19 @@ private struct RoundCompleteView: View {
                 // RIGHT PANEL — per-player list + score chart
                 ScrollView {
                     VStack(spacing: 16) {
+                        PostRoundReviewSection(
+                            bidMade: !isSet,
+                            bidderName: game.playerName(game.highBidderIndex),
+                            bidderAvatar: game.playerAvatar(game.highBidderIndex),
+                            bidAmount: game.highBid,
+                            trumpSuit: game.trumpSuit,
+                            offensePoints: game.offensePoints,
+                            defensePoints: game.defensePoints,
+                            offensePlayers: offenseReviewPlayers,
+                            defensePlayers: defenseReviewPlayers,
+                            tricks: reviewTricks
+                        )
+
                         VStack(spacing: 0) {
                             ForEach(0..<6) { i in
                                 let role = builtRound.role(of: i)

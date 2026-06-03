@@ -176,6 +176,23 @@ The first guided tutorial implementation is intentionally Solo-only and avoids g
    - Guided tutorial rounds do not save to leaderboard or game history.
    - Round Complete hides leaderboard save status and replaces the normal ending action with `Finish Tutorial`.
 
+## Better Post-Round Review Decisions
+
+The first implementation is factual only and stays inside existing Round Complete screens.
+
+1. Scope:
+   - Update Solo, Online, and Bluetooth Round Complete screens.
+   - Show round summary, bidder result, trump, offense/defense points, teams, role deltas, captured point cards, key hands, and collapsible full trick history.
+   - Use existing completed trick, trick winner, score delta, role, and point-card state only.
+
+2. Non-goals:
+   - Do not add replay animation, coaching text, AI judgement, overlays, or new multiplayer state.
+   - Do not change leaderboard save timing, host-only save ownership, game-ending behavior, or score calculations.
+
+3. Layout:
+   - Portrait review belongs in the main Round Complete scroll content.
+   - Landscape review belongs in the scrollable detail panel, not the fixed action panel.
+
 ## Recommended First Product Direction
 
 Use a manual end-of-game model:

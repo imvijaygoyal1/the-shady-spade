@@ -593,6 +593,324 @@ struct ScoreSaveStatusRow: View {
     }
 }
 
+// MARK: - Post-Round Review
+
+struct PostRoundReviewPlayer: Identifiable, Hashable {
+    let index: Int
+    let name: String
+    let avatar: String
+    let role: String
+    let delta: Int
+
+    var id: Int { index }
+}
+
+struct PostRoundReviewPlay: Identifiable, Hashable {
+    let order: Int
+    let playerName: String
+    let card: Card
+
+    var id: String { "\(order)-\(card.id)" }
+}
+
+struct PostRoundReviewTrick: Identifiable, Hashable {
+    let number: Int
+    let winnerName: String
+    let winnerAvatar: String
+    let points: Int
+    let capturedByOffense: Bool
+    let plays: [PostRoundReviewPlay]
+
+    var id: Int { number }
+    var pointCards: [Card] { plays.map(\.card).filter { $0.pointValue > 0 } }
+}
+
+func makePostRoundReviewTricks(
+    completedTricks: [[(playerIndex: Int, card: Card)]],
+    trickWinners: [Int],
+    offenseSet: Set<Int>,
+    playerName: (Int) -> String,
+    playerAvatar: (Int) -> String
+) -> [PostRoundReviewTrick] {
+    completedTricks.indices.compactMap { index in
+        guard index < trickWinners.count else { return nil }
+        let winnerIndex = trickWinners[index]
+        let plays = completedTricks[index].enumerated().map { offset, play in
+            PostRoundReviewPlay(
+                order: offset,
+                playerName: playerName(play.playerIndex),
+                card: play.card
+            )
+        }
+        return PostRoundReviewTrick(
+            number: index + 1,
+            winnerName: playerName(winnerIndex),
+            winnerAvatar: playerAvatar(winnerIndex),
+            points: plays.map(\.card.pointValue).reduce(0, +),
+            capturedByOffense: offenseSet.contains(winnerIndex),
+            plays: plays
+        )
+    }
+}
+
+struct PostRoundReviewSection: View {
+    let bidMade: Bool
+    let bidderName: String
+    let bidderAvatar: String
+    let bidAmount: Int
+    let trumpSuit: TrumpSuit
+    let offensePoints: Int
+    let defensePoints: Int
+    let offensePlayers: [PostRoundReviewPlayer]
+    let defensePlayers: [PostRoundReviewPlayer]
+    let tricks: [PostRoundReviewTrick]
+
+    @State private var showAllTricks = false
+
+    private var offensePointCards: [Card] {
+        tricks.filter(\.capturedByOffense).flatMap(\.pointCards)
+    }
+
+    private var defensePointCards: [Card] {
+        tricks.filter { !$0.capturedByOffense }.flatMap(\.pointCards)
+    }
+
+    private var keyTricks: [PostRoundReviewTrick] {
+        let pointTricks = tricks.filter { $0.points > 0 }
+        return Array(pointTricks.sorted { lhs, rhs in
+            if lhs.points != rhs.points { return lhs.points > rhs.points }
+            return lhs.number < rhs.number
+        }.prefix(3))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            reviewHeader
+            teamSection
+            pointBreakdownSection
+            keyTricksSection
+            fullHistorySection
+        }
+        .padding(16)
+        .comicContainer(cornerRadius: 18)
+    }
+
+    private var reviewHeader: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Text(bidderAvatar)
+                    .font(.system(size: 30))
+                    .frame(width: 44, height: 44)
+                    .background((bidMade ? Color.masterGold : Color.defenseRose).opacity(0.18))
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Round Review")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                    Text("\(bidderName) \(bidMade ? "made" : "missed") bid \(bidAmount)")
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .foregroundStyle(bidMade ? Color.masterGold : Color.defenseRose)
+                }
+
+                Spacer()
+
+                Text(trumpSuit.rawValue)
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Comic.containerBG.opacity(0.7))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Comic.containerBorder, lineWidth: 1.2)
+                    )
+            }
+
+            HStack(spacing: 8) {
+                reviewMetric("Bid", "\(bidAmount)", .masterGold)
+                reviewMetric("Offense", "\(offensePoints)", bidMade ? .masterGold : .defenseRose)
+                reviewMetric("Defense", "\(defensePoints)", .offenseBlue)
+            }
+        }
+    }
+
+    private var teamSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("Teams")
+            teamRow(title: "Offense", players: offensePlayers, tint: bidMade ? .masterGold : .defenseRose)
+            teamRow(title: "Defense", players: defensePlayers, tint: .offenseBlue)
+        }
+    }
+
+    private var pointBreakdownSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("Point Cards Captured")
+            pointCardsRow(title: "Offense", cards: offensePointCards, total: offensePoints, tint: bidMade ? .masterGold : .defenseRose)
+            pointCardsRow(title: "Defense", cards: defensePointCards, total: defensePoints, tint: .offenseBlue)
+        }
+    }
+
+    @ViewBuilder
+    private var keyTricksSection: some View {
+        if !keyTricks.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionTitle("Key Tricks")
+                ForEach(keyTricks) { trick in
+                    trickRow(trick, compact: false)
+                }
+            }
+        }
+    }
+
+    private var fullHistorySection: some View {
+        DisclosureGroup(isExpanded: $showAllTricks) {
+            VStack(spacing: 8) {
+                ForEach(tricks) { trick in
+                    trickRow(trick, compact: true)
+                }
+            }
+            .padding(.top, 8)
+        } label: {
+            HStack {
+                sectionTitle("Full Trick History")
+                Spacer()
+                Text("\(tricks.count) hands")
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+            }
+        }
+        .tint(Comic.textPrimary)
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.system(size: 11, weight: .black, design: .rounded))
+            .foregroundStyle(Comic.textSecondary)
+    }
+
+    private func reviewMetric(_ label: String, _ value: String, _ tint: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                .foregroundStyle(Comic.textSecondary)
+            Text(value)
+                .font(.system(size: 17, weight: .black, design: .rounded).monospacedDigit())
+                .foregroundStyle(tint)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 9)
+        .background(tint.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func teamRow(title: String, players: [PostRoundReviewPlayer], tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 12, weight: .black, design: .rounded))
+                .foregroundStyle(tint)
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                ForEach(players) { player in
+                    HStack(spacing: 8) {
+                        Text(player.avatar)
+                            .font(.system(size: 18))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(player.name)
+                                .font(.system(size: 12, weight: .black, design: .rounded))
+                                .foregroundStyle(Comic.textPrimary)
+                                .lineLimit(1)
+                            Text("\(player.role) · \(player.delta >= 0 ? "+" : "")\(player.delta)")
+                                .font(.system(size: 10, weight: .heavy, design: .rounded).monospacedDigit())
+                                .foregroundStyle(Comic.textSecondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(8)
+                    .background(tint.opacity(0.09))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private func pointCardsRow(title: String, cards: [Card], total: Int, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("\(title) · \(total) pts")
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(tint)
+                Spacer()
+                Text("\(cards.count) point cards")
+                    .font(.system(size: 10, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+            }
+
+            if cards.isEmpty {
+                Text("No point cards captured.")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+                    .padding(.vertical, 4)
+            } else {
+                FlowCards(cards: cards)
+            }
+        }
+    }
+
+    private func trickRow(_ trick: PostRoundReviewTrick, compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Hand \(trick.number)")
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                Spacer()
+                Text("\(trick.winnerAvatar) \(trick.winnerName)")
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    .foregroundStyle(trick.capturedByOffense ? Color.masterGold : Color.offenseBlue)
+                    .lineLimit(1)
+                Text("\(trick.points) pts")
+                    .font(.system(size: 12, weight: .black, design: .rounded).monospacedDigit())
+                    .foregroundStyle(trick.points > 0 ? Color.masterGold : Comic.textSecondary)
+            }
+
+            HStack(spacing: 5) {
+                ForEach(trick.plays) { play in
+                    Text(play.card.rank + play.card.suit)
+                        .font(.system(size: compact ? 11 : 12, weight: .black, design: .rounded))
+                        .foregroundStyle(play.card.pointValue > 0 ? Color.masterGold : Comic.textPrimary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 5)
+                        .background(Comic.containerBG.opacity(0.72))
+                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .accessibilityLabel("\(play.playerName) played \(play.card.rank)\(play.card.suit)")
+                }
+            }
+        }
+        .padding(10)
+        .background(Comic.black.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private struct FlowCards: View {
+    let cards: [Card]
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 48), spacing: 6)], alignment: .leading, spacing: 6) {
+            ForEach(cards, id: \.id) { card in
+                Text(card.rank + card.suit)
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(card.pointValue >= 30 ? Color.defenseRose : Color.masterGold)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(Comic.containerBG.opacity(0.72))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 // MARK: - Public Table Messages
 
 enum PublicTableMessageKind: String {
