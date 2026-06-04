@@ -101,6 +101,7 @@ final class OnlineGameViewModel {
     // MARK: Presence tracking
     private var presenceTimer: Timer?
     private var monitoringTimer: Timer?
+    private var hostPresenceMonitoringTimer: Timer?
     private var prevAISeats: Set<Int> = []
 
     // Set to true when this player's own seat becomes AI mid-game (host removed them)
@@ -358,7 +359,6 @@ final class OnlineGameViewModel {
     // MARK: - Presence tracking
 
     func startPresenceTracking() {
-        guard !isHost else { return }
         guard presenceTimer == nil else { return }
         let db = Firestore.firestore()
         let ref = db.collection("sessions").document(sessionCode)
@@ -380,6 +380,39 @@ final class OnlineGameViewModel {
         presenceTimer = nil
         monitoringTimer?.invalidate()
         monitoringTimer = nil
+        hostPresenceMonitoringTimer?.invalidate()
+        hostPresenceMonitoringTimer = nil
+    }
+
+    /// Non-host clients call this to detect a silent host crash.
+    /// Polls Firestore every 30s; if the host's heartbeat (presence["0"]) is
+    /// older than 60s, sets hostEndedGame = true so the "Game Ended" alert fires.
+    /// 60s threshold: host writes every 10s → 6 missed writes before triggering.
+    /// Conservative enough to avoid false positives during the ~7s worst-case
+    /// criticalWrite backoff or the 3s dealing animation sleep.
+    func startHostPresenceMonitoring() {
+        guard !isHost else { return }
+        let ref = Firestore.firestore().collection("sessions").document(sessionCode)
+        hostPresenceMonitoringTimer = Timer.scheduledTimer(
+            withTimeInterval: 30, repeats: true
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let self,
+                      !self.hostEndedGame,
+                      !self.wasRemovedFromGame else { return }
+                guard let data = (try? await ref.getDocument())?.data(),
+                      let presence = data["presence"] as? [String: Any] else { return }
+                guard let lastSeen = (presence["0"] as? Timestamp)?.dateValue() else {
+                    // Host hasn't written presence yet (within first 30s) — not a crash
+                    return
+                }
+                if Date().timeIntervalSince(lastSeen) > 60 {
+                    ogVMLog.warning("[hostPresence] host (slot 0) last seen \(Date().timeIntervalSince(lastSeen))s ago — treating as disconnected")
+                    self.hostEndedGame = true
+                }
+            }
+        }
     }
 
     func removePlayerMidGame(atIndex index: Int) async {

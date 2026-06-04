@@ -117,6 +117,7 @@ struct OnlineGameView: View {
             game.attachListener()
             game.startPresenceTracking()
             game.monitorPresence()
+            game.startHostPresenceMonitoring()
             if game.isHost { await game.startGame() }
         }
         .onDisappear {
