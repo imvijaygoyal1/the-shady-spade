@@ -423,33 +423,52 @@ final class OnlineGameViewModel {
         guard isHost, index != myPlayerIndex, !aiSeats.contains(index) else { return }
         let db = Firestore.firestore()
         let ref = db.collection("sessions").document(sessionCode)
-        guard let data = (try? await ref.getDocument())?.data(),
-              var slotsData = data["playerSlots"] as? [[String: Any]],
-              index < slotsData.count else { return }
-
-        var currentAISeats = (data["aiSeats"] as? [Any] ?? []).compactMap {
-            ($0 as? Int) ?? ($0 as? Int64).map(Int.init)
-        }
-        let removedName = slotsData[safe: index]?["name"] as? String ?? "Player"
         let aiNamePool = ["Drew", "Jamie", "Casey", "Morgan", "Riley"]
-        let usedNames = slotsData.compactMap { $0["name"] as? String }
-        let aiName = aiNamePool.first { !usedNames.contains($0) } ?? "Bot"
-
-        slotsData[index] = ["uid": "AI-\(index)", "name": aiName, "avatar": "🤖", "joined": true]
-        currentAISeats.append(index)
-        currentAISeats.sort()
 
         do {
-            try await ref.updateData([
-                "playerSlots": slotsData,
-                "aiSeats": currentAISeats,
-                "gameState.aiSeats": currentAISeats,
-                "removedSlot": index,
-                "gameState.message": "\(removedName) was removed. AI took over."
-            ])
-            await publishSystemTableMessage("\(removedName) was removed. AI took over.")
+            // Return removedName from the closure so the table message uses the
+            // authoritative Firestore value, not playerNames[index] which may already
+            // reflect the AI bot name if a snapshot arrives before the message is sent.
+            let transactionResult = try await db.runTransaction { transaction, errorPointer in
+                let snapshot: DocumentSnapshot
+                do {
+                    snapshot = try transaction.getDocument(ref)
+                } catch let fetchError as NSError {
+                    errorPointer?.pointee = fetchError
+                    return nil
+                }
+                guard snapshot.exists,
+                      let data = snapshot.data(),
+                      var slotsData = data["playerSlots"] as? [[String: Any]],
+                      index < slotsData.count else {
+                    errorPointer?.pointee = NSError(
+                        domain: "RemovePlayer", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Session or slot not found"])
+                    return nil
+                }
+                var currentAISeats = (data["aiSeats"] as? [Any] ?? []).compactMap {
+                    ($0 as? Int) ?? ($0 as? Int64).map(Int.init)
+                }
+                guard !currentAISeats.contains(index) else { return nil } // already AI — no-op
+                let usedNames = slotsData.compactMap { $0["name"] as? String }
+                let aiName = aiNamePool.first { !usedNames.contains($0) } ?? "Bot"
+                let removedName = slotsData[safe: index]?["name"] as? String ?? "Player"
+                slotsData[index] = ["uid": "AI-\(index)", "name": aiName, "avatar": "🤖", "joined": true]
+                currentAISeats.append(index)
+                currentAISeats.sort()
+                transaction.updateData([
+                    "playerSlots": slotsData,
+                    "aiSeats": currentAISeats,
+                    "gameState.aiSeats": currentAISeats,
+                    "removedSlot": index,
+                    "gameState.message": "\(removedName) was removed. AI took over."
+                ], forDocument: ref)
+                return removedName
+            }
+            let name = transactionResult as? String ?? playerName(index)
+            await publishSystemTableMessage("\(name) was removed. AI took over.")
         } catch {
-            ogVMLog.error("[removePlayerMidGame] write failed for slot \(index): \(error.localizedDescription)")
+            ogVMLog.error("[removePlayerMidGame] transaction failed for slot \(index): \(error.localizedDescription)")
         }
     }
 
