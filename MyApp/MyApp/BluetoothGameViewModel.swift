@@ -1739,6 +1739,9 @@ final class BluetoothGameViewModel: NSObject {
     private func aiComputeCalling(seat: Int) -> (trump: TrumpSuit, c1: String, c2: String) {
         AIEngine.computeCalling(
             hand: allHands[seat],
+            seat: seat,
+            dealerIndex: dealerIndex,
+            bidHistory: bidHistory,
             personality: AIEngine.BotPersonality.forSeat(seat)
         )
     }
@@ -1761,7 +1764,8 @@ final class BluetoothGameViewModel: NSObject {
             wonPointsPerPlayer: wonPointsPerPlayer,
             highBid: highBid,
             trickNumber: trickNumber,
-            personality: AIEngine.BotPersonality.forSeat(seat)
+            personality: AIEngine.BotPersonality.forSeat(seat),
+            bidHistory: bidHistory
         )
     }
 

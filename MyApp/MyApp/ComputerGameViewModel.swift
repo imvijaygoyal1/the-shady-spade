@@ -432,6 +432,9 @@ final class ComputerGameViewModel {
 
         let result = AIEngine.computeCalling(
             hand: hands[highBidderIndex],
+            seat: highBidderIndex,
+            dealerIndex: dealerIndex,
+            bidHistory: bidHistory,
             personality: AIEngine.BotPersonality.forSeat(highBidderIndex)
         )
         trumpSuit = result.trump
@@ -693,7 +696,8 @@ final class ComputerGameViewModel {
             wonPointsPerPlayer: wonPointsPerPlayer,
             highBid: highBid,
             trickNumber: trickNumber,
-            personality: AIEngine.BotPersonality.forSeat(playerIndex)
+            personality: AIEngine.BotPersonality.forSeat(playerIndex),
+            bidHistory: bidHistory
         ) else {
             return hand[0]
         }

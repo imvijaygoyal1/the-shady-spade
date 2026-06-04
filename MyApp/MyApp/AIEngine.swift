@@ -235,8 +235,16 @@ enum AIEngine {
     // MARK: - AI Calling
 
     /// Compute the best trump suit and two called card IDs for the bidder's hand.
+    /// `seat`, `dealerIndex`, and `bidHistory` enable position-aware partner selection:
+    /// among equally-valued candidates, prefer cards likely held by players who sit
+    /// 2–5 seats after the bidder (they play after seeing the bidder's card, enabling
+    /// better coordination). Players who bid higher are weighted as more likely to hold
+    /// top-ranked cards in each suit.
     static func computeCalling(
         hand: [Card],
+        seat: Int = 0,
+        dealerIndex: Int = 0,
+        bidHistory: [(playerIndex: Int, amount: Int)] = [],
         personality: BotPersonality? = nil
     ) -> (trump: TrumpSuit, c1: String, c2: String) {
         let style = personality ?? .trumpController
@@ -285,6 +293,47 @@ enum AIEngine {
         let chosenIds = Set(ordered.map(\.id))
         ordered += candidates.filter { !chosenIds.contains($0.id) }
 
+        // Position-aware reordering: among equal-value candidates, prefer cards
+        // likely held by players in good trick-order positions (2–5 seats after bidder).
+        // Later seats see the bidder's card before playing — better for coordination.
+        if !bidHistory.isEmpty {
+            let bidMap: [Int: Int] = latestBidPerPlayer(bidHistory)
+                .reduce(into: [:]) { dict, entry in dict[entry.playerIndex] = entry.amount }
+
+            // Position quality: how good is it to have THIS player as a partner?
+            // Offset 1 (plays right after bidder) = worst; offset 3–5 = best.
+            func positionQuality(_ player: Int) -> Int {
+                let offset = (player - seat + 6) % 6
+                switch offset {
+                case 1: return 0
+                case 2: return 1
+                case 3: return 2
+                case 4, 5: return 3
+                default: return 0
+                }
+            }
+
+            // Estimate whether a high-ranked card is likely held by a strong bidder.
+            // Higher bid → more likely to hold the top cards in any suit.
+            func candidatePositionScore(_ card: Card) -> Int {
+                let cardHighness = max(0, (Card.rankOrder[card.rank] ?? 0) - 9) // 0–3 for J/Q/K/A
+                var total = 0
+                for player in 0..<6 where player != seat {
+                    let bidStrength = max(0, (bidMap[player, default: 130] - 130) / 30) // 0–4
+                    total += positionQuality(player) * bidStrength * (1 + cardHighness)
+                }
+                return total
+            }
+
+            ordered.sort { a, b in
+                if a.pointValue != b.pointValue { return a.pointValue > b.pointValue }
+                let aPos = candidatePositionScore(a)
+                let bPos = candidatePositionScore(b)
+                if aPos != bPos { return aPos > bPos }
+                return rankScore(a) > rankScore(b)
+            }
+        }
+
         let c1Card = ordered.first
         let c2Card = ordered.first(where: { $0.suit != c1Card?.suit }) ?? ordered.dropFirst().first
         let c1 = c1Card?.id ?? "A♥"
@@ -323,13 +372,20 @@ enum AIEngine {
         wonPointsPerPlayer: [Int],
         highBid: Int,
         trickNumber: Int,
-        personality: BotPersonality? = nil
+        personality: BotPersonality? = nil,
+        bidHistory: [(playerIndex: Int, amount: Int)] = []
     ) -> String? {
         guard !hand.isEmpty else { return nil }
 
         let style = personality ?? BotPersonality.forSeat(seat)
         let trumpRaw = trumpSuit.rawValue
         let actualPartners = actualPartnerIndices.filter { $0 >= 0 && $0 < 6 }
+        // Bid-strength per player (0–5 scale): used for team inference priors
+        // and for lead-decision opponent risk weighting.
+        let playerBidStrengths: [Int: Int] = latestBidPerPlayer(bidHistory)
+            .reduce(into: [:]) { dict, entry in
+                dict[entry.playerIndex] = min(5, max(0, (entry.amount - 130) / 24))
+            }
         let knownOffense = knownOffenseSet(
             seat: seat,
             hand: hand,
@@ -350,7 +406,8 @@ enum AIEngine {
             trumpRaw: trumpRaw,
             currentTrick: currentTrick,
             completedTricks: completedTricks,
-            wonPointsPerPlayer: wonPointsPerPlayer
+            wonPointsPerPlayer: wonPointsPerPlayer,
+            playerBidStrengths: playerBidStrengths
         )
         let strategicOffense = knownOffense.union(teamRead.suspectedOffense)
         let isKnownOffense = knownOffense.contains(seat)
@@ -402,7 +459,8 @@ enum AIEngine {
                 remainingCards: remainingCards,
                 knownVoids: knownVoids,
                 urgency: urgency,
-                personality: style
+                personality: style,
+                playerBidStrengths: playerBidStrengths
             ).id
         }
 
@@ -484,8 +542,22 @@ enum AIEngine {
         let winningTrumps = trumpCards.filter {
             cardBeats($0, winner: winner.card, ledSuit: ledSuit, trumpRaw: trumpRaw)
         }
+        // 3♠ strategy: trump eagerly if 3♠ is in THIS trick (capture 30pts);
+        // raise the threshold on other tricks so trump is reserved for that future capture.
+        // Sacrifice play: the raised threshold prevents burning trump on cheap tricks
+        // when significant value remains unplayed, keeping trump for bigger moments.
+        let threeSpadeInTrick = currentTrick.contains { $0.card.id == "3♠" }
+        let threeSpadeStillOut = remainingCards.contains { $0.id == "3♠" }
+        let effectiveTrumpThreshold: Int
+        if threeSpadeInTrick {
+            effectiveTrumpThreshold = 0          // Always trump to contest the 3♠
+        } else if threeSpadeStillOut && !urgency.eitherSide {
+            effectiveTrumpThreshold = style.trumpInPointThreshold + 15  // Save trump
+        } else {
+            effectiveTrumpThreshold = style.trumpInPointThreshold
+        }
         let shouldTrump = !winningTrumps.isEmpty
-            && (trickPoints >= style.trumpInPointThreshold || urgency.eitherSide)
+            && (trickPoints >= effectiveTrumpThreshold || urgency.eitherSide)
         if shouldTrump, let bestTrump = lowestWinningCard(winningTrumps, trumpRaw: trumpRaw) {
             return bestTrump.id
         }
@@ -527,7 +599,8 @@ enum AIEngine {
         trumpRaw: String,
         currentTrick: [(playerIndex: Int, card: Card)],
         completedTricks: [[(playerIndex: Int, card: Card)]],
-        wonPointsPerPlayer: [Int]
+        wonPointsPerPlayer: [Int],
+        playerBidStrengths: [Int: Int] = [:]
     ) -> TeamRead {
         var scores: [Int: Int] = [:]
         scores[highBidderIndex, default: 0] += 100
@@ -584,6 +657,14 @@ enum AIEngine {
 
         for (player, points) in wonPointsPerPlayer.enumerated() where points >= 60 {
             scores[player, default: 0] += 1
+        }
+
+        // Bid-strength prior: players who bid aggressively before losing the bid
+        // likely had strong hands — they are more probable silent partners.
+        // Capped at a small nudge (strength/2) so behavioral signals dominate.
+        for (player, strength) in playerBidStrengths
+        where player != highBidderIndex && !publicKnownOffense.contains(player) {
+            scores[player, default: 0] += strength / 2
         }
 
         let suspected = Set<Int>(scores.compactMap { player, score in
@@ -832,9 +913,12 @@ enum AIEngine {
         remainingCards: [Card],
         knownVoids: [Int: Set<String>],
         urgency: Urgency,
-        personality: BotPersonality
+        personality: BotPersonality,
+        playerBidStrengths: [Int: Int] = [:]
     ) -> Card {
         let unrevealedCalledSuits = Set(unrevealedCalledCardIds.compactMap { $0.last.map(String.init) })
+        // 3♠ is still unplayed — factor into lead decisions below.
+        let threeSpadeStillOut = remainingCards.contains { $0.id == "3♠" }
         let scored = hand.map { card -> (Card, Int) in
             let isTrump = card.suit == trumpRaw
             let higherRemaining = remainingCards.filter {
@@ -856,6 +940,11 @@ enum AIEngine {
                 if higherTrumpRemaining == 0 { score += 10 }
                 if higherTrumpRemaining >= 3 { score -= higherTrumpRemaining * 4 }
                 if !isKnownOffense && !urgency.defense { score -= 8 }
+                // Sacrifice / 3♠ reservation: don't eagerly draw trump when the 3♠
+                // is still unplayed and game is not yet urgent — save trump to intercept it.
+                if threeSpadeStillOut && card.rank != "A" && !urgency.eitherSide {
+                    score -= 8
+                }
             } else {
                 score += higherRemaining == 0 ? 18 : -(higherRemaining * 3)
                 score -= futureVoidRisk * 10
@@ -868,6 +957,27 @@ enum AIEngine {
                     if urgency.offense { score += 12 }
                 }
                 score += personality.pointFeedBias
+
+                // 3♠ protection: rank "3" loses to almost every other card, so leading
+                // the unprotected 3♠ (when not trump) is very risky — opponents who are
+                // void in spades can trump it for 30 points at no cost.
+                if card.id == "3♠" {
+                    let canBeBeaten = remainingCards.contains {
+                        $0.suit == card.suit && rankScore($0) > rankScore(card)
+                    }
+                    if canBeBeaten { score -= 28 }
+                }
+
+                // Defense calling-suit targeting: lead a called suit to force the
+                // hidden partner to either play the called card (revealing themselves)
+                // or follow with a non-called card (narrowing the field).
+                // Bidder's equivalent logic is the `seat == highBidderIndex` block above.
+                if !isKnownOffense,
+                   seat != highBidderIndex,
+                   revealedPartnerCount < 2,
+                   unrevealedCalledSuits.contains(card.suit) {
+                    score += 12 * (2 - revealedPartnerCount) // +24 both hidden, +12 one hidden
+                }
             }
             return (card, score)
         }
