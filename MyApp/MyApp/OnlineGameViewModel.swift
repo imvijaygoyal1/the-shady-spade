@@ -296,7 +296,8 @@ final class OnlineGameViewModel {
             "trickNumber": 0,
             "wonPointsPerPlayer": Array(repeating: 0, count: 6),
             "runningScores": runningScores,
-            "message": "Study your cards, then the host will start bidding."
+            "message": "Study your cards, then the host will start bidding.",
+            "aiSeats": aiSeats  // keep gameState consistent with root aiSeats field
         ]
         let startOk = await criticalWrite([
             "gameState": gs,
