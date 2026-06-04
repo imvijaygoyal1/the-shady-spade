@@ -251,7 +251,11 @@ final class OnlineGameViewModel {
 
         // Show dealing animation on all clients first
         let dealingGs: [String: Any] = ["phase": OnlineGamePhase.dealing.rawValue]
-        try? await ref.updateData(["gameState": dealingGs])
+        do {
+            try await ref.updateData(["gameState": dealingGs])
+        } catch {
+            ogVMLog.warning("[startGame] dealing animation write failed (non-critical): \(error.localizedDescription)")
+        }
 
         // Wait for animation to play (~3s)
         do { try await Task.sleep(nanoseconds: 3_000_000_000) } catch { return }
@@ -291,11 +295,22 @@ final class OnlineGameViewModel {
             "runningScores": runningScores,
             "message": "Study your cards, then the host will start bidding."
         ]
-        try? await ref.updateData([
+        let startOk = await criticalWrite([
             "gameState": gs,
             "hands": handsDict,
             "pendingAction": [:] as [String: Any]
         ])
+        if !startOk {
+            ogVMLog.error("[startGame] failed to write initial game state after all retries")
+            // Attempt a lightweight field update so non-host clients get the Game Ended
+            // alert rather than waiting forever. Uses try? intentionally — if Firestore
+            // is unreachable for all writes there is nothing more we can do.
+            let ref = Firestore.firestore().collection("sessions").document(sessionCode)
+            try? await ref.updateData([
+                "gameState.hostEndedGame": true,
+                "gameState.message": "Game failed to start — please try again."
+            ])
+        }
     }
 
     func startNextRound() async {
