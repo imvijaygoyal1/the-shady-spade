@@ -552,6 +552,16 @@ final class OnlineGameViewModel {
         }
         prevAISeats = Set(aiSeats)
 
+        // Sync player display names and avatars when presence monitoring replaces a
+        // disconnected human with an AI bot — playerSlots is the authoritative source.
+        // The != guard prevents unnecessary SwiftUI re-renders when nothing changed.
+        if let slotsData = data["playerSlots"] as? [[String: Any]], slotsData.count == 6 {
+            let newNames = slotsData.map { $0["name"] as? String ?? "" }
+            let newAvatars = slotsData.map { $0["avatar"] as? String ?? "🃏" }
+            if newNames != playerNames { playerNames = newNames }
+            if newAvatars != playerAvatars { playerAvatars = newAvatars }
+        }
+
         // Parse game state
         if let gs = data["gameState"] as? [String: Any] {
             parseGameState(gs)
