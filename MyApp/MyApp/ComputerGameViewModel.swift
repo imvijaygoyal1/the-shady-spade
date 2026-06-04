@@ -417,7 +417,8 @@ final class ComputerGameViewModel {
             dealerIndex: dealerIndex,
             highBid: highBid,
             canPass: canPass,
-            personality: AIEngine.BotPersonality.forSeat(playerIndex)
+            personality: AIEngine.BotPersonality.forSeat(playerIndex),
+            bidHistory: bidHistory
         )
     }
 

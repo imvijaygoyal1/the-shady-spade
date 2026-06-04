@@ -169,13 +169,15 @@ enum AIEngine {
 
     /// Compute an AI bid amount for `seat`.
     /// Returns 0 to indicate a pass (only valid when `canPass` is true).
+    /// `bidHistory` enables loser-adjusted and bid-identity-aware bidding.
     static func computeBid(
         seat: Int,
         hand: [Card],
         dealerIndex: Int,
         highBid: Int,
         canPass: Bool,
-        personality: BotPersonality? = nil
+        personality: BotPersonality? = nil,
+        bidHistory: [(playerIndex: Int, amount: Int)] = []
     ) -> Int {
         let style = personality ?? BotPersonality.forSeat(seat)
         let myPoints = hand.map(\.pointValue).reduce(0, +)
@@ -220,7 +222,36 @@ enum AIEngine {
         }.count
         let shortnessPenalty = max(0, thinSuits - 2) * 8
 
-        let rawEstimate = myPoints + call1Pts + call2Pts + partnerBonus + clusterBonus - shortnessPenalty
+        // Phase 1d — Loser counting: multi-card suits where opponents hold higher
+        // cards will produce lost tricks; penalise 3pts per net loser.
+        var loserCount = 0
+        for suit in TrumpSuit.allCases {
+            let suitCards = hand.filter { $0.suit == suit.rawValue }
+            guard suitCards.count >= 2 else { continue }
+            let myTopRank = suitCards.compactMap { Card.rankOrder[$0.rank] }.max() ?? 0
+            let higherExternal = fullDeck.filter { card in
+                card.suit == suit.rawValue && !myIds.contains(card.id)
+                    && (Card.rankOrder[card.rank] ?? 0) > myTopRank
+            }.count
+            if higherExternal >= 2 {
+                loserCount += min(suitCards.count - 1, higherExternal - 1)
+            }
+        }
+        let loserPenalty = loserCount * 3
+
+        // Phase 1e — Bid identity: strong competing bidders in good seat positions
+        // are probable strong partners; modestly raise the partner quality estimate.
+        var partnerQualityBonus = 0
+        for entry in latestBidPerPlayer(bidHistory) where entry.playerIndex != seat && entry.amount > 150 {
+            let bidStrength = (entry.amount - 150) / 20  // 0–5
+            let offset = (entry.playerIndex - seat + 6) % 6
+            let posBonus = (offset >= 2 && offset <= 4) ? 1 : 0
+            partnerQualityBonus += bidStrength * posBonus
+        }
+        partnerQualityBonus = min(6, partnerQualityBonus)
+
+        let rawEstimate = myPoints + call1Pts + call2Pts + partnerBonus + clusterBonus
+            - shortnessPenalty - loserPenalty + partnerQualityBonus
         let estimated = Int(Double(rawEstimate) * style.bidMultiplier) + style.bidOffset
         let minBid    = max(130, highBid + 5)
         if !canPass {
@@ -447,6 +478,19 @@ enum AIEngine {
                 return revealCard.id
             }
 
+            // Endgame: last 2 tricks — switch to near-exact calculation
+            // using known remaining cards instead of heuristic scoring.
+            if urgency.tricksRemaining <= 2,
+               let endgameLead = computeEndgameLead(
+                   hand: hand,
+                   isKnownOffense: isKnownOffense,
+                   trumpRaw: trumpRaw,
+                   remainingCards: remainingCards,
+                   urgency: urgency
+               ) {
+                return endgameLead.id
+            }
+
             return bestLeadCard(
                 hand: hand,
                 seat: seat,
@@ -485,7 +529,10 @@ enum AIEngine {
             knownVoids: knownVoids
         )
         let trickPoints = currentTrick.map(\.card.pointValue).reduce(0, +)
-        let canFeedPoints = futureThreats <= style.unsafeFeedTolerance
+        // Dynamic personality: urgency raises feed tolerance by 1 so bots take
+        // more risks when behind, mirroring how a human adapts under pressure.
+        let adaptedFeedTolerance = style.unsafeFeedTolerance + (urgency.eitherSide ? 1 : 0)
+        let canFeedPoints = futureThreats <= adaptedFeedTolerance
             || (isKnownOffense && urgency.offense)
             || (!isKnownOffense && urgency.defense)
 
@@ -530,6 +577,17 @@ enum AIEngine {
         let nonTrump = hand.filter { $0.suit != trumpRaw }
 
         if teammateWinning {
+            // Void creation: discard the last card of a zero-value suit to enable
+            // future ruffs, provided we still have trump to ruff with.
+            if !trumpCards.isEmpty && urgency.tricksRemaining >= 2 {
+                let voidCreation = nonTrump
+                    .filter { card in
+                        hand.filter { $0.suit == card.suit }.count == 1
+                            && card.pointValue == 0
+                    }
+                    .min(by: { rankScore($0) < rankScore($1) })
+                if let voidCard = voidCreation { return voidCard.id }
+            }
             if canFeedPoints, let feed = nonTrump.max(by: { valueScore($0, personality: style) < valueScore($1, personality: style) }) {
                 return feed.id
             }
@@ -559,7 +617,21 @@ enum AIEngine {
         let shouldTrump = !winningTrumps.isEmpty
             && (trickPoints >= effectiveTrumpThreshold || urgency.eitherSide)
         if shouldTrump, let bestTrump = lowestWinningCard(winningTrumps, trumpRaw: trumpRaw) {
-            return bestTrump.id
+            // Over-ruffing check: if a future opponent is void in the led suit AND
+            // holds a higher trump, our trump will be over-ruffed for no gain.
+            // Skip trumping and discard instead, unless urgency overrides.
+            let wouldBeOverRuffed = futureSeats.contains { playerSeat in
+                guard strategicOffense.contains(playerSeat) != isKnownOffense else { return false }
+                let voidInLed = knownVoids[playerSeat]?.contains(ledSuit) == true
+                let hasHigherTrump = remainingCards.contains {
+                    $0.suit == trumpRaw && rankScore($0) > rankScore(bestTrump)
+                }
+                return voidInLed && hasHigherTrump
+            }
+            if !wouldBeOverRuffed || urgency.eitherSide {
+                return bestTrump.id
+            }
+            // Fall through to discard — burning trump into an over-ruff wastes it
         }
 
         if let discard = nonTrump.min(by: { valueScore($0, personality: style) < valueScore($1, personality: style) }) {
@@ -919,6 +991,9 @@ enum AIEngine {
         let unrevealedCalledSuits = Set(unrevealedCalledCardIds.compactMap { $0.last.map(String.init) })
         // 3♠ is still unplayed — factor into lead decisions below.
         let threeSpadeStillOut = remainingCards.contains { $0.id == "3♠" }
+        // Trump exhaustion: if no trump remains anywhere outside our hand,
+        // void-ruff risk disappears and established suit winners run freely.
+        let trumpExhausted = !remainingCards.contains { $0.suit == trumpRaw }
         let scored = hand.map { card -> (Card, Int) in
             let isTrump = card.suit == trumpRaw
             let higherRemaining = remainingCards.filter {
@@ -934,7 +1009,10 @@ enum AIEngine {
 
             var score = rankScore(card) + card.pointValue
             if isTrump {
-                score += personality.leadTrumpBias
+                // Dynamic personality: urgency boosts trump-lead aggression (+8)
+                // so bots pull trump more assertively when behind.
+                let dynamicTrumpBias = personality.leadTrumpBias + (urgency.eitherSide ? 8 : 0)
+                score += dynamicTrumpBias
                 if rankScore(card) >= personality.trumpLeadFloor { score += 18 }
                 if seat == highBidderIndex || personality == .trumpController { score += 10 }
                 if higherTrumpRemaining == 0 { score += 10 }
@@ -946,8 +1024,16 @@ enum AIEngine {
                     score -= 8
                 }
             } else {
-                score += higherRemaining == 0 ? 18 : -(higherRemaining * 3)
-                score -= futureVoidRisk * 10
+                // Partner-adjusted higher-remaining penalty: offense leading into a suit
+                // where the higher cards may be in partner's hand is much less risky
+                // than leading into opponent strength — halve the penalty for offense.
+                let higherPenaltyFactor = isKnownOffense ? 1 : 3
+                score += higherRemaining == 0 ? 18 : -(higherRemaining * higherPenaltyFactor)
+                // Trump exhaustion: if no trump remains elsewhere, void-ruff risk is zero;
+                // also add a bonus for sure winners that can now safely run.
+                let voidRiskMultiplier = trumpExhausted ? 0 : 10
+                score -= futureVoidRisk * voidRiskMultiplier
+                if trumpExhausted && higherRemaining == 0 { score += 15 }
                 if isKnownOffense && urgency.offense { score += card.pointValue * 3 }
                 if !isKnownOffense && urgency.defense { score += card.pointValue * 2 }
                 if seat == highBidderIndex,
@@ -1080,5 +1166,54 @@ enum AIEngine {
     private static func valueScore(_ card: Card, personality: BotPersonality) -> Int {
         let feedBonus = personality == .pointFeeder ? card.pointValue * 20 : 0
         return card.pointValue * 100 + rankScore(card) + feedBonus
+    }
+
+    // MARK: - Endgame Exact Calculation
+
+    /// Near-exact lead selection for the final 2 tricks.
+    /// Instead of heuristic scoring, determines whether each card is a likely
+    /// winner given the known remaining cards, then maximises total points
+    /// captured across the 1–2 remaining tricks.
+    /// Returns nil when more than 2 tricks remain (fall through to bestLeadCard).
+    private static func computeEndgameLead(
+        hand: [Card],
+        isKnownOffense: Bool,
+        trumpRaw: String,
+        remainingCards: [Card],
+        urgency: Urgency
+    ) -> Card? {
+        guard hand.count <= 2 else { return nil }
+
+        // A card is a likely winner when led if no remaining card can beat it.
+        func likelyWinsAsLead(_ card: Card) -> Bool {
+            if card.suit == trumpRaw {
+                return !remainingCards.contains { $0.suit == trumpRaw && rankScore($0) > rankScore(card) }
+            } else {
+                // Non-trump: safe only when no trump remains (can't be ruffed)
+                // AND it is the highest remaining card in its suit.
+                if remainingCards.contains(where: { $0.suit == trumpRaw }) { return false }
+                return !remainingCards.contains { $0.suit == card.suit && rankScore($0) > rankScore(card) }
+            }
+        }
+
+        let scored = hand.map { card -> (Card, Int) in
+            var score = 0
+            if likelyWinsAsLead(card) {
+                score += card.pointValue * 10 + 50   // strong bonus: winning this trick
+                // Two-trick sweep: if both cards in hand are winners, capture both
+                if hand.count == 2, let other = hand.first(where: { $0.id != card.id }),
+                   likelyWinsAsLead(other) {
+                    score += other.pointValue * 8 + 25
+                }
+            } else {
+                // Leading a loser cedes the trick; prefer the one that costs least
+                score -= card.pointValue * 5
+                // Higher-rank losers force opponents to spend high cards to beat them
+                score += rankScore(card) / 2
+            }
+            return (card, score)
+        }
+
+        return scored.max { $0.1 < $1.1 }?.0
     }
 }

@@ -1732,7 +1732,8 @@ final class BluetoothGameViewModel: NSObject {
         AIEngine.computeBid(
             seat: seat, hand: allHands[seat], dealerIndex: dealerIndex,
             highBid: highBid, canPass: highBid > 0,
-            personality: AIEngine.BotPersonality.forSeat(seat)
+            personality: AIEngine.BotPersonality.forSeat(seat),
+            bidHistory: bidHistory
         )
     }
 

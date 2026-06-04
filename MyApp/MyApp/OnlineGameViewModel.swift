@@ -1428,7 +1428,8 @@ final class OnlineGameViewModel {
         AIEngine.computeBid(
             seat: seat, hand: allHands[seat], dealerIndex: dealerIndex,
             highBid: highBid, canPass: canPass,
-            personality: AIEngine.BotPersonality.forSeat(seat)
+            personality: AIEngine.BotPersonality.forSeat(seat),
+            bidHistory: bidHistory
         )
     }
 
