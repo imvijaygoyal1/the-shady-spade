@@ -1500,7 +1500,7 @@ final class OnlineGameViewModel {
             // Retry after 1s rather than injecting a phantom card.
             guard let cardId = aiComputeCard(seat: seat) else {
                 ogVMLog.error("[AI Playing] seat \(seat) has empty hand — retrying in 1s")
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return }
                 // Fix 2: state may have changed during the 1s sleep — only recurse if
                 // this seat is still the current action player in the playing phase.
                 // If a different AI now needs to act, the recovery re-triggers for them.
