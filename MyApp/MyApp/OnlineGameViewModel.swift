@@ -153,6 +153,8 @@ final class OnlineGameViewModel {
         lastTableMessageSentAt = .distantPast
         wasRemovedFromGame = false
         hostEndedGame = false
+        hostPresenceMonitoringTimer?.invalidate()
+        hostPresenceMonitoringTimer = nil
     }
 
     /// Writes a flag to Firestore so all non-host clients learn the host ended the game.
@@ -392,6 +394,7 @@ final class OnlineGameViewModel {
     /// criticalWrite backoff or the 3s dealing animation sleep.
     func startHostPresenceMonitoring() {
         guard !isHost else { return }
+        guard hostPresenceMonitoringTimer == nil else { return }
         let ref = Firestore.firestore().collection("sessions").document(sessionCode)
         hostPresenceMonitoringTimer = Timer.scheduledTimer(
             withTimeInterval: 30, repeats: true
