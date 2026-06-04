@@ -1228,7 +1228,10 @@ final class OnlineGameViewModel {
             "trickNumber": trickNumber,
             "wonPointsPerPlayer": wonPointsPerPlayer,
             "runningScores": runningScores,
-            "message": message
+            "message": message,
+            // aiSeats must be included here: criticalWrite replaces the entire
+            // gameState object, so omitting it would silently erase it on every action.
+            "aiSeats": aiSeats
         ]
     }
 
@@ -1263,7 +1266,15 @@ final class OnlineGameViewModel {
     // MARK: - Per-turn watchdog
 
     private func cancelTurnWatchdog() {
-        turnWatchdogTask?.cancel()
+        // Do NOT cancel the task while processAITurnIfNeeded is actively running inside
+        // it — that would abort the AI's in-flight action via Task cancellation propagation.
+        // Only cancel the 60-second sleep portion (pre-fire watchdog). After the watchdog
+        // fires and processAITurnIfNeeded starts, the task reference is nilled so a fresh
+        // watchdog can be set for the next player without disturbing the running AI action.
+        // cleanup() bypasses this guard and cancels directly via turnWatchdogTask?.cancel().
+        if !isProcessingAI {
+            turnWatchdogTask?.cancel()
+        }
         turnWatchdogTask = nil
     }
 
@@ -1289,10 +1300,19 @@ final class OnlineGameViewModel {
             self.message = "\(name) is taking too long. AI took over."
             let db = Firestore.firestore()
             let ref = db.collection("sessions").document(self.sessionCode)
-            try? await ref.updateData([
-                "gameState.aiSeats": self.aiSeats,
-                "gameState.message": self.message
-            ])
+            // Write BOTH root aiSeats and gameState.aiSeats so that handleSnapshot,
+            // which reads root data["aiSeats"] first, sees the updated value immediately.
+            // Without the root write, the snapshot overwrites local aiSeats with the stale
+            // value, causing parseGameState to re-arm the watchdog and cancel this task.
+            do {
+                try await ref.updateData([
+                    "aiSeats": self.aiSeats,
+                    "gameState.aiSeats": self.aiSeats,
+                    "gameState.message": self.message
+                ])
+            } catch {
+                ogVMLog.error("[watchdog] failed to write aiSeats for seat \(seat): \(error.localizedDescription)")
+            }
             await self.publishSystemTableMessage("\(name) is taking too long. AI took over.")
             await self.processAITurnIfNeeded()
         }
