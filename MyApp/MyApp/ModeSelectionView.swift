@@ -397,10 +397,39 @@ private struct OnlineEntryView: View {
     let playerAvatar: String
     var autoShowJoin: Bool = false
     @State private var onlineGame: OnlineGameViewModel? = nil
+    @State private var soloFallback: (name: String, avatar: String)? = nil
+    @State private var showSoloToast = false
 
     var body: some View {
         if let game = onlineGame {
             OnlineGameView(game: game)
+        } else if let solo = soloFallback {
+            ComputerGameView(
+                vm: vm,
+                humanName: solo.name,
+                humanAvatar: solo.avatar
+            )
+            .overlay {
+                VStack {
+                    if showSoloToast {
+                        Text("Playing Solo — no one else joined")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.masterGold, in: Capsule())
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                    Spacer()
+                }
+                .padding(.top, 64)
+                .allowsHitTesting(false)
+            }
+            .task(id: solo.name) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { showSoloToast = true }
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                withAnimation(.easeOut(duration: 0.3)) { showSoloToast = false }
+            }
         } else {
             OnlineSessionView(
                 vm: vm,
@@ -418,6 +447,9 @@ private struct OnlineEntryView: View {
                         roundNumber: 1,
                         aiSeats: aiSeats
                     )
+                },
+                onSoloFallback: { name, avatar in
+                    soloFallback = (name: name, avatar: avatar)
                 }
             )
         }

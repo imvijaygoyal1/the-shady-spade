@@ -15,6 +15,8 @@ struct OnlineSessionView: View {
     /// When true, automatically open the join-by-code sheet on first appear
     var autoShowJoin: Bool = false
     var onGameReady: ((Int, Bool, String, [String], [String], [Int], Int) -> Void)? = nil
+    /// Called when host starts with no other humans joined — passes (hostName, hostAvatar)
+    var onSoloFallback: ((String, String) -> Void)? = nil
 
     @State private var ownedSessionVM = OnlineSessionViewModel()
     @State private var ownedPlayerUID = Auth.auth().currentUser?.uid ?? UUID().uuidString
@@ -56,7 +58,8 @@ struct OnlineSessionView: View {
                     sessionVM: sessionVM,
                     vm: vm,
                     playerUID: playerUID,
-                    onGameReady: onGameReady
+                    onGameReady: onGameReady,
+                    onSoloFallback: onSoloFallback
                 ) {
                     vm.enterOnlineMode(sessionVM)
                     dismiss()
@@ -433,6 +436,7 @@ private struct SessionLobbyView: View {
     var vm: GameViewModel
     let playerUID: String
     var onGameReady: ((Int, Bool, String, [String], [String], [Int], Int) -> Void)? = nil
+    var onSoloFallback: ((String, String) -> Void)? = nil
     var onGameStart: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -691,7 +695,16 @@ Tap to join: https://shadyspade-d6b84.web.app/shadyspade/join/\(sessionVM.sessio
                     VStack(spacing: 8) {
                         Button {
                             HapticManager.impact(.heavy)
-                            Task { await sessionVM.startGame() }
+                            Task {
+                                if sessionVM.allNonHostSlotsEmpty, let fallback = onSoloFallback {
+                                    let hostName = sessionVM.playerSlots[0].name
+                                    let hostAvatar = sessionVM.playerSlots[0].avatar
+                                    await sessionVM.deleteSession()
+                                    fallback(hostName, hostAvatar)
+                                } else {
+                                    await sessionVM.startGame()
+                                }
+                            }
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "play.fill")

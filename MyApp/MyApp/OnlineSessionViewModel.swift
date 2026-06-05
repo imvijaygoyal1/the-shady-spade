@@ -382,6 +382,16 @@ enum SessionStatus: String {
         }
     }
 
+    /// True when the host is the only human — every other slot is either AI or not yet joined.
+    var allNonHostSlotsEmpty: Bool {
+        (1..<6).allSatisfy { aiSeats.contains($0) || !playerSlots[$0].joined }
+    }
+
+    func deleteSession() async {
+        guard let code = sessionCode, isHost else { return }
+        try? await db.collection("sessions").document(code).delete()
+    }
+
     func startGame() async {
         guard let code = sessionCode, isHost else { return }
         let ref = db.collection("sessions").document(code)
