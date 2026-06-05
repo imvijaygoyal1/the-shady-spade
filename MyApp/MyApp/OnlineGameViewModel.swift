@@ -618,7 +618,7 @@ final class OnlineGameViewModel {
         func iDef(_ key: String, _ def: Int) -> Int { (gs[key] as? Int) ?? (gs[key] as? Int64).map(Int.init) ?? def }
 
         let newPhase = OnlineGamePhase(rawValue: gs["phase"] as? String ?? "") ?? .dealing
-        let newRoundNumber = i("roundNumber")
+        let newRoundNumber = iDef("roundNumber", 1)
         let newCurrentActionPlayer = iDef("currentActionPlayer", -1)
         let newP1 = iDef("partner1Index", -1)
         let newP2 = iDef("partner2Index", -1)

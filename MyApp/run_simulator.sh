@@ -2,8 +2,8 @@
 # Build, install, reset onboarding flag, and launch on simulator
 set -e
 
-UDID="11AFDD37-BF1B-4BAB-8679-1B570C5530EC"
-BUNDLE_ID="com.example.MyApp"
+UDID="CA2078AC-6559-4BF3-93CB-370CF27E92EA"
+BUNDLE_ID="com.vijaygoyal.theshadyspade"
 SCHEME="MyApp"
 
 echo "▶ Building..."
