@@ -257,6 +257,78 @@ final class AIEngineTests: XCTestCase {
                        "Trump pull should not fire with only 1 established winner; got \(result ?? "nil")")
     }
 
+    // MARK: - Defense Point Denial
+
+    // Denial conditions used in both tests below:
+    //   wonPoints=[120,0,0,0,0,50], highBid=150
+    //   offensePoints=120 >= 150*0.75=112.5 ✓
+    //   offenseShortfall=30 <= remainingPoints(80)/2=40 ✓  → bidderCloseToWin=true
+
+    // Scenario: defense bot (seat=1) following teammate (seat=5) winning with K♥.
+    // Hand has A♥(10pts) and 4♥(0pts).
+    //
+    // Without denial: urgency.defense=true → canFeedPoints=true → plays A♥ (feeds teammate).
+    // With denial:    canFeedPoints override=false → plays lowestValueCard = 4♥.
+    func test_defensePointDenial_suppressesPointFeedingToTeammate() {
+        let hand = [c("A","♥"), c("4","♥")]
+        let currentTrick: [(playerIndex: Int, card: Card)] = [
+            (playerIndex: 5, card: c("K","♥"))
+        ]
+
+        let result = AIEngine.computeCard(
+            seat: 1,
+            hand: hand,
+            actualPartnerIndices: [],
+            revealedPartnerIndices: [],
+            calledCardIds: [],
+            highBidderIndex: 0,
+            trumpSuit: .spades,
+            currentTrick: currentTrick,
+            completedTricks: [],
+            wonPointsPerPlayer: [120, 0, 0, 0, 0, 50],
+            highBid: 150,
+            trickNumber: 3
+        )
+
+        XCTAssertEqual(result, "4♥",
+                       "Defense in denial mode must discard low card, not feed A♥ to teammate; got \(result ?? "nil")")
+    }
+
+    // Scenario: defense bot (seat=1, aggressive) holds 9♣ (confirmed winner — A♣..10♣ all
+    // played) and Q♥ (called-suit candidate, but both partners revealed → no probe bonus).
+    //
+    // Without denial: Q♥ scores higher (urgency.defense pv*2 bonus) → leads Q♥.
+    // With denial:    9♣ (confirmed winner) gets +20 → 9♣ beats Q♥ → leads 9♣.
+    func test_defensePointDenial_leadsConfirmedWinnerInDenialMode() {
+        let hand = [c("9","♣"), c("Q","♥")]
+        // A♣,K♣,Q♣,J♣,10♣ all played → 9♣ has no higher clubs remaining (confirmed winner).
+        let completedTricks: [[(playerIndex: Int, card: Card)]] = [[
+            (playerIndex: 0, card: c("A","♣")),
+            (playerIndex: 1, card: c("3","♦")),
+            (playerIndex: 2, card: c("K","♣")),
+            (playerIndex: 3, card: c("Q","♣")),
+            (playerIndex: 4, card: c("J","♣")),
+            (playerIndex: 5, card: c("10","♣")),
+        ]]
+
+        let result = lead(
+            seat: 1,
+            hand: hand,
+            highBidderIndex: 0,
+            actualPartners: [2, 4],
+            revealedPartners: [2, 4],    // both revealed → no defense calling-suit probe
+            calledCardIds: ["K♥", "Q♦"],
+            trumpSuit: .spades,
+            completedTricks: completedTricks,
+            wonPoints: [120, 0, 0, 0, 0, 50],
+            highBid: 150,
+            trickNumber: 3
+        )
+
+        XCTAssertEqual(result, "9♣",
+                       "Defense in denial mode must lead confirmed winner 9♣, not called-suit probe Q♥; got \(result ?? "nil")")
+    }
+
     // MARK: - HandModel
 
     private func buildModel(

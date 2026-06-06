@@ -102,6 +102,7 @@ enum AIEngine {
         let defensePoints: Int
         let remainingPoints: Int
         let tricksRemaining: Int
+        let bidderCloseToWin: Bool
 
         var eitherSide: Bool { offense || defense }
     }
@@ -624,9 +625,11 @@ enum AIEngine {
         // Dynamic personality: urgency raises feed tolerance by 1 so bots take
         // more risks when behind, mirroring how a human adapts under pressure.
         let adaptedFeedTolerance = style.unsafeFeedTolerance + (urgency.eitherSide ? 1 : 0)
-        let canFeedPoints = futureThreats <= adaptedFeedTolerance
-            || (isKnownOffense && urgency.offense)
-            || (!isKnownOffense && urgency.defense)
+        let canFeedPoints = (!isKnownOffense && urgency.bidderCloseToWin)
+            ? false
+            : (futureThreats <= adaptedFeedTolerance
+               || (isKnownOffense && urgency.offense)
+               || (!isKnownOffense && urgency.defense))
 
         if let revealCard = hiddenPartnerRevealCard(
             seat: seat,
@@ -1054,6 +1057,13 @@ enum AIEngine {
         let defenseUrgent = remainingPoints > 0
             && (defenseShortfall * 10 > remainingPoints * defensePressure
                 || (tricksRemaining <= 2 && offensePoints < highBid && offensePoints + remainingPoints >= highBid))
+        // Fires when offense is well advanced (≥75% of bid) and can finish from the
+        // top half of remaining points, OR when very few points remain and offense
+        // can still complete. Tells defense bots to switch into point-denial mode.
+        let bidderCloseToWin = remainingPoints > 0
+            && ((Double(offensePoints) >= Double(highBid) * 0.75
+                 && offenseShortfall <= remainingPoints / 2)
+                || (offenseShortfall <= remainingPoints && remainingPoints < 30))
 
         return Urgency(
             offense: offenseUrgent,
@@ -1061,7 +1071,8 @@ enum AIEngine {
             offensePoints: offensePoints,
             defensePoints: defensePoints,
             remainingPoints: remainingPoints,
-            tricksRemaining: tricksRemaining
+            tricksRemaining: tricksRemaining,
+            bidderCloseToWin: bidderCloseToWin
         )
     }
 
@@ -1195,6 +1206,12 @@ enum AIEngine {
                    unrevealedCalledSuits.contains(card.suit) {
                     score += 12 * (2 - revealedPartnerCount) // +24 both hidden, +12 one hidden
                 }
+            }
+            // Defense point denial: aggressively lead confirmed winners to accumulate
+            // trick points before offense reaches their bid.
+            if !isKnownOffense && urgency.bidderCloseToWin {
+                if !isTrump && higherRemaining == 0 { score += 20 }
+                if isTrump && higherTrumpRemaining == 0 { score += 15 }
             }
             return (card, score)
         }
