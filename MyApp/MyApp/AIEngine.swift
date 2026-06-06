@@ -1175,16 +1175,16 @@ enum AIEngine {
                 // beating card, leading into them is risky; if they almost certainly don't,
                 // the lead is safer than raw higherRemaining suggests.
                 if higherRemaining > 0, let model = handModel {
-                    let nextOpponent = (0..<6).first { p in
-                        let offset = (p - seat + 6) % 6
-                        return offset >= 1 && offset <= 3
-                            && strategicOffenseSet.contains(p) != isKnownOffense
-                    }
+                    let nextOpponent = (1...3).lazy.compactMap { offset -> Int? in
+                        let p = (seat + offset) % 6
+                        guard strategicOffenseSet.contains(p) != isKnownOffense else { return nil }
+                        return p
+                    }.first
                     if let opp = nextOpponent {
-                        let p = model.threatProb(player: opp, suit: card.suit,
-                                                 beatingRankScore: rankScore(card))
-                        if p > 0.5 { score -= 8 }
-                        else if p < 0.15 { score += 5 }
+                        let threatP = model.threatProb(player: opp, suit: card.suit,
+                                                       beatingRankScore: rankScore(card))
+                        if threatP > 0.5 { score -= 8 }
+                        else if threatP < 0.15 { score += 5 }
                     }
                 }
                 // Long suit establishment: if we hold more cards in this suit than higher cards
