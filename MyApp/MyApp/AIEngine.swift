@@ -570,9 +570,9 @@ enum AIEngine {
                 return revealCard.id
             }
 
-            // Endgame: last 2 tricks — switch to near-exact calculation
+            // Endgame: last 3 tricks — switch to near-exact calculation
             // using known remaining cards instead of heuristic scoring.
-            if urgency.tricksRemaining <= 2,
+            if urgency.tricksRemaining <= 3,
                let endgameLead = computeEndgameLead(
                    hand: hand,
                    isKnownOffense: isKnownOffense,
@@ -1360,11 +1360,11 @@ enum AIEngine {
 
     // MARK: - Endgame Exact Calculation
 
-    /// Near-exact lead selection for the final 2 tricks.
+    /// Near-exact lead selection for the final 3 tricks.
     /// Instead of heuristic scoring, determines whether each card is a likely
     /// winner given the known remaining cards, then maximises total points
-    /// captured across the 1–2 remaining tricks.
-    /// Returns nil when more than 2 tricks remain (fall through to bestLeadCard).
+    /// captured across the 1–3 remaining tricks.
+    /// Returns nil when more than 3 tricks remain (fall through to bestLeadCard).
     private static func computeEndgameLead(
         hand: [Card],
         isKnownOffense: Bool,
@@ -1372,7 +1372,7 @@ enum AIEngine {
         remainingCards: [Card],
         urgency: Urgency
     ) -> Card? {
-        guard hand.count <= 2 else { return nil }
+        guard hand.count <= 3 else { return nil }
 
         // A card is a likely winner when led if no remaining card can beat it.
         func likelyWinsAsLead(_ card: Card) -> Bool {
@@ -1390,10 +1390,17 @@ enum AIEngine {
             var score = 0
             if likelyWinsAsLead(card) {
                 score += card.pointValue * 10 + 50   // strong bonus: winning this trick
-                // Two-trick sweep: if both cards in hand are winners, capture both
-                if hand.count == 2, let other = hand.first(where: { $0.id != card.id }),
-                   likelyWinsAsLead(other) {
-                    score += other.pointValue * 8 + 25
+                if hand.count == 2 {
+                    // existing 2-card sweep bonus (unchanged)
+                    if let other = hand.first(where: { $0.id != card.id }),
+                       likelyWinsAsLead(other) {
+                        score += other.pointValue * 8 + 25
+                    }
+                } else {
+                    // 3-card: project value of the remaining 2-card hand
+                    let remaining2 = hand.filter { $0.id != card.id }
+                    let wins = remaining2.filter { likelyWinsAsLead($0) }
+                    score += wins.map { $0.pointValue * 8 + 20 }.reduce(0, +)
                 }
             } else {
                 // Leading a loser cedes the trick; prefer the one that costs least

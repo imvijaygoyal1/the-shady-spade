@@ -624,4 +624,48 @@ final class AIEngineTests: XCTestCase {
         XCTAssertEqual(result, "J♥",
             "Bot should prefer J♥ finesse when nearest opponent is void in ♥; got \(result ?? "nil")")
     }
+
+    // MARK: - Endgame Extension (3 Tricks)
+
+    func test_endgameExtension_botLeadsWinnerNotLoserWith3Cards() {
+        // Bot (seat=0, bidder) holds 3 cards, trickNumber=5 (tricksRemaining=3).
+        // Hand: A♠ (top trump — no higher spades remain), A♥ (top heart — A is highest),
+        //       10♥ (10pts but K♥ remains → NOT a winner).
+        // After 5 completed tricks with specific cards played:
+        //   - All spades except A♠ played → A♠ is top trump ✓
+        //   - K♥ still remains → 10♥ is NOT a winner (K♥ beats it)
+        //   - A♥ is highest remaining heart → A♥ IS a winner
+        // computeEndgameLead (new 3-card path):
+        //   A♠: wins (50 + pointValue(0)*10=50). Projection of remaining [A♥,10♥]: A♥ wins (+0*8+20=20). 10♥ loses. Score=70.
+        //   A♥: wins (50). Projection of [A♠,10♥]: A♠ wins (+20). 10♥ loses. Score=70.
+        //   10♥: does NOT win (K♥ remains). Score = -(10*5) + rankScore(10)/2 = -50+4 = -46.
+        // Expected: bot does NOT lead 10♥ (the clear loser).
+        let completedTricks: [[(playerIndex: Int, card: Card)]] = [
+            [(0,c("K","♠")),(1,c("Q","♠")),(2,c("J","♠")),(3,c("9","♠")),(4,c("8","♠")),(5,c("7","♠"))],
+            [(0,c("6","♠")),(1,c("5","♠")),(2,c("4","♠")),(3,c("3","♠")),(4,c("2","♠")),(5,c("Q","♥"))],
+            [(0,c("A","♣")),(1,c("K","♣")),(2,c("Q","♣")),(3,c("J","♣")),(4,c("10","♣")),(5,c("9","♣"))],
+            [(0,c("8","♣")),(1,c("7","♣")),(2,c("6","♣")),(3,c("5","♣")),(4,c("4","♣")),(5,c("3","♣"))],
+            [(0,c("A","♦")),(1,c("K","♦")),(2,c("Q","♦")),(3,c("J","♦")),(4,c("10","♦")),(5,c("9","♦"))],
+        ]
+        // After these 5 tricks: remaining spades = only A♠ (in hand). K♥ still out (Q♥ was played in trick2).
+        // Remaining hearts (besides A♥,10♥ in hand): K♥,J♥,9♥,8♥,7♥,6♥,5♥,4♥,3♥,2♥ (many).
+        // K♥ NOT played → remains ✓.
+        let hand = [c("A","♠"), c("A","♥"), c("10","♥")]
+
+        let result = lead(
+            seat: 0,
+            hand: hand,
+            highBidderIndex: 0,
+            actualPartners: [2, 4],
+            revealedPartners: [2, 4],
+            trumpSuit: .spades,
+            completedTricks: completedTricks,
+            wonPoints: [0, 0, 0, 0, 0, 0],
+            highBid: 150,
+            trickNumber: 5  // tricksRemaining=3 → endgame fires with new guard
+        )
+
+        XCTAssertNotEqual(result, "10♥",
+            "Bot with 3 cards should lead a winner (A♠ or A♥), not the loser 10♥; got \(result ?? "nil")")
+    }
 }
