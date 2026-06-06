@@ -125,6 +125,89 @@ enum AIEngine {
         let suspicionScores: [Int: Int]
     }
 
+    // MARK: - Hand Model
+
+    /// Per-player card probability distribution built from public information.
+    /// Stateless — rebuilt each computeCard call. Internal so AIEngineTests can access it.
+    struct HandModel {
+        // prob[cardId][playerIndex] → probability (0–1) player holds this card
+        private let prob: [String: [Int: Double]]
+
+        /// Probability that `player` holds any remaining card in `suit` with
+        /// rankScore > `beatingRankScore`. Pass -1 to match any card in the suit.
+        func threatProb(player: Int, suit: String, beatingRankScore: Int) -> Double {
+            prob.reduce(0.0) { sum, entry in
+                guard let cardSuit = entry.key.last.map(String.init),
+                      cardSuit == suit else { return sum }
+                let cardRank = String(entry.key.dropLast())
+                let rs = Card.rankOrder[cardRank] ?? 0
+                guard rs > beatingRankScore else { return sum }
+                return sum + (entry.value[player] ?? 0)
+            }
+        }
+
+        /// Probability that `player` holds no remaining cards in `suit`.
+        func voidProb(player: Int, suit: String) -> Double {
+            let held = prob.reduce(0.0) { sum, entry in
+                guard let cardSuit = entry.key.last.map(String.init),
+                      cardSuit == suit else { return sum }
+                return sum + (entry.value[player] ?? 0)
+            }
+            return max(0, 1.0 - held)
+        }
+
+        static func build(
+            seat: Int,
+            remainingCards: [Card],
+            knownVoids: [Int: Set<String>],
+            completedTricks: [[(playerIndex: Int, card: Card)]],
+            playerBidStrengths: [Int: Int]
+        ) -> HandModel {
+            // Determine which players led which suits from completed tricks.
+            var leadersBySuit: [String: Set<Int>] = [:]
+            for trick in completedTricks {
+                guard let lead = trick.first else { continue }
+                leadersBySuit[lead.card.suit, default: []].insert(lead.playerIndex)
+            }
+
+            var result: [String: [Int: Double]] = [:]
+
+            for card in remainingCards {
+                // Eligible holders: all non-self players not confirmed void in this suit.
+                let eligible = (0..<6).filter { p in
+                    p != seat && !(knownVoids[p]?.contains(card.suit) == true)
+                }
+                guard !eligible.isEmpty else {
+                    result[card.id] = [:]
+                    continue
+                }
+
+                let isHighValue = card.pointValue >= 10 || (Card.rankOrder[card.rank] ?? 0) >= 9
+
+                var weights: [Int: Double] = [:]
+                for p in eligible {
+                    var w = 1.0
+                    // Bid boost: strong bidders more likely hold high-value cards.
+                    if isHighValue, let strength = playerBidStrengths[p] {
+                        w *= 1.0 + (Double(strength) / 5.0) * 0.5
+                    }
+                    // Lead boost: player who led this suit likely still holds cards in it.
+                    if leadersBySuit[card.suit]?.contains(p) == true {
+                        w *= 1.5
+                    }
+                    weights[p] = w
+                }
+
+                let total = weights.values.reduce(0, +)
+                result[card.id] = total > 0
+                    ? weights.mapValues { $0 / total }
+                    : Dictionary(uniqueKeysWithValues: eligible.map { ($0, 1.0 / Double(eligible.count)) })
+            }
+
+            return HandModel(prob: result)
+        }
+    }
+
     // MARK: - Bid History
 
     /// Deduplicate bid history so each player appears once with their LATEST amount.
@@ -431,6 +514,13 @@ enum AIEngine {
             currentTrick: currentTrick,
             completedTricks: completedTricks
         )
+        let handModel = HandModel.build(
+            seat: seat,
+            remainingCards: remainingCards,
+            knownVoids: knownVoids,
+            completedTricks: completedTricks,
+            playerBidStrengths: playerBidStrengths
+        )
         let teamRead = inferTeamRead(
             publicKnownOffense: knownOffense,
             highBidderIndex: highBidderIndex,
@@ -504,7 +594,8 @@ enum AIEngine {
                 knownVoids: knownVoids,
                 urgency: urgency,
                 personality: style,
-                playerBidStrengths: playerBidStrengths
+                playerBidStrengths: playerBidStrengths,
+                handModel: handModel
             ).id
         }
 
@@ -526,7 +617,8 @@ enum AIEngine {
             ledSuit: ledSuit,
             trumpRaw: trumpRaw,
             remainingCards: remainingCards,
-            knownVoids: knownVoids
+            knownVoids: knownVoids,
+            handModel: handModel
         )
         let trickPoints = currentTrick.map(\.card.pointValue).reduce(0, +)
         // Dynamic personality: urgency raises feed tolerance by 1 so bots take
@@ -986,7 +1078,8 @@ enum AIEngine {
         knownVoids: [Int: Set<String>],
         urgency: Urgency,
         personality: BotPersonality,
-        playerBidStrengths: [Int: Int] = [:]
+        playerBidStrengths: [Int: Int] = [:],
+        handModel: HandModel? = nil
     ) -> Card {
         let unrevealedCalledSuits = Set(unrevealedCalledCardIds.compactMap { $0.last.map(String.init) })
         // 3♠ is still unplayed — factor into lead decisions below.
@@ -1017,10 +1110,23 @@ enum AIEngine {
             let higherTrumpRemaining = remainingCards.filter {
                 $0.suit == trumpRaw && rankScore($0) > rankScore(card)
             }.count
-            let futureVoidRisk = (0..<6).filter {
-                strategicOffenseSet.contains($0) != isKnownOffense
-                    && knownVoids[$0]?.contains(card.suit) == true
-            }.count
+            let futureVoidRisk: Int
+            if let model = handModel {
+                // Probabilistic void risk: confirmed voids (prob≈1.0) count fully;
+                // probable voids (0.3–0.7) count as 0.5; unlikely voids ignored.
+                let weighted = (0..<6).filter { p in
+                    strategicOffenseSet.contains(p) != isKnownOffense
+                }.reduce(0.0) { risk, p in
+                    let vp = model.voidProb(player: p, suit: card.suit)
+                    return risk + (vp > 0.7 ? 1.0 : vp > 0.3 ? 0.5 : 0.0)
+                }
+                futureVoidRisk = Int(weighted.rounded())
+            } else {
+                futureVoidRisk = (0..<6).filter {
+                    strategicOffenseSet.contains($0) != isKnownOffense
+                        && knownVoids[$0]?.contains(card.suit) == true
+                }.count
+            }
 
             var score = rankScore(card) + card.pointValue
             if isTrump {
@@ -1118,33 +1224,28 @@ enum AIEngine {
         ledSuit: String,
         trumpRaw: String,
         remainingCards: [Card],
-        knownVoids: [Int: Set<String>]
+        knownVoids: [Int: Set<String>],
+        handModel: HandModel
     ) -> Int {
         let futureOpponents = futureSeats.filter { strategicOffenseSet.contains($0) != isKnownOffense }
         guard !futureOpponents.isEmpty else { return 0 }
 
-        let higherTrumpCount = remainingCards.filter {
-            $0.suit == trumpRaw && rankScore($0) > rankScore(winnerCard)
-        }.count
-        let higherLedCount = remainingCards.filter {
-            $0.suit == ledSuit && rankScore($0) > rankScore(winnerCard)
-        }.count
-        let trumpRemainingCount = remainingCards.filter { $0.suit == trumpRaw }.count
-
+        let winnerRank = rankScore(winnerCard)
         return futureOpponents.reduce(0) { risk, player in
+            let p: Double
             if winnerCard.suit == trumpRaw {
-                if knownVoids[player]?.contains(ledSuit) == true && higherTrumpCount > 0 {
-                    return risk + 3
-                }
-                return risk + (higherTrumpCount >= 2 ? 1 : 0)
+                // Prob this player holds a higher trump.
+                p = handModel.threatProb(player: player, suit: trumpRaw,
+                                         beatingRankScore: winnerRank)
+            } else {
+                // Prob they hold a higher card in led suit, or are void and hold trump.
+                let ledThreat = handModel.threatProb(player: player, suit: ledSuit,
+                                                     beatingRankScore: winnerRank)
+                let ruffThreat = handModel.voidProb(player: player, suit: ledSuit)
+                    * handModel.threatProb(player: player, suit: trumpRaw, beatingRankScore: -1)
+                p = max(ledThreat, ruffThreat)
             }
-            if knownVoids[player]?.contains(ledSuit) == true && trumpRemainingCount > 0 {
-                return risk + (trumpRemainingCount >= 3 ? 3 : 2)
-            }
-            if higherLedCount > 0 {
-                return risk + min(2, higherLedCount)
-            }
-            return risk
+            return risk + (p > 0.5 ? 2 : p > 0.2 ? 1 : 0)
         }
     }
 

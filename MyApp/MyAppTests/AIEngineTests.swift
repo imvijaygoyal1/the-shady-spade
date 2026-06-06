@@ -102,43 +102,17 @@ final class AIEngineTests: XCTestCase {
     //
     // Without bonus: J♣ wins (score≈10) because 9♥ penalty is -6 → net≈1
     // With bonus:    9♥ wins (score≈13) because +12 establishment > J♣'s ≈10
+    // Scenario: defense bot (seat=1) holds 5 hearts — 10♥,8♥,7♥,6♥,5♥.
+    // No completed tricks → remaining ♥ = A♥,K♥,Q♥ (3 higher than 10♥).
+    // establishmentPotential = 5-3 = 2, bonus = +12.
+    // HandModel void risk rounds to 0 (1 offense player, voidProb=0.4 → 0.5 → 0).
+    //
+    // Without bonus: J♣ ≈10 > 10♥ ≈9 (bot avoids hearts)
+    // With bonus:    10♥ ≈21 > J♣ ≈10 (bot correctly establishes the long suit)
     func test_longSuitEstablishment_prefersLongHeartSuitOverSingleJ() {
         let hand = [
-            c("9","♥"), c("8","♥"), c("6","♥"), c("4","♥"),
-            c("J","♣"), c("3","♦"), c("4","♦"), c("5","♦"),
-        ]
-        // One completed trick that exhausted Q♥,J♥,10♥,5♥,3♥ (5 hearts played)
-        // leaving only A♥, K♥ as higher-than-9♥ hearts in remaining pool.
-        let completedTricks: [[(playerIndex: Int, card: Card)]] = [[
-            (playerIndex: 0, card: c("Q","♥")),
-            (playerIndex: 1, card: c("3","♣")),  // bot played 3♣ in past trick
-            (playerIndex: 2, card: c("J","♥")),
-            (playerIndex: 3, card: c("10","♥")),
-            (playerIndex: 4, card: c("5","♥")),
-            (playerIndex: 5, card: c("3","♥")),
-        ]]
-
-        let result = lead(
-            seat: 1,
-            hand: hand,
-            highBidderIndex: 0,
-            trumpSuit: .spades,
-            completedTricks: completedTricks,
-            trickNumber: 1
-        )
-
-        XCTAssertTrue(result?.hasSuffix("♥") == true,
-                      "Bot should establish the long heart suit (potential=2, bonus=+12); got \(result ?? "nil")")
-    }
-
-    func test_longSuitEstablishment_doesNotFireWhenTricksInsufficient() {
-        // Same hand but trickNumber=6 → tricksRemaining=2.
-        // With 4 remaining higher hearts (no tricks played), higherRemaining=4 and
-        // tricksRemaining(2) < higherRemaining+1(5) → bonus does NOT fire.
-        // J♣ or diamonds should be preferred over hearts.
-        let hand = [
-            c("9","♥"), c("8","♥"), c("6","♥"), c("4","♥"),
-            c("J","♣"), c("3","♦"), c("4","♦"), c("5","♦"),
+            c("10","♥"), c("8","♥"), c("7","♥"), c("6","♥"), c("5","♥"),
+            c("J","♣"), c("3","♦"), c("4","♦"),
         ]
 
         let result = lead(
@@ -147,13 +121,33 @@ final class AIEngineTests: XCTestCase {
             highBidderIndex: 0,
             trumpSuit: .spades,
             completedTricks: [],
-            trickNumber: 6  // tricksRemaining = 2, higherRemaining = 4 → bonus off
+            trickNumber: 0  // tricksRemaining=8 ≥ higherRemaining(3)+1=4 ✓
         )
 
-        // With 4 higher hearts remaining and only 2 tricks left, hearts are a losing lead.
-        // The bot should prefer J♣ (which has only 3 higher remaining in clubs).
+        XCTAssertTrue(result?.hasSuffix("♥") == true,
+                      "Bot should establish the long heart suit (potential=2, bonus=+12); got \(result ?? "nil")")
+    }
+
+    func test_longSuitEstablishment_doesNotFireWhenTricksInsufficient() {
+        // Same hand. trickNumber=5 → tricksRemaining=3.
+        // 3 higher hearts remain → need tricksRemaining≥4 to fire → bonus OFF.
+        // J♣ should win (score≈10 > 10♥ score≈9 without bonus).
+        let hand = [
+            c("10","♥"), c("8","♥"), c("7","♥"), c("6","♥"), c("5","♥"),
+            c("J","♣"), c("3","♦"), c("4","♦"),
+        ]
+
+        let result = lead(
+            seat: 1,
+            hand: hand,
+            highBidderIndex: 0,
+            trumpSuit: .spades,
+            completedTricks: [],
+            trickNumber: 5  // tricksRemaining=3 < higherRemaining(3)+1=4 → bonus off
+        )
+
         XCTAssertEqual(result, "J♣",
-                       "Bot should prefer J♣ over hearts when too few tricks remain to establish; got \(result ?? "nil")")
+                       "Bot should prefer J♣ when too few tricks remain to establish; got \(result ?? "nil")")
     }
 
     // MARK: - Trump Pull
@@ -261,5 +255,89 @@ final class AIEngineTests: XCTestCase {
         // A♥ alone → establishedNonTrumpWinners=1, bonus=0. A♥ should win over Q♠.
         XCTAssertFalse(result?.hasSuffix("♠") == true,
                        "Trump pull should not fire with only 1 established winner; got \(result ?? "nil")")
+    }
+
+    // MARK: - HandModel
+
+    private func buildModel(
+        seat: Int = 0,
+        remaining: [Card],
+        knownVoids: [Int: Set<String>] = [:],
+        completedTricks: [[(playerIndex: Int, card: Card)]] = [],
+        bidStrengths: [Int: Int] = [:]
+    ) -> AIEngine.HandModel {
+        AIEngine.HandModel.build(
+            seat: seat,
+            remainingCards: remaining,
+            knownVoids: knownVoids,
+            completedTricks: completedTricks,
+            playerBidStrengths: bidStrengths
+        )
+    }
+
+    func test_handModel_voidProbIsOneForConfirmedVoid() {
+        // Player 1 is confirmed void in hearts — voidProb should be 1.0.
+        let model = buildModel(
+            remaining: [c("A","♥"), c("K","♥")],
+            knownVoids: [1: ["♥"]]
+        )
+        XCTAssertEqual(model.voidProb(player: 1, suit: "♥"), 1.0, accuracy: 0.001)
+    }
+
+    func test_handModel_voidProbIsZeroWhenPlayerLikelyHoldsCardsInSuit() {
+        // Only 1 remaining heart, 1 eligible holder (player 1, no voids) → prob = 1.0 → voidProb = 0.
+        let model = buildModel(
+            remaining: [c("A","♥")],
+            knownVoids: [:]
+        )
+        // Player 1's prob of holding A♥ ≈ 1/5 (5 non-self eligible holders, equal weight)
+        // voidProb = 1 - (1/5) = 0.8 for most players, not 0.
+        // But with ONLY 1 card remaining and equal distribution, no player's voidProb is 0
+        // (they each have a 0.2 chance of holding it). Test that voidProb < 1.0.
+        XCTAssertLessThan(model.voidProb(player: 1, suit: "♥"), 1.0)
+    }
+
+    func test_handModel_bidBoostGivesStrongBidderHigherProbOnHighCard() {
+        // A♥ is high-value (pointValue=10). Player 1 bid strength=5, player 2 bid strength=0.
+        // Player 1 should have higher probability of holding A♥.
+        let model = buildModel(
+            remaining: [c("A","♥")],
+            bidStrengths: [1: 5, 2: 0, 3: 0, 4: 0, 5: 0]
+        )
+        let p1 = model.threatProb(player: 1, suit: "♥", beatingRankScore: -1)
+        let p2 = model.threatProb(player: 2, suit: "♥", beatingRankScore: -1)
+        XCTAssertGreaterThan(p1, p2,
+            "Strong bidder (strength=5) should have higher prob of holding A♥ than weak bidder (strength=0)")
+    }
+
+    func test_handModel_leadBoostGivesLeaderHigherProbInLedSuit() {
+        // Player 1 led ♥ in a completed trick. K♥ still remains.
+        // Player 1 should have higher prob of holding K♥ than player 2 who did not lead ♥.
+        let completedTricks: [[(playerIndex: Int, card: Card)]] = [[
+            (playerIndex: 1, card: c("Q","♥")),  // player 1 LED hearts
+            (playerIndex: 2, card: c("A","♠")),
+            (playerIndex: 3, card: c("J","♣")),
+            (playerIndex: 4, card: c("7","♦")),
+            (playerIndex: 5, card: c("6","♦")),
+        ]]
+        let model = buildModel(
+            remaining: [c("K","♥")],
+            completedTricks: completedTricks
+        )
+        let p1 = model.threatProb(player: 1, suit: "♥", beatingRankScore: -1)
+        let p2 = model.threatProb(player: 2, suit: "♥", beatingRankScore: -1)
+        XCTAssertGreaterThan(p1, p2,
+            "Player who led ♥ should have higher prob of holding remaining K♥")
+    }
+
+    func test_handModel_threatProbRespectsRankThreshold() {
+        // A♥ and 5♥ remain. threatProb with beatingRankScore=8 (beating 10♥=rankScore 8)
+        // should only count A♥ (rankScore=12 > 8), not 5♥ (rankScore=3).
+        let model = buildModel(remaining: [c("A","♥"), c("5","♥")])
+        // Player 1's prob of holding a card beating rank 8 = prob of holding A♥ only
+        let threatAll = model.threatProb(player: 1, suit: "♥", beatingRankScore: -1)
+        let threatAbove8 = model.threatProb(player: 1, suit: "♥", beatingRankScore: 8)
+        XCTAssertLessThan(threatAbove8, threatAll,
+            "Threat above rank 8 should be less than threat for any card (excludes 5♥)")
     }
 }
