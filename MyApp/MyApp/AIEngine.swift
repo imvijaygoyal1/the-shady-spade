@@ -1184,7 +1184,7 @@ enum AIEngine {
                         let p = model.threatProb(player: opp, suit: card.suit,
                                                  beatingRankScore: rankScore(card))
                         if p > 0.5 { score -= 8 }
-                        else if p < 0.15 { score += 25 }
+                        else if p < 0.15 { score += 5 }
                     }
                 }
                 // Long suit establishment: if we hold more cards in this suit than higher cards

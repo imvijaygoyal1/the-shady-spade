@@ -473,23 +473,41 @@ final class AIEngineTests: XCTestCase {
     // MARK: - Finessing
 
     func test_finessing_avoidsLeadIntoNearestOpponentWhoLikelyHoldsBeatingCard() {
-        // seat=0 (bidder/offense), choosing between J♥ and J♣.
-        // Player 1 is 1 seat after seat 0 → nearest opponent.
-        // Player 2,4 are partners (offense). So opponents are 1,3,5.
-        // Nearest opponent in seats 1–3 after seat 0: player 1 (offset=1).
-        // Player 1 led ♥ in a completed trick → lead boost → high prob of holding remaining ♥.
-        // J♥: higherRemaining=2 (A♥,K♥ still out), player1 likely holds one → threatProb > 0.5 → -8 finesse penalty.
-        // J♣: no completed ♣ tricks → equal distribution, low prob for player1 → no penalty or +5 bonus.
-        // Expected: bot leads J♣ (avoids finessing into player1).
-        let completedTricks: [[(playerIndex: Int, card: Card)]] = [[
-            (playerIndex: 1, card: c("Q","♥")),  // player1 LED hearts → lead boost
-            (playerIndex: 2, card: c("3","♦")),
-            (playerIndex: 3, card: c("4","♦")),
-            (playerIndex: 4, card: c("5","♦")),
-            (playerIndex: 5, card: c("6","♦")),
-            (playerIndex: 0, card: c("7","♦")),
-        ]]
-        let hand = [c("J","♥"), c("J","♣")]  // same rank, same points
+        // seat=0 (bidder/offense). Partners=[2,4]. Opponents=[1,3,5].
+        // Nearest opponent to seat0 in offsets 1–3: player1 (offset=1).
+        //
+        // Completed tricks:
+        //   Trick1: player1 LED Q♥ → lead boost for player1 in ♥ suit.
+        //   Trick2: A♣ and K♣ played → only Q♣ remains above J♣.
+        //
+        // J♥ analysis: higherRemaining=2 (A♥,K♥).
+        //   player1 lead boost → prob(A♥)+prob(K♥) ≈ 0.273+0.273 = 0.546 > 0.5 → -8 penalty.
+        //   J♥ score = rankScore(J)+(-2 higher,factor=1)+(-8 finesse) = 9-2-8 = -1.
+        //
+        // J♣ analysis: higherRemaining=1 (Q♣ only, A♣/K♣ played).
+        //   player1 prob(Q♣) = 1/5 = 0.2 → no penalty (0.15<0.2<0.5).
+        //   J♣ score = 9-1 = 8.
+        //
+        // Expected: J♣ (8 > -1).
+        let completedTricks: [[(playerIndex: Int, card: Card)]] = [
+            [   // player1 LED hearts → lead boost for ♥ on player1
+                (playerIndex: 1, card: c("Q","♥")),
+                (playerIndex: 2, card: c("3","♠")),
+                (playerIndex: 3, card: c("4","♠")),
+                (playerIndex: 4, card: c("5","♠")),
+                (playerIndex: 5, card: c("6","♠")),
+                (playerIndex: 0, card: c("7","♠")),
+            ],
+            [   // A♣ and K♣ played → only Q♣ above J♣ remains
+                (playerIndex: 0, card: c("A","♣")),
+                (playerIndex: 1, card: c("K","♣")),
+                (playerIndex: 2, card: c("8","♠")),
+                (playerIndex: 3, card: c("9","♠")),
+                (playerIndex: 4, card: c("10","♠")),
+                (playerIndex: 5, card: c("2","♦")),
+            ],
+        ]
+        let hand = [c("J","♥"), c("J","♣")]
 
         let result = lead(
             seat: 0,
@@ -499,7 +517,7 @@ final class AIEngineTests: XCTestCase {
             revealedPartners: [2, 4],
             trumpSuit: .spades,
             completedTricks: completedTricks,
-            trickNumber: 1
+            trickNumber: 2
         )
 
         XCTAssertEqual(result, "J♣",
@@ -507,18 +525,38 @@ final class AIEngineTests: XCTestCase {
     }
 
     func test_finessing_prefersLeadWhenNearestOpponentCannotBeat() {
-        // seat=0, choosing between J♥ and J♣.
-        // Player 1 is void in ♥ (played off-suit in a ♥-led trick) → voidProb(1,♥)≈1.0 → threatProb≈0 < 0.15 → +5 finesse bonus on J♥.
-        // J♣: no completed ♣ tricks, player1 not void in ♣ → no bonus.
-        // Expected: J♥ preferred (finesse bonus).
-        let completedTricks: [[(playerIndex: Int, card: Card)]] = [[
-            (playerIndex: 0, card: c("Q","♥")),  // seat0 led hearts
-            (playerIndex: 1, card: c("3","♦")),  // player1 played off-suit → confirmed void in ♥
-            (playerIndex: 2, card: c("4","♦")),
-            (playerIndex: 3, card: c("5","♦")),
-            (playerIndex: 4, card: c("6","♦")),
-            (playerIndex: 5, card: c("7","♦")),
-        ]]
+        // seat=0 (bidder/offense). Partners=[2,4]. Opponents=[1,3,5].
+        // Nearest opponent to seat0: player1 (offset=1).
+        //
+        // Setup (1 completed trick):
+        //   Player2 (partner) leads Q♥; player1 plays 6♦ (off-suit) → player1 confirmed void in ♥.
+        //   Players 3 and 5 follow ♥, so they are NOT void in ♥.
+        //   No suspicion inflation: only player0's 10♥ (10pts) feeds offense winner player2,
+        //   but player0 is already known offense — defense players' suspicion scores stay 0,
+        //   so strategicOffense={0,2,4} and player1 is correctly identified as nearest opponent.
+        //
+        // J♥ analysis: higherRemaining=2 (A♥,K♥ remain; Q♥/10♥/9♥/8♥/7♥ played in trick).
+        //   player1 void in ♥ → threatProb(1,♥,rankOf(J))=0 < 0.15 → +5 finesse bonus.
+        //   futureVoidRisk: player1 voidProb=1.0, players3/5 voidProb≈0 (5 remaining ♥ fill 4 eligible).
+        //   voidRiskMultiplier=10 (trump not exhausted). score -= 1*10 = -10.
+        //   J♥ score = 9+10 - 2 + 5 - 10 + pointFeedBias(conservative=-4) = 8.
+        //
+        // J♣ analysis: higherRemaining=3 (A♣,K♣,Q♣ all remain, no ♣ played).
+        //   player1 eligible for ♣ (not void in ♣). prob(1,A♣)+prob(1,K♣)+prob(1,Q♣) = 3×0.2 = 0.6 > 0.5
+        //   → -8 finesse penalty. voidRisk≈0 for J♣ (no opponent void in ♣).
+        //   J♣ score = 9+10 - 3 - 8 + pointFeedBias(-4) = 4.
+        //
+        // Expected: J♥ (8 > 4).
+        let completedTricks: [[(playerIndex: Int, card: Card)]] = [
+            [
+                (playerIndex: 2, card: c("Q","♥")),  // player2 (partner) leads Q♥
+                (playerIndex: 3, card: c("8","♥")),  // player3 follows ♥ → not void in ♥
+                (playerIndex: 4, card: c("9","♥")),  // player4 follows ♥
+                (playerIndex: 5, card: c("7","♥")),  // player5 follows ♥ → not void in ♥
+                (playerIndex: 0, card: c("10","♥")), // seat0 follows ♥
+                (playerIndex: 1, card: c("6","♦")),  // player1 plays off-suit → void in ♥
+            ],
+        ]
         let hand = [c("J","♥"), c("J","♣")]
 
         let result = lead(
