@@ -687,7 +687,10 @@ enum AIEngine {
             if canFeedPoints, let feed = nonTrump.max(by: { valueScore($0, personality: style) < valueScore($1, personality: style) }) {
                 return feed.id
             }
-            if let discard = nonTrump.min(by: { valueScore($0, personality: style) < valueScore($1, personality: style) }) {
+            if let discard = nonTrump.max(by: {
+                discardPreference($0, hand: hand, remainingCards: remainingCards)
+                    < discardPreference($1, hand: hand, remainingCards: remainingCards)
+            }) {
                 return discard.id
             }
             return lowestValueCard(trumpCards.isEmpty ? hand : trumpCards).id
@@ -1325,6 +1328,25 @@ enum AIEngine {
             if $0.pointValue != $1.pointValue { return $0.pointValue < $1.pointValue }
             return rankScore($0) < rankScore($1)
         } ?? cards[0]
+    }
+
+    /// Signal-aware discard scoring: prefers discarding from suits the bot cannot establish
+    /// (implicit "don't lead this back" signal), while strongly protecting point cards.
+    /// Higher score = better discard candidate.
+    private static func discardPreference(
+        _ card: Card, hand: [Card], remainingCards: [Card]
+    ) -> Int {
+        let suitCards = hand.filter { $0.suit == card.suit }
+        let higherOut = remainingCards.filter {
+            $0.suit == card.suit && rankScore($0) > rankScore(card)
+        }.count
+        let canEstablish = higherOut < suitCards.count
+        var score = 0
+        if !canEstablish { score += 10 }   // can't win this suit — safe to abandon
+        if card.pointValue > 0 { score -= 20 }  // never discard point card if avoidable
+        score -= card.pointValue
+        score -= rankScore(card)
+        return score
     }
 
     private static func rankScore(_ card: Card) -> Int {

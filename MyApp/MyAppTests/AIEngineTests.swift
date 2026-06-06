@@ -524,6 +524,57 @@ final class AIEngineTests: XCTestCase {
             "Bot should avoid finessing J♥ into player1 who likely holds ♥ blockers; got \(result ?? "nil")")
     }
 
+    // MARK: - Discard Signaling
+
+    func test_discardSignaling_prefersUnestablishableSuitOverPointCard() {
+        // Defense bot (seat=1) can't follow hearts (no hearts in hand).
+        // Teammate (seat=5) winning with A♥. canFeedPoints=false (bidderCloseToWin).
+        //
+        // Hand (non-trump): 4♣ (last club in hand), K♦ (10pts), 7♦ (second diamond).
+        // Completed trick: A♣,K♣,Q♣,J♣,10♣,9♣ all played → 4♣ is last club, higherOut=0,
+        //   suitCards=1 → canEstablish=false → discardPreference(4♣) = +10 (abandon) -0 -rankScore(4).
+        // K♦: pointValue=10 → discardPreference = 0 -20 -10 -rankScore(K) → very negative.
+        // 7♦: suitCards=2 (K♦,7♦ in hand). higherOut for 7♦ = remaining ♦ with rank > 7.
+        //   A♦,Q♦,J♦,10♦,9♦,8♦ all remain → higherOut=6 > suitCards=2 → canEstablish=false.
+        //   discardPreference(7♦) = +10 (abandon) -0 -rankScore(7).
+        //   rankScore(4♣) < rankScore(7♦) → 4♣ wins tie.
+        //
+        // bidderCloseToWin condition: wonPoints[0]=120, highBid=150.
+        //   offensePoints(120) >= 150*0.75=112.5 ✓, shortfall(30) <= remaining(80)/2=40 ✓.
+        //
+        // Expected: 4♣ discarded (not K♦).
+        let completedTricks: [[(playerIndex: Int, card: Card)]] = [[
+            (playerIndex: 0, card: c("A","♣")),
+            (playerIndex: 2, card: c("K","♣")),
+            (playerIndex: 3, card: c("Q","♣")),
+            (playerIndex: 4, card: c("J","♣")),
+            (playerIndex: 5, card: c("10","♣")),
+            (playerIndex: 1, card: c("9","♣")),
+        ]]
+        let currentTrick: [(playerIndex: Int, card: Card)] = [
+            (playerIndex: 5, card: c("A","♥")),  // teammate winning
+        ]
+        let hand = [c("4","♣"), c("K","♦"), c("7","♦")]  // no hearts → can't follow
+
+        let result = AIEngine.computeCard(
+            seat: 1,
+            hand: hand,
+            actualPartnerIndices: [],
+            revealedPartnerIndices: [],
+            calledCardIds: [],
+            highBidderIndex: 0,
+            trumpSuit: .spades,
+            currentTrick: currentTrick,
+            completedTricks: completedTricks,
+            wonPointsPerPlayer: [120, 0, 0, 0, 0, 0],  // bidderCloseToWin → canFeedPoints=false
+            highBid: 150,
+            trickNumber: 1
+        )
+
+        XCTAssertNotEqual(result, "K♦",
+            "Bot should not discard K♦ (10pt card) when 0-point unestablishable discard available; got \(result ?? "nil")")
+    }
+
     func test_finessing_prefersLeadWhenNearestOpponentCannotBeat() {
         // seat=0 (bidder/offense). Partners=[2,4]. Opponents=[1,3,5].
         // Nearest opponent to seat0: player1 (offset=1).
