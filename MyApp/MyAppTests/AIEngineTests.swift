@@ -559,8 +559,8 @@ final class AIEngineTests: XCTestCase {
         let result = AIEngine.computeCard(
             seat: 1,
             hand: hand,
-            actualPartnerIndices: [],
-            revealedPartnerIndices: [],
+            actualPartnerIndices: [5],   // seat5 (A♥ leader) is a known teammate → teammateWinning=true
+            revealedPartnerIndices: [5],
             calledCardIds: [],
             highBidderIndex: 0,
             trumpSuit: .spades,
@@ -571,8 +571,8 @@ final class AIEngineTests: XCTestCase {
             trickNumber: 1
         )
 
-        XCTAssertNotEqual(result, "K♦",
-            "Bot should not discard K♦ (10pt card) when 0-point unestablishable discard available; got \(result ?? "nil")")
+        XCTAssertEqual(result, "4♣",
+            "Bot should discard 4♣ (unestablishable 0pt) over 7♦ (also unestablishable but higher rank) and K♦ (point card); got \(result ?? "nil")")
     }
 
     func test_finessing_prefersLeadWhenNearestOpponentCannotBeat() {
