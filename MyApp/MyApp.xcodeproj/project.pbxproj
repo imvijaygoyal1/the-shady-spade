@@ -12,6 +12,7 @@
 		A1000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* ContentView.swift */; };
 		A1000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000003 /* Assets.xcassets */; };
 		A1000004 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000004 /* Preview Assets.xcassets */; };
+		AI100001 /* AIEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI200001 /* AIEngine.swift */; };
 		B1000001 /* GameModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* GameModel.swift */; };
 		B1000002 /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* GameViewModel.swift */; };
 		B1000003 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* MainView.swift */; };
@@ -56,7 +57,7 @@
 		TN100001 /* TurnNudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = TN200001 /* TurnNudge.swift */; };
 		TV100001 /* TVDisplayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TV200001 /* TVDisplayManager.swift */; };
 		TV100002 /* TVGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TV200002 /* TVGameView.swift */; };
-		AI100001 /* AIEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI200001 /* AIEngine.swift */; };
+		TX100001 /* AIEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200001 /* AIEngineTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -69,6 +70,7 @@
 		A2000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A2000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A2000004 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		AI200001 /* AIEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEngine.swift; sourceTree = "<group>"; };
 		B2000001 /* GameModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameModel.swift; sourceTree = "<group>"; };
 		B2000002 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
 		B2000003 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
@@ -110,7 +112,8 @@
 		TN200001 /* TurnNudge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnNudge.swift; sourceTree = "<group>"; };
 		TV200001 /* TVDisplayManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVDisplayManager.swift; sourceTree = "<group>"; };
 		TV200002 /* TVGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVGameView.swift; sourceTree = "<group>"; };
-		AI200001 /* AIEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEngine.swift; sourceTree = "<group>"; };
+		TX200000 /* MyAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		TX200001 /* AIEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEngineTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -124,6 +127,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		TX300001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -131,6 +141,7 @@
 			isa = PBXGroup;
 			children = (
 				A4000001 /* MyApp */,
+				TX400000 /* MyAppTests */,
 				A4000002 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -196,8 +207,17 @@
 			isa = PBXGroup;
 			children = (
 				A2000000 /* MyApp.app */,
+				TX200000 /* MyAppTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		TX400000 /* MyAppTests */ = {
+			isa = PBXGroup;
+			children = (
+				TX200001 /* AIEngineTests.swift */,
+			);
+			path = MyAppTests;
 			sourceTree = "<group>";
 		};
 		A4000003 /* Preview Content */ = {
@@ -233,6 +253,24 @@
 			productReference = A2000000 /* MyApp.app */;
 			productType = "com.apple.product-type.application";
 		};
+		TX500001 /* MyAppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = TX600001 /* Build configuration list for PBXNativeTarget "MyAppTests" */;
+			buildPhases = (
+				TX300000 /* Sources */,
+				TX300001 /* Frameworks */,
+				TX300002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				TX700001 /* PBXTargetDependency */,
+			);
+			name = MyAppTests;
+			productName = MyAppTests;
+			productReference = TX200000 /* MyAppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -245,6 +283,10 @@
 				TargetAttributes = {
 					A5000001 = {
 						CreatedOnToolsVersion = 15.4;
+					};
+					TX500001 = {
+						CreatedOnToolsVersion = 15.4;
+						TestTargetID = A5000001;
 					};
 				};
 			};
@@ -265,6 +307,7 @@
 			projectRoot = "";
 			targets = (
 				A5000001 /* MyApp */,
+				TX500001 /* MyAppTests */,
 			);
 		};
 /* End PBXProject section */
@@ -278,6 +321,13 @@
 				A1000003 /* Assets.xcassets in Resources */,
 				9FCB9B032F54A07E005C3E4B /* GoogleService-Info.plist in Resources */,
 				P1000001 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		TX300002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -331,6 +381,14 @@
 				LV100001 /* LeaderboardView.swift in Sources */,
 				TN100001 /* TurnNudge.swift in Sources */,
 				AI100001 /* AIEngine.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		TX300000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				TX100001 /* AIEngineTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -483,7 +541,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.8;
+				MARKETING_VERSION = 1.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -520,7 +578,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.8;
+				MARKETING_VERSION = 1.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -528,6 +586,40 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		TX600010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 7B5U5LACV3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MyApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MyApp";
+			};
+			name = Debug;
+		};
+		TX600011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 7B5U5LACV3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MyApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MyApp";
 			};
 			name = Release;
 		};
@@ -552,7 +644,34 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		TX600001 /* Build configuration list for PBXNativeTarget "MyAppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				TX600010 /* Debug */,
+				TX600011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin PBXContainerItemProxy section */
+		TX800001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A5000001;
+			remoteInfo = MyApp;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		TX700001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A5000001 /* MyApp */;
+			targetProxy = TX800001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		FB000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
