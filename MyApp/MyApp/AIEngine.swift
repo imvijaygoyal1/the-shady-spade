@@ -994,6 +994,21 @@ enum AIEngine {
         // Trump exhaustion: if no trump remains anywhere outside our hand,
         // void-ruff risk disappears and established suit winners run freely.
         let trumpExhausted = !remainingCards.contains { $0.suit == trumpRaw }
+        // Trump pull: count established non-trump winners (no higher card remains, suit length >= 2).
+        // When the bidding team holds 2+ such winners and is in the first 4 tricks, add a bonus to
+        // trump leads so bots clear opponents' ruffs before cashing those winners.
+        let establishedNonTrumpWinners = hand.filter { card in
+            guard card.suit != trumpRaw else { return false }
+            let higher = remainingCards.filter {
+                $0.suit == card.suit && rankScore($0) > rankScore(card)
+            }.count
+            return higher == 0 && hand.filter { $0.suit == card.suit }.count >= 2
+        }.count
+        let trumpPullBonus = isKnownOffense
+            && !trumpExhausted
+            && urgency.tricksRemaining >= 5
+            && establishedNonTrumpWinners >= 2
+            ? establishedNonTrumpWinners * 10 : 0
         let scored = hand.map { card -> (Card, Int) in
             let isTrump = card.suit == trumpRaw
             let higherRemaining = remainingCards.filter {
@@ -1023,12 +1038,22 @@ enum AIEngine {
                 if threeSpadeStillOut && card.rank != "A" && !urgency.eitherSide {
                     score -= 8
                 }
+                score += trumpPullBonus
             } else {
                 // Partner-adjusted higher-remaining penalty: offense leading into a suit
                 // where the higher cards may be in partner's hand is much less risky
                 // than leading into opponent strength — halve the penalty for offense.
                 let higherPenaltyFactor = isKnownOffense ? 1 : 3
                 score += higherRemaining == 0 ? 18 : -(higherRemaining * higherPenaltyFactor)
+                // Long suit establishment: if we hold more cards in this suit than higher cards
+                // remaining, leading it repeatedly exhausts blockers and turns lower cards into winners.
+                let suitLength = hand.filter { $0.suit == card.suit }.count
+                if higherRemaining > 0 {
+                    let establishmentPotential = suitLength - higherRemaining
+                    if establishmentPotential > 0 && urgency.tricksRemaining >= higherRemaining + 1 {
+                        score += establishmentPotential * 6
+                    }
+                }
                 // Trump exhaustion: if no trump remains elsewhere, void-ruff risk is zero;
                 // also add a bonus for sure winners that can now safely run.
                 let voidRiskMultiplier = trumpExhausted ? 0 : 10
