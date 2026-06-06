@@ -469,4 +469,70 @@ final class AIEngineTests: XCTestCase {
         XCTAssertNotEqual(result, "J♠",
             "Offense bot with secure bid should not ruff a 15-point trick (threshold raised to 30); got \(result ?? "nil")")
     }
+
+    // MARK: - Finessing
+
+    func test_finessing_avoidsLeadIntoNearestOpponentWhoLikelyHoldsBeatingCard() {
+        // seat=0 (bidder/offense), choosing between J♥ and J♣.
+        // Player 1 is 1 seat after seat 0 → nearest opponent.
+        // Player 2,4 are partners (offense). So opponents are 1,3,5.
+        // Nearest opponent in seats 1–3 after seat 0: player 1 (offset=1).
+        // Player 1 led ♥ in a completed trick → lead boost → high prob of holding remaining ♥.
+        // J♥: higherRemaining=2 (A♥,K♥ still out), player1 likely holds one → threatProb > 0.5 → -8 finesse penalty.
+        // J♣: no completed ♣ tricks → equal distribution, low prob for player1 → no penalty or +5 bonus.
+        // Expected: bot leads J♣ (avoids finessing into player1).
+        let completedTricks: [[(playerIndex: Int, card: Card)]] = [[
+            (playerIndex: 1, card: c("Q","♥")),  // player1 LED hearts → lead boost
+            (playerIndex: 2, card: c("3","♦")),
+            (playerIndex: 3, card: c("4","♦")),
+            (playerIndex: 4, card: c("5","♦")),
+            (playerIndex: 5, card: c("6","♦")),
+            (playerIndex: 0, card: c("7","♦")),
+        ]]
+        let hand = [c("J","♥"), c("J","♣")]  // same rank, same points
+
+        let result = lead(
+            seat: 0,
+            hand: hand,
+            highBidderIndex: 0,
+            actualPartners: [2, 4],
+            revealedPartners: [2, 4],
+            trumpSuit: .spades,
+            completedTricks: completedTricks,
+            trickNumber: 1
+        )
+
+        XCTAssertEqual(result, "J♣",
+            "Bot should avoid finessing J♥ into player1 who likely holds ♥ blockers; got \(result ?? "nil")")
+    }
+
+    func test_finessing_prefersLeadWhenNearestOpponentCannotBeat() {
+        // seat=0, choosing between J♥ and J♣.
+        // Player 1 is void in ♥ (played off-suit in a ♥-led trick) → voidProb(1,♥)≈1.0 → threatProb≈0 < 0.15 → +5 finesse bonus on J♥.
+        // J♣: no completed ♣ tricks, player1 not void in ♣ → no bonus.
+        // Expected: J♥ preferred (finesse bonus).
+        let completedTricks: [[(playerIndex: Int, card: Card)]] = [[
+            (playerIndex: 0, card: c("Q","♥")),  // seat0 led hearts
+            (playerIndex: 1, card: c("3","♦")),  // player1 played off-suit → confirmed void in ♥
+            (playerIndex: 2, card: c("4","♦")),
+            (playerIndex: 3, card: c("5","♦")),
+            (playerIndex: 4, card: c("6","♦")),
+            (playerIndex: 5, card: c("7","♦")),
+        ]]
+        let hand = [c("J","♥"), c("J","♣")]
+
+        let result = lead(
+            seat: 0,
+            hand: hand,
+            highBidderIndex: 0,
+            actualPartners: [2, 4],
+            revealedPartners: [2, 4],
+            trumpSuit: .spades,
+            completedTricks: completedTricks,
+            trickNumber: 1
+        )
+
+        XCTAssertEqual(result, "J♥",
+            "Bot should prefer J♥ finesse when nearest opponent is void in ♥; got \(result ?? "nil")")
+    }
 }

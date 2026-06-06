@@ -1171,6 +1171,22 @@ enum AIEngine {
                 // than leading into opponent strength — halve the penalty for offense.
                 let higherPenaltyFactor = isKnownOffense ? 1 : 3
                 score += higherRemaining == 0 ? 18 : -(higherRemaining * higherPenaltyFactor)
+                // Finessing: if the nearest opponent (1–3 seats after us) probably holds a
+                // beating card, leading into them is risky; if they almost certainly don't,
+                // the lead is safer than raw higherRemaining suggests.
+                if higherRemaining > 0, let model = handModel {
+                    let nextOpponent = (0..<6).first { p in
+                        let offset = (p - seat + 6) % 6
+                        return offset >= 1 && offset <= 3
+                            && strategicOffenseSet.contains(p) != isKnownOffense
+                    }
+                    if let opp = nextOpponent {
+                        let p = model.threatProb(player: opp, suit: card.suit,
+                                                 beatingRankScore: rankScore(card))
+                        if p > 0.5 { score -= 8 }
+                        else if p < 0.15 { score += 25 }
+                    }
+                }
                 // Long suit establishment: if we hold more cards in this suit than higher cards
                 // remaining, leading it repeatedly exhausts blockers and turns lower cards into winners.
                 let suitLength = hand.filter { $0.suit == card.suit }.count
