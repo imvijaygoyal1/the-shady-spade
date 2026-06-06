@@ -668,4 +668,44 @@ final class AIEngineTests: XCTestCase {
         XCTAssertNotEqual(result, "10♥",
             "Bot with 3 cards should lead a winner (A♠ or A♥), not the loser 10♥; got \(result ?? "nil")")
     }
+
+    // MARK: - Post-Reveal Coordination
+
+    func test_postRevealCoordination_bidderLeadsTowardRevealedPartnerStrength() {
+        // Bidder (seat=0) with both partners revealed (seats 2, 4).
+        // Choosing between Q♣ and Q♦ — same rank, same points.
+        //
+        // Partner (seat=2) LED ♣ in a completed trick → lead boost → high prob of holding remaining ♣.
+        // No ♦ leads by partners → equal distribution for ♦.
+        //
+        // Post-reveal: partnerStrength for ♣ = max(threatProb(2,♣,-1), threatProb(4,♣,-1)).
+        //   Seat2 has lead boost for ♣ → higher prob → partnerStrength > neutral.
+        //   Score boost = Int(partnerStrength * 16) > 0 for Q♣.
+        // Post-reveal: partnerStrength for ♦ = max over partners, no lead history → lower.
+        //
+        // Expected: Q♣ (bidder leads toward partner's known club strength).
+        let completedTricks: [[(playerIndex: Int, card: Card)]] = [[
+            (playerIndex: 2, card: c("K","♣")),  // partner(seat=2) LED clubs → lead boost
+            (playerIndex: 3, card: c("3","♦")),
+            (playerIndex: 4, card: c("4","♦")),
+            (playerIndex: 5, card: c("5","♦")),
+            (playerIndex: 0, card: c("6","♦")),
+            (playerIndex: 1, card: c("7","♦")),
+        ]]
+        let hand = [c("Q","♣"), c("Q","♦")]
+
+        let result = lead(
+            seat: 0,
+            hand: hand,
+            highBidderIndex: 0,
+            actualPartners: [2, 4],
+            revealedPartners: [2, 4],   // both partners revealed
+            trumpSuit: .spades,
+            completedTricks: completedTricks,
+            trickNumber: 1
+        )
+
+        XCTAssertEqual(result, "Q♣",
+            "Bidder should lead toward partner(seat=2)'s known club strength; got \(result ?? "nil")")
+    }
 }

@@ -597,7 +597,8 @@ enum AIEngine {
                 urgency: urgency,
                 personality: style,
                 playerBidStrengths: playerBidStrengths,
-                handModel: handModel
+                handModel: handModel,
+                revealedPartnerIndices: revealedPartnerIndices
             ).id
         }
 
@@ -1101,7 +1102,8 @@ enum AIEngine {
         urgency: Urgency,
         personality: BotPersonality,
         playerBidStrengths: [Int: Int] = [:],
-        handModel: HandModel? = nil
+        handModel: HandModel? = nil,
+        revealedPartnerIndices: Set<Int> = []
     ) -> Card {
         let unrevealedCalledSuits = Set(unrevealedCalledCardIds.compactMap { $0.last.map(String.init) })
         // 3♠ is still unplayed — factor into lead decisions below.
@@ -1211,6 +1213,25 @@ enum AIEngine {
                    unrevealedCalledSuits.contains(card.suit) {
                     score += 24 - card.pointValue
                     if urgency.offense { score += 12 }
+                }
+                // Post-reveal coordination: bidder leads toward suit where revealed partners
+                // probably hold cards above the baseline uniform distribution.
+                // Uses above-baseline excess so uniform distributions (no lead history) add 0,
+                // keeping the bonus from inflating all non-trump suits equally.
+                // Up to +16 (below trump-pull +30 and denial +20) — a preference, not override.
+                if seat == highBidderIndex,
+                   !revealedPartnerIndices.isEmpty,
+                   let model = handModel,
+                   !isTrump {
+                    let suitRemaining = remainingCards.filter { $0.suit == card.suit }.count
+                    let numEligible = max(1, 5)   // 5 non-self players
+                    let baseline = Double(suitRemaining) / Double(numEligible)
+                    let partnerStrength = revealedPartnerIndices.reduce(0.0) { best, p in
+                        max(best, model.threatProb(player: p, suit: card.suit,
+                                                   beatingRankScore: -1))
+                    }
+                    let aboveBaseline = max(0.0, partnerStrength - baseline)
+                    score += Int(aboveBaseline * 16)
                 }
                 score += personality.pointFeedBias
 
