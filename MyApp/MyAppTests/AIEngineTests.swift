@@ -412,4 +412,61 @@ final class AIEngineTests: XCTestCase {
         XCTAssertLessThan(threatAbove8, threatAll,
             "Threat above rank 8 should be less than threat for any card (excludes 5♥)")
     }
+
+    // MARK: - Safety Plays (Bid Secure)
+
+    func test_safetyPlay_avoidsRiskyTrumpLeadWhenBidSecure() {
+        // offensePoints: seats 0+2+4 = wonPoints[0]+wonPoints[2]+wonPoints[4] = 155
+        // highBid=150 → bidSecure=true
+        // 4♠ has higherTrumpRemaining>=2 (K♠,Q♠,J♠... all still out) → gets -12 penalty
+        // A♠ has higherTrumpRemaining==0 → no penalty → A♠ should be preferred over 4♠
+        // K♥ is non-trump winner (no higher hearts in remaining after A♥... wait)
+        // The key assertion: 4♠ is NOT the chosen lead.
+        let hand = [c("A","♠"), c("4","♠"), c("K","♥")]
+
+        let result = lead(
+            seat: 0,
+            hand: hand,
+            highBidderIndex: 0,
+            actualPartners: [2, 4],
+            revealedPartners: [2, 4],
+            trumpSuit: .spades,
+            wonPoints: [155, 0, 0, 0, 0, 0],  // offensePoints=155 >= highBid=150 → bidSecure
+            highBid: 150,
+            trickNumber: 3
+        )
+
+        XCTAssertNotEqual(result, "4♠",
+            "Offense bot with secure bid should not lead risky 4♠ trump; got \(result ?? "nil")")
+    }
+
+    func test_safetyPlay_raisesRuffThresholdWhenBidSecure() {
+        // Offense bot (seat=0, bidder). Can't follow hearts. Holds J♠ (trump).
+        // Current trick: player1 leads 10♥ (10pts), player5 plays 5♥ → trickPoints=15.
+        // Normal aggressive threshold=10. With bidSecure: threshold=10+20=30. 15 < 30 → discard.
+        let hand = [c("J","♠"), c("3","♦"), c("4","♦")]  // no hearts → can't follow
+        let currentTrick: [(playerIndex: Int, card: Card)] = [
+            (playerIndex: 1, card: c("10","♥")),
+            (playerIndex: 5, card: c("5","♥")),
+        ]
+
+        let result = AIEngine.computeCard(
+            seat: 0,
+            hand: hand,
+            actualPartnerIndices: [2, 4],
+            revealedPartnerIndices: [2, 4],
+            calledCardIds: [],
+            highBidderIndex: 0,
+            trumpSuit: .spades,
+            currentTrick: currentTrick,
+            completedTricks: [],
+            wonPointsPerPlayer: [155, 0, 0, 0, 0, 0],  // bidSecure
+            highBid: 150,
+            trickNumber: 3,
+            personality: .aggressive  // threshold=10; after bidSecure raise: 30 > trickPoints(15)
+        )
+
+        XCTAssertNotEqual(result, "J♠",
+            "Offense bot with secure bid should not ruff a 15-point trick (threshold raised to 30); got \(result ?? "nil")")
+    }
 }

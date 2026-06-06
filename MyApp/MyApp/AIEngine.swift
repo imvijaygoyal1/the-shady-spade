@@ -103,6 +103,7 @@ enum AIEngine {
         let remainingPoints: Int
         let tricksRemaining: Int
         let bidderCloseToWin: Bool
+        let bidSecure: Bool        // ADD THIS
 
         var eitherSide: Bool { offense || defense }
     }
@@ -701,7 +702,7 @@ enum AIEngine {
         // when significant value remains unplayed, keeping trump for bigger moments.
         let threeSpadeInTrick = currentTrick.contains { $0.card.id == "3♠" }
         let threeSpadeStillOut = remainingCards.contains { $0.id == "3♠" }
-        let effectiveTrumpThreshold: Int
+        var effectiveTrumpThreshold: Int
         if threeSpadeInTrick {
             effectiveTrumpThreshold = 0          // Always trump to contest the 3♠
         } else if threeSpadeStillOut && !urgency.eitherSide {
@@ -709,8 +710,12 @@ enum AIEngine {
         } else {
             effectiveTrumpThreshold = style.trumpInPointThreshold
         }
+        if isKnownOffense && urgency.bidSecure { effectiveTrumpThreshold += 20 }
+        // When bid is already secure, offense bots should not be forced to trump by urgency alone —
+        // the raised threshold governs. Otherwise urgency (e.g. defenseUrgent) would bypass the raise.
+        let safetyOverridesUrgency = isKnownOffense && urgency.bidSecure
         let shouldTrump = !winningTrumps.isEmpty
-            && (trickPoints >= effectiveTrumpThreshold || urgency.eitherSide)
+            && (trickPoints >= effectiveTrumpThreshold || (urgency.eitherSide && !safetyOverridesUrgency))
         if shouldTrump, let bestTrump = lowestWinningCard(winningTrumps, trumpRaw: trumpRaw) {
             // Over-ruffing check: if a future opponent is void in the led suit AND
             // holds a higher trump, our trump will be over-ruffed for no gain.
@@ -1065,6 +1070,8 @@ enum AIEngine {
                  && offenseShortfall <= remainingPoints / 2)
                 || (offenseShortfall <= remainingPoints && remainingPoints < 30))
 
+        let bidSecure = offensePoints >= highBid
+
         return Urgency(
             offense: offenseUrgent,
             defense: defenseUrgent,
@@ -1072,7 +1079,8 @@ enum AIEngine {
             defensePoints: defensePoints,
             remainingPoints: remainingPoints,
             tricksRemaining: tricksRemaining,
-            bidderCloseToWin: bidderCloseToWin
+            bidderCloseToWin: bidderCloseToWin,
+            bidSecure: bidSecure
         )
     }
 
@@ -1149,6 +1157,7 @@ enum AIEngine {
                 if seat == highBidderIndex || personality == .trumpController { score += 10 }
                 if higherTrumpRemaining == 0 { score += 10 }
                 if higherTrumpRemaining >= 3 { score -= higherTrumpRemaining * 4 }
+                if isKnownOffense && urgency.bidSecure && higherTrumpRemaining >= 2 { score -= 12 }
                 if !isKnownOffense && !urgency.defense { score -= 8 }
                 // Sacrifice / 3♠ reservation: don't eagerly draw trump when the 3♠
                 // is still unplayed and game is not yet urgent — save trump to intercept it.
