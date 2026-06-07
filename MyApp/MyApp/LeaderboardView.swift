@@ -184,6 +184,91 @@ private enum LeaderboardModeFilter: String, CaseIterable, Identifiable {
     }
 }
 
+private enum LeaderboardReportMail {
+    private static let supportEmail = "imvijaygoyal1@icloud.com"
+    private static let subject = "The Shady Spade leaderboard report"
+
+    static func playerDetailURL(stat: PlayerStat) -> URL? {
+        reportURL(
+            playerName: stat.name,
+            context: [
+                "Source: Leaderboard player details",
+                "Last mode: \(displayMode(stat.lastGameMode))",
+                "Games: \(stat.gamesPlayed)",
+                "Wins: \(stat.wins)",
+                "Total points: \(stat.totalPoints)",
+                "Bid success: \(stat.bidSuccessRateString)",
+                "Last played: \(formattedDate(stat.lastPlayed))"
+            ]
+        )
+    }
+
+    static func gameLogURL(entry: GameLogEntry, playerName: String? = nil, role: String? = nil) -> URL? {
+        var context = [
+            "Source: Recent games",
+            "Game mode: \(displayMode(entry.gameMode))",
+            "Date: \(formattedDate(entry.date))",
+            "Round: \(entry.roundCount)",
+            "Bid: \(entry.bid)",
+            "Result: \(entry.bidMade ? "Made" : "Set")",
+            "Bidder: \(entry.bidderName) (\(entry.bidderScore))"
+        ]
+
+        if !entry.partner1Name.isEmpty {
+            context.append("Partner 1: \(entry.partner1Name) (\(entry.partner1Score))")
+        }
+        if !entry.partner2Name.isEmpty {
+            context.append("Partner 2: \(entry.partner2Name) (\(entry.partner2Score))")
+        }
+        if !entry.defenseNames.isEmpty {
+            context.append("Defense: \(entry.defenseNames.joined(separator: ", "))")
+            context.append("Defense points caught: \(entry.defensePointsCaught)")
+        }
+        if let role {
+            context.append("Reported role: \(role)")
+        }
+
+        return reportURL(
+            playerName: playerName ?? "Game log entry",
+            context: context
+        )
+    }
+
+    private static func reportURL(playerName: String, context: [String]) -> URL? {
+        var bodyLines = [
+            "Please review this leaderboard item.",
+            "",
+            "Reported name: \(playerName)"
+        ]
+        bodyLines.append(contentsOf: context)
+        bodyLines.append(contentsOf: [
+            "",
+            "Reason:",
+            ""
+        ])
+
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = supportEmail
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: subject),
+            URLQueryItem(name: "body", value: bodyLines.joined(separator: "\n"))
+        ]
+        return components.url
+    }
+
+    private static func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
+    private static func displayMode(_ mode: String) -> String {
+        mode == "PassAndPlay" ? "Pass & Play" : mode
+    }
+}
+
 private struct LeaderboardMenuButton<Content: View>: View {
     let title: String
     let value: String
@@ -381,6 +466,15 @@ private struct PlayerStatDetailSheet: View {
                     detailRow("Bid Success", stat.bidSuccessRateString)
                     detailRow("Last Mode", displayMode(stat.lastGameMode))
                 }
+
+                if let reportURL = LeaderboardReportMail.playerDetailURL(stat: stat) {
+                    Section("Report") {
+                        Link(destination: reportURL) {
+                            Label("Report Player Name", systemImage: "flag")
+                                .foregroundStyle(.defenseRose)
+                        }
+                    }
+                }
             }
             .navigationTitle("Player Details")
             .navigationBarTitleDisplayMode(.inline)
@@ -488,6 +582,7 @@ private struct GameLogCard: View {
                     .padding(.vertical, 3)
                     .background(resultColor.opacity(0.15))
                     .clipShape(Capsule())
+                reportMenu
             }
 
             Divider()
@@ -560,6 +655,55 @@ private struct GameLogCard: View {
         }
         .padding(14)
         .glassmorphic(cornerRadius: 16)
+    }
+
+    @ViewBuilder
+    private var reportMenu: some View {
+        Menu {
+            if let url = LeaderboardReportMail.gameLogURL(entry: entry) {
+                Link("Report Game Entry", destination: url)
+            }
+            if let url = LeaderboardReportMail.gameLogURL(
+                entry: entry,
+                playerName: entry.bidderName,
+                role: "Bidder"
+            ) {
+                Link("Report Bidder Name", destination: url)
+            }
+            if !entry.partner1Name.isEmpty,
+               let url = LeaderboardReportMail.gameLogURL(
+                entry: entry,
+                playerName: entry.partner1Name,
+                role: "Partner"
+               ) {
+                Link("Report Partner 1 Name", destination: url)
+            }
+            if !entry.partner2Name.isEmpty,
+               let url = LeaderboardReportMail.gameLogURL(
+                entry: entry,
+                playerName: entry.partner2Name,
+                role: "Partner"
+               ) {
+                Link("Report Partner 2 Name", destination: url)
+            }
+            ForEach(Array(entry.defenseNames.enumerated()), id: \.offset) { index, name in
+                if let url = LeaderboardReportMail.gameLogURL(
+                    entry: entry,
+                    playerName: name,
+                    role: "Defense"
+                ) {
+                    Link("Report Defense \(index + 1) Name", destination: url)
+                }
+            }
+        } label: {
+            Image(systemName: "flag")
+                .font(.system(size: 10, weight: .heavy))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .background(Color.adaptiveDivider.opacity(0.7))
+                .clipShape(Circle())
+        }
+        .accessibilityLabel("Report leaderboard entry")
     }
 }
 
