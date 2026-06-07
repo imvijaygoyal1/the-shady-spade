@@ -515,7 +515,7 @@ struct ScoreSaveStatusRow: View {
                     statusText("Round queued. It will sync when you're back online.", color: ThemeManager.shared.colours.warningColor)
                 }
             case .notSaved(let msg):
-                statusPill(tint: .defenseRose) {
+                statusPill(tint: .defenseRose, showsDisclosure: false) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Color.defenseRose)
@@ -549,10 +549,21 @@ struct ScoreSaveStatusRow: View {
 
     private func statusPill<Content: View>(
         tint: Color,
+        showsDisclosure: Bool = true,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        HStack(spacing: 8) {
-            content()
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                content()
+            }
+
+            if showsDisclosure {
+                Text("Completed rounds may upload avatar names, scores, bid results, and game mode to the global leaderboard.")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
