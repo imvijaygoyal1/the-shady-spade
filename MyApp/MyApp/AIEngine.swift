@@ -1215,23 +1215,20 @@ enum AIEngine {
                     if urgency.offense { score += 12 }
                 }
                 // Post-reveal coordination: bidder leads toward suit where revealed partners
-                // probably hold cards above the baseline uniform distribution.
-                // Uses above-baseline excess so uniform distributions (no lead history) add 0,
-                // keeping the bonus from inflating all non-trump suits equally.
-                // Up to +16 (below trump-pull +30 and denial +20) — a preference, not override.
+                // hold more cards than random chance would predict. Uses above-baseline
+                // excess to avoid boosting uniformly distributed suits. Up to +16.
                 if seat == highBidderIndex,
                    !revealedPartnerIndices.isEmpty,
                    let model = handModel,
                    !isTrump {
-                    let suitRemaining = remainingCards.filter { $0.suit == card.suit }.count
-                    let numEligible = max(1, 5)   // 5 non-self players
-                    let baseline = Double(suitRemaining) / Double(numEligible)
+                    let suitRemaining = Double(remainingCards.filter { $0.suit == card.suit }.count)
+                    let baseline = suitRemaining / 5.0  // expected cards per player, uniform distribution
                     let partnerStrength = revealedPartnerIndices.reduce(0.0) { best, p in
-                        max(best, model.threatProb(player: p, suit: card.suit,
-                                                   beatingRankScore: -1))
+                        let above = max(0.0, model.threatProb(player: p, suit: card.suit,
+                                                              beatingRankScore: -1) - baseline)
+                        return max(best, above)
                     }
-                    let aboveBaseline = max(0.0, partnerStrength - baseline)
-                    score += Int(aboveBaseline * 16)
+                    score += Int(partnerStrength * 16)
                 }
                 score += personality.pointFeedBias
 
