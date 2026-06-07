@@ -26,8 +26,6 @@
 		CT00001 /* ComicTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CT00002 /* ComicTheme.swift */; };
 		D1000001 /* GameTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000001 /* GameTableView.swift */; };
 		E1000001 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001 /* SplashView.swift */; };
-		F1000001 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000001 /* AuthViewModel.swift */; };
-		F1000002 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000002 /* AuthView.swift */; };
 		F1000003 /* OnlineSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000003 /* OnlineSessionViewModel.swift */; };
 		F1000004 /* OnlineSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000004 /* OnlineSessionView.swift */; };
 		FB100001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = FB000002 /* FirebaseAuth */; };
@@ -84,8 +82,6 @@
 		CT00002 /* ComicTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComicTheme.swift; sourceTree = "<group>"; };
 		D2000001 /* GameTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTableView.swift; sourceTree = "<group>"; };
 		E2000001 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
-		F2000001 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
-		F2000002 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		F2000003 /* OnlineSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionViewModel.swift; sourceTree = "<group>"; };
 		F2000004 /* OnlineSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionView.swift; sourceTree = "<group>"; };
 		G2000001 /* ModeSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSelectionView.swift; sourceTree = "<group>"; };
@@ -166,8 +162,6 @@
 				TE200002 /* Themes.swift */,
 				TE200003 /* ThemeManager.swift */,
 				TE200004 /* ThemedComponents.swift */,
-				F2000001 /* AuthViewModel.swift */,
-				F2000002 /* AuthView.swift */,
 				F2000003 /* OnlineSessionViewModel.swift */,
 				F2000004 /* OnlineSessionView.swift */,
 				G2000001 /* ModeSelectionView.swift */,
@@ -353,8 +347,6 @@
 				C1000001 /* SettingsView.swift in Sources */,
 				D1000001 /* GameTableView.swift in Sources */,
 				E1000001 /* SplashView.swift in Sources */,
-				F1000001 /* AuthViewModel.swift in Sources */,
-				F1000002 /* AuthView.swift in Sources */,
 				F1000003 /* OnlineSessionViewModel.swift in Sources */,
 				F1000004 /* OnlineSessionView.swift in Sources */,
 				G1000001 /* ModeSelectionView.swift in Sources */,

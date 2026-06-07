@@ -4,7 +4,6 @@ import SwiftData
 struct ModeSelectionView: View {
     @EnvironmentObject private var themeManager: ThemeManager
     @Environment(\.modelContext) private var modelContext
-    @Environment(AuthViewModel.self) private var authVM
     @State private var vm = GameViewModel()
     @State private var showingSolo = false
     @State private var showingOnline = false

@@ -38,9 +38,6 @@ struct MainView: View {
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
-            .sheet(isPresented: $vm.showingAuth) {
-                AuthView()
-            }
             .sheet(isPresented: $vm.showingOnlineSession) {
                 OnlineSessionView(vm: vm)
                     .environmentObject(ThemeManager.shared)
@@ -69,7 +66,6 @@ struct MainView: View {
 
 private struct LocalLeaderboardView: View {
     @Bindable var vm: GameViewModel
-    @Environment(AuthViewModel.self) private var authVM
     @State private var avatarsVisible = false
 
     var body: some View {
@@ -114,11 +110,7 @@ private struct LocalLeaderboardView: View {
                     HStack(spacing: 16) {
                         Button {
                             HapticManager.impact(.light)
-                            if authVM.user == nil || !authVM.isEmailVerified {
-                                vm.showingAuth = true
-                            } else {
-                                vm.showingOnlineSession = true
-                            }
+                            vm.showingOnlineSession = true
                         } label: {
                             Image(systemName: vm.hasActiveOnlineSession ? "globe.badge.chevron.backward" : "globe")
                                 .foregroundStyle(vm.hasActiveOnlineSession ? .offenseBlue : .masterGold)
