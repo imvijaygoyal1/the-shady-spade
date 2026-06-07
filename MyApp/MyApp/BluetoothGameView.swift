@@ -1173,7 +1173,7 @@ struct BTPlayingView: View {
             if game.currentTrick.isEmpty {
                 let isMine = game.isMyTurn
                 let name = game.currentActionPlayer >= 0 ? game.playerName(game.currentActionPlayer) : "…"
-                Text(isMine ? "Your turn — play a card" : "Waiting for \(name)…")
+                Text(isMine ? "Trick \(game.completedTricks.count + 1) — waiting for your play" : "Waiting for \(name)…")
                     .font(.system(size: 13, weight: .heavy, design: .rounded))
                     .foregroundStyle(isMine ? Comic.yellow : Comic.textSecondary)
                     .multilineTextAlignment(.center)
@@ -1256,7 +1256,7 @@ struct BTPlayingView: View {
         return VStack(spacing: 6) {
             if game.isMyTurn {
                 HStack(spacing: 8) {
-                    Text("Your turn — tap a card to play")
+                    Text("Your turn")
                         .font(.system(size: 16, weight: .black, design: .rounded))
                         .foregroundStyle(Comic.yellow)
                 }

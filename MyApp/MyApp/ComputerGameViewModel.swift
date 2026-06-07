@@ -519,7 +519,7 @@ final class ComputerGameViewModel {
                         isPassingDevice = false
                     }
                     phase = .humanPlaying
-                    message = "Your turn — tap a card to play"
+                    message = ""
 
                     let card = await withCheckedContinuation { cont in
                         cardContinuation = cont
