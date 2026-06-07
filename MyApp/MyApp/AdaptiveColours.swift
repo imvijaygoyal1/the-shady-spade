@@ -92,12 +92,11 @@ struct AdaptiveColours {
 /// Applies the active theme's screen background to the outermost view.
 struct ThemedScreenBackground: ViewModifier {
     @EnvironmentObject var themeManager: ThemeManager
-    @Environment(\.colorScheme) var colorScheme
 
     func body(content: Content) -> some View {
         content.background(
             AdaptiveColours.screenBackground(
-                themeManager.currentTheme, colorScheme)
+                themeManager.currentTheme, themeManager.effectiveScheme)
             .ignoresSafeArea()
         )
     }

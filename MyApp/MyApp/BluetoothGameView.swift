@@ -144,16 +144,30 @@ struct BluetoothGameView: View {
             if game.isReconnecting {
                 Label("Reconnecting to host…", systemImage: "wifi.exclamationmark")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Comic.black)
+                    .foregroundStyle(ThemeManager.shared.colours.primaryButtonText)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
-                    .background(Color.yellow.opacity(0.9))
+                    .background(ThemeManager.shared.colours.warningColor.opacity(0.92))
                     .clipShape(Capsule())
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.25), value: game.isReconnecting)
+        .overlay(alignment: .topLeading) {
+            let activePhase = ![.roundComplete, .gameOver].contains(game.phase)
+            if activePhase {
+                MultiplayerStatusPill(
+                    title: game.isMigrating ? "Host Migration" : (game.isHost ? "Bluetooth Host" : "Bluetooth Player"),
+                    detail: bluetoothStatusDetail,
+                    systemImage: game.isMigrating ? "arrow.triangle.2.circlepath" : (game.isHost ? "person.badge.key.fill" : "dot.radiowaves.left.and.right"),
+                    tint: (game.isReconnecting || game.isMigrating) ? ThemeManager.shared.colours.warningColor : ThemeManager.shared.colours.successColor
+                )
+                .padding(.top, 8)
+                .padding(.leading, 16)
+                .transition(.opacity)
+            }
+        }
         .overlay(alignment: .topTrailing) {
             let activePhase = ![.roundComplete, .gameOver].contains(game.phase)
             VStack(spacing: 8) {
@@ -186,9 +200,14 @@ struct BluetoothGameView: View {
                                 .progressViewStyle(.circular)
                                 .tint(.white)
                                 .scaleEffect(1.6)
-                            Text("Reconnecting…")
+                            Text("Host migration in progress…")
                                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                                 .foregroundStyle(.white)
+                            Text("The table is electing a new host. Gameplay will resume automatically.")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.75))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 32)
                         }
                     }
                     .transition(.opacity)
@@ -225,6 +244,14 @@ struct BluetoothGameView: View {
             LeaderboardService.shared.resetScoreSaveStatus()
             if game.isHost { await game.startGame() }
         }
+    }
+
+    private var bluetoothStatusDetail: String {
+        let humans = (0..<6).filter { !game.aiSeats.contains($0) && !game.playerName($0).isEmpty }.count
+        let ai = game.aiSeats.count
+        if game.isMigrating { return "Electing a new host · play paused" }
+        if game.isReconnecting { return "Trying to reach host · actions queued" }
+        return "Round \(game.roundNumber) · \(humans) human\(humans == 1 ? "" : "s") · \(ai) AI"
     }
 
     /// Saves local completed-round history when the player quits. Leaderboard rows

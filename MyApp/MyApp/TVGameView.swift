@@ -34,7 +34,7 @@ struct TVGameView: View {
                 phaseContent
             }
         }
-        .preferredColorScheme(themeManager.effectiveScheme)
+        .preferredColorScheme(themeManager.preferredColorScheme)
     }
 
     // MARK: - Top Bar
@@ -235,7 +235,7 @@ struct TVGameView: View {
                 .padding(.vertical, 7)
                 .background(
                     isActive
-                        ? Color(red: 0.29, green: 0.87, blue: 0.50).opacity(0.08)
+                        ? ThemeManager.shared.colours.activeTurnColor.opacity(0.08)
                         : Color.clear
                 )
 
@@ -419,7 +419,7 @@ struct TVGameView: View {
     // MARK: - Active Player Banner
 
     private var tvActivePlayerBanner: some View {
-        let green = Color(red: 0.29, green: 0.87, blue: 0.50)
+        let green = ThemeManager.shared.colours.activeTurnColor
         return HStack(spacing: 8) {
             Spacer()
             if game.currentActionPlayer >= 0 {
@@ -446,7 +446,7 @@ struct TVGameView: View {
         let isActive = playerIndex == game.currentActionPlayer
         let playedCard = game.currentTrick.first(where: { $0.playerIndex == playerIndex })?.card
         let isWinner = game.currentTrickWinnerIndex == playerIndex
-        let green = Color(red: 0.29, green: 0.87, blue: 0.50)
+        let green = ThemeManager.shared.colours.activeTurnColor
 
         let avatarW = cardWidth * 1.22
         let avatarH = avatarW * (80.0 / 58.0)

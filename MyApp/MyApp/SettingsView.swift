@@ -4,11 +4,37 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
-    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         NavigationStack {
             List {
+                Section(header: Text("APPEARANCE")) {
+                    Picker("Mode", selection: Binding(
+                        get: { themeManager.themeMode },
+                        set: { themeManager.updateThemeMode($0) }
+                    )) {
+                        ForEach(ThemeMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(themeManager.currentTheme.fixedColorScheme != nil)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(themeManager.availableThemes, id: \.id) { theme in
+                                ThemeSwatchButton(
+                                    theme: theme,
+                                    isSelected: themeManager.currentTheme.id == theme.id,
+                                    scheme: themeManager.effectiveScheme
+                                ) {
+                                    themeManager.applyTheme(theme)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
 
                 // ── HOW TO PLAY ───────────────────────────────────────
                 Section(header: Text("HOW TO PLAY")) {
@@ -63,8 +89,57 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
-            .tint(themeManager.currentTheme.colours(for: colorScheme).accentColor)
+            .tint(themeManager.colours.accentColor)
         }
+    }
+}
+
+private struct ThemeSwatchButton: View {
+    let theme: any AppTheme
+    let isSelected: Bool
+    let scheme: ColorScheme
+    let action: () -> Void
+
+    private var colours: ThemeColours {
+        theme.colours(for: theme.fixedColorScheme ?? scheme)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(colours.screenBackground)
+                    HStack(spacing: 0) {
+                        colours.containerBackground
+                        colours.accentColor
+                        colours.defenseBackground
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    Text(theme.thumbnail)
+                        .font(.system(size: 20))
+                }
+                .frame(width: 58, height: 42)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(
+                            isSelected ? colours.accentColor : Color.secondary.opacity(0.35),
+                            lineWidth: isSelected ? 3 : 1
+                        )
+                )
+
+                Text(theme.name)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .frame(width: 76)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(theme.name)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

@@ -14,11 +14,7 @@ extension ShapeStyle where Self == Color {
 
     /// Lemon gold #FDE047 (dark) → dark gold #B8860B (light)
     static var masterGold: Color {
-        Color(UIColor { tc in
-            tc.userInterfaceStyle == .dark
-                ? UIColor(red: 0.992, green: 0.878, blue: 0.278, alpha: 1)
-                : UIColor(red: 0.722, green: 0.525, blue: 0.043, alpha: 1) // #B8860B
-        })
+        ThemeManager.shared.colours.accentColor
     }
 
     /// Alias kept for remaining call sites
@@ -28,60 +24,36 @@ extension ShapeStyle where Self == Color {
 
     /// Sky blue #38BDF8 (dark) → dark green #15803D (light) — positive / offense
     static var offenseBlue: Color {
-        Color(UIColor { tc in
-            tc.userInterfaceStyle == .dark
-                ? UIColor(red: 0.220, green: 0.741, blue: 0.973, alpha: 1)
-                : UIColor(red: 0.082, green: 0.502, blue: 0.239, alpha: 1) // #15803D
-        })
+        ThemeManager.shared.colours.biddingTeamText
     }
 
     /// Rose #FB7185 (dark) → dark red #B91C1C (light) — negative / defense
     static var defenseRose: Color {
-        Color(UIColor { tc in
-            tc.userInterfaceStyle == .dark
-                ? UIColor(red: 0.984, green: 0.443, blue: 0.522, alpha: 1)
-                : UIColor(red: 0.725, green: 0.110, blue: 0.110, alpha: 1) // #B91C1C
-        })
+        ThemeManager.shared.colours.defenseText
     }
 
     // MARK: Semantic Text
 
     /// White (dark) → near-black #1A1A2E (light)
     static var adaptivePrimary: Color {
-        Color(UIColor { tc in
-            tc.userInterfaceStyle == .dark
-                ? .white
-                : UIColor(red: 0.102, green: 0.102, blue: 0.180, alpha: 1) // #1A1A2E
-        })
+        ThemeManager.shared.colours.textPrimary
     }
 
     /// White 55% (dark) → dark purple-grey #4A4A6A (light)
     static var adaptiveSecondary: Color {
-        Color(UIColor { tc in
-            tc.userInterfaceStyle == .dark
-                ? UIColor.white.withAlphaComponent(0.55)
-                : UIColor(red: 0.290, green: 0.290, blue: 0.416, alpha: 1) // #4A4A6A
-        })
+        ThemeManager.shared.colours.textSecondary
     }
 
     // MARK: Structural
 
     /// Subtle divider / border — white 10% (dark) → #D0D0E0 (light)
     static var adaptiveDivider: Color {
-        Color(UIColor { tc in
-            tc.userInterfaceStyle == .dark
-                ? UIColor.white.withAlphaComponent(0.10)
-                : UIColor(red: 0.816, green: 0.816, blue: 0.878, alpha: 1) // #D0D0E0
-        })
+        ThemeManager.shared.colours.separator
     }
 
     /// Chip / cell subtle fill — white 8% (dark) → #1A1A2E 6% (light)
     static var adaptiveSubtle: Color {
-        Color(UIColor { tc in
-            tc.userInterfaceStyle == .dark
-                ? UIColor.white.withAlphaComponent(0.08)
-                : UIColor(red: 0.102, green: 0.102, blue: 0.180, alpha: 0.06)
-        })
+        ThemeManager.shared.colours.containerBackground.opacity(0.45)
     }
 }
 
@@ -530,17 +502,17 @@ struct ScoreSaveStatusRow: View {
                     statusText("Saving round to leaderboard...", color: .secondary)
                 }
             case .saved:
-                statusPill(tint: .green) {
+                statusPill(tint: ThemeManager.shared.colours.successColor) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    statusText("Round saved to leaderboard", color: .secondary)
+                        .foregroundStyle(ThemeManager.shared.colours.successColor)
+                    statusText("Round saved to leaderboard", color: ThemeManager.shared.colours.successColor)
                 }
             case .pending:
-                statusPill(tint: .masterGold) {
+                statusPill(tint: ThemeManager.shared.colours.warningColor) {
                     Image(systemName: "wifi.slash")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.masterGold)
-                    statusText("Round queued. It will sync when you're back online.", color: .masterGold)
+                        .foregroundStyle(ThemeManager.shared.colours.warningColor)
+                    statusText("Round queued. It will sync when you're back online.", color: ThemeManager.shared.colours.warningColor)
                 }
             case .notSaved(let msg):
                 statusPill(tint: .defenseRose) {
@@ -1133,9 +1105,10 @@ struct BidWinnerBanner: View {
 
 struct LiveDot: View {
     @State private var pulse = false
-    private let green = Color(red: 0.20, green: 0.82, blue: 0.48)
+    @ObservedObject private var theme = ThemeManager.shared
 
     var body: some View {
+        let green = theme.colours.activeTurnColor
         Circle()
             .fill(green)
             .frame(width: 7, height: 7)
@@ -1227,17 +1200,7 @@ struct TrumpBadge: View {
     var width: CGFloat = 160
 
     private var suitColor: Color {
-        suit.isRed
-            ? Color(UIColor { tc in
-                tc.userInterfaceStyle == .dark
-                    ? UIColor(red: 0.95, green: 0.18, blue: 0.18, alpha: 1)
-                    : UIColor(red: 0.75, green: 0.06, blue: 0.06, alpha: 1)
-            })
-            : Color(UIColor { tc in
-                tc.userInterfaceStyle == .dark
-                    ? UIColor(red: 0.88, green: 0.93, blue: 1.00, alpha: 1)
-                    : UIColor(red: 0.18, green: 0.28, blue: 0.70, alpha: 1)
-            })
+        suit.isRed ? .defenseRose : .adaptivePrimary
     }
 
     var body: some View {
@@ -1293,17 +1256,7 @@ struct CalledCardsBadge: View {
     var width: CGFloat = 160
 
     private func cardColor(_ s: String) -> Color {
-        s.hasSuffix("♥") || s.hasSuffix("♦")
-            ? Color(UIColor { tc in
-                tc.userInterfaceStyle == .dark
-                    ? UIColor(red: 0.95, green: 0.18, blue: 0.18, alpha: 1)
-                    : UIColor(red: 0.75, green: 0.06, blue: 0.06, alpha: 1)
-            })
-            : Color(UIColor { tc in
-                tc.userInterfaceStyle == .dark
-                    ? UIColor(red: 0.88, green: 0.93, blue: 1.00, alpha: 1)
-                    : UIColor(red: 0.18, green: 0.28, blue: 0.70, alpha: 1)
-            })
+        s.hasSuffix("♥") || s.hasSuffix("♦") ? .defenseRose : .adaptivePrimary
     }
 
     var body: some View {
@@ -1394,8 +1347,8 @@ func resolveAvatarRole(
 // MARK: - Turn UI
 
 enum TurnUI {
-    static let activeColor = Color(red: 0.29, green: 0.87, blue: 0.50)
-    static let waitingColor = Color(red: 0.22, green: 0.74, blue: 0.97)
+    static var activeColor: Color { ThemeManager.shared.colours.activeTurnColor }
+    static var waitingColor: Color { ThemeManager.shared.colours.waitingColor }
 
     static func isActive(playerIndex: Int, currentActionPlayer: Int) -> Bool {
         currentActionPlayer >= 0 && playerIndex == currentActionPlayer
@@ -1451,6 +1404,43 @@ struct TurnWaitingBanner: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .transition(.opacity)
         .animation(.easeInOut(duration: 0.3), value: currentActionPlayer)
+    }
+}
+
+// MARK: - Multiplayer Status
+
+struct MultiplayerStatusPill: View {
+    let title: String
+    let detail: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .black))
+                .foregroundStyle(tint)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.adaptivePrimary)
+                    .lineLimit(1)
+                Text(detail)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(.adaptiveSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(ThemeManager.shared.colours.containerBackground.opacity(0.82))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(tint.opacity(0.38), lineWidth: 1)
+        )
     }
 }
 
@@ -1650,7 +1640,7 @@ struct BidderCard: View {
     }
 
     private var topBackground: Color {
-        if isPassed     { return Color(hex: "E63946").opacity(0.15) }
+        if isPassed     { return Comic.red.opacity(0.15) }
         if isHighBidder { return ThemeManager.shared.colours.accentColor }
         if isActive     { return ThemeManager.shared.colours.accentColor.opacity(0.3) }
         if bid > 0      { return ThemeManager.shared.colours.biddingTeamBackground }
@@ -1663,7 +1653,7 @@ struct BidderCard: View {
                 Text("PASS")
                     .font(.system(size: 7, weight: .heavy,
                         design: .rounded))
-                    .foregroundStyle(Color(hex: "E63946"))
+                    .foregroundStyle(Comic.red)
             } else if bid > 0 {
                 Text("\(bid)")
                     .font(.system(size: 9, weight: .heavy,
@@ -1711,7 +1701,7 @@ struct BidderCard: View {
     }
 
     private var borderColor: Color {
-        if isPassed     { return Color(hex: "E63946").opacity(0.4) }
+        if isPassed     { return Comic.red.opacity(0.4) }
         if isHighBidder { return ThemeManager.shared.colours.accentColor }
         if isActive     { return ThemeManager.shared.colours.accentColor.opacity(0.6) }
         return ThemeManager.shared.colours.separator
@@ -1752,7 +1742,7 @@ struct AvatarPickerCard: View {
                 Rectangle()
                     .fill(isSelected
                         ? Comic.avatarBG(for: emoji)
-                        : Color(hex: "112A1C").opacity(0.6))
+                        : ThemeManager.shared.colours.containerBackground.opacity(0.6))
                 Text(emoji)
                     .font(.system(size: height * 0.45))
                     .scaleEffect(isSelected ? 1.1 : 1.0)

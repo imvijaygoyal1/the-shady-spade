@@ -7,9 +7,12 @@ final class ThemeManager: ObservableObject {
 
     @Published var currentTheme: any AppTheme = ClassicGreenTheme()
     @Published var colorScheme: ColorScheme = .dark
+    @Published var themeMode: ThemeMode = .dark
 
     let availableThemes: [any AppTheme] = [
         ClassicGreenTheme(),
+        MidnightBlueTheme(),
+        ParchmentTheme(),
     ]
 
     // MARK: - Convenience accessors
@@ -40,8 +43,8 @@ final class ThemeManager: ObservableObject {
     }
 
     /// Pass to .preferredColorScheme() at the app root.
-    var preferredColorScheme: ColorScheme {
-        effectiveScheme
+    var preferredColorScheme: ColorScheme? {
+        currentTheme.fixedColorScheme ?? themeMode.forcedColorScheme
     }
 
     private init() {}
@@ -51,19 +54,30 @@ final class ThemeManager: ObservableObject {
         if let fixed = theme.fixedColorScheme {
             colorScheme = fixed
         } else {
-            // Restore the user's saved preferred scheme when switching to an adaptive theme.
-            // Without this, colorScheme remains stuck at the previous fixed scheme (e.g. .light
-            // from Minimal Light), making Sunset Social / Comic Book render in the wrong mode.
-            let savedMode = UserDefaults.standard.string(forKey: "preferredMode") ?? "dark"
-            colorScheme = savedMode == "light" ? .light : .dark
+            applyStoredMode()
         }
         saveTheme(theme.id)
     }
 
     func updateColorScheme(_ scheme: ColorScheme) {
         guard currentTheme.fixedColorScheme == nil else { return }
+        themeMode = scheme == .dark ? .dark : .light
         colorScheme = scheme
-        UserDefaults.standard.set(scheme == .dark ? "dark" : "light", forKey: "preferredMode")
+        UserDefaults.standard.set(themeMode.rawValue, forKey: "preferredMode")
+    }
+
+    func updateThemeMode(_ mode: ThemeMode) {
+        guard currentTheme.fixedColorScheme == nil else { return }
+        themeMode = mode
+        if let forced = mode.forcedColorScheme {
+            colorScheme = forced
+        }
+        UserDefaults.standard.set(mode.rawValue, forKey: "preferredMode")
+    }
+
+    func updateSystemColorScheme(_ scheme: ColorScheme) {
+        guard currentTheme.fixedColorScheme == nil, themeMode == .system else { return }
+        colorScheme = scheme
     }
 
     func saveTheme(_ themeId: String) {
@@ -78,8 +92,15 @@ final class ThemeManager: ObservableObject {
         if let fixed = theme.fixedColorScheme {
             colorScheme = fixed
         } else {
-            let savedMode = UserDefaults.standard.string(forKey: "preferredMode") ?? "dark"
-            colorScheme = savedMode == "light" ? .light : .dark
+            applyStoredMode()
+        }
+    }
+
+    private func applyStoredMode() {
+        let savedMode = UserDefaults.standard.string(forKey: "preferredMode") ?? ThemeMode.dark.rawValue
+        themeMode = ThemeMode(rawValue: savedMode) ?? .dark
+        if let forced = themeMode.forcedColorScheme {
+            colorScheme = forced
         }
     }
 }

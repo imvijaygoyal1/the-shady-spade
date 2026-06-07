@@ -101,7 +101,7 @@ struct PlayerStat: Identifiable {
     }
     var bidRateColor: Color {
         if totalBids == 0 { return .secondary }
-        if bidSuccessRate >= 70 { return Color(red: 0.29, green: 0.87, blue: 0.50) }
+        if bidSuccessRate >= 70 { return ThemeManager.shared.colours.successColor }
         if bidSuccessRate >= 50 { return .masterGold }
         return .defenseRose
     }

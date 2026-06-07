@@ -40,6 +40,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct MyAppApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @AppStorage("hasCompletedSetup") private var hasCompletedSetup = false
+    @Environment(\.colorScheme) private var colorScheme
     @State private var authVM: AuthViewModel
     @StateObject private var themeManager = ThemeManager.shared
 
@@ -98,6 +99,12 @@ struct MyAppApp: App {
             }
             .preferredColorScheme(themeManager.preferredColorScheme)
             .environmentObject(themeManager)
+            .onAppear {
+                themeManager.updateSystemColorScheme(colorScheme)
+            }
+            .onChange(of: colorScheme) { _, newScheme in
+                themeManager.updateSystemColorScheme(newScheme)
+            }
             // didFinishLaunchingWithOptions has already run at this point,
             // so Firebase is configured and it is safe to start the auth listener.
             .task {

@@ -654,6 +654,15 @@ Tap to join: https://shadyspade-d6b84.web.app/shadyspade/join/\(sessionVM.sessio
                         Text("\(humanCount) human\(humanCount == 1 ? "" : "s") · \(aiCount) AI")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        MultiplayerStatusPill(
+                            title: sessionVM.isHost ? "Host Lobby" : "Joined Lobby",
+                            detail: isMultiplayer
+                                ? "Invite players with the room code"
+                                : "Human seats fill first; empty seats become AI",
+                            systemImage: sessionVM.isHost ? "person.badge.key.fill" : "antenna.radiowaves.left.and.right",
+                            tint: sessionVM.errorMessage == nil ? ThemeManager.shared.colours.successColor : ThemeManager.shared.colours.warningColor
+                        )
+                        .padding(.top, 6)
                         if isMultiplayer && aiCount == 0 {
                             Text("Room Full")
                                 .font(.caption.bold())

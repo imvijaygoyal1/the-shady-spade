@@ -44,13 +44,13 @@ enum Comic {
 // MARK: - Halftone background
 
 struct HalftoneBackground: View {
-    @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var themeManager = ThemeManager.shared
 
     var body: some View {
         Canvas { ctx, size in
             let spacing: CGFloat = 12
             let radius: CGFloat = 1.8
-            let opacity: Double = colorScheme == .dark ? 0.07 : 0.06
+            let opacity: Double = themeManager.effectiveScheme == .dark ? 0.07 : 0.06
             var y: CGFloat = 0
             while y < size.height + spacing {
                 var x: CGFloat = (Int(y / spacing) % 2 == 0) ? 0 : spacing / 2

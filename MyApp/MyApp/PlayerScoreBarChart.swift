@@ -25,7 +25,6 @@ struct RoundScoreRow: Identifiable {
 
 struct PlayerScoreBarChart: View {
     @EnvironmentObject var themeManager: ThemeManager
-    @Environment(\.colorScheme) var colorScheme
 
     let players: [PlayerScoreEntry]   // caller sorts descending by score
     let title: String
@@ -33,7 +32,7 @@ struct PlayerScoreBarChart: View {
     @State private var selectedEntry: PlayerScoreEntry? = nil
 
     private var accentColor: Color {
-        themeManager.currentTheme.colours(for: colorScheme).accentColor
+        themeManager.colours.accentColor
     }
 
     /// Scale bars against highest score among all players.
@@ -72,13 +71,12 @@ struct PlayerScoreBarChart: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(UIColor { $0.userInterfaceStyle == .dark
-                    ? UIColor(white: 0.10, alpha: 1) : .white }))
+                .fill(themeManager.colours.containerBackground)
                 .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5)
+                .strokeBorder(themeManager.colours.separator.opacity(0.8), lineWidth: 0.5)
         )
         .sheet(item: $selectedEntry) { entry in
             PlayerScoreDetailSheet(
@@ -98,7 +96,6 @@ struct PlayerScoreBarChart: View {
 
 struct PlayerBarRow: View {
     @EnvironmentObject var themeManager: ThemeManager
-    @Environment(\.colorScheme) var colorScheme
 
     let player: PlayerScoreEntry
     let maxScore: Int
@@ -107,14 +104,14 @@ struct PlayerBarRow: View {
     @State private var animateBar = false
 
     private var accentColor: Color {
-        themeManager.currentTheme.colours(for: colorScheme).accentColor
+        themeManager.colours.accentColor
     }
 
     private var barColor: Color {
         switch player.role {
         case "Bidder":  return accentColor
         case "Partner": return accentColor.opacity(0.6)
-        default:        return themeManager.currentTheme.colours(for: colorScheme).defenseText
+        default:        return themeManager.colours.defenseText
         }
     }
 
@@ -201,7 +198,6 @@ struct PlayerBarRow: View {
 
 struct PlayerScoreDetailSheet: View {
     @EnvironmentObject var themeManager: ThemeManager
-    @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
 
     let playerName: String
@@ -210,7 +206,7 @@ struct PlayerScoreDetailSheet: View {
     let history: [RoundScoreRow]
 
     private var accentColor: Color {
-        themeManager.currentTheme.colours(for: colorScheme).accentColor
+        themeManager.colours.accentColor
     }
 
     var body: some View {

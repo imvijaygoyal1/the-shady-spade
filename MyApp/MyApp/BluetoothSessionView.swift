@@ -309,6 +309,14 @@ struct BTHostLobbyView: View {
                         .font(.headline)
                         .foregroundStyle(.masterGold)
                         .padding(.leading, 4)
+                    MultiplayerStatusPill(
+                        title: "Bluetooth Host",
+                        detail: connectedHumanCount >= 2
+                            ? "Ready to start · empty seats become AI"
+                            : "Waiting for at least 2 human players",
+                        systemImage: "person.badge.key.fill",
+                        tint: connectedHumanCount >= 2 ? ThemeManager.shared.colours.successColor : ThemeManager.shared.colours.warningColor
+                    )
 
                     LazyVGrid(columns: gridColumns, spacing: 12) {
                         ForEach(0..<6, id: \.self) { i in
@@ -420,6 +428,13 @@ struct BTClientLobbyView: View {
                         Text("Connected!")
                             .font(.system(size: 22, weight: .black, design: .rounded))
                             .foregroundStyle(.adaptivePrimary)
+
+                        MultiplayerStatusPill(
+                            title: "Bluetooth Player",
+                            detail: "Connected locally · host controls game start",
+                            systemImage: "dot.radiowaves.left.and.right",
+                            tint: ThemeManager.shared.colours.successColor
+                        )
 
                         Text("Waiting for the host to start the game…")
                             .font(.system(size: 15, weight: .heavy, design: .rounded))

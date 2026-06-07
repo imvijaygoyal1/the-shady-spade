@@ -4,9 +4,21 @@ struct LeaderboardView: View {
     @EnvironmentObject private var themeManager: ThemeManager
     @Environment(\.dismiss) private var dismiss
     @State private var service = LeaderboardService.shared
-    @State private var activeTab: LBTab = .stats
+    @State private var modeFilter: LeaderboardModeFilter = .all
+    @State private var sortKey: PlayerStatsTab.SortKey = .wins
+    @State private var showRecentGames = false
 
-    enum LBTab { case stats, log }
+    private var filteredStats: [PlayerStat] {
+        modeFilter == .all
+            ? service.playerStats
+            : service.playerStats.filter { modeFilter.matches($0.lastGameMode) }
+    }
+
+    private var filteredLog: [GameLogEntry] {
+        modeFilter == .all
+            ? service.gameLog
+            : service.gameLog.filter { modeFilter.matches($0.gameMode) }
+    }
 
     var body: some View {
         ZStack {
@@ -32,10 +44,13 @@ struct LeaderboardView: View {
                     VStack(spacing: 2) {
                         Text("🏆")
                             .font(.system(size: 26))
-                        Text("Global Leaderboard")
+                        Text("Leaderboard")
                             .font(.system(size: 18, weight: .black,
                                 design: .rounded))
                             .foregroundStyle(.masterGold)
+                        Text("Global rankings by completed rounds")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Color.clear.frame(width: 32, height: 32)
@@ -44,16 +59,48 @@ struct LeaderboardView: View {
                 .padding(.top, 20)
                 .padding(.bottom, 12)
 
-                HStack(spacing: 0) {
-                    lbTab("Player Stats", tab: .stats)
-                    lbTab("Game Log",     tab: .log)
+                HStack(spacing: 10) {
+                    LeaderboardMenuButton(
+                        title: "Sort",
+                        value: sortKey.rawValue,
+                        systemImage: "arrow.up.arrow.down"
+                    ) {
+                        ForEach(PlayerStatsTab.SortKey.allCases, id: \.self) { key in
+                            Button(key.rawValue) {
+                                HapticManager.impact(.light)
+                                sortKey = key
+                            }
+                        }
+                    }
+
+                    LeaderboardMenuButton(
+                        title: "Mode",
+                        value: modeFilter.rawValue,
+                        systemImage: "line.3.horizontal.decrease.circle"
+                    ) {
+                        ForEach(LeaderboardModeFilter.allCases) { filter in
+                            Button(filter.rawValue) {
+                                HapticManager.impact(.light)
+                                modeFilter = filter
+                            }
+                        }
+                    }
+
+                    Button {
+                        HapticManager.impact(.light)
+                        showRecentGames = true
+                    } label: {
+                        Label("Recent", systemImage: "clock.arrow.circlepath")
+                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.adaptivePrimary)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 8)
+                            .background(Color.adaptiveSubtle)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 20)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(Color.masterGold.opacity(0.12))
-                        .frame(height: 1)
-                }
                 .padding(.bottom, 12)
 
                 if let errMsg = service.errorMessage {
@@ -89,38 +136,76 @@ struct LeaderboardView: View {
                     Spacer()
                     ProgressView().tint(.masterGold)
                     Spacer()
-                } else if activeTab == .stats {
-                    PlayerStatsTab(stats: service.playerStats)
                 } else {
-                    GameLogTab(entries: service.gameLog)
+                    PlayerStatsTab(stats: filteredStats, filter: modeFilter, sortKey: sortKey)
                 }
             }
         }
         .onAppear { service.startListening() }
-    }
-
-    private func lbTab(_ label: String, tab: LBTab) -> some View {
-        Button {
-            HapticManager.impact(.light)
-            activeTab = tab
-        } label: {
-            Text(label)
-                .font(.system(size: 14, weight: .heavy,
-                    design: .rounded))
-                .foregroundStyle(activeTab == tab
-                    ? .masterGold : .secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(activeTab == tab
-                    ? Color.masterGold.opacity(0.08)
-                    : Color.clear)
-                .overlay(alignment: .bottom) {
-                    if activeTab == tab {
-                        Rectangle()
-                            .fill(Color.masterGold)
-                            .frame(height: 2)
+        .sheet(isPresented: $showRecentGames) {
+            NavigationStack {
+                GameLogTab(entries: filteredLog, filter: modeFilter)
+                    .navigationTitle("Recent Games")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showRecentGames = false }
+                        }
                     }
-                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+private enum LeaderboardModeFilter: String, CaseIterable, Identifiable {
+    case all = "All"
+    case solo = "Solo"
+    case online = "Online"
+    case bluetooth = "Bluetooth"
+    case passAndPlay = "Pass & Play"
+
+    var id: String { rawValue }
+
+    func matches(_ mode: String) -> Bool {
+        switch self {
+        case .all:
+            return true
+        case .solo:
+            return mode == "Solo"
+        case .online:
+            return mode == "Online" || mode == "Multiplayer"
+        case .bluetooth:
+            return mode == "Bluetooth"
+        case .passAndPlay:
+            return mode == "PassAndPlay"
+        }
+    }
+}
+
+private struct LeaderboardMenuButton<Content: View>: View {
+    let title: String
+    let value: String
+    let systemImage: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        Menu {
+            content()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 10, weight: .black))
+                Text("\(title): \(value)")
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(.adaptivePrimary)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+            .background(Color.adaptiveSubtle)
+            .clipShape(Capsule())
         }
     }
 }
@@ -129,12 +214,15 @@ struct LeaderboardView: View {
 
 private struct PlayerStatsTab: View {
     let stats: [PlayerStat]
-    @State private var sortKey: SortKey = .wins
+    let filter: LeaderboardModeFilter
+    let sortKey: SortKey
+    @State private var selectedStat: PlayerStat?
 
     enum SortKey: String, CaseIterable {
         case wins    = "Wins"
+        case points  = "Points"
+        case games   = "Games"
         case bidRate = "Bid Rate"
-        case avg     = "Avg Pts"
     }
 
     private var sorted: [PlayerStat] {
@@ -146,13 +234,23 @@ private struct PlayerStatsTab: View {
                 }
                 return $0.totalPoints > $1.totalPoints
             }
+        case .points:
+            return stats.sorted {
+                if $0.totalPoints != $1.totalPoints {
+                    return $0.totalPoints > $1.totalPoints
+                }
+                return $0.wins > $1.wins
+            }
+        case .games:
+            return stats.sorted {
+                if $0.gamesPlayed != $1.gamesPlayed {
+                    return $0.gamesPlayed > $1.gamesPlayed
+                }
+                return $0.wins > $1.wins
+            }
         case .bidRate:
             return stats.sorted {
                 $0.bidSuccessRate > $1.bidSuccessRate
-            }
-        case .avg:
-            return stats.sorted {
-                $0.avgPoints > $1.avgPoints
             }
         }
     }
@@ -164,129 +262,148 @@ private struct PlayerStatsTab: View {
             ContentUnavailableView(
                 "No Stats Yet",
                 systemImage: "chart.bar.xaxis",
-                description: Text("Play some games to see player statistics here.")
+                description: Text(filter == .all ? "Play some games to see player statistics here." : "No players match this mode filter yet.")
             )
         } else {
-        VStack(spacing: 8) {
-            HStack(spacing: 6) {
-                Text("Sort:")
-                    .font(.system(size: 11, weight: .bold,
-                        design: .rounded))
-                    .foregroundStyle(.secondary)
-                ForEach(SortKey.allCases, id: \.self) { key in
-                    Button {
-                        HapticManager.impact(.light)
-                        sortKey = key
-                    } label: {
-                        Text(key.rawValue)
-                            .font(.system(size: 11, weight: .heavy,
-                                design: .rounded))
-                            .foregroundStyle(sortKey == key
-                                ? .masterGold : .secondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(sortKey == key
-                                ? Color.masterGold.opacity(0.15)
-                                : Color.adaptiveDivider)
-                            .clipShape(Capsule())
-                    }
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-
-            HStack {
-                Text("#")
-                    .frame(width: 28, alignment: .center)
-                Text("Player")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("Games").frame(width: 48)
-                Text("Wins").frame(width: 40)
-                Text("Bid%").frame(width: 48)
-                Text("Avg").frame(width: 40)
-            }
-            .font(.system(size: 10, weight: .heavy,
-                design: .rounded))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 20)
-
+        VStack(spacing: 10) {
             ScrollView {
-                VStack(spacing: 0) {
+                VStack(spacing: 8) {
                     ForEach(Array(sorted.enumerated()),
                             id: \.element.id) { rank, stat in
-                        HStack {
-                            Group {
-                                if rank < 3 {
-                                    Text(medals[rank])
-                                        .font(.system(size: 16))
-                                } else {
-                                    Text("\(rank + 1)")
-                                        .font(.system(size: 12,
-                                            weight: .black,
-                                            design: .rounded))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .frame(width: 28, alignment: .center)
-
-                            Text(stat.name)
-                                .font(.system(size: 13, weight: .heavy,
-                                    design: .rounded))
-                                .foregroundStyle(rank == 0
-                                    ? .masterGold
-                                    : .adaptivePrimary)
-                                .lineLimit(1)
-                                .frame(maxWidth: .infinity,
-                                    alignment: .leading)
-
-                            Text("\(stat.gamesPlayed)")
-                                .font(.system(size: 12, weight: .bold,
-                                    design: .rounded)
-                                    .monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .frame(width: 48, alignment: .center)
-
-                            Text("\(stat.wins)")
-                                .font(.system(size: 13, weight: .black,
-                                    design: .rounded)
-                                    .monospacedDigit())
-                                .foregroundStyle(rank == 0
-                                    ? .masterGold
-                                    : .adaptivePrimary)
-                                .frame(width: 40, alignment: .center)
-
-                            Text(stat.bidSuccessRateString)
-                                .font(.system(size: 12, weight: .heavy,
-                                    design: .rounded))
-                                .foregroundStyle(stat.bidRateColor)
-                                .frame(width: 48, alignment: .center)
-
-                            Text("\(stat.avgPoints)")
-                                .font(.system(size: 12, weight: .bold,
-                                    design: .rounded)
-                                    .monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .frame(width: 40, alignment: .center)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(rank == 0
-                            ? Color.masterGold.opacity(0.06)
-                            : Color.clear)
-
-                        if rank < sorted.count - 1 {
-                            Divider()
-                                .overlay(Color.masterGold.opacity(0.06))
-                                .padding(.leading, 44)
+                        PlayerRankRow(rank: rank, stat: stat, medal: rank < 3 ? medals[rank] : nil) {
+                            HapticManager.impact(.light)
+                            selectedStat = stat
                         }
                     }
                 }
-                .glassmorphic(cornerRadius: 16)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 32)
             }
         }
+        .sheet(item: $selectedStat) { stat in
+            PlayerStatDetailSheet(stat: stat)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        }
         } // end else
+    }
+}
+
+private struct PlayerRankRow: View {
+    let rank: Int
+    let stat: PlayerStat
+    let medal: String?
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                Group {
+                    if let medal {
+                        Text(medal)
+                            .font(.system(size: 18))
+                    } else {
+                        Text("#\(rank + 1)")
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(width: 34, alignment: .center)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(stat.name)
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
+                        .lineLimit(1)
+                    Text("\(stat.gamesPlayed) game\(stat.gamesPlayed == 1 ? "" : "s")")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text("\(stat.wins) win\(stat.wins == 1 ? "" : "s")")
+                        .font(.system(size: 14, weight: .black, design: .rounded).monospacedDigit())
+                        .foregroundStyle(rank == 0 ? .masterGold : .adaptivePrimary)
+                    Text("\(stat.totalPoints) pts")
+                        .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary.opacity(0.7))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(rank == 0 ? Color.masterGold.opacity(0.08) : Color.adaptiveSubtle)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(rank == 0 ? Color.masterGold.opacity(0.25) : Color.adaptiveDivider, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct PlayerStatDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let stat: PlayerStat
+
+    private var lastPlayedString: String {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f.string(from: stat.lastPlayed)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(stat.name)
+                            .font(.title3.bold())
+                        Text("Last played \(lastPlayedString)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section("Performance") {
+                    detailRow("Games", "\(stat.gamesPlayed)")
+                    detailRow("Wins", "\(stat.wins)")
+                    detailRow("Total Points", "\(stat.totalPoints)")
+                    detailRow("Average Points", "\(stat.avgPoints)")
+                    detailRow("Bid Success", stat.bidSuccessRateString)
+                    detailRow("Last Mode", displayMode(stat.lastGameMode))
+                }
+            }
+            .navigationTitle("Player Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func detailRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value)
+                .fontWeight(.semibold)
+                .foregroundStyle(label == "Bid Success" ? stat.bidRateColor : .primary)
+        }
+    }
+
+    private func displayMode(_ mode: String) -> String {
+        mode == "PassAndPlay" ? "Pass & Play" : mode
     }
 }
 
@@ -294,6 +411,7 @@ private struct PlayerStatsTab: View {
 
 private struct GameLogTab: View {
     let entries: [GameLogEntry]
+    let filter: LeaderboardModeFilter
 
     var body: some View {
         if entries.isEmpty {
@@ -304,7 +422,7 @@ private struct GameLogTab: View {
                     .font(.system(size: 15, weight: .heavy,
                         design: .rounded))
                     .foregroundStyle(.adaptivePrimary)
-                Text("Complete a game to appear here")
+                Text(filter == .all ? "Complete a game to appear here" : "No games match this mode filter yet")
                     .font(.system(size: 13, weight: .bold,
                         design: .rounded))
                     .foregroundStyle(.secondary)
@@ -396,7 +514,7 @@ private struct GameLogCard: View {
             if !entry.partner1Name.isEmpty {
                 GameScoreRow(
                     roleLabel: "Partner",
-                    roleColor: Color(hex: "38BDF8"),
+                    roleColor: .offenseBlue,
                     name: entry.partner1Name,
                     score: entry.partner1Score
                 )
@@ -404,7 +522,7 @@ private struct GameLogCard: View {
             if !entry.partner2Name.isEmpty {
                 GameScoreRow(
                     roleLabel: "Partner",
-                    roleColor: Color(hex: "38BDF8"),
+                    roleColor: .offenseBlue,
                     name: entry.partner2Name,
                     score: entry.partner2Score
                 )

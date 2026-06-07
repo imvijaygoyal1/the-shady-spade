@@ -2,6 +2,32 @@ import SwiftUI
 
 // MARK: - Theme Shadow
 
+enum ThemeMode: String, CaseIterable, Identifiable {
+    case dark
+    case light
+    case system
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .dark: return "Dark"
+        case .light: return "Light"
+        case .system: return "System"
+        }
+    }
+
+    var forcedColorScheme: ColorScheme? {
+        switch self {
+        case .dark: return .dark
+        case .light: return .light
+        case .system: return nil
+        }
+    }
+}
+
+// MARK: - Theme Shadow
+
 struct ThemeShadow {
     let color: Color
     let radius: CGFloat
@@ -64,6 +90,11 @@ struct ThemeColours {
     var textSecondary:          Color
     var textTertiary:           Color
     var accentColor:            Color
+    var successColor:           Color
+    var warningColor:           Color
+    var passColor:              Color
+    var waitingColor:           Color
+    var activeTurnColor:        Color
     var biddingTeamBackground:  Color
     var biddingTeamBorder:      Color
     var biddingTeamText:        Color

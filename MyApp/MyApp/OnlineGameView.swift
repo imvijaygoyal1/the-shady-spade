@@ -209,6 +209,29 @@ struct OnlineGameView: View {
             .padding(.top, 8)
             .padding(.trailing, 16)
         }
+        .overlay(alignment: .topLeading) {
+            let activePhase = ![.roundComplete, .gameOver].contains(game.phase)
+            if activePhase {
+                MultiplayerStatusPill(
+                    title: game.isHost ? "Online Host" : "Online Player",
+                    detail: onlineStatusDetail,
+                    systemImage: game.isHost ? "person.badge.key.fill" : "antenna.radiowaves.left.and.right",
+                    tint: game.errorMessage == nil ? ThemeManager.shared.colours.successColor : ThemeManager.shared.colours.warningColor
+                )
+                .padding(.top, 8)
+                .padding(.leading, 16)
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private var onlineStatusDetail: String {
+        let humans = (0..<6).filter { !game.aiSeats.contains($0) && !game.playerName($0).isEmpty }.count
+        let ai = game.aiSeats.count
+        if let error = game.errorMessage, !error.isEmpty {
+            return "Connection issue · \(humans) human\(humans == 1 ? "" : "s")"
+        }
+        return "Round \(game.roundNumber) · \(humans) human\(humans == 1 ? "" : "s") · \(ai) AI"
     }
 
     /// Saves local completed-round history when the player quits. Leaderboard rows
