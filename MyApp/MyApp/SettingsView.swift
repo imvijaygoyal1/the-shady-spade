@@ -69,7 +69,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    Link(destination: URL(string: "https://imvijaygoyal1.github.io/shadyspade-privacy/")!) {
+                    Link(destination: URL(string: "https://shadyspade.vijaygoyal.org/privacy")!) {
                         HStack {
                             Image(systemName: "lock.shield")
                                 .foregroundColor(.accentColor)
