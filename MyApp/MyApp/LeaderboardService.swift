@@ -360,6 +360,13 @@ final class LeaderboardService {
         sessionCode: String = ""
     ) async {
         lbLog.info("recordGame called mode=\(gameMode) names=\(playerNames.count) rounds=\(rounds.count) winner=\(winnerIndex)")
+        guard LeaderboardConsentManager.shared.isGranted else {
+            if LeaderboardConsentManager.shared.state == .denied {
+                scoreSaveStatus = .disabled
+            }
+            lbLog.info("recordGame skipped — consent not granted (state=\(LeaderboardConsentManager.shared.state.rawValue))")
+            return
+        }
         guard playerNames.count == 6 else {
             lbLog.error("recordGame aborted — playerNames.count=\(playerNames.count) ≠ 6")
             return
