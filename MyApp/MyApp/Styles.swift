@@ -534,6 +534,13 @@ struct ScoreSaveStatusRow: View {
                         .foregroundStyle(.defenseRose)
                     statusText(msg, color: .defenseRose)
                 }
+            case .disabled:
+                statusPill(tint: .secondary, showsDisclosure: false) {
+                    Image(systemName: "hand.raised.slash.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.secondary)
+                    statusText("Leaderboard saving is off · Enable in Settings", color: .secondary)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.25), value: status == .saving)

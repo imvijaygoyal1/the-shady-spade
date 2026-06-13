@@ -17,6 +17,7 @@ enum ScoreSaveStatus: Equatable {
     case notSaved(String)
     case handledByHost(String)
     case failed(String)
+    case disabled       // leaderboard consent denied
 }
 
 // MARK: - Pending Record (persisted offline)
