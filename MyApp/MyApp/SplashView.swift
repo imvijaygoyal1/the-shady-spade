@@ -10,6 +10,7 @@ struct SplashView: View {
     enum Page { case splash, playerSetup, deckAndDeal }
     @State private var page: Page = .splash
     @State private var savedNames: [String] = (1...6).map { "Player \($0)" }
+    @State private var showingConsentSheet = false
 
     var body: some View {
         ZStack {
@@ -31,12 +32,22 @@ struct SplashView: View {
                                         removal: .move(edge: .leading).combined(with: .opacity)))
 
             case .deckAndDeal:
-                DeckAndDealPage(playerNames: savedNames, onComplete: onComplete)
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
-                                            removal: .opacity))
+                DeckAndDealPage(playerNames: savedNames, onComplete: {
+                    showingConsentSheet = true
+                })
+                .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                        removal: .opacity))
             }
         }
         .animation(.spring(response: 0.55, dampingFraction: 0.8), value: page)
+        .sheet(isPresented: $showingConsentSheet) {
+            LeaderboardConsentSheet(
+                onAllow: { onComplete() },
+                onDeny:  { onComplete() },
+                disableInteractiveDismiss: true
+            )
+            .presentationDetents([.medium])
+        }
     }
 }
 
