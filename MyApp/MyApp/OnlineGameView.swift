@@ -18,6 +18,8 @@ struct OnlineGameView: View {
     @State private var showRemovedFromGameAlert = false
     @State private var showHostEndedGameAlert = false
     @State private var savedLeaderboardRoundNumbers = Set<Int>()
+    @State private var showingConsentSheet = false
+    @State private var pendingConsentRound: HistoryRound? = nil
 
     var body: some View {
         ZStack {
@@ -223,6 +225,18 @@ struct OnlineGameView: View {
                 .transition(.opacity)
             }
         }
+        .sheet(isPresented: $showingConsentSheet) {
+            LeaderboardConsentSheet(
+                onAllow: {
+                    saveConsentApprovedRound()
+                },
+                onDeny: {
+                    pendingConsentRound = nil
+                },
+                disableInteractiveDismiss: false
+            )
+            .presentationDetents([.medium])
+        }
     }
 
     private var onlineStatusDetail: String {
@@ -267,6 +281,11 @@ struct OnlineGameView: View {
         guard game.isHost else { return }
         guard let round = game.completedRounds.sorted(by: { $0.roundNumber < $1.roundNumber }).last else { return }
         guard !savedLeaderboardRoundNumbers.contains(round.roundNumber) else { return }
+        if LeaderboardConsentManager.shared.state == .undecided {
+            pendingConsentRound = round
+            showingConsentSheet = true
+            return
+        }
         savedLeaderboardRoundNumbers.insert(round.roundNumber)
         let finalScores = round.runningScores
         let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
@@ -285,6 +304,12 @@ struct OnlineGameView: View {
                 sessionCode: capturedCode
             )
         }
+    }
+
+    private func saveConsentApprovedRound() {
+        guard let round = pendingConsentRound else { return }
+        pendingConsentRound = nil
+        saveLatestCompletedRoundToLeaderboardIfNeeded()
     }
 
     private func markDiscardedRoundNotSaved() {
