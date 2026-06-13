@@ -1,11 +1,14 @@
 # The Shady Spade — Claude Code Context
 
 > **IMPORTANT FOR CLAUDE:** After every code change to this project, update this file to reflect the change. New file → add to File Map. New component → add to Styles section. Changed pattern → update Key Patterns. Version bump → update App Identity. This file must always stay current.
-> **RELEASE TRACKING:** v1.9 submitted to App Store on May 31, 2026 — under review. Log all new changes under a **v2.0 Changelog** section. Do not increment the version number until the user confirms v2.0 is ready to submit.
+> **RELEASE TRACKING:** v1.10 submitted to App Store on June 7, 2026 — awaiting review. v1.9 was submitted on May 31, 2026. Log all post-v1.10 changes under a future changelog section before the next submission.
 > **ISSUE/FIX LOGGING PATTERN:** For every bug fix or behavior change, add a v1.9 changelog entry with Symptom, Root Cause, Fix, reusable Pattern, Verification, and changed files. Also add or update a plan note under `docs/superpowers/plans/YYYY-MM-DD-short-slug.md` so future Claude sessions can reconstruct the analysis and implementation.
 
 ## v2.0 Changelog
 > Changes made after v1.9 App Store submission (May 31, 2026). Add entries here as changes are implemented.
+> **Submission status:** v1.10 was submitted to Apple App Store review on June 7, 2026 and is awaiting review.
+
+- [2026-06-13] Leaderboard consent flow (Apple 5.1.2 fix) — Motivation: Apple rejected v1.10 (submission d7f08e68) for uploading leaderboard data without explicit user consent. Fix: added `LeaderboardConsentManager` singleton (UserDefaults key `leaderboardConsentState`, states: undecided/granted/denied), `LeaderboardConsentSheet` reusable bottom sheet, consent guard at top of `LeaderboardService.recordGame()`, consent step in `SplashView` for new users, pre-save consent gate in `ComputerGameView`/`OnlineGameView`/`BluetoothGameView` for existing users, LEADERBOARD toggle in `SettingsView`. Swipe-to-dismiss on pre-save sheet = deny. `.disabled` ScoreSaveStatus nudge shown when denied. Reusable pattern: all leaderboard saves go through `LeaderboardConsentManager.shared.isGranted` gate; consent sheet presented via `showingConsentSheet`/`pendingConsentRound` state pair. (`LeaderboardConsentManager.swift`, `LeaderboardConsentSheet.swift`, `LeaderboardService.swift`, `SplashView.swift`, `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `SettingsView.swift`, `Styles.swift`)
 
 - [2026-06-07] Move in-app privacy policy link to Shady Spade custom domain — Symptom/motivation: The Shady Spade now has Cloudflare-hosted pages at `https://shadyspade.vijaygoyal.org`, so Settings should point to the app-branded privacy URL instead of the older GitHub Pages privacy URL. Root cause: `SettingsView` still linked to `https://imvijaygoyal1.github.io/shadyspade-privacy/` after the new Cloudflare Worker/static asset site was created and mapped to `shadyspade.vijaygoyal.org`. Fix: changed the Settings Privacy Policy link to `https://shadyspade.vijaygoyal.org/privacy`; documented the new home, privacy, and support URLs in the privacy/web-hosting section. Existing Firebase universal join links remain on `shadyspade-d6b84.web.app` because moving join links requires a separate AASA/entitlement migration. Reusable pattern: privacy/support/legal pages can move to the branded custom domain independently from universal game invite links. Verification: `curl -L -I` confirmed the custom-domain home, privacy, and support URLs return HTTP 200; existing Firebase AASA and sample join URL still return HTTP 200; `git diff --check` passed; `xcodebuild -quiet -project MyApp.xcodeproj -scheme MyApp -destination 'generic/platform=iOS Simulator' build` passed. (`SettingsView.swift`, `CLAUDE.md`, `docs/superpowers/plans/2026-06-07-shadyspade-custom-domain-privacy.md`)
 
@@ -385,8 +388,8 @@ Fixed routes:
 - **Name:** The Shady Spade
 - **Bundle ID:** `com.vijaygoyal.theshadyspade`
 - **Platform:** iOS (SwiftUI, supports portrait + landscape)
-- **Current version:** 1.6 (build 7) — submitted to App Store April 16, 2026, under review
-- **Previous version:** 1.5 (build 6) — approved on App Store
+- **Current version:** 1.10 (build 7) — submitted to App Store on June 7, 2026, awaiting review
+- **Previous version:** 1.9 — submitted to App Store on May 31, 2026
 - **Swift:** SwiftUI + SwiftData + Firebase + MultipeerConnectivity
 - **Project path:** `/Users/vijaygoyal/MyiOSApp/MyApp`
 
