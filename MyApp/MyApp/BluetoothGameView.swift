@@ -16,6 +16,8 @@ struct BluetoothGameView: View {
     @State private var disconnectedAlert = false
     @State private var showHostEndedGameAlert = false
     @State private var savedLeaderboardRoundNumbers = Set<Int>()
+    @State private var showingConsentSheet = false
+    @State private var pendingConsentRound: HistoryRound? = nil
 
     var body: some View {
         ZStack {
@@ -244,6 +246,18 @@ struct BluetoothGameView: View {
             LeaderboardService.shared.resetScoreSaveStatus()
             if game.isHost { await game.startGame() }
         }
+        .sheet(isPresented: $showingConsentSheet) {
+            LeaderboardConsentSheet(
+                onAllow: {
+                    saveConsentApprovedRound()
+                },
+                onDeny: {
+                    pendingConsentRound = nil
+                },
+                disableInteractiveDismiss: false
+            )
+            .presentationDetents([.medium])
+        }
     }
 
     private var bluetoothStatusDetail: String {
@@ -286,6 +300,11 @@ struct BluetoothGameView: View {
         guard game.isHost else { return }
         guard let round = game.completedRounds.sorted(by: { $0.roundNumber < $1.roundNumber }).last else { return }
         guard !savedLeaderboardRoundNumbers.contains(round.roundNumber) else { return }
+        if LeaderboardConsentManager.shared.state == .undecided {
+            pendingConsentRound = round
+            showingConsentSheet = true
+            return
+        }
         savedLeaderboardRoundNumbers.insert(round.roundNumber)
         let finalScores = round.runningScores
         let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
@@ -313,6 +332,12 @@ struct BluetoothGameView: View {
         } else {
             LeaderboardService.shared.markScoreNotSaved("Current round discarded; no leaderboard update for unfinished round.")
         }
+    }
+
+    private func saveConsentApprovedRound() {
+        guard let _ = pendingConsentRound else { return }
+        pendingConsentRound = nil
+        saveLatestCompletedRoundToLeaderboardIfNeeded()
     }
 }
 
