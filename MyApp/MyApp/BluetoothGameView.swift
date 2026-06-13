@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import OSLog
+import StoreKit
 
 private let btLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "BluetoothGame")
 
@@ -11,6 +12,8 @@ struct BluetoothGameView: View {
     @Bindable var game: BluetoothGameViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.requestReview) private var requestReview
+    @AppStorage("completedRoundCount") private var completedRoundCount = 0
     @State private var showQuitConfirm = false
     @State private var showRoundResultBanner = false
     @State private var disconnectedAlert = false
@@ -122,6 +125,13 @@ struct BluetoothGameView: View {
         .onChange(of: game.phase) { _, newPhase in
             if newPhase == .roundComplete {
                 saveLatestCompletedRoundToLeaderboardIfNeeded()
+                completedRoundCount += 1
+                if completedRoundCount == 3 {
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(1))
+                        requestReview()
+                    }
+                }
                 HapticManager.success()
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                     showRoundResultBanner = true
