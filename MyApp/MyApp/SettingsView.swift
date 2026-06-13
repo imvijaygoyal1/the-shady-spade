@@ -86,6 +86,22 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+
+                // ── LEADERBOARD ───────────────────────────────────────
+                Section(header: Text("LEADERBOARD")) {
+                    Toggle(isOn: Binding<Bool>(
+                        get: { LeaderboardConsentManager.shared.state == .granted },
+                        set: { newValue in
+                            if newValue {
+                                LeaderboardConsentManager.shared.grant()
+                            } else {
+                                LeaderboardConsentManager.shared.deny()
+                            }
+                        }
+                    )) {
+                        Text("Save rounds to global leaderboard")
+                    }
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
