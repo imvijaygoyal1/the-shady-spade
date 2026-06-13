@@ -22,6 +22,8 @@ struct ComputerGameView: View {
     @State private var dealAnimDone = false
     @State private var soloGameSaved = false
     @State private var savedLeaderboardRoundNumbers = Set<Int>()
+    @State private var showingConsentSheet = false
+    @State private var pendingConsentRound: (round: HistoryRound, mode: String)? = nil
     @State private var guidedStep: GuidedTutorialStep? = nil
     @State private var pendingGuidedSteps: [GuidedTutorialStep] = []
     @State private var shownGuidedSteps = Set<GuidedTutorialStep>()
@@ -254,6 +256,21 @@ struct ComputerGameView: View {
                 .transition(.opacity)
             }
         }
+        .sheet(isPresented: $showingConsentSheet) {
+            if let pending = pendingConsentRound {
+                LeaderboardConsentSheet(
+                    onAllow: {
+                        saveRoundToLeaderboardIfNeeded(pending.round, mode: pending.mode)
+                        pendingConsentRound = nil
+                    },
+                    onDeny: {
+                        pendingConsentRound = nil
+                    },
+                    disableInteractiveDismiss: false
+                )
+                .presentationDetents([.medium])
+            }
+        }
     }
 
     private func nextRound() {
@@ -392,6 +409,11 @@ struct ComputerGameView: View {
     private func saveRoundToLeaderboardIfNeeded(_ round: HistoryRound, mode: String) {
         guard !guidedFirstGame else { return }
         guard !savedLeaderboardRoundNumbers.contains(round.roundNumber) else { return }
+        if LeaderboardConsentManager.shared.state == .undecided {
+            pendingConsentRound = (round, mode)
+            showingConsentSheet = true
+            return
+        }
         savedLeaderboardRoundNumbers.insert(round.roundNumber)
         let capturedNames = (0..<6).map { game.playerName($0) }
         let capturedScores = round.runningScores
