@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import StoreKit
 
 // MARK: - Root
 
@@ -12,6 +13,8 @@ struct ComputerGameView: View {
     let onGuidedTutorialComplete: () -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.requestReview) private var requestReview
+    @AppStorage("completedRoundCount") private var completedRoundCount = 0
     @State private var game: ComputerGameViewModel
     @State private var runningScores: [Int] = Array(repeating: 0, count: 6)
     @State private var isGameOver = false
@@ -437,6 +440,15 @@ struct ComputerGameView: View {
         let (hr, updated) = appendCurrentRoundIfNeeded()
         let mode = currentGameMode()
         saveRoundToLeaderboardIfNeeded(hr, mode: mode)
+        if !guidedFirstGame {
+            completedRoundCount += 1
+            if completedRoundCount == 3 {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1))
+                    requestReview()
+                }
+            }
+        }
         soloGameSaved = true
         saveGameHistory(finalScores: updated, rounds: savedHistoryRounds, mode: mode)
         isGameOver = true
