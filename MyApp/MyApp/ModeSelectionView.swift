@@ -75,24 +75,24 @@ struct ModeSelectionView: View {
             }
 
             GeometryReader { geo in
-                // PORTRAIT — original layout, untouched
+                let isWide = geo.size.width > 500
                 VStack(spacing: 0) {
                     Spacer()
 
                     VStack(spacing: 14) {
                         Image(systemName: "suit.spade.fill")
-                            .font(.system(size: 72))
+                            .font(.system(size: isWide ? 96 : 72))
                             .foregroundStyle(Comic.yellow)
                             .shadow(color: Comic.black, radius: 0, x: 3, y: 3)
                         Text("The Shady Spade")
-                            .font(.system(size: 34, weight: .black))
+                            .font(.system(size: isWide ? 42 : 34, weight: .black))
                             .foregroundStyle(Comic.textPrimary)
                             .shadow(color: Comic.black.opacity(0.18), radius: 0, x: 2, y: 2)
                         Text("Choose a game mode")
-                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                            .font(.system(size: isWide ? 17 : 15, weight: .heavy, design: .rounded))
                             .foregroundStyle(Comic.textSecondary)
                     }
-                    .padding(.bottom, 52)
+                    .padding(.bottom, isWide ? 64 : 52)
 
                     VStack(spacing: 16) {
                         ModeCard(
@@ -138,8 +138,8 @@ struct ModeSelectionView: View {
                             showingNamePrompt = true
                         }
                     }
-                    .adaptiveContentFrame()
-                    .padding(.horizontal, 20)
+                    .adaptiveContentFrame(maxWidth: 560)
+                    .padding(.horizontal, isWide ? 40 : 20)
 
                     Spacer()
 
@@ -173,51 +173,58 @@ struct ModeSelectionView: View {
                 )
             },
             landscapeRight: {
-                VStack(spacing: 10) {
-                    ModeCard(
-                        icon: "play.circle.fill",
-                        title: "New Game",
-                        subtitle: "Play alone or invite friends — AI fills empty seats",
-                        color: Comic.yellow,
-                        iconBG: Comic.yellow
-                    ) {
-                        HapticManager.impact(.medium)
-                        selectedPlayerCount = 1
-                        pendingName = soloPlayerName
-                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        pendingMode = "New Game"
-                        showingNamePrompt = true
-                    }
+                VStack {
+                    Spacer()
 
-                    ModeCard(
-                        icon: "dot.radiowaves.left.and.right",
-                        title: "Local / Bluetooth",
-                        subtitle: "Play nearby — no internet needed",
-                        color: Comic.red,
-                        iconBG: Comic.red
-                    ) {
-                        HapticManager.impact(.medium)
-                        pendingName = soloPlayerName
-                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        pendingMode = "Local / Bluetooth"
-                        showingNamePrompt = true
-                    }
+                    VStack(spacing: 12) {
+                        ModeCard(
+                            icon: "play.circle.fill",
+                            title: "New Game",
+                            subtitle: "Play alone or invite friends — AI fills empty seats",
+                            color: Comic.yellow,
+                            iconBG: Comic.yellow
+                        ) {
+                            HapticManager.impact(.medium)
+                            selectedPlayerCount = 1
+                            pendingName = soloPlayerName
+                            pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                            pendingMode = "New Game"
+                            showingNamePrompt = true
+                        }
 
-                    ModeCard(
-                        icon: "arrow.right.circle.fill",
-                        title: "Join a Game",
-                        subtitle: "Have a room code? Jump straight in",
-                        color: Color(red: 0.09, green: 0.63, blue: 0.45),
-                        iconBG: Color(red: 0.09, green: 0.63, blue: 0.45)
-                    ) {
-                        HapticManager.impact(.medium)
-                        pendingName = soloPlayerName
-                        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                        pendingMode = "Join a Game"
-                        showingNamePrompt = true
+                        ModeCard(
+                            icon: "dot.radiowaves.left.and.right",
+                            title: "Local / Bluetooth",
+                            subtitle: "Play nearby — no internet needed",
+                            color: Comic.red,
+                            iconBG: Comic.red
+                        ) {
+                            HapticManager.impact(.medium)
+                            pendingName = soloPlayerName
+                            pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                            pendingMode = "Local / Bluetooth"
+                            showingNamePrompt = true
+                        }
+
+                        ModeCard(
+                            icon: "arrow.right.circle.fill",
+                            title: "Join a Game",
+                            subtitle: "Have a room code? Jump straight in",
+                            color: Color(red: 0.09, green: 0.63, blue: 0.45),
+                            iconBG: Color(red: 0.09, green: 0.63, blue: 0.45)
+                        ) {
+                            HapticManager.impact(.medium)
+                            pendingName = soloPlayerName
+                            pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                            pendingMode = "Join a Game"
+                            showingNamePrompt = true
+                        }
                     }
+                    .adaptiveContentFrame(maxWidth: 560)
+                    .padding(.horizontal, 20)
+
+                    Spacer()
                 }
-                .padding(12)
             }
         )
         .onAppear { vm.setup(with: modelContext) }
