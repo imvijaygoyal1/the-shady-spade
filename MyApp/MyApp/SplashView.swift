@@ -10,25 +10,20 @@ struct SplashView: View {
     enum Page { case splash, playerSetup, deckAndDeal }
     @State private var page: Page = .splash
     @State private var savedNames: [String] = (1...6).map { "Player \($0)" }
-    @State private var showingConsentSheet = false
 
     var body: some View {
         ZStack {
             Comic.bg.ignoresSafeArea()
             switch page {
             case .splash:
-                SplashPage(onProceed: proceedFromSplash)
+                SplashPage(onProceed: onComplete)
                 .transition(.asymmetric(insertion: .opacity,
                                         removal: .move(edge: .leading).combined(with: .opacity)))
 
             case .playerSetup:
                 PlayerSetupPage { names in
                     savedNames = names
-                    if LeaderboardConsentManager.shared.state == .undecided {
-                        showingConsentSheet = true
-                    } else {
-                        advanceToDeckAndDeal()
-                    }
+                    advanceToDeckAndDeal()
                 }
                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                         removal: .move(edge: .leading).combined(with: .opacity)))
@@ -40,30 +35,6 @@ struct SplashView: View {
             }
         }
         .animation(.spring(response: 0.55, dampingFraction: 0.8), value: page)
-        .sheet(isPresented: $showingConsentSheet) {
-            LeaderboardConsentSheet(
-                onAllow: { proceedAfterConsent() },
-                onDeny:  { proceedAfterConsent() },
-                disableInteractiveDismiss: true
-            )
-            .presentationDetents([.medium])
-        }
-    }
-
-    private func proceedFromSplash() {
-        if LeaderboardConsentManager.shared.state == .undecided {
-            showingConsentSheet = true
-        } else {
-            onComplete()
-        }
-    }
-
-    private func proceedAfterConsent() {
-        if page == .playerSetup {
-            advanceToDeckAndDeal()
-        } else {
-            onComplete()
-        }
     }
 
     private func advanceToDeckAndDeal() {
