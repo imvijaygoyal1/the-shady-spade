@@ -35,8 +35,8 @@ Apple rejected the latest submission again for the same Guideline 5.1.2 issue. T
 - Denial always discards queued leaderboard records and sets leaderboard uploads disabled.
 - The consent sheet, Settings row, and score-save status copy now say scores/stats upload to our Firebase server for the global leaderboard.
 - Settings no longer silently grants upload consent; turning the leaderboard toggle on opens the same explicit consent sheet.
-- The first-run `Let's Play` path now goes through player setup. After names are saved, undecided users see the consent sheet before deck/deal starts.
 - Consent buttons are explicit: `Allow Score Uploads` and `Play Without Uploading Scores`.
+- Follow-up correction: `Let's Play` must preserve the normal mode-selection flow. It now shows the consent sheet only when consent is undecided, then continues normally. Consent no longer forces player setup or deck/deal animations.
 
 App Review note should state that completed-round leaderboard upload is opt-in, the app still allows play when declined, and denied/undecided users do not have scores stored in the offline queue or uploaded to Firebase.
 
