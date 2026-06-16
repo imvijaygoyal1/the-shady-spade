@@ -499,7 +499,7 @@ struct ScoreSaveStatusRow: View {
             case .saving:
                 statusPill(tint: .secondary) {
                     ProgressView().scaleEffect(0.75)
-                    statusText("Uploading round to leaderboard...", color: .secondary)
+                    statusText("Saving round to leaderboard...", color: .secondary)
                 }
             case .saved:
                 statusPill(tint: ThemeManager.shared.colours.successColor) {
@@ -512,7 +512,7 @@ struct ScoreSaveStatusRow: View {
                     Image(systemName: "wifi.slash")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(ThemeManager.shared.colours.warningColor)
-                    statusText("Round queued. It will upload when you're back online.", color: ThemeManager.shared.colours.warningColor)
+                    statusText("Round queued. It will sync when you're back online.", color: ThemeManager.shared.colours.warningColor)
                 }
             case .notSaved(let msg):
                 statusPill(tint: .defenseRose, showsDisclosure: false) {
@@ -539,7 +539,7 @@ struct ScoreSaveStatusRow: View {
                     Image(systemName: "hand.raised.slash.fill")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Color.secondary)
-                    statusText("Leaderboard uploads are off · Enable in Settings", color: .secondary)
+                    statusText("Leaderboard saving is off · Enable in Settings", color: .secondary)
                 }
             }
         }
@@ -565,7 +565,7 @@ struct ScoreSaveStatusRow: View {
             }
 
             if showsDisclosure {
-                Text("With consent, completed rounds upload chosen player names, avatars, scores, bids, game mode, and round results to our Firebase server for the global leaderboard.")
+                Text("Completed rounds may upload avatar names, scores, bid results, and game mode to the global leaderboard.")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)

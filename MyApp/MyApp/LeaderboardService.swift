@@ -162,22 +162,6 @@ final class LeaderboardService {
         errorMessage = nil
     }
 
-    func syncPendingRecordsIfAllowed() async {
-        await flushPendingRecords()
-    }
-
-    func discardPendingRecords() {
-        UserDefaults.standard.removeObject(forKey: pendingKey)
-        do {
-            try FileManager.default.removeItem(at: pendingRecordsFileURL)
-        } catch let error as CocoaError where error.code == .fileNoSuchFile {
-            // Nothing queued.
-        } catch {
-            lbLog.error("LeaderboardService: failed to discard pending records: \(error.localizedDescription)")
-        }
-        scoreSaveStatus = .disabled
-    }
-
     // MARK: - Listeners
 
     func startListening() {
@@ -579,13 +563,6 @@ final class LeaderboardService {
         aiSeats: [Int] = [],
         rounds: [HistoryRound]
     ) {
-        guard LeaderboardConsentManager.shared.isGranted else {
-            if LeaderboardConsentManager.shared.state == .denied {
-                scoreSaveStatus = .disabled
-            }
-            lbLog.info("preEnqueue skipped — consent not granted (state=\(LeaderboardConsentManager.shared.state.rawValue))")
-            return
-        }
         guard playerNames.count == 6, finalScores.count == 6 else { return }
         guard rounds.allSatisfy({ $0.runningScores.count == 6 }), let lastRound = rounds.last else { return }
         let validAISeats = aiSeats.filter { (0..<6).contains($0) }
@@ -618,13 +595,6 @@ final class LeaderboardService {
 
     private func flushPendingRecords() async {
         guard !isFlushing else { return }
-        guard LeaderboardConsentManager.shared.isGranted else {
-            if LeaderboardConsentManager.shared.state == .denied {
-                scoreSaveStatus = .disabled
-            }
-            lbLog.info("flushPendingRecords skipped — consent not granted (state=\(LeaderboardConsentManager.shared.state.rawValue))")
-            return
-        }
         isFlushing = true
         defer { isFlushing = false }
 

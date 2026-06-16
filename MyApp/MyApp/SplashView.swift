@@ -19,24 +19,22 @@ struct SplashView: View {
             case .splash:
                 SplashPage(onProceed: {
                     withAnimation(.spring(response: 0.55, dampingFraction: 0.8)) { page = .playerSetup }
-                })
+                }, onSkip: onComplete)
                 .transition(.asymmetric(insertion: .opacity,
                                         removal: .move(edge: .leading).combined(with: .opacity)))
 
             case .playerSetup:
                 PlayerSetupPage { names in
                     savedNames = names
-                    if LeaderboardConsentManager.shared.state == .undecided {
-                        showingConsentSheet = true
-                    } else {
-                        advanceToDeckAndDeal()
-                    }
+                    withAnimation(.spring(response: 0.55, dampingFraction: 0.8)) { page = .deckAndDeal }
                 }
                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                         removal: .move(edge: .leading).combined(with: .opacity)))
 
             case .deckAndDeal:
-                DeckAndDealPage(playerNames: savedNames, onComplete: onComplete)
+                DeckAndDealPage(playerNames: savedNames, onComplete: {
+                    showingConsentSheet = true
+                })
                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                         removal: .opacity))
             }
@@ -44,17 +42,11 @@ struct SplashView: View {
         .animation(.spring(response: 0.55, dampingFraction: 0.8), value: page)
         .sheet(isPresented: $showingConsentSheet) {
             LeaderboardConsentSheet(
-                onAllow: { advanceToDeckAndDeal() },
-                onDeny:  { advanceToDeckAndDeal() },
+                onAllow: { onComplete() },
+                onDeny:  { onComplete() },
                 disableInteractiveDismiss: true
             )
             .presentationDetents([.medium])
-        }
-    }
-
-    private func advanceToDeckAndDeal() {
-        withAnimation(.spring(response: 0.55, dampingFraction: 0.8)) {
-            page = .deckAndDeal
         }
     }
 }
@@ -63,6 +55,7 @@ struct SplashView: View {
 
 private struct SplashPage: View {
     var onProceed: () -> Void
+    var onSkip: (() -> Void)? = nil
 
     // Logo
     @State private var spadeY:      CGFloat = -140
@@ -201,7 +194,7 @@ private struct SplashPage: View {
 
                             // CTA
                             VStack(spacing: 12) {
-                                goldButton(label: "Let's Play", icon: "arrow.right.circle.fill", action: onProceed)
+                                goldButton(label: "Let's Play", icon: "arrow.right.circle.fill", action: { onSkip?() })
                                     .padding(.horizontal, 32)
                             }
                             .padding(.bottom, 54)
@@ -259,7 +252,7 @@ private struct SplashPage: View {
                                 goldButton(
                                     label: "Let's Play",
                                     icon: "arrow.right.circle.fill"
-                                ) { onProceed() }
+                                ) { onSkip?() }
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 14)

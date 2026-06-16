@@ -317,7 +317,7 @@ struct OnlineGameView: View {
     }
 
     private func saveConsentApprovedRound() {
-        guard pendingConsentRound != nil else { return }
+        guard let round = pendingConsentRound else { return }
         pendingConsentRound = nil
         saveLatestCompletedRoundToLeaderboardIfNeeded()
     }

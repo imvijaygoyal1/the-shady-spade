@@ -4,7 +4,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
-    @State private var showingLeaderboardConsentSheet = false
 
     var body: some View {
         NavigationStack {
@@ -94,7 +93,7 @@ struct SettingsView: View {
                         get: { LeaderboardConsentManager.shared.state == .granted },
                         set: { newValue in
                             if newValue {
-                                showingLeaderboardConsentSheet = true
+                                LeaderboardConsentManager.shared.grant()
                             } else {
                                 LeaderboardConsentManager.shared.deny()
                             }
@@ -102,23 +101,11 @@ struct SettingsView: View {
                     )) {
                         Text("Save rounds to global leaderboard")
                     }
-
-                    Text("When enabled, completed-round scores and game stats upload to our Firebase server for the global leaderboard.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
             .tint(themeManager.colours.accentColor)
-            .sheet(isPresented: $showingLeaderboardConsentSheet) {
-                LeaderboardConsentSheet(
-                    onAllow: { },
-                    onDeny: { },
-                    disableInteractiveDismiss: true
-                )
-                .presentationDetents([.medium])
-            }
         }
     }
 }
