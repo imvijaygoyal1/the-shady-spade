@@ -474,125 +474,268 @@ private struct NamePromptSheet: View {
     private var canStart: Bool { !trimmed.isEmpty && !isProfane }
 
     var body: some View {
-        ZStack {
-            Comic.bg.ignoresSafeArea()
+        GeometryReader { geo in
+            let isIPad = geo.size.width > 600
+            let isLandscape = geo.size.width > geo.size.height
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 24) {
+            ZStack {
+                Comic.bg.ignoresSafeArea()
 
-                    // Large avatar preview card
-                    AvatarPickerCard(
-                        emoji: pendingAvatar,
-                        name: Comic.characterName(for: pendingAvatar),
-                        isSelected: true,
-                        width: 100,
-                        height: 132
-                    )
-                    .padding(.top, 28)
-                    .animation(.spring(response: 0.3,
-                        dampingFraction: 0.65), value: pendingAvatar)
-
-                    // Title & subtitle
-                    VStack(spacing: 6) {
-                        Text(mode)
-                            .font(.system(size: 22, weight: .black, design: .rounded))
-                            .foregroundStyle(.adaptivePrimary)
-                        Text("Pick a name for your avatar")
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Name input
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Your Avatar Name")
-                            .font(.system(size: 13, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Comic.textSecondary)
-                            .padding(.leading, 4)
-                        TextField("Enter avatar name...", text: $pendingName)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 20, weight: .heavy, design: .rounded))
-                            .foregroundStyle(isProfane ? Color.defenseRose : Comic.textPrimary)
-                            .multilineTextAlignment(.center)
-                            .padding(.vertical, 14)
-                            .padding(.horizontal, 14)
-                            .comicContainer(cornerRadius: 14)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .strokeBorder(isProfane ? Color.defenseRose : Color.clear,
-                                                  lineWidth: 1.5)
-                            )
-                            .submitLabel(.go)
-                            .onSubmit { if canStart { onStart() } }
-                        if isProfane {
-                            HStack(spacing: 4) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.system(size: 11))
-                                Text("Inappropriate name — please choose another")
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                            }
-                            .foregroundStyle(Color.defenseRose)
-                            .padding(.leading, 4)
-                            .transition(.opacity)
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.15), value: isProfane)
-                    .padding(.horizontal, 28)
-
-                    // Avatar picker — rectangular cards
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Choose Your Avatar")
-                            .font(.system(size: 13, weight: .heavy,
-                                design: .rounded))
-                            .foregroundStyle(.masterGold)
-                            .padding(.leading, 28)
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(avatarOptions, id: \.self) { emoji in
-                                    let isSelected = pendingAvatar == emoji
-                                    Button {
-                                        HapticManager.impact(.light)
-                                        pendingAvatar = emoji
-                                    } label: {
-                                        AvatarPickerCard(
-                                            emoji: emoji,
-                                            name: Comic.characterName(
-                                                for: emoji),
-                                            isSelected: isSelected,
-                                            width: 62,
-                                            height: 84
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.horizontal, 28)
-                            .padding(.vertical, 8)
-                        }
-                    }
-
-                    // Start Game button
-                    Button(action: onStart) {
-                        Text("Start Game")
-                            .font(.system(size: 18, weight: .black, design: .rounded))
-                            .foregroundStyle(canStart ? Comic.black : Color.secondary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                    }
-                    .buttonStyle(ComicButtonStyle(
-                        bg: canStart ? Comic.yellow : Comic.containerBG,
-                        fg: canStart ? Comic.black : .secondary,
-                        borderColor: Comic.black,
-                        animatesPress: false
-                    ))
-                    .disabled(!canStart)
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 36)
+                if isLandscape {
+                    landscapeBody(geo: geo)
+                } else {
+                    portraitBody(isIPad: isIPad, geo: geo)
                 }
             }
         }
+        .ignoresSafeArea()
         .presentationDetents([.large])
         .presentationBackground(Comic.bg)
+    }
+
+    @ViewBuilder
+    private func portraitBody(isIPad: Bool, geo: GeometryProxy) -> some View {
+        let hPad: CGFloat      = isIPad ? geo.size.width * 0.12 : 28
+        let cardW: CGFloat     = isIPad ? 96 : 70
+        let titleSize: CGFloat = isIPad ? 16 : 14
+        let subSize: CGFloat   = isIPad ? 11 : 12
+        let fieldSize: CGFloat = isIPad ? 10 : 9
+
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: isIPad ? 20 : 24) {
+
+                AvatarPickerCard(
+                    emoji: pendingAvatar,
+                    name: Comic.characterName(for: pendingAvatar),
+                    isSelected: true,
+                    width: cardW,
+                    height: cardW * 1.32
+                )
+                .padding(.top, isIPad ? 20 : 28)
+                .animation(.spring(response: 0.3,
+                    dampingFraction: 0.65), value: pendingAvatar)
+
+                VStack(spacing: 6) {
+                    Text(mode)
+                        .font(.system(size: titleSize, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                    Text("Pick a name for your avatar")
+                        .font(.system(size: subSize, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Your Avatar Name")
+                        .font(.system(size: fieldSize, weight: .bold, design: .rounded))
+                        .foregroundStyle(Comic.yellow)
+                        .padding(.leading, 4)
+                    TextField("Enter avatar name...", text: $pendingName)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 20, weight: .heavy, design: .rounded))
+                        .foregroundStyle(isProfane ? Color.defenseRose : Comic.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .padding(.vertical, 14)
+                        .padding(.horizontal, 14)
+                        .comicContainer(cornerRadius: 14)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(isProfane ? Color.defenseRose : Color.clear,
+                                              lineWidth: 1.5)
+                        )
+                        .submitLabel(.go)
+                        .onSubmit { if canStart { onStart() } }
+                    if isProfane {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11))
+                            Text("Inappropriate name — please choose another")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                        }
+                        .foregroundStyle(Color.defenseRose)
+                        .padding(.leading, 4)
+                        .transition(.opacity)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.15), value: isProfane)
+                .padding(.horizontal, hPad)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Choose Your Avatar")
+                        .font(.system(size: fieldSize, weight: .bold, design: .rounded))
+                        .foregroundStyle(.masterGold)
+                        .padding(.leading, hPad)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(avatarOptions, id: \.self) { emoji in
+                                let isSelected = pendingAvatar == emoji
+                                Button {
+                                    HapticManager.impact(.light)
+                                    pendingAvatar = emoji
+                                } label: {
+                                    AvatarPickerCard(
+                                        emoji: emoji,
+                                        name: Comic.characterName(for: emoji),
+                                        isSelected: isSelected,
+                                        width: 62,
+                                        height: 84
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, hPad)
+                        .padding(.vertical, 8)
+                    }
+                }
+
+                Button(action: onStart) {
+                    Text("Start Game")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundStyle(canStart ? Comic.black : Color.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                }
+                .buttonStyle(ComicButtonStyle(
+                    bg: canStart ? Comic.yellow : Comic.containerBG,
+                    fg: canStart ? Comic.black : .secondary,
+                    borderColor: Comic.black,
+                    animatesPress: false
+                ))
+                .disabled(!canStart)
+                .padding(.horizontal, hPad)
+                .padding(.bottom, isIPad ? 24 : 36)
+            }
+            .frame(maxWidth: isIPad ? 560 : .infinity)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private func landscapeBody(geo: GeometryProxy) -> some View {
+        HStack(spacing: 0) {
+
+            // LEFT PANEL — avatar card + title
+            VStack(spacing: 10) {
+                Spacer(minLength: 0)
+
+                AvatarPickerCard(
+                    emoji: pendingAvatar,
+                    name: Comic.characterName(for: pendingAvatar),
+                    isSelected: true,
+                    width: 90,
+                    height: 90 * 1.32
+                )
+                .animation(.spring(response: 0.3,
+                    dampingFraction: 0.65), value: pendingAvatar)
+
+                VStack(spacing: 4) {
+                    Text(mode)
+                        .font(.system(size: 15, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                    Text("Pick a name for your avatar")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .frame(width: geo.size.width * 0.40)
+            .frame(maxHeight: .infinity)
+            .background(Comic.containerBG.opacity(0.85))
+
+            Rectangle()
+                .fill(Comic.containerBorder)
+                .frame(width: 1)
+
+            // RIGHT PANEL — name input + avatar picker + CTA
+            VStack(spacing: 12) {
+                Spacer(minLength: 0)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Your Avatar Name")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundStyle(Comic.yellow)
+                        .padding(.leading, 4)
+                    TextField("Enter avatar name...", text: $pendingName)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 20, weight: .heavy, design: .rounded))
+                        .foregroundStyle(isProfane ? Color.defenseRose : Comic.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 14)
+                        .comicContainer(cornerRadius: 14)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(isProfane ? Color.defenseRose : Color.clear,
+                                              lineWidth: 1.5)
+                        )
+                        .submitLabel(.go)
+                        .onSubmit { if canStart { onStart() } }
+                    if isProfane {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11))
+                            Text("Inappropriate name — please choose another")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                        }
+                        .foregroundStyle(Color.defenseRose)
+                        .padding(.leading, 4)
+                        .transition(.opacity)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.15), value: isProfane)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Choose Your Avatar")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundStyle(.masterGold)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(avatarOptions, id: \.self) { emoji in
+                                let isSelected = pendingAvatar == emoji
+                                Button {
+                                    HapticManager.impact(.light)
+                                    pendingAvatar = emoji
+                                } label: {
+                                    AvatarPickerCard(
+                                        emoji: emoji,
+                                        name: Comic.characterName(for: emoji),
+                                        isSelected: isSelected,
+                                        width: 62,
+                                        height: 84
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+
+                Button(action: onStart) {
+                    Text("Start Game")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundStyle(canStart ? Comic.black : Color.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                }
+                .buttonStyle(ComicButtonStyle(
+                    bg: canStart ? Comic.yellow : Comic.containerBG,
+                    fg: canStart ? Comic.black : .secondary,
+                    borderColor: Comic.black,
+                    animatesPress: false
+                ))
+                .disabled(!canStart)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Comic.bg)
+        }
     }
 }
 
