@@ -120,7 +120,7 @@ private struct SplashPage: View {
                 .opacity(auraOpacity * (auraPulsing ? 0.5 : 1.0))
                 .animation(.easeOut(duration: 0.8), value: auraOpacity)
                 .animation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true), value: auraPulsing)
-                .position(x: geo.size.width / 2, y: geo.size.height * 0.265)
+                .position(x: geo.size.width / 2, y: min(geo.size.height * 0.265, 320))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
@@ -128,7 +128,9 @@ private struct SplashPage: View {
                 GameAdaptiveLayout(
                     portrait: {
                         VStack(spacing: 0) {
-                            Spacer()
+                            Spacer(minLength: 0)
+                                .frame(maxHeight: .infinity)
+                                .layoutPriority(2)
 
                             // Spade logo — 120pt gold, thick black shadow offset 4pt
                             Text("♠")
@@ -186,10 +188,15 @@ private struct SplashPage: View {
                                 goldButton(label: "Let's Play", icon: "arrow.right.circle.fill", action: { onSkip?() })
                                     .padding(.horizontal, 32)
                             }
-                            .padding(.bottom, 54)
                             .opacity(buttonOp)
                             .scaleEffect(buttonOp == 1 ? 1 : 0.92)
+
+                            Spacer(minLength: 0)
+                                .frame(maxHeight: .infinity)
+                                .layoutPriority(1)
                         }
+                        .frame(maxWidth: 560, maxHeight: .infinity)
+                        .frame(maxWidth: .infinity)
                     },
                     landscape: {
                         HStack(spacing: 0) {
