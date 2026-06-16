@@ -120,83 +120,80 @@ private struct SplashPage: View {
                 .opacity(auraOpacity * (auraPulsing ? 0.5 : 1.0))
                 .animation(.easeOut(duration: 0.8), value: auraOpacity)
                 .animation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true), value: auraPulsing)
-                .position(x: geo.size.width / 2, y: min(geo.size.height * 0.265, 320))
+                .position(x: geo.size.width / 2, y: geo.size.height * 0.42)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
                 // ── Main content ─────────────────────────────────────────
                 GameAdaptiveLayout(
                     portrait: {
-                        VStack(spacing: 0) {
-                            Spacer(minLength: 0)
-                                .frame(maxHeight: .infinity)
-                                .layoutPriority(2)
+                        ZStack {
+                            VStack(spacing: 0) {
+                                Spacer()
 
-                            // Spade logo — 120pt gold, thick black shadow offset 4pt
-                            Text("♠")
-                                .font(.system(size: 120, weight: .black))
-                                .foregroundStyle(Comic.yellow)
-                                .shadow(color: Comic.black, radius: 0, x: 4, y: 4)
-                                .shadow(color: Comic.black.opacity(0.3), radius: 0, x: 8, y: 8)
-                                .offset(y: spadeY)
-                                .opacity(spadeOpacity)
-                                .scaleEffect(spadeScale)
-                                .animation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true), value: spadeScale)
-                                .allowsHitTesting(false)
-                                .accessibilityHidden(true)
+                                // Spade logo — 120pt gold, thick black shadow offset 4pt
+                                Text("♠")
+                                    .font(.system(size: 120, weight: .black))
+                                    .foregroundStyle(Comic.yellow)
+                                    .shadow(color: Comic.black, radius: 0, x: 4, y: 4)
+                                    .shadow(color: Comic.black.opacity(0.3), radius: 0, x: 8, y: 8)
+                                    .offset(y: spadeY)
+                                    .opacity(spadeOpacity)
+                                    .scaleEffect(spadeScale)
+                                    .animation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true), value: spadeScale)
+                                    .allowsHitTesting(false)
+                                    .accessibilityHidden(true)
 
-                            Spacer().frame(height: 18)
+                                Spacer().frame(height: 18)
 
-                            // Title — black outline text effect
-                            Text("The Shady Spade")
-                                .font(.system(size: 34, weight: .black, design: .default))
-                                .foregroundStyle(Comic.textPrimary)
-                                .shadow(color: Comic.black.opacity(0.25), radius: 0, x: 2, y: 2)
-
-                            Spacer().frame(height: 6)
-
-                            // Subtitle — bold
-                            Text("6-Player Secret Partner Card Game")
-                                .font(.system(size: 15, weight: .heavy, design: .rounded))
-                                .foregroundStyle(Comic.textSecondary)
-                                .opacity(subtitleOp)
-
-                            Spacer().frame(height: 36)
-
-                            // Rules card
-                            rulesCard
-                                .opacity(rulesOp)
-                                .offset(y: rulesY)
-
-                            Spacer().frame(height: 28)
-
-                            // Creator
-                            VStack(spacing: 5) {
-                                Text("CREATED BY")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .kerning(2.5)
-                                    .foregroundStyle(Comic.textSecondary.opacity(0.7))
-                                Text("Vijay Goyal")
-                                    .font(.title3.bold())
+                                // Title — black outline text effect
+                                Text("The Shady Spade")
+                                    .font(.system(size: 34, weight: .black, design: .default))
                                     .foregroundStyle(Comic.textPrimary)
-                            }
-                            .opacity(creatorOp)
-                            .padding(.bottom, 28)
+                                    .shadow(color: Comic.black.opacity(0.25), radius: 0, x: 2, y: 2)
 
-                            // CTA
-                            VStack(spacing: 12) {
+                                Spacer().frame(height: 6)
+
+                                // Subtitle — bold
+                                Text("6-Player Secret Partner Card Game")
+                                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(Comic.textSecondary)
+                                    .opacity(subtitleOp)
+
+                                Spacer().frame(height: 36)
+
+                                // Rules card
+                                rulesCard
+                                    .opacity(rulesOp)
+                                    .offset(y: rulesY)
+
+                                Spacer().frame(height: 28)
+
+                                // Creator
+                                VStack(spacing: 5) {
+                                    Text("CREATED BY")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .kerning(2.5)
+                                        .foregroundStyle(Comic.textSecondary.opacity(0.7))
+                                    Text("Vijay Goyal")
+                                        .font(.title3.bold())
+                                        .foregroundStyle(Comic.textPrimary)
+                                }
+                                .opacity(creatorOp)
+
+                                Spacer().frame(height: 24)
+
+                                // CTA
                                 goldButton(label: "Let's Play", icon: "arrow.right.circle.fill", action: { onSkip?() })
                                     .padding(.horizontal, 32)
-                            }
-                            .opacity(buttonOp)
-                            .scaleEffect(buttonOp == 1 ? 1 : 0.92)
+                                    .opacity(buttonOp)
+                                    .scaleEffect(buttonOp == 1 ? 1 : 0.92)
 
-                            Spacer(minLength: 0)
-                                .frame(maxHeight: .infinity)
-                                .layoutPriority(1)
+                                Spacer()
+                            }
+                            .frame(maxWidth: 560)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                        .frame(maxWidth: 560, maxHeight: .infinity)
-                        .frame(maxWidth: .infinity)
                     },
                     landscape: {
                         HStack(spacing: 0) {
