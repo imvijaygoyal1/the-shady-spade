@@ -17,7 +17,9 @@ struct SplashView: View {
             Comic.bg.ignoresSafeArea()
             switch page {
             case .splash:
-                SplashPage(onProceed: proceedFromSplash)
+                SplashPage(onProceed: {
+                    withAnimation(.spring(response: 0.55, dampingFraction: 0.8)) { page = .playerSetup }
+                })
                 .transition(.asymmetric(insertion: .opacity,
                                         removal: .move(edge: .leading).combined(with: .opacity)))
 
@@ -42,27 +44,11 @@ struct SplashView: View {
         .animation(.spring(response: 0.55, dampingFraction: 0.8), value: page)
         .sheet(isPresented: $showingConsentSheet) {
             LeaderboardConsentSheet(
-                onAllow: { proceedAfterConsent() },
-                onDeny:  { proceedAfterConsent() },
+                onAllow: { advanceToDeckAndDeal() },
+                onDeny:  { advanceToDeckAndDeal() },
                 disableInteractiveDismiss: true
             )
             .presentationDetents([.medium])
-        }
-    }
-
-    private func proceedFromSplash() {
-        if LeaderboardConsentManager.shared.state == .undecided {
-            showingConsentSheet = true
-        } else {
-            onComplete()
-        }
-    }
-
-    private func proceedAfterConsent() {
-        if page == .playerSetup {
-            advanceToDeckAndDeal()
-        } else {
-            onComplete()
         }
     }
 
