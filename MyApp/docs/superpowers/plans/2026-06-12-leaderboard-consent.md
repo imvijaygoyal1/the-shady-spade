@@ -10,6 +10,19 @@
 
 ---
 
+## 2026-06-15 Safe Correction
+
+Final App Review approach must not change launch/onboarding behavior.
+
+- `SplashView` must not present leaderboard consent.
+- Consent appears just-in-time when a completed round is about to be stored/uploaded to the leaderboard.
+- Settings can request consent when the user explicitly enables leaderboard uploads.
+- `recordGame(...)`, `preEnqueue(...)`, and `flushPendingRecords()` must all require granted consent.
+- Denying consent discards any pending leaderboard records and leaves gameplay unaffected.
+- Consent copy must explicitly name the Firebase server and the data categories uploaded.
+
+---
+
 ## File Map
 
 | File | Action | Purpose |
@@ -18,7 +31,7 @@
 | `MyApp/LeaderboardConsentSheet.swift` | Create | Reusable bottom-sheet consent UI |
 | `MyApp/Styles.swift` | Modify | Add `.disabled` case to `ScoreSaveStatus`; render nudge pill in `ScoreSaveStatusRow` |
 | `MyApp/LeaderboardService.swift` | Modify | Add consent guard at top of `recordGame()` |
-| `MyApp/SplashView.swift` | Modify | Present consent sheet after DeckAndDealPage before calling `onComplete` |
+| `MyApp/SplashView.swift` | Preserve | Do not present leaderboard consent from launch/onboarding |
 | `MyApp/ComputerGameView.swift` | Modify | Add consent gate before `saveRoundToLeaderboardIfNeeded` |
 | `MyApp/OnlineGameView.swift` | Modify | Add consent gate before `saveLatestCompletedRoundToLeaderboardIfNeeded` |
 | `MyApp/BluetoothGameView.swift` | Modify | Add consent gate before `saveLatestCompletedRoundToLeaderboardIfNeeded` |

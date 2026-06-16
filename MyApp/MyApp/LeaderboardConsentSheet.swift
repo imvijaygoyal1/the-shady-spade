@@ -16,11 +16,11 @@ struct LeaderboardConsentSheet: View {
                     .foregroundStyle(ThemeManager.shared.colours.accentColor)
                     .padding(.top, 32)
 
-                Text("Global Leaderboard")
+                Text("Share Scores to Global Leaderboard?")
                     .font(.system(size: 22, weight: .black, design: .rounded))
                     .foregroundStyle(Comic.textPrimary)
 
-                Text("When you complete a round, The Shady Spade can upload your player name, avatar, score, bid results, and game mode to the global leaderboard. No account is required and no other personal information is collected.")
+                Text("If you allow, The Shady Spade uploads your chosen player names, avatars, game mode, bids, scores, and round result to our Firebase server so your stats can appear on the global leaderboard. If you do not allow, you can still play and your scores will not be uploaded.")
                     .font(.system(size: 15, weight: .medium, design: .rounded))
                     .foregroundStyle(Comic.textSecondary)
                     .multilineTextAlignment(.center)
@@ -35,7 +35,7 @@ struct LeaderboardConsentSheet: View {
             Spacer().frame(height: 32)
 
             VStack(spacing: 12) {
-                Button("Allow") {
+                Button("Allow Score Uploads") {
                     choiceMade = true
                     LeaderboardConsentManager.shared.grant()
                     dismiss()
@@ -50,7 +50,7 @@ struct LeaderboardConsentSheet: View {
                     borderColor: Comic.black
                 ))
 
-                Button("Don't Allow") {
+                Button("Play Without Uploading Scores") {
                     choiceMade = true
                     LeaderboardConsentManager.shared.deny()
                     dismiss()
