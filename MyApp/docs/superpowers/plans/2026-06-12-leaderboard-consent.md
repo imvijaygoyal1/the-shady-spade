@@ -10,6 +10,38 @@
 
 ---
 
+## 2026-06-13 Implementation Note
+
+Apple rejected v1.10 (submission `d7f08e68`, reviewed June 10, 2026 on iPad Air 11-inch M3) because scores could upload to the global leaderboard before explicit consent.
+
+Final implementation must guard every server upload path:
+- `LeaderboardService.recordGame(...)` returns before enqueue/send unless `LeaderboardConsentManager.shared.isGranted`.
+- `LeaderboardService.flushPendingRecords()` also returns before sending queued/offline records unless consent is granted.
+- `LeaderboardConsentManager.deny()` discards pending leaderboard records so previously queued scores cannot upload later after a denial.
+- `LeaderboardConsentManager.grant()` triggers a consent-checked pending sync.
+- Visible consent UI discloses that player name, avatar, score, bid results, and game mode may upload to the global leaderboard and links to `https://shadyspade.vijaygoyal.org/privacy`.
+- Settings exposes a leaderboard toggle so the user can change consent later.
+
+Verification: `xcodebuild -quiet -project MyApp.xcodeproj -scheme MyApp -destination 'generic/platform=iOS Simulator' build` passed on 2026-06-13.
+
+---
+
+## 2026-06-15 Repeat-Rejection Hardening
+
+Apple rejected the latest submission again for the same Guideline 5.1.2 issue. The follow-up hardening closes two review risks:
+
+- `LeaderboardService.preEnqueue(...)` now requires granted consent before persisting any completed-round leaderboard payload to the offline queue.
+- Existing granted consent from the older disclosure is reset to undecided via `leaderboardConsentDisclosureVersion = 2`, forcing the clearer disclosure to be shown.
+- Denial always discards queued leaderboard records and sets leaderboard uploads disabled.
+- The consent sheet, Settings row, and score-save status copy now say scores/stats upload to our Firebase server for the global leaderboard.
+- Settings no longer silently grants upload consent; turning the leaderboard toggle on opens the same explicit consent sheet.
+- The first-run `Let's Play` path now goes through player setup. After names are saved, undecided users see the consent sheet before deck/deal starts.
+- Consent buttons are explicit: `Allow Score Uploads` and `Play Without Uploading Scores`.
+
+App Review note should state that completed-round leaderboard upload is opt-in, the app still allows play when declined, and denied/undecided users do not have scores stored in the offline queue or uploaded to Firebase.
+
+---
+
 ## File Map
 
 | File | Action | Purpose |
