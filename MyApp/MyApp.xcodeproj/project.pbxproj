@@ -9,22 +9,17 @@
 /* Begin PBXBuildFile section */
 		9FCB9B032F54A07E005C3E4B /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 9FCB9B022F54A07D005C3E4B /* GoogleService-Info.plist */; };
 		A1000001 /* MyAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* MyAppApp.swift */; };
-		A1000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* ContentView.swift */; };
 		A1000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000003 /* Assets.xcassets */; };
 		A1000004 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000004 /* Preview Assets.xcassets */; };
 		AI100001 /* AIEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI200001 /* AIEngine.swift */; };
 		B1000001 /* GameModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* GameModel.swift */; };
 		B1000002 /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* GameViewModel.swift */; };
-		B1000003 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* MainView.swift */; };
-		B1000004 /* AddRoundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004 /* AddRoundView.swift */; };
 		B1000005 /* Styles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000005 /* Styles.swift */; };
 		BT100001 /* BluetoothGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200001 /* BluetoothGameViewModel.swift */; };
 		BT100002 /* BluetoothSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200002 /* BluetoothSessionView.swift */; };
 		BT100003 /* BluetoothGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200003 /* BluetoothGameView.swift */; };
 		C1000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* SettingsView.swift */; };
-		CR100001 /* CasinoRoyaleTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CR200001 /* CasinoRoyaleTheme.swift */; };
 		CT00001 /* ComicTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CT00002 /* ComicTheme.swift */; };
-		D1000001 /* GameTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000001 /* GameTableView.swift */; };
 		E1000001 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001 /* SplashView.swift */; };
 		F1000003 /* OnlineSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000003 /* OnlineSessionViewModel.swift */; };
 		F1000004 /* OnlineSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000004 /* OnlineSessionView.swift */; };
@@ -47,7 +42,6 @@
 		O1000001 /* AdaptiveColours.swift in Sources */ = {isa = PBXBuildFile; fileRef = O2000001 /* AdaptiveColours.swift */; };
 		P1000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = P2000001 /* PrivacyInfo.xcprivacy */; };
 		PF100001 /* ProfanityFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF200001 /* ProfanityFilter.swift */; };
-		PT100001 /* PremiumThemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = PT200001 /* PremiumThemes.swift */; };
 		Q1000001 /* PlayerScoreBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q2000001 /* PlayerScoreBarChart.swift */; };
 		SE100001 /* ScoringEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SE200001 /* ScoringEngine.swift */; };
 		TE100001 /* ThemeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200001 /* ThemeEngine.swift */; };
@@ -77,22 +71,17 @@
 		9FCB9B022F54A07D005C3E4B /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A2000000 /* MyApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2000001 /* MyAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyAppApp.swift; sourceTree = "<group>"; };
-		A2000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A2000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A2000004 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		AI200001 /* AIEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEngine.swift; sourceTree = "<group>"; };
 		B2000001 /* GameModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameModel.swift; sourceTree = "<group>"; };
 		B2000002 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
-		B2000003 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
-		B2000004 /* AddRoundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddRoundView.swift; sourceTree = "<group>"; };
 		B2000005 /* Styles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Styles.swift; sourceTree = "<group>"; };
 		BT200001 /* BluetoothGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothGameViewModel.swift; sourceTree = "<group>"; };
 		BT200002 /* BluetoothSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothSessionView.swift; sourceTree = "<group>"; };
 		BT200003 /* BluetoothGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothGameView.swift; sourceTree = "<group>"; };
 		C2000001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		CR200001 /* CasinoRoyaleTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CasinoRoyaleTheme.swift; sourceTree = "<group>"; };
 		CT00002 /* ComicTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComicTheme.swift; sourceTree = "<group>"; };
-		D2000001 /* GameTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTableView.swift; sourceTree = "<group>"; };
 		E2000001 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		F2000003 /* OnlineSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionViewModel.swift; sourceTree = "<group>"; };
 		F2000004 /* OnlineSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionView.swift; sourceTree = "<group>"; };
@@ -112,7 +101,6 @@
 		O2000001 /* AdaptiveColours.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveColours.swift; sourceTree = "<group>"; };
 		P2000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		PF200001 /* ProfanityFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfanityFilter.swift; sourceTree = "<group>"; };
-		PT200001 /* PremiumThemes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumThemes.swift; sourceTree = "<group>"; };
 		Q2000001 /* PlayerScoreBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerScoreBarChart.swift; sourceTree = "<group>"; };
 		SE200001 /* ScoringEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngine.swift; sourceTree = "<group>"; };
 		TE200001 /* ThemeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeEngine.swift; sourceTree = "<group>"; };
@@ -163,10 +151,7 @@
 				9F4365F12F67002C008FD94E /* MyAppDebug.entitlements */,
 				9F4365EF2F66FDBF008FD94E /* Info.plist */,
 				A2000001 /* MyAppApp.swift */,
-				B2000003 /* MainView.swift */,
-				B2000004 /* AddRoundView.swift */,
 				C2000001 /* SettingsView.swift */,
-				D2000001 /* GameTableView.swift */,
 				E2000001 /* SplashView.swift */,
 				B2000001 /* GameModel.swift */,
 				B2000002 /* GameViewModel.swift */,
@@ -202,9 +187,6 @@
 				PF200001 /* ProfanityFilter.swift */,
 				LV200001 /* LeaderboardView.swift */,
 				TN200001 /* TurnNudge.swift */,
-				CR200001 /* CasinoRoyaleTheme.swift */,
-				PT200001 /* PremiumThemes.swift */,
-				A2000002 /* ContentView.swift */,
 				A2000003 /* Assets.xcassets */,
 				A4000003 /* Preview Content */,
 				9FCB9B022F54A07D005C3E4B /* GoogleService-Info.plist */,
@@ -348,12 +330,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1000002 /* ContentView.swift in Sources */,
 				A1000001 /* MyAppApp.swift in Sources */,
 				B1000001 /* GameModel.swift in Sources */,
 				B1000002 /* GameViewModel.swift in Sources */,
-				B1000003 /* MainView.swift in Sources */,
-				B1000004 /* AddRoundView.swift in Sources */,
 				B1000005 /* Styles.swift in Sources */,
 				CT00001 /* ComicTheme.swift in Sources */,
 				TE100001 /* ThemeEngine.swift in Sources */,
@@ -361,7 +340,6 @@
 				TE100003 /* ThemeManager.swift in Sources */,
 				TE100004 /* ThemedComponents.swift in Sources */,
 				C1000001 /* SettingsView.swift in Sources */,
-				D1000001 /* GameTableView.swift in Sources */,
 				E1000001 /* SplashView.swift in Sources */,
 				F1000003 /* OnlineSessionViewModel.swift in Sources */,
 				F1000004 /* OnlineSessionView.swift in Sources */,
@@ -382,8 +360,6 @@
 				O1000001 /* AdaptiveColours.swift in Sources */,
 				Q1000001 /* PlayerScoreBarChart.swift in Sources */,
 				SE100001 /* ScoringEngine.swift in Sources */,
-				CR100001 /* CasinoRoyaleTheme.swift in Sources */,
-				PT100001 /* PremiumThemes.swift in Sources */,
 				LC100001 /* LeaderboardConsentManager.swift in Sources */,
 				LC100002 /* LeaderboardConsentSheet.swift in Sources */,
 				LS100001 /* LeaderboardService.swift in Sources */,
