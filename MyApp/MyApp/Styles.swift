@@ -331,6 +331,17 @@ extension View {
         frame(maxWidth: maxWidth)
             .frame(maxWidth: .infinity)
     }
+
+    /// On iPad (iOS 18+), present a sheet at the roomier `.page` size instead of
+    /// the cramped default `.form` size. No-op on iOS 17 and on iPhone (the
+    /// system ignores presentation sizing in compact size classes).
+    @ViewBuilder func roomyIPadSheet() -> some View {
+        if #available(iOS 18.0, *) {
+            self.presentationSizing(.page)
+        } else {
+            self
+        }
+    }
 }
 
 // MARK: - Playing Card View (trick / history display, default 56×78, scales with width param)

@@ -120,6 +120,7 @@ struct SettingsView: View {
                 .presentationDetents([.medium])
             }
         }
+        .roomyIPadSheet()
     }
 }
 

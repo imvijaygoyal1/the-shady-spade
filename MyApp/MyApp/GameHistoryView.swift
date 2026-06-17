@@ -41,6 +41,7 @@ struct GameHistoryView: View {
                 }
             }
         }
+        .roomyIPadSheet()
     }
 
     private var emptyState: some View {

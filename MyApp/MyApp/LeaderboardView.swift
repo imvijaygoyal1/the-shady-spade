@@ -156,6 +156,7 @@ struct LeaderboardView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+        .roomyIPadSheet()
     }
 }
 
