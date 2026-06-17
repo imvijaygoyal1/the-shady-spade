@@ -681,78 +681,110 @@ private struct PlayerCountSheet: View {
     private var buttonLabel: String { selectedCount == 1 ? "Start Now" : "Create Room" }
 
     var body: some View {
-        ZStack {
-            Comic.bg.ignoresSafeArea()
+        GeometryReader { geo in
+            let isPad = geo.size.width > 600
+            ZStack {
+                Comic.bg.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                // Icon + title
-                VStack(spacing: 10) {
-                    Image(systemName: selectedCount == 1 ? "person.fill" : "person.3.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(Comic.yellow)
-                        .shadow(color: Comic.black, radius: 0, x: 3, y: 3)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedCount)
-                        .padding(.top, 36)
-                    Text("How many players?")
-                        .font(.system(size: 22, weight: .black, design: .rounded))
-                        .foregroundStyle(Comic.textPrimary)
-                    Text("AI fills any empty seats")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundStyle(Comic.textSecondary)
-                }
-                .padding(.bottom, 28)
-
-                // Count selector — 6 circles
-                HStack(spacing: 8) {
-                    ForEach(1...6, id: \.self) { count in
-                        Button {
-                            HapticManager.impact(.light)
-                            selectedCount = count
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(selectedCount == count ? Comic.yellow : Comic.containerBG)
-                                    .frame(width: 50, height: 50)
-                                    .overlay(Circle().strokeBorder(Comic.black, lineWidth: Comic.borderWidth))
-                                    .shadow(color: Comic.black.opacity(selectedCount == count ? 0.85 : 0.25),
-                                            radius: 0, x: 2, y: 2)
-                                Text("\(count)")
-                                    .font(.system(size: 20, weight: .black, design: .rounded))
-                                    .foregroundStyle(selectedCount == count ? Comic.black : Comic.textSecondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
+                if isPad {
+                    // iPad — compact card, vertically centered and width-capped.
+                    VStack(spacing: 0) {
+                        header(large: true)
+                            .padding(.bottom, 28)
+                        countSelector(large: true)
+                            .padding(.bottom, 28)
+                        descriptionText
+                            .padding(.bottom, 36)
+                        actionButton
+                            .padding(.horizontal, 28)
+                    }
+                    .padding(.vertical, 44)
+                    .frame(maxWidth: 520)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    // iPhone — unchanged.
+                    VStack(spacing: 0) {
+                        header(large: false)
+                            .padding(.bottom, 28)
+                        countSelector(large: false)
+                            .padding(.bottom, 24)
+                        descriptionText
+                            .padding(.bottom, 36)
+                        Spacer()
+                        actionButton
+                            .padding(.horizontal, 28)
+                            .padding(.bottom, 40)
                     }
                 }
-                .padding(.bottom, 24)
-
-                // Description
-                Text(description)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(Comic.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 36)
-                    .frame(minHeight: 48)
-                    .animation(.easeInOut(duration: 0.18), value: selectedCount)
-                    .padding(.bottom, 36)
-
-                Spacer()
-
-                // Action button
-                Button(action: onConfirm) {
-                    Text(buttonLabel)
-                        .font(.system(size: 18, weight: .black, design: .rounded))
-                        .foregroundStyle(Comic.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                }
-                .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black, animatesPress: false))
-                .padding(.horizontal, 28)
-                .padding(.bottom, 40)
             }
         }
         .presentationDetents([.medium])
         .presentationBackground(Comic.bg)
+    }
+
+    // MARK: - Shared content pieces (`large` bumps sizing for iPad)
+
+    private func header(large: Bool) -> some View {
+        VStack(spacing: large ? 12 : 10) {
+            Image(systemName: selectedCount == 1 ? "person.fill" : "person.3.fill")
+                .font(.system(size: large ? 60 : 48))
+                .foregroundStyle(Comic.yellow)
+                .shadow(color: Comic.black, radius: 0, x: 3, y: 3)
+                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedCount)
+                .padding(.top, large ? 0 : 36)
+            Text("How many players?")
+                .font(.system(size: large ? 28 : 22, weight: .black, design: .rounded))
+                .foregroundStyle(Comic.textPrimary)
+            Text("AI fills any empty seats")
+                .font(.system(size: large ? 16 : 14, weight: .bold, design: .rounded))
+                .foregroundStyle(Comic.textSecondary)
+        }
+    }
+
+    private func countSelector(large: Bool) -> some View {
+        let d: CGFloat = large ? 60 : 50
+        return HStack(spacing: large ? 10 : 8) {
+            ForEach(1...6, id: \.self) { count in
+                Button {
+                    HapticManager.impact(.light)
+                    selectedCount = count
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(selectedCount == count ? Comic.yellow : Comic.containerBG)
+                            .frame(width: d, height: d)
+                            .overlay(Circle().strokeBorder(Comic.black, lineWidth: Comic.borderWidth))
+                            .shadow(color: Comic.black.opacity(selectedCount == count ? 0.85 : 0.25),
+                                    radius: 0, x: 2, y: 2)
+                        Text("\(count)")
+                            .font(.system(size: large ? 24 : 20, weight: .black, design: .rounded))
+                            .foregroundStyle(selectedCount == count ? Comic.black : Comic.textSecondary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var descriptionText: some View {
+        Text(description)
+            .font(.system(size: 15, weight: .bold, design: .rounded))
+            .foregroundStyle(Comic.textSecondary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 36)
+            .frame(minHeight: 48)
+            .animation(.easeInOut(duration: 0.18), value: selectedCount)
+    }
+
+    private var actionButton: some View {
+        Button(action: onConfirm) {
+            Text(buttonLabel)
+                .font(.system(size: 18, weight: .black, design: .rounded))
+                .foregroundStyle(Comic.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+        }
+        .buttonStyle(ComicButtonStyle(bg: Comic.yellow, fg: Comic.black, borderColor: Comic.black, animatesPress: false))
     }
 }
 
