@@ -33,6 +33,7 @@ Phase 1 is single-device and local-only:
 - Store reset hardening: `ScorekeeperStore` clears standard persisted state before loading when the UI-test reset argument or environment value is present, preventing active-scorecard leakage across simulator/full-scheme runs.
 - Accessibility coverage: added stable identifiers for the scorekeeper mode card, setup player fields, live actions, bid value, partner pickers, and round-entry controls so UI tests do not depend on visual text structure.
 - UI-test stability: the final scorekeeper UI regression uses default setup names (`Player 1`...`Player 6`) because full-scheme runs exposed flaky iOS simulator keyboard focus while typing custom names; default names still prove that named round history is rendered.
+- Active-name-edit regression: added model coverage for editing player names after a round has already been recorded, verifying names persist while rounds and running scores remain unchanged.
 
 ## Privacy
 
@@ -53,6 +54,10 @@ No App Store privacy policy update is required for Phase 1 because player names 
   - UI result bundle: `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_12-45-41--0400.xcresult`
   - Full unfiltered scheme: `xcodebuild test -quiet -project MyApp.xcodeproj -scheme MyApp -destination 'platform=iOS Simulator,name=iPhone 17'` passed after removing keyboard-dependent custom-name typing from the UI regression.
   - Full result bundle: `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_13-01-21--0400.xcresult`
+- Active-name-edit focused test run: `xcodebuild test -quiet -project MyApp.xcodeproj -scheme MyApp -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:MyAppTests/ScorekeeperTests` passed.
+- Active-name-edit focused result bundle: `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_13-12-30--0400.xcresult`
+- Latest full unfiltered scheme after active-name-edit test: `35` passed, `0` failed, `0` skipped.
+- Latest full result bundle: `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_13-16-05--0400.xcresult`
 - `xcodebuild build -project MyApp.xcodeproj -scheme MyApp -destination 'platform=iOS Simulator,name=iPhone 17'` succeeded.
 - Installed and launched the updated build on booted `iPhone 17 Pro` simulator `DA97985A-F7CC-44F6-8281-9DD24C22B978`; latest launch returned PID `92224`.
 - Screenshot smoke check was captured and removed after review; normal launch showed the persisted local active scorecard as expected.

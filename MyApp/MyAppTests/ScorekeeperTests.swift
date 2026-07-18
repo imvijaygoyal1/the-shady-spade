@@ -92,4 +92,29 @@ final class ScorekeeperTests: XCTestCase {
         let reloadedStore = ScorekeeperStore(defaults: suite)
         XCTAssertEqual(reloadedStore.activeGame?.playerNames, ["Ava", "Player 2", "Cara", "Dev", "Eli", "Fran"])
     }
+
+    func test_updatePlayerNamesAfterRound_keepsScoresAndRoundHistory() {
+        let suite = UserDefaults(suiteName: "ScorekeeperTests-\(UUID().uuidString)")!
+        let store = ScorekeeperStore(defaults: suite)
+        store.start(playerNames: ["A", "B", "C", "D", "E", "F"])
+
+        var firstRound = ScorekeeperRoundDraft(nextDealerIndex: 0)
+        firstRound.bidAmount = 135
+        store.addRound(firstRound)
+
+        XCTAssertEqual(store.activeGame?.rounds.count, 1)
+        XCTAssertEqual(store.activeGame?.runningScores, [0, 135, 67, 67, 0, 0])
+
+        store.updatePlayerNames([" Amit ", " Shikha ", "Manish", "Vijay", "Sweta", "Megha"])
+
+        XCTAssertEqual(store.activeGame?.playerNames, ["Amit", "Shikha", "Manish", "Vijay", "Sweta", "Megha"])
+        XCTAssertEqual(store.activeGame?.rounds.count, 1)
+        XCTAssertEqual(store.activeGame?.runningScores, [0, 135, 67, 67, 0, 0])
+        XCTAssertEqual(store.activeGame?.name(for: 1), "Shikha")
+
+        let reloadedStore = ScorekeeperStore(defaults: suite)
+        XCTAssertEqual(reloadedStore.activeGame?.playerNames, ["Amit", "Shikha", "Manish", "Vijay", "Sweta", "Megha"])
+        XCTAssertEqual(reloadedStore.activeGame?.rounds.count, 1)
+        XCTAssertEqual(reloadedStore.activeGame?.runningScores, [0, 135, 67, 67, 0, 0])
+    }
 }
