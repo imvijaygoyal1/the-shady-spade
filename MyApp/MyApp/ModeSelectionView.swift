@@ -9,6 +9,7 @@ struct ModeSelectionView: View {
     @State private var showingOnline = false
     @State private var showingBluetooth = false
     @State private var showingJoinGame = false
+    @State private var showingScorekeeper = false
     @State private var showingSettings = false
     @State private var showingLeaderboard = false
     @State private var showingPlayerCount = false
@@ -137,6 +138,17 @@ struct ModeSelectionView: View {
                             pendingMode = "Join a Game"
                             showingNamePrompt = true
                         }
+
+                        ModeCard(
+                            icon: "square.grid.3x3.fill",
+                            title: "Real-Life Scorekeeper",
+                            subtitle: "Track a six-player table game with physical cards",
+                            color: Color.offenseBlue,
+                            iconBG: Color.offenseBlue
+                        ) {
+                            HapticManager.impact(.medium)
+                            showingScorekeeper = true
+                        }
                     }
                     .adaptiveContentFrame(maxWidth: 560)
                     .padding(.horizontal, isWide ? 40 : 20)
@@ -218,6 +230,17 @@ struct ModeSelectionView: View {
                             pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
                             pendingMode = "Join a Game"
                             showingNamePrompt = true
+                        }
+
+                        ModeCard(
+                            icon: "square.grid.3x3.fill",
+                            title: "Real-Life Scorekeeper",
+                            subtitle: "Track a six-player table game with physical cards",
+                            color: Color.offenseBlue,
+                            iconBG: Color.offenseBlue
+                        ) {
+                            HapticManager.impact(.medium)
+                            showingScorekeeper = true
                         }
                     }
                     .adaptiveContentFrame(maxWidth: 560)
@@ -350,6 +373,10 @@ struct ModeSelectionView: View {
                     playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
                 )
                 .environmentObject(themeManager)
+            }
+            NoAnimationCover(isPresented: $showingScorekeeper) {
+                ScorekeeperRootView()
+                    .environmentObject(themeManager)
             }
         }
         .sheet(isPresented: $showingLeaderboard) {
@@ -831,6 +858,7 @@ private struct ModeCard: View {
             .comicContainer(cornerRadius: 20)
         }
         .buttonStyle(BouncyButton())
+        .accessibilityIdentifier("mode.card.\(title)")
     }
 }
 

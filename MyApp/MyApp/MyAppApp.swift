@@ -15,7 +15,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         FirebaseApp.configure()
-        signInAnonymouslyIfNeeded()
+        if !MyAppApp.isRunningUITests {
+            signInAnonymouslyIfNeeded()
+        }
         return true
     }
 
@@ -38,12 +40,20 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 @main
 struct MyAppApp: App {
+    static let isRunningUITests = ProcessInfo.processInfo.arguments.contains("-SHADYSPADE_UI_TESTING")
+
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @AppStorage("hasCompletedSetup") private var hasCompletedSetup = false
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var themeManager = ThemeManager.shared
 
     init() {
+        if Self.isRunningUITests {
+            UserDefaults.standard.set(true, forKey: "hasCompletedSetup")
+        }
+        if ProcessInfo.processInfo.arguments.contains("-SHADYSPADE_RESET_SCOREKEEPER_FOR_UI_TESTS") {
+            UserDefaults.standard.removeObject(forKey: "scorekeeper_active_game_v1")
+        }
         ThemeManager.shared.loadSavedTheme()
         Self.migrateUserDefaultsIfNeeded()
     }
@@ -106,8 +116,10 @@ struct MyAppApp: App {
             // didFinishLaunchingWithOptions has already run at this point,
             // so Firebase is configured and leaderboard listeners can attach.
             .task {
-                LeaderboardService.shared.startListening()
-                TVDisplayManager.shared.startMonitoring()
+                if !Self.isRunningUITests {
+                    LeaderboardService.shared.startListening()
+                    TVDisplayManager.shared.startMonitoring()
+                }
             }
             .onOpenURL { url in handleIncomingURL(url) }
             .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in

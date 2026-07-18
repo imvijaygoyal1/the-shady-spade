@@ -34,6 +34,20 @@
                ReferencedContainer = "container:MyApp.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "UI500001"
+               BuildableName = "MyAppUITests.xctest"
+               BlueprintName = "MyAppUITests"
+               ReferencedContainer = "container:MyApp.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -50,6 +64,16 @@
                BlueprintIdentifier = "TX500001"
                BuildableName = "MyAppTests.xctest"
                BlueprintName = "MyAppTests"
+               ReferencedContainer = "container:MyApp.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "UI500001"
+               BuildableName = "MyAppUITests.xctest"
+               BlueprintName = "MyAppUITests"
                ReferencedContainer = "container:MyApp.xcodeproj">
             </BuildableReference>
          </TestableReference>

@@ -32,9 +32,9 @@
 		J1000001 /* OnlineGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = J2000001 /* OnlineGameViewModel.swift */; };
 		K1000001 /* OnlineGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K2000001 /* OnlineGameView.swift */; };
 		L1000001 /* GameHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L2000001 /* GameHistoryView.swift */; };
-		LGS100001 /* LocalGameServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = LGS200001 /* LocalGameServer.swift */; };
 		LC100001 /* LeaderboardConsentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = LC200001 /* LeaderboardConsentManager.swift */; };
 		LC100002 /* LeaderboardConsentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = LC200002 /* LeaderboardConsentSheet.swift */; };
+		LGS100001 /* LocalGameServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = LGS200001 /* LocalGameServer.swift */; };
 		LS100001 /* LeaderboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = LS200001 /* LeaderboardService.swift */; };
 		LV100001 /* LeaderboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = LV200001 /* LeaderboardView.swift */; };
 		M1000001 /* CardDealAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = M2000001 /* CardDealAnimationView.swift */; };
@@ -44,6 +44,8 @@
 		PF100001 /* ProfanityFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF200001 /* ProfanityFilter.swift */; };
 		Q1000001 /* PlayerScoreBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q2000001 /* PlayerScoreBarChart.swift */; };
 		SE100001 /* ScoringEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SE200001 /* ScoringEngine.swift */; };
+		SK100001 /* ScorekeeperModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = SK200001 /* ScorekeeperModels.swift */; };
+		SK100002 /* ScorekeeperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SK200002 /* ScorekeeperView.swift */; };
 		TE100001 /* ThemeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200001 /* ThemeEngine.swift */; };
 		TE100002 /* Themes.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200002 /* Themes.swift */; };
 		TE100003 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200003 /* ThemeManager.swift */; };
@@ -52,10 +54,19 @@
 		TV100001 /* TVDisplayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TV200001 /* TVDisplayManager.swift */; };
 		TV100002 /* TVGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TV200002 /* TVGameView.swift */; };
 		TX100001 /* AIEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200001 /* AIEngineTests.swift */; };
+		TX100002 /* ScorekeeperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200002 /* ScorekeeperTests.swift */; };
+		UI100001 /* ScorekeeperFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200001 /* ScorekeeperFlowUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		TX800001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A5000001;
+			remoteInfo = MyApp;
+		};
+		UI800001 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A7000001 /* Project object */;
 			proxyType = 1;
@@ -91,9 +102,9 @@
 		J2000001 /* OnlineGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGameViewModel.swift; sourceTree = "<group>"; };
 		K2000001 /* OnlineGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineGameView.swift; sourceTree = "<group>"; };
 		L2000001 /* GameHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameHistoryView.swift; sourceTree = "<group>"; };
-		LGS200001 /* LocalGameServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalGameServer.swift; sourceTree = "<group>"; };
 		LC200001 /* LeaderboardConsentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardConsentManager.swift; sourceTree = "<group>"; };
 		LC200002 /* LeaderboardConsentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardConsentSheet.swift; sourceTree = "<group>"; };
+		LGS200001 /* LocalGameServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalGameServer.swift; sourceTree = "<group>"; };
 		LS200001 /* LeaderboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardService.swift; sourceTree = "<group>"; };
 		LV200001 /* LeaderboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardView.swift; sourceTree = "<group>"; };
 		M2000001 /* CardDealAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardDealAnimationView.swift; sourceTree = "<group>"; };
@@ -103,6 +114,8 @@
 		PF200001 /* ProfanityFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfanityFilter.swift; sourceTree = "<group>"; };
 		Q2000001 /* PlayerScoreBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerScoreBarChart.swift; sourceTree = "<group>"; };
 		SE200001 /* ScoringEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngine.swift; sourceTree = "<group>"; };
+		SK200001 /* ScorekeeperModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperModels.swift; sourceTree = "<group>"; };
+		SK200002 /* ScorekeeperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperView.swift; sourceTree = "<group>"; };
 		TE200001 /* ThemeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeEngine.swift; sourceTree = "<group>"; };
 		TE200002 /* Themes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Themes.swift; sourceTree = "<group>"; };
 		TE200003 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
@@ -112,6 +125,9 @@
 		TV200002 /* TVGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVGameView.swift; sourceTree = "<group>"; };
 		TX200000 /* MyAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		TX200001 /* AIEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEngineTests.swift; sourceTree = "<group>"; };
+		TX200002 /* ScorekeeperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperTests.swift; sourceTree = "<group>"; };
+		UI200000 /* MyAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		UI200001 /* ScorekeeperFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperFlowUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -132,6 +148,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		UI300001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -140,6 +163,7 @@
 			children = (
 				A4000001 /* MyApp */,
 				TX400000 /* MyAppTests */,
+				UI400000 /* MyAppUITests */,
 				A4000002 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -164,6 +188,8 @@
 				F2000003 /* OnlineSessionViewModel.swift */,
 				F2000004 /* OnlineSessionView.swift */,
 				G2000001 /* ModeSelectionView.swift */,
+				SK200001 /* ScorekeeperModels.swift */,
+				SK200002 /* ScorekeeperView.swift */,
 				H2000001 /* ComputerGameViewModel.swift */,
 				I2000001 /* ComputerGameView.swift */,
 				J2000001 /* OnlineGameViewModel.swift */,
@@ -200,6 +226,7 @@
 			children = (
 				A2000000 /* MyApp.app */,
 				TX200000 /* MyAppTests.xctest */,
+				UI200000 /* MyAppUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -216,8 +243,17 @@
 			isa = PBXGroup;
 			children = (
 				TX200001 /* AIEngineTests.swift */,
+				TX200002 /* ScorekeeperTests.swift */,
 			);
 			path = MyAppTests;
+			sourceTree = "<group>";
+		};
+		UI400000 /* MyAppUITests */ = {
+			isa = PBXGroup;
+			children = (
+				UI200001 /* ScorekeeperFlowUITests.swift */,
+			);
+			path = MyAppUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -263,6 +299,24 @@
 			productReference = TX200000 /* MyAppTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		UI500001 /* MyAppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = UI600001 /* Build configuration list for PBXNativeTarget "MyAppUITests" */;
+			buildPhases = (
+				UI300000 /* Sources */,
+				UI300001 /* Frameworks */,
+				UI300002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				UI700001 /* PBXTargetDependency */,
+			);
+			name = MyAppUITests;
+			productName = MyAppUITests;
+			productReference = UI200000 /* MyAppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -277,6 +331,10 @@
 						CreatedOnToolsVersion = 15.4;
 					};
 					TX500001 = {
+						CreatedOnToolsVersion = 15.4;
+						TestTargetID = A5000001;
+					};
+					UI500001 = {
 						CreatedOnToolsVersion = 15.4;
 						TestTargetID = A5000001;
 					};
@@ -300,6 +358,7 @@
 			targets = (
 				A5000001 /* MyApp */,
 				TX500001 /* MyAppTests */,
+				UI500001 /* MyAppUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -317,6 +376,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		TX300002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		UI300002 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -360,6 +426,8 @@
 				O1000001 /* AdaptiveColours.swift in Sources */,
 				Q1000001 /* PlayerScoreBarChart.swift in Sources */,
 				SE100001 /* ScoringEngine.swift in Sources */,
+				SK100001 /* ScorekeeperModels.swift in Sources */,
+				SK100002 /* ScorekeeperView.swift in Sources */,
 				LC100001 /* LeaderboardConsentManager.swift in Sources */,
 				LC100002 /* LeaderboardConsentSheet.swift in Sources */,
 				LS100001 /* LeaderboardService.swift in Sources */,
@@ -375,6 +443,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				TX100001 /* AIEngineTests.swift in Sources */,
+				TX100002 /* ScorekeeperTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		UI300000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				UI100001 /* ScorekeeperFlowUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -385,6 +462,11 @@
 			isa = PBXTargetDependency;
 			target = A5000001 /* MyApp */;
 			targetProxy = TX800001 /* PBXContainerItemProxy */;
+		};
+		UI700001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A5000001 /* MyApp */;
+			targetProxy = UI800001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -516,7 +598,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = MyApp/MyAppDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_ASSET_PATHS = "\"MyApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
@@ -553,7 +635,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = MyApp/MyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_ASSET_PATHS = "\"MyApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
@@ -617,6 +699,38 @@
 			};
 			name = Release;
 		};
+		UI600010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 7B5U5LACV3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = MyApp;
+			};
+			name = Debug;
+		};
+		UI600011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 7B5U5LACV3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vijaygoyal.theshadyspade.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = MyApp;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -643,6 +757,15 @@
 			buildConfigurations = (
 				TX600010 /* Debug */,
 				TX600011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		UI600001 /* Build configuration list for PBXNativeTarget "MyAppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				UI600010 /* Debug */,
+				UI600011 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
