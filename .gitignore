@@ -11,6 +11,11 @@ DerivedData/
 .AppleDouble
 .LSOverride
 
+# Local agent/tooling state
+.claude/
+.wrangler/
+**/.wrangler/
+
 # Build artifacts
 build/
 *.o
@@ -32,3 +37,7 @@ GoogleService-Info.plist
 .env
 .env.*
 secrets.json
+
+# Neighbor app/site workspaces kept outside this repo
+/shadyspade-web/
+/xBill/
