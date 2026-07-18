@@ -170,6 +170,32 @@ Recommended defaults:
 - Add room-code generation with collision check, separate from online game sessions.
 - Add model tests for DTO mapping and one-writer state transitions.
 
+Status: complete as of 2026-07-18.
+
+Implemented:
+
+- Added `ScorekeeperLiveRoundDTO` and `ScorekeeperLiveSessionDocument` for Firestore mapping.
+- Added `ScorekeeperSessionRemoteStore` protocol for deterministic unit tests.
+- Added `FirestoreScorekeeperSessionRemoteStore` using `scorekeeperSessions/{sessionCode}`.
+- Added `ScorekeeperSessionService` with:
+  - six-character room-code generation,
+  - uniqueness retry against `scorekeeperSessions`,
+  - create session,
+  - publish snapshot,
+  - close session,
+  - fetch session,
+  - host-only, non-closed, non-expired update checks.
+- Added `ScorekeeperSessionServiceTests` covering DTO round-trip mapping, collision retry, expiration, host-only update rejection, publish, and close.
+
+Verification:
+
+- Focused service tests passed:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_14-12-00--0400.xcresult`
+- Scorekeeper-related unit tests passed:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_14-13-20--0400.xcresult`
+- Full unfiltered scheme passed: `40` passed, `0` failed, `0` skipped.
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_14-14-33--0400.xcresult`
+
 ### Batch 2: Host Publishing UI
 
 - Add `Share Live View` to active scorecard.
