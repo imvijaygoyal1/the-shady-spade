@@ -53,6 +53,32 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
         XCTAssertEqual(code, "CCCCCC")
     }
 
+    func test_findUniqueSessionCode_failsAfterMaximumCollisions() async {
+        let remote = FakeScorekeeperSessionRemoteStore(existingCodes: ["AAAAAA"])
+        let service = ScorekeeperSessionService(
+            remote: remote,
+            codeGenerator: { "AAAAAA" }
+        )
+
+        do {
+            _ = try await service.findUniqueSessionCode(maxAttempts: 3)
+            XCTFail("Expected noUniqueCode when all generated codes collide")
+        } catch ScorekeeperSessionServiceError.noUniqueCode {
+            XCTAssertEqual(remote.sessionExistsLookups, ["AAAAAA", "AAAAAA", "AAAAAA"])
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func test_sessionCodeNormalizationAndValidation() {
+        XCTAssertEqual(ScorekeeperSessionService.normalizedSessionCode(" view-01 "), "VIEW01")
+        XCTAssertEqual(ScorekeeperSessionService.normalizedSessionCode("ab cd12!"), "ABCD12")
+        XCTAssertTrue(ScorekeeperSessionService.isValidSessionCode("ABC123"))
+        XCTAssertFalse(ScorekeeperSessionService.isValidSessionCode("ABC12"))
+        XCTAssertFalse(ScorekeeperSessionService.isValidSessionCode("ABC1234"))
+        XCTAssertFalse(ScorekeeperSessionService.isValidSessionCode("ABC12!"))
+    }
+
     func test_createSession_writesDocumentWithExpiration() async throws {
         let remote = FakeScorekeeperSessionRemoteStore()
         let now = Date(timeIntervalSince1970: 1_000)
@@ -75,6 +101,29 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
 
         let fetched = try await service.fetchSession(code: "ZXCVBN")
         XCTAssertEqual(fetched, document)
+    }
+
+    func test_fetchSession_reportsMissingAndInvalidData() async {
+        let remote = FakeScorekeeperSessionRemoteStore()
+        let service = ScorekeeperSessionService(remote: remote)
+
+        do {
+            _ = try await service.fetchSession(code: "MISSING")
+            XCTFail("Expected missing session error")
+        } catch ScorekeeperSessionServiceError.sessionNotFound {}
+        catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        remote.seed(code: "BAD001", data: ["kind": "other"])
+
+        do {
+            _ = try await service.fetchSession(code: "BAD001")
+            XCTFail("Expected invalid session data error")
+        } catch ScorekeeperSessionServiceError.invalidSessionData {}
+        catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func test_hostOnlyUpdate_rejectsWrongHostClosedAndExpiredSessions() async throws {
@@ -201,6 +250,66 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
     }
 
     @MainActor
+    func test_publishingController_reusesExistingSessionWhenStartSharingAgain() async throws {
+        let remote = FakeScorekeeperSessionRemoteStore()
+        var now = Date(timeIntervalSince1970: 4_000)
+        let service = ScorekeeperSessionService(
+            remote: remote,
+            codeGenerator: { "HOST02" },
+            now: { now },
+            expirationInterval: 600
+        )
+        let controller = ScorekeeperLivePublishingController(
+            service: service,
+            hostUidProvider: { "host-uid" }
+        )
+        var game = ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"])
+
+        await controller.startSharing(game: game)
+        now = Date(timeIntervalSince1970: 4_020)
+        var round = ScorekeeperRoundDraft(nextDealerIndex: 0)
+        round.bidAmount = 150
+        game.appendRound(round)
+
+        await controller.startSharing(game: game)
+
+        XCTAssertEqual(remote.createdCodes, ["HOST02"])
+        XCTAssertEqual(remote.updatedCodes, ["HOST02"])
+        XCTAssertEqual(controller.document?.rounds.count, 1)
+        XCTAssertEqual(controller.document?.updatedAt, now)
+    }
+
+    @MainActor
+    func test_publishingController_reportsPublishAndCloseFailures() async throws {
+        let remote = FakeScorekeeperSessionRemoteStore()
+        let now = Date(timeIntervalSince1970: 4_500)
+        let service = ScorekeeperSessionService(
+            remote: remote,
+            codeGenerator: { "FAIL01" },
+            now: { now },
+            expirationInterval: 600
+        )
+        let controller = ScorekeeperLivePublishingController(
+            service: service,
+            hostUidProvider: { "host-uid" }
+        )
+        let game = ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"])
+        await controller.startSharing(game: game)
+
+        remote.shouldThrowOnUpdate = true
+        await controller.publish(game: game)
+
+        XCTAssertEqual(controller.errorMessage, "Live sharing could not sync the latest scorecard.")
+        XCTAssertFalse(controller.isBusy)
+
+        await controller.close()
+
+        XCTAssertEqual(controller.errorMessage, "Live sharing could not be closed.")
+        XCTAssertEqual(controller.document?.isClosed, false)
+        XCTAssertFalse(controller.isBusy)
+    }
+
+    @MainActor
     func test_publishingController_reportsStartFailure() async {
         let service = ScorekeeperSessionService(remote: ThrowingScorekeeperSessionRemoteStore())
         let controller = ScorekeeperLivePublishingController(
@@ -286,12 +395,44 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
         XCTAssertEqual(controller.document, expired)
         XCTAssertNil(controller.errorMessage)
     }
+
+    @MainActor
+    func test_viewingController_reportsInvalidDataAndSyncErrorsAndStopsObservation() async {
+        let remote = FakeScorekeeperSessionRemoteStore()
+        let now = Date(timeIntervalSince1970: 5_000)
+        let service = ScorekeeperSessionService(remote: remote, now: { now })
+        let controller = ScorekeeperLiveViewingController(service: service)
+
+        remote.seed(code: "BAD001", data: ["kind": "scorekeeper"])
+        controller.startViewing(code: "BAD001")
+        await Task.yield()
+
+        XCTAssertEqual(controller.state, .syncError)
+        XCTAssertEqual(controller.errorMessage, "This live scorecard data is not readable by this app version.")
+        XCTAssertNil(controller.document)
+
+        remote.emitError(code: "BAD001", error: URLError(.notConnectedToInternet))
+        await Task.yield()
+
+        XCTAssertEqual(controller.state, .syncError)
+        XCTAssertEqual(controller.errorMessage, "Live scorecard could not sync. Check your connection and try again.")
+
+        controller.stop()
+
+        XCTAssertEqual(controller.state, .idle)
+        XCTAssertNil(controller.document)
+        XCTAssertNil(controller.errorMessage)
+        XCTAssertEqual(remote.cancelCount, 1)
+    }
 }
 
 private final class FakeScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteStore {
     private var documents: [String: [String: Any]]
     private(set) var createdCodes: [String] = []
     private(set) var updatedCodes: [String] = []
+    private(set) var sessionExistsLookups: [String] = []
+    private(set) var cancelCount = 0
+    var shouldThrowOnUpdate = false
 
     init(existingCodes: Set<String> = []) {
         documents = existingCodes.reduce(into: [:]) { result, code in
@@ -300,7 +441,8 @@ private final class FakeScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteS
     }
 
     func sessionExists(code: String) async throws -> Bool {
-        documents[code] != nil
+        sessionExistsLookups.append(code)
+        return documents[code] != nil
     }
 
     func createSession(code: String, data: [String: Any]) async throws {
@@ -309,6 +451,9 @@ private final class FakeScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteS
     }
 
     func updateSession(code: String, data: [String: Any]) async throws {
+        if shouldThrowOnUpdate {
+            throw URLError(.cannotConnectToHost)
+        }
         updatedCodes.append(code)
         var existing = documents[code] ?? [:]
         data.forEach { existing[$0.key] = $0.value }
@@ -325,7 +470,9 @@ private final class FakeScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteS
     ) -> ScorekeeperSessionObservation {
         observers[code, default: []].append(onChange)
         onChange(.success(documents[code]))
-        return FakeScorekeeperSessionObservation()
+        return FakeScorekeeperSessionObservation { [weak self] in
+            self?.cancelCount += 1
+        }
     }
 
     func seed(code: String, data: [String: Any]) {
@@ -333,11 +480,19 @@ private final class FakeScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteS
         observers[code]?.forEach { $0(.success(data)) }
     }
 
+    func emitError(code: String, error: Error) {
+        observers[code]?.forEach { $0(.failure(error)) }
+    }
+
     private var observers: [String: [(Result<[String: Any]?, Error>) -> Void]] = [:]
 }
 
 private struct FakeScorekeeperSessionObservation: ScorekeeperSessionObservation {
-    func cancel() {}
+    var onCancel: () -> Void = {}
+
+    func cancel() {
+        onCancel()
+    }
 }
 
 private struct ThrowingScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteStore {

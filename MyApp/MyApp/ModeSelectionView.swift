@@ -275,9 +275,14 @@ struct ModeSelectionView: View {
         )
         .onAppear {
             vm.setup(with: modelContext)
-            if MyAppApp.isRunningUITests,
-               ProcessInfo.processInfo.arguments.contains("-SHADYSPADE_OPEN_SCOREKEEPER_FOR_UI_TESTS") {
-                showingScorekeeper = true
+            if MyAppApp.isRunningUITests {
+                let arguments = ProcessInfo.processInfo.arguments
+                if arguments.contains("-SHADYSPADE_OPEN_SCOREKEEPER_FOR_UI_TESTS") {
+                    showingScorekeeper = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_SCOREKEEPER_VIEWER_FOR_UI_TESTS") {
+                    showingScorekeeperViewer = true
+                }
             }
         }
         // NoAnimationCover replaces ALL UIKit animated presentations.

@@ -52,6 +52,50 @@ final class ScorekeeperTests: XCTestCase {
         XCTAssertEqual(draft.bidAmount, 130)
     }
 
+    func test_roundDraftValidation_rejectsInvalidPlayersAndBidBounds() {
+        var invalidPlayer = ScorekeeperRoundDraft(nextDealerIndex: 0)
+        invalidPlayer.bidderIndex = 6
+        XCTAssertEqual(invalidPlayer.validationMessage, "Choose valid players.")
+
+        var lowBid = ScorekeeperRoundDraft(nextDealerIndex: 0)
+        lowBid.bidAmount = 125
+        XCTAssertEqual(lowBid.validationMessage, "Bid must be between 130 and 240.")
+
+        var highBid = ScorekeeperRoundDraft(nextDealerIndex: 0)
+        highBid.bidAmount = 245
+        XCTAssertEqual(highBid.validationMessage, "Bid must be between 130 and 240.")
+    }
+
+    func test_roundEntryScoreDeltas_coverMadeAndFailedBidScoring() {
+        let made = ScorekeeperRoundEntry(
+            roundNumber: 1,
+            dealerIndex: 0,
+            bidderIndex: 1,
+            bidAmount: 160,
+            trumpSuit: .hearts,
+            partner1Index: 2,
+            partner2Index: 3,
+            offensePointsCaught: 160
+        )
+        XCTAssertTrue(made.bidMade)
+        XCTAssertEqual(made.defensePointsCaught, 90)
+        XCTAssertEqual(made.scoreDeltas, [0, 160, 80, 80, 0, 0])
+
+        let failed = ScorekeeperRoundEntry(
+            roundNumber: 2,
+            dealerIndex: 1,
+            bidderIndex: 4,
+            bidAmount: 180,
+            trumpSuit: .clubs,
+            partner1Index: 0,
+            partner2Index: 5,
+            offensePointsCaught: 175
+        )
+        XCTAssertFalse(failed.bidMade)
+        XCTAssertEqual(failed.defensePointsCaught, 75)
+        XCTAssertEqual(failed.scoreDeltas, [-90, 0, 0, 0, -180, -90])
+    }
+
     func test_replaceAndDeleteLastRound_updateActiveScorecard() {
         let suite = UserDefaults(suiteName: "ScorekeeperTests-\(UUID().uuidString)")!
         let store = ScorekeeperStore(defaults: suite)
@@ -64,10 +108,41 @@ final class ScorekeeperTests: XCTestCase {
         store.replaceLastRound(with: replacement)
 
         XCTAssertEqual(store.activeGame?.rounds.count, 1)
+        XCTAssertEqual(store.activeGame?.rounds.last?.roundNumber, 1)
         XCTAssertEqual(store.activeGame?.runningScores, [0, -130, -65, -65, 0, 0])
 
         store.deleteLastRound()
         XCTAssertEqual(store.activeGame?.rounds.count, 0)
+    }
+
+    func test_storeIgnoresInvalidDraftsAndCanCreateImplicitScorecard() {
+        let suite = UserDefaults(suiteName: "ScorekeeperTests-\(UUID().uuidString)")!
+        let store = ScorekeeperStore(defaults: suite)
+
+        var invalid = ScorekeeperRoundDraft(nextDealerIndex: 0)
+        invalid.partner1Index = invalid.bidderIndex
+        store.addRound(invalid)
+        XCTAssertNil(store.activeGame)
+
+        var valid = ScorekeeperRoundDraft(nextDealerIndex: 0)
+        valid.bidAmount = 140
+        store.addRound(valid)
+
+        XCTAssertEqual(store.activeGame?.playerNames, ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6"])
+        XCTAssertEqual(store.activeGame?.rounds.count, 1)
+        XCTAssertEqual(store.activeGame?.runningScores, [0, 140, 70, 70, 0, 0])
+    }
+
+    func test_clearActiveGame_removesPersistedScorecard() {
+        let suite = UserDefaults(suiteName: "ScorekeeperTests-\(UUID().uuidString)")!
+        let store = ScorekeeperStore(defaults: suite)
+        store.start(playerNames: ["A", "B", "C", "D", "E", "F"])
+        store.addRound(ScorekeeperRoundDraft(nextDealerIndex: 0))
+
+        store.clearActiveGame()
+
+        XCTAssertNil(store.activeGame)
+        XCTAssertNil(ScorekeeperStore(defaults: suite).activeGame)
     }
 
     func test_roundDraft_generatesCompatibilityPointsFromResult() {

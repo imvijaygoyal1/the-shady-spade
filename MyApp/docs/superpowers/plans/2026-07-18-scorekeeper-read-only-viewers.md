@@ -465,6 +465,52 @@ Privacy impact:
 - No new collection, upload, or third-party behavior.
 - `createdAt` and running scores were already part of local scorecards and live scorekeeper documents; this only makes them visible in the scorekeeper UI.
 
+### Batch 8: Scorekeeper Regression Coverage Expansion
+
+Status: complete as of 2026-07-19.
+
+Implemented:
+
+- Expanded `ScorekeeperTests` around local scorekeeper behavior:
+  - invalid player indices,
+  - bid lower/upper bounds,
+  - made and failed score deltas,
+  - invalid draft rejection,
+  - implicit local scorecard creation when adding a valid round,
+  - persisted clear behavior,
+  - last-round replacement preserving the original round number.
+- Expanded `ScorekeeperSessionServiceTests` around live scorekeeper behavior:
+  - unique-code exhaustion after repeated collisions,
+  - session-code normalization and validation,
+  - missing and invalid fetch data,
+  - publishing-controller reuse of an existing live session,
+  - publish and close failure messages,
+  - viewer invalid-data and sync-error handling,
+  - viewer stop/cancel behavior.
+- Added a deterministic viewer UI smoke test:
+  - `-SHADYSPADE_OPEN_SCOREKEEPER_VIEWER_FOR_UI_TESTS` opens the viewer directly.
+  - `-SHADYSPADE_SEED_SCOREKEEPER_VIEWER_FOR_UI_TESTS` seeds an in-memory live scorecard only when `MyAppApp.isRunningUITests` is true.
+  - The test asserts code, `Started ` date text, live state, named players, round history, deltas, and running totals.
+
+Verification:
+
+- Focused scorekeeper unit tests passed with `28` tests and `0` failures:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_12-40-20--0400.xcresult`
+- Focused scorekeeper UI tests passed with `2` tests and `0` failures:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_12-42-45--0400.xcresult`
+- Full scheme with `-enableCodeCoverage YES` passed with `54` unit tests and `2` UI tests, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_12-45-41--0400.xcresult`
+- Coverage target rows from the full coverage bundle:
+  - `MyApp.app` 9.69% (6380/65850)
+  - `MyAppTests.xctest` 95.91% (1500/1564)
+  - `MyAppUITests.xctest` 93.40% (99/106)
+- `git diff --check` passed.
+
+Privacy impact:
+
+- No new collection, upload, retention, or third-party behavior.
+- The viewer seed document exists only in UI tests and does not contact Firebase.
+
 ## Non-Goals for Phase 2
 
 - Multi-device editing.

@@ -693,6 +693,9 @@ struct ScorekeeperViewerEntryView: View {
         .onAppear {
             guard !didAutoStart else { return }
             didAutoStart = true
+            if seedViewerDocumentForUITestsIfNeeded() {
+                return
+            }
             if let initialCode, !initialCode.isEmpty {
                 viewer.startViewing(code: initialCode)
                 DeepLinkManager.shared.pendingScorekeeperCode = nil
@@ -797,6 +800,32 @@ struct ScorekeeperViewerEntryView: View {
         }
         .padding(20)
         .adaptiveContentFrame(maxWidth: 540)
+    }
+
+    private func seedViewerDocumentForUITestsIfNeeded() -> Bool {
+        guard MyAppApp.isRunningUITests,
+              ProcessInfo.processInfo.arguments.contains("-SHADYSPADE_SEED_SCOREKEEPER_VIEWER_FOR_UI_TESTS") else {
+            return false
+        }
+
+        let createdAt = Date(timeIntervalSince1970: 1_800)
+        var game = ScorekeeperGameState(
+            createdAt: createdAt,
+            playerNames: ["Amit", "Shikha", "Manish", "Vijay", "Sweta", "Megha"]
+        )
+        game.appendRound(ScorekeeperRoundDraft(nextDealerIndex: 0))
+        viewer.document = ScorekeeperLiveSessionDocument(
+            sessionCode: "VIEW01",
+            hostUid: "ui-test-host",
+            game: game,
+            createdAt: createdAt,
+            updatedAt: createdAt,
+            expiresAt: createdAt.addingTimeInterval(600)
+        )
+        viewer.sessionCode = "VIEW01"
+        viewer.state = .live
+        viewer.errorMessage = nil
+        return true
     }
 }
 
