@@ -114,6 +114,26 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - Online view-model bid, offense/defense, valid-card, and calling validation properties,
   - Bluetooth view-model bid, offense/defense, valid-card, and calling validation properties.
 
+### Batch 5
+
+- Added `LeaderboardPendingQueue` as a pure helper for local leaderboard retry persistence:
+  - JSON encode/decode,
+  - file load/save,
+  - legacy `UserDefaults` migration,
+  - file-first loading when both file and legacy storage exist,
+  - duplicate same-game replacement by `deduplicationKey`,
+  - newest-100 queue cap,
+  - sent-record removal by UUID and same-game key.
+- Refactored `LeaderboardService` pending-queue methods to call `LeaderboardPendingQueue`.
+- Added `LeaderboardPendingQueueTests` covering:
+  - successful pending-record round-trip,
+  - corrupt payload rejection,
+  - legacy migration into the file-backed queue,
+  - file-backed queue taking precedence over legacy defaults,
+  - duplicate replacement preserving the newer record UUID,
+  - oldest-record eviction once the queue exceeds 100 records,
+  - removal of both the sent record and a same-game replacement.
+
 ## Verification
 
 - Focused `AppRegressionTests` passed with `5` tests and `0` failures:
@@ -158,6 +178,19 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - Raw app coverage: 11.36% (7496/65976)
   - Logic-focused coverage: 32.16% (3354/10429)
   - Largest remaining uncovered files: `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `Styles.swift`, `OnlineSessionView.swift`, `BluetoothGameViewModel.swift`, `BluetoothSessionView.swift`, `SplashView.swift`, `OnlineGameViewModel.swift`, `LeaderboardView.swift`
+- Focused Batch 5 queue tests passed with `5` tests, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_14-16-29--0400.xcresult`
+- Full scheme with `-enableCodeCoverage YES` after Batch 5 passed with `92` unit tests and `3` UI tests, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_14-18-12--0400.xcresult`
+- Coverage target rows from the Batch 5 full coverage bundle:
+  - `MyApp.app` 11.45% (7556/66005)
+  - `MyAppTests.xctest` 97.84% (2949/3014)
+  - `MyAppUITests.xctest` 94.70% (125/132)
+- `scripts/coverage_report.py` output from the Batch 5 full bundle:
+  - Raw app coverage: 11.45% (7556/66005)
+  - Logic-focused coverage: 32.64% (3414/10458)
+  - `LeaderboardService.swift` coverage: 50.12%
+  - Largest remaining uncovered files: `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `Styles.swift`, `OnlineSessionView.swift`, `BluetoothGameViewModel.swift`, `BluetoothSessionView.swift`, `SplashView.swift`, `OnlineGameViewModel.swift`, `LeaderboardView.swift`
 - `git diff --check` passed.
 
 ## Privacy Impact
@@ -172,11 +205,12 @@ Raise useful regression coverage outside the scorekeeper surface without making 
 - Extract/test leaderboard status messaging currently embedded in Solo/Online/Bluetooth views.
 - Add integration-style tests for `LeaderboardService` queue persistence using isolated `UserDefaults` suites.
 - Continue extracting and unit-testing pure game-flow reducers from `OnlineGameViewModel` and `BluetoothGameViewModel`, especially game-state dictionary encode/decode and completed-round history accumulation.
-- Add `LeaderboardService` queue persistence tests using isolated `UserDefaults` suites; this is the next highest-value service gap after shared multiplayer rules.
+- Extract/test leaderboard HTTP payload construction and response classification without `URLSession`/Firebase Auth, if we want to continue raising service coverage without network dependency.
+- Extract leaderboard Firestore snapshot mapping for `PlayerStat` and `GameLogEntry` into pure mappers and test malformed/missing fields.
 - Add targeted UI smoke tests for `GameHistoryView`, `SettingsView`, and leaderboard empty/error states only if they remain stable in simulator automation.
 
 ## Coverage Interpretation
 
-- Raw `MyApp.app` coverage is the honest Xcode target metric and currently sits at 11.36%.
+- Raw `MyApp.app` coverage is the honest Xcode target metric and currently sits at 11.45%.
 - The raw target denominator is dominated by large SwiftUI views. Raising that raw number to 80% would require broad UI/snapshot rendering coverage, significant view decomposition, or explicit coverage exclusions.
-- The practical path is to first drive logic-focused app coverage toward 80% by extracting deterministic behavior from views and service singletons, while keeping UI tests limited to stable smoke coverage. After Batch 4, logic-focused coverage is 32.16%.
+- The practical path is to first drive logic-focused app coverage toward 80% by extracting deterministic behavior from views and service singletons, while keeping UI tests limited to stable smoke coverage. After Batch 5, logic-focused coverage is 32.64%.

@@ -581,14 +581,10 @@ final class LeaderboardService {
             // removeFromQueue(matching:) after a successful send can clear both the
             // sent record and any same-game replacement created during an in-flight flush.
             lbLog.info("enqueue: replacing existing record id=\(records[existingIdx].id) → \(record.id)")
-            records[existingIdx] = record
-            savePendingRecords(records)
+            savePendingRecords(LeaderboardPendingQueue.enqueue(record, into: records))
             return
         }
-        records.append(record)
-        // #9: cap queue to prevent unbounded UserDefaults growth; evict oldest
-        if records.count > 100 { records = Array(records.suffix(100)) }
-        savePendingRecords(records)
+        savePendingRecords(LeaderboardPendingQueue.enqueue(record, into: records))
     }
 
     /// Persists a game record to the offline queue WITHOUT triggering an HTTP send.
@@ -709,12 +705,8 @@ final class LeaderboardService {
     /// Reads the live queue immediately before writing so that records enqueued
     /// during an in-flight flush are never overwritten (TOCTOU fix).
     private func removeFromQueue(matching record: PendingGameRecord) {
-        let deduplicationKey = record.deduplicationKey
-        var records = loadPendingRecords()
-        records.removeAll {
-            $0.id == record.id || $0.deduplicationKey == deduplicationKey
-        }
-        savePendingRecords(records)
+        let records = loadPendingRecords()
+        savePendingRecords(LeaderboardPendingQueue.remove(record, from: records))
     }
 
     /// Ensures a Firebase anonymous user exists before attempting an HTTP send.
@@ -734,31 +726,14 @@ final class LeaderboardService {
     }
 
     private func loadPendingRecords() -> [PendingGameRecord] {
-        let url = pendingRecordsFileURL
-        if let data = try? Data(contentsOf: url),
-           let records = try? JSONDecoder().decode([PendingGameRecord].self, from: data) {
-            return records
-        }
-        // Migrate from UserDefaults (legacy storage) on first load.
-        if let data = UserDefaults.standard.data(forKey: pendingKey),
-           let records = try? JSONDecoder().decode([PendingGameRecord].self, from: data) {
-            savePendingRecords(records)
-            UserDefaults.standard.removeObject(forKey: pendingKey)
-            return records
-        }
-        return []
+        LeaderboardPendingQueue.load(
+            fileURL: pendingRecordsFileURL,
+            legacyDefaults: .standard,
+            legacyKey: pendingKey
+        )
     }
 
     private func savePendingRecords(_ records: [PendingGameRecord]) {
-        guard let data = try? JSONEncoder().encode(records) else { return }
-        let url = pendingRecordsFileURL
-        do {
-            try FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(),
-                withIntermediateDirectories: true)
-            try data.write(to: url, options: [.atomic, .completeFileProtectionUnlessOpen])
-        } catch {
-            lbLog.error("LeaderboardService: failed to save pending records: \(error.localizedDescription)")
-        }
+        LeaderboardPendingQueue.save(records, to: pendingRecordsFileURL)
     }
 }
