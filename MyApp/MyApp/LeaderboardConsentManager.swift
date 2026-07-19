@@ -5,6 +5,22 @@ enum LeaderboardConsentState: String {
     case undecided
     case granted
     case denied
+
+    var allowsLeaderboardUpload: Bool {
+        self == .granted
+    }
+
+    static func resolvedStoredState(
+        rawValue: String?,
+        storedDisclosureVersion: Int,
+        currentDisclosureVersion: Int
+    ) -> LeaderboardConsentState {
+        let storedState = rawValue.flatMap(LeaderboardConsentState.init(rawValue:)) ?? .undecided
+        if storedState == .granted && storedDisclosureVersion < currentDisclosureVersion {
+            return .undecided
+        }
+        return storedState
+    }
 }
 
 @Observable
@@ -19,19 +35,17 @@ final class LeaderboardConsentManager {
     private(set) var state: LeaderboardConsentState = .undecided
 
     private init() {
-        if let raw = UserDefaults.standard.string(forKey: key),
-           let s = LeaderboardConsentState(rawValue: raw) {
-            state = s
-        }
-
+        let raw = UserDefaults.standard.string(forKey: key)
         let storedDisclosureVersion = UserDefaults.standard.integer(forKey: disclosureVersionKey)
-        if state == .granted && storedDisclosureVersion < currentDisclosureVersion {
-            state = .undecided
-            UserDefaults.standard.set(state.rawValue, forKey: key)
-        }
+        state = LeaderboardConsentState.resolvedStoredState(
+            rawValue: raw,
+            storedDisclosureVersion: storedDisclosureVersion,
+            currentDisclosureVersion: currentDisclosureVersion
+        )
+        UserDefaults.standard.set(state.rawValue, forKey: key)
     }
 
-    var isGranted: Bool { state == .granted }
+    var isGranted: Bool { state.allowsLeaderboardUpload }
 
     func grant() {
         state = .granted

@@ -55,6 +55,48 @@ extension PendingGameRecord {
         let prefixLength = max(1, 10 - suffix.count)
         return String(cleaned.prefix(prefixLength)) + suffix
     }
+
+    static func makeValidated(
+        sessionCode: String,
+        gameMode: String,
+        playerNames: [String],
+        finalScores: [Int],
+        winnerIndex: Int,
+        aiSeats: [Int] = [],
+        rounds: [HistoryRound]
+    ) -> PendingGameRecord? {
+        guard playerNames.count == 6,
+              finalScores.count == 6,
+              rounds.allSatisfy({ $0.runningScores.count == 6 }),
+              let lastRound = rounds.last else {
+            return nil
+        }
+
+        let completedRoundNumber = max(1, lastRound.roundNumber)
+        let scopedSessionCode = roundScopedSessionCode(
+            sessionCode,
+            roundNumber: completedRoundNumber
+        )
+        let sanitizedNames = playerNames.enumerated().map { index, name in
+            ProfanityFilter.isProfane(name) ? "Guest \(index + 1)" : name
+        }
+
+        return PendingGameRecord(
+            sessionCode: scopedSessionCode.isEmpty ? nil : scopedSessionCode,
+            gameMode: gameMode,
+            playerNames: sanitizedNames,
+            finalScores: finalScores.map { Int($0) },
+            winnerIndex: Int(winnerIndex),
+            aiSeats: aiSeats.filter { (0..<6).contains($0) }.map { Int($0) },
+            bid: Int(lastRound.bidAmount),
+            bidMade: !lastRound.isSet,
+            bidderIndex: Int(lastRound.bidderIndex),
+            partner1Index: Int(lastRound.partner1Index),
+            partner2Index: Int(lastRound.partner2Index),
+            defensePointsCaught: Int(lastRound.defensePointsCaught),
+            roundCount: completedRoundNumber
+        )
+    }
 }
 
 // MARK: - Other models
@@ -395,7 +437,7 @@ final class LeaderboardService {
             lbLog.error("recordGame aborted — a HistoryRound has runningScores.count ≠ 6")
             return
         }
-        guard let lastRound = rounds.last else {
+        guard rounds.last != nil else {
             lbLog.error("recordGame aborted — rounds is empty")
             return
         }
@@ -406,31 +448,15 @@ final class LeaderboardService {
             lbLog.warning("recordGame: dropped \(aiSeats.count - validAISeats.count) invalid aiSeat index(es)")
         }
 
-        let completedRoundNumber = max(1, lastRound.roundNumber)
-        let scopedSessionCode = PendingGameRecord.roundScopedSessionCode(
-            sessionCode,
-            roundNumber: completedRoundNumber
-        )
-
-        let sanitizedNames = playerNames.enumerated().map { (i, name) in
-            ProfanityFilter.isProfane(name) ? "Guest \(i + 1)" : name
-        }
-
-        let pending = PendingGameRecord(
-            sessionCode: scopedSessionCode.isEmpty ? nil : scopedSessionCode,
+        guard let pending = PendingGameRecord.makeValidated(
+            sessionCode: sessionCode,
             gameMode: gameMode,
-            playerNames: sanitizedNames,
-            finalScores: finalScores.map { Int($0) },
-            winnerIndex: Int(winnerIndex),
-            aiSeats: validAISeats.map { Int($0) },
-            bid: Int(lastRound.bidAmount),
-            bidMade: !lastRound.isSet,
-            bidderIndex: Int(lastRound.bidderIndex),
-            partner1Index: Int(lastRound.partner1Index),
-            partner2Index: Int(lastRound.partner2Index),
-            defensePointsCaught: Int(lastRound.defensePointsCaught),
-            roundCount: completedRoundNumber
-        )
+            playerNames: playerNames,
+            finalScores: finalScores,
+            winnerIndex: winnerIndex,
+            aiSeats: validAISeats,
+            rounds: rounds
+        ) else { return }
 
         scoreSaveStatus = .idle
         // Enqueue before attempting the send so the record survives if the
@@ -588,30 +614,20 @@ final class LeaderboardService {
         }
         guard playerNames.count == 6, finalScores.count == 6 else { return }
         guard rounds.allSatisfy({ $0.runningScores.count == 6 }), let lastRound = rounds.last else { return }
-        let validAISeats = aiSeats.filter { (0..<6).contains($0) }
         let completedRoundNumber = max(1, lastRound.roundNumber)
         let scopedSessionCode = PendingGameRecord.roundScopedSessionCode(
             sessionCode,
             roundNumber: completedRoundNumber
         )
-        let sanitizedNames = playerNames.enumerated().map { (i, name) in
-            ProfanityFilter.isProfane(name) ? "Guest \(i + 1)" : name
-        }
-        let pending = PendingGameRecord(
-            sessionCode: scopedSessionCode.isEmpty ? nil : scopedSessionCode,
+        guard let pending = PendingGameRecord.makeValidated(
+            sessionCode: sessionCode,
             gameMode: gameMode,
-            playerNames: sanitizedNames,
-            finalScores: finalScores.map { Int($0) },
-            winnerIndex: Int(winnerIndex),
-            aiSeats: validAISeats.map { Int($0) },
-            bid: Int(lastRound.bidAmount),
-            bidMade: !lastRound.isSet,
-            bidderIndex: Int(lastRound.bidderIndex),
-            partner1Index: Int(lastRound.partner1Index),
-            partner2Index: Int(lastRound.partner2Index),
-            defensePointsCaught: Int(lastRound.defensePointsCaught),
-            roundCount: completedRoundNumber
-        )
+            playerNames: playerNames,
+            finalScores: finalScores,
+            winnerIndex: winnerIndex,
+            aiSeats: aiSeats,
+            rounds: rounds
+        ) else { return }
         enqueue(pending)
         lbLog.info("preEnqueue: persisted to disk — \(gameMode) sessionCode=\(scopedSessionCode.isEmpty ? "none" : scopedSessionCode) round=\(completedRoundNumber)")
     }

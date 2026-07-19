@@ -10,6 +10,34 @@ import UIKit
     var pendingScorekeeperCode: String? = nil
 }
 
+enum AppDeepLinkRoute: Equatable {
+    case join(String)
+    case scorekeeper(String)
+}
+
+enum AppDeepLinkRouter {
+    static func route(for url: URL) -> AppDeepLinkRoute? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return nil }
+        let rawParts = [components.host].compactMap { $0 } + components.path.split(separator: "/").map(String.init)
+        let routeParts = rawParts.map { $0.lowercased() }
+
+        if let join = code(after: "join", routeParts: routeParts, rawParts: rawParts) {
+            return .join(join)
+        }
+        if let scorekeeper = code(after: "scorekeeper", routeParts: routeParts, rawParts: rawParts) {
+            return .scorekeeper(scorekeeper)
+        }
+        return nil
+    }
+
+    private static func code(after route: String, routeParts: [String], rawParts: [String]) -> String? {
+        guard let index = routeParts.firstIndex(of: route), index + 1 < rawParts.count else { return nil }
+        let code = ScorekeeperSessionService.normalizedSessionCode(rawParts[index + 1])
+        guard ScorekeeperSessionService.isValidSessionCode(code) else { return nil }
+        return code
+    }
+}
+
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
@@ -81,28 +109,19 @@ struct MyAppApp: App {
         // shadyspade://scorekeeper/ROOMCODE
         // https://shadyspade-d6b84.web.app/shadyspade/join/ROOMCODE
         // https://shadyspade-d6b84.web.app/shadyspade/scorekeeper/ROOMCODE
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return }
-        let routeParts = ([components.host].compactMap { $0 } + components.path.split(separator: "/").map(String.init))
-            .map { $0.lowercased() }
-        let rawParts = [components.host].compactMap { $0 } + components.path.split(separator: "/").map(String.init)
-
-        if let join = code(after: "join", routeParts: routeParts, rawParts: rawParts) {
+        switch AppDeepLinkRouter.route(for: url) {
+        case .join(let join):
             DeepLinkManager.shared.pendingJoinCode = join
             NotificationCenter.default.post(
                 name: .joinRoomFromQR,
                 object: nil,
                 userInfo: ["roomCode": join]
             )
-        } else if let scorekeeper = code(after: "scorekeeper", routeParts: routeParts, rawParts: rawParts) {
+        case .scorekeeper(let scorekeeper):
             DeepLinkManager.shared.pendingScorekeeperCode = scorekeeper
+        case nil:
+            return
         }
-    }
-
-    private func code(after route: String, routeParts: [String], rawParts: [String]) -> String? {
-        guard let index = routeParts.firstIndex(of: route), index + 1 < rawParts.count else { return nil }
-        let code = ScorekeeperSessionService.normalizedSessionCode(rawParts[index + 1])
-        guard ScorekeeperSessionService.isValidSessionCode(code) else { return nil }
-        return code
     }
 
     var body: some Scene {

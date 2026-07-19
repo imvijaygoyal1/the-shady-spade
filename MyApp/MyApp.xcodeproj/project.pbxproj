@@ -57,6 +57,7 @@
 		TX100001 /* AIEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200001 /* AIEngineTests.swift */; };
 		TX100002 /* ScorekeeperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200002 /* ScorekeeperTests.swift */; };
 		TX100003 /* ScorekeeperSessionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200003 /* ScorekeeperSessionServiceTests.swift */; };
+		TX100004 /* AppRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200004 /* AppRegressionTests.swift */; };
 		UI100001 /* ScorekeeperFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200001 /* ScorekeeperFlowUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -130,6 +131,7 @@
 		TX200001 /* AIEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEngineTests.swift; sourceTree = "<group>"; };
 		TX200002 /* ScorekeeperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperTests.swift; sourceTree = "<group>"; };
 		TX200003 /* ScorekeeperSessionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperSessionServiceTests.swift; sourceTree = "<group>"; };
+		TX200004 /* AppRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRegressionTests.swift; sourceTree = "<group>"; };
 		UI200000 /* MyAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		UI200001 /* ScorekeeperFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperFlowUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -250,6 +252,7 @@
 				TX200001 /* AIEngineTests.swift */,
 				TX200002 /* ScorekeeperTests.swift */,
 				TX200003 /* ScorekeeperSessionServiceTests.swift */,
+				TX200004 /* AppRegressionTests.swift */,
 			);
 			path = MyAppTests;
 			sourceTree = "<group>";
@@ -452,6 +455,7 @@
 				TX100001 /* AIEngineTests.swift in Sources */,
 				TX100002 /* ScorekeeperTests.swift in Sources */,
 				TX100003 /* ScorekeeperSessionServiceTests.swift in Sources */,
+				TX100004 /* AppRegressionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
