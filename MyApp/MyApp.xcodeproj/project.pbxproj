@@ -26,6 +26,7 @@
 		FB100001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = FB000002 /* FirebaseAuth */; };
 		FB100002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = FB000003 /* FirebaseFirestore */; };
 		FB100003 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = FB000004 /* FirebaseFunctions */; };
+		GF100001 /* GameFlowRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = GF200001 /* GameFlowRules.swift */; };
 		G1000001 /* ModeSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G2000001 /* ModeSelectionView.swift */; };
 		H1000001 /* ComputerGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = H2000001 /* ComputerGameViewModel.swift */; };
 		I1000001 /* ComputerGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = I2000001 /* ComputerGameView.swift */; };
@@ -63,6 +64,8 @@
 		TX100007 /* OnlineSessionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200007 /* OnlineSessionViewModelTests.swift */; };
 		TX100008 /* ComputerGameViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200008 /* ComputerGameViewModelTests.swift */; };
 		TX100009 /* LeaderboardPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200009 /* LeaderboardPresentationTests.swift */; };
+		TX100010 /* GameFlowRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200010 /* GameFlowRulesTests.swift */; };
+		TX100011 /* MultiplayerViewModelRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200011 /* MultiplayerViewModelRulesTests.swift */; };
 		UI100001 /* ScorekeeperFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200001 /* ScorekeeperFlowUITests.swift */; };
 		UI100002 /* AppLaunchFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200002 /* AppLaunchFlowUITests.swift */; };
 /* End PBXBuildFile section */
@@ -105,6 +108,7 @@
 		E2000001 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		F2000003 /* OnlineSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionViewModel.swift; sourceTree = "<group>"; };
 		F2000004 /* OnlineSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionView.swift; sourceTree = "<group>"; };
+		GF200001 /* GameFlowRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameFlowRules.swift; sourceTree = "<group>"; };
 		G2000001 /* ModeSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSelectionView.swift; sourceTree = "<group>"; };
 		H2000001 /* ComputerGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerGameViewModel.swift; sourceTree = "<group>"; };
 		I2000001 /* ComputerGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerGameView.swift; sourceTree = "<group>"; };
@@ -143,6 +147,8 @@
 		TX200007 /* OnlineSessionViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionViewModelTests.swift; sourceTree = "<group>"; };
 		TX200008 /* ComputerGameViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerGameViewModelTests.swift; sourceTree = "<group>"; };
 		TX200009 /* LeaderboardPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardPresentationTests.swift; sourceTree = "<group>"; };
+		TX200010 /* GameFlowRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameFlowRulesTests.swift; sourceTree = "<group>"; };
+		TX200011 /* MultiplayerViewModelRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiplayerViewModelRulesTests.swift; sourceTree = "<group>"; };
 		UI200000 /* MyAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		UI200001 /* ScorekeeperFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperFlowUITests.swift; sourceTree = "<group>"; };
 		UI200002 /* AppLaunchFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchFlowUITests.swift; sourceTree = "<group>"; };
@@ -209,6 +215,7 @@
 				SK200001 /* ScorekeeperModels.swift */,
 				SK200002 /* ScorekeeperView.swift */,
 				SK200003 /* ScorekeeperSessionService.swift */,
+				GF200001 /* GameFlowRules.swift */,
 				H2000001 /* ComputerGameViewModel.swift */,
 				I2000001 /* ComputerGameView.swift */,
 				J2000001 /* OnlineGameViewModel.swift */,
@@ -270,6 +277,8 @@
 				TX200007 /* OnlineSessionViewModelTests.swift */,
 				TX200008 /* ComputerGameViewModelTests.swift */,
 				TX200009 /* LeaderboardPresentationTests.swift */,
+				TX200010 /* GameFlowRulesTests.swift */,
+				TX200011 /* MultiplayerViewModelRulesTests.swift */,
 			);
 			path = MyAppTests;
 			sourceTree = "<group>";
@@ -437,6 +446,7 @@
 				F1000003 /* OnlineSessionViewModel.swift in Sources */,
 				F1000004 /* OnlineSessionView.swift in Sources */,
 				G1000001 /* ModeSelectionView.swift in Sources */,
+				GF100001 /* GameFlowRules.swift in Sources */,
 				H1000001 /* ComputerGameViewModel.swift in Sources */,
 				I1000001 /* ComputerGameView.swift in Sources */,
 				J1000001 /* OnlineGameViewModel.swift in Sources */,
@@ -479,6 +489,8 @@
 				TX100007 /* OnlineSessionViewModelTests.swift in Sources */,
 				TX100008 /* ComputerGameViewModelTests.swift in Sources */,
 				TX100009 /* LeaderboardPresentationTests.swift in Sources */,
+				TX100010 /* GameFlowRulesTests.swift in Sources */,
+				TX100011 /* MultiplayerViewModelRulesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

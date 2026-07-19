@@ -84,6 +84,36 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - Pass & Play display text,
   - encoded report mailto context for player detail and game-log reports.
 
+### Batch 4
+
+- Added `GameFlowRules` as a shared pure helper for six-seat multiplayer rules:
+  - first bidder after dealer,
+  - bid minimum/maximum/step validation,
+  - can-pass and must-pass state,
+  - active-player and next-bidder rotation,
+  - offense/defense seat grouping,
+  - offense/defense point totals,
+  - follow-suit playable-card filtering,
+  - called-card validation against the 48-card deck and caller hand,
+  - partner resolution from called cards,
+  - next player within a trick.
+- Refactored `OnlineGameViewModel` to use `GameFlowRules` for computed bid/card/score rules, start-bidding first seat, host bid validation, pass/bid rotation, called-card validation, partner resolution, final-round offense totals, and next-player-in-trick.
+- Refactored `BluetoothGameViewModel` to use `GameFlowRules` for the same duplicated rules.
+- Tightened multiplayer host-side bid validation to require the next legal bid above the current high bid, matching the existing UI minimum.
+- Added `GameFlowRulesTests` covering:
+  - first-bidder wraparound,
+  - minimum bid, can-pass, and must-pass behavior,
+  - valid/invalid bid amounts,
+  - active-player and next-bidder rotation,
+  - called-card validation,
+  - follow-suit card filtering,
+  - next trick player wraparound,
+  - partner resolution,
+  - offense and defense point totals.
+- Added `MultiplayerViewModelRulesTests` covering:
+  - Online view-model bid, offense/defense, valid-card, and calling validation properties,
+  - Bluetooth view-model bid, offense/defense, valid-card, and calling validation properties.
+
 ## Verification
 
 - Focused `AppRegressionTests` passed with `5` tests and `0` failures:
@@ -116,6 +146,18 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - Raw app coverage: 10.93% (7205/65934)
   - Logic-focused coverage: 29.49% (3063/10387)
   - Largest remaining uncovered files: `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `Styles.swift`, `OnlineSessionView.swift`, `BluetoothGameViewModel.swift`, `BluetoothSessionView.swift`, `SplashView.swift`, `OnlineGameViewModel.swift`, `LeaderboardView.swift`
+- Focused Batch 4 tests passed with `6` tests, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_13-54-20--0400.xcresult`
+- Full scheme with `-enableCodeCoverage YES` after Batch 4 passed with `87` unit tests and `3` UI tests, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_13-56-13--0400.xcresult`
+- Coverage target rows from the Batch 4 full coverage bundle:
+  - `MyApp.app` 11.36% (7496/65976)
+  - `MyAppTests.xctest` 97.72% (2792/2857)
+  - `MyAppUITests.xctest` 94.70% (125/132)
+- `scripts/coverage_report.py` output from the Batch 4 full bundle:
+  - Raw app coverage: 11.36% (7496/65976)
+  - Logic-focused coverage: 32.16% (3354/10429)
+  - Largest remaining uncovered files: `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `Styles.swift`, `OnlineSessionView.swift`, `BluetoothGameViewModel.swift`, `BluetoothSessionView.swift`, `SplashView.swift`, `OnlineGameViewModel.swift`, `LeaderboardView.swift`
 - `git diff --check` passed.
 
 ## Privacy Impact
@@ -129,11 +171,12 @@ Raise useful regression coverage outside the scorekeeper surface without making 
 - Add focused tests around `ComputerGameViewModel` phase transitions that can run without UI timing.
 - Extract/test leaderboard status messaging currently embedded in Solo/Online/Bluetooth views.
 - Add integration-style tests for `LeaderboardService` queue persistence using isolated `UserDefaults` suites.
-- Extract and unit-test pure game-flow reducers from `OnlineGameViewModel` and `BluetoothGameViewModel`; these are still high-value uncovered files.
+- Continue extracting and unit-testing pure game-flow reducers from `OnlineGameViewModel` and `BluetoothGameViewModel`, especially game-state dictionary encode/decode and completed-round history accumulation.
+- Add `LeaderboardService` queue persistence tests using isolated `UserDefaults` suites; this is the next highest-value service gap after shared multiplayer rules.
 - Add targeted UI smoke tests for `GameHistoryView`, `SettingsView`, and leaderboard empty/error states only if they remain stable in simulator automation.
 
 ## Coverage Interpretation
 
-- Raw `MyApp.app` coverage is the honest Xcode target metric and currently sits at 10.93%.
+- Raw `MyApp.app` coverage is the honest Xcode target metric and currently sits at 11.36%.
 - The raw target denominator is dominated by large SwiftUI views. Raising that raw number to 80% would require broad UI/snapshot rendering coverage, significant view decomposition, or explicit coverage exclusions.
-- The practical path is to first drive logic-focused app coverage toward 80% by extracting deterministic behavior from views and service singletons, while keeping UI tests limited to stable smoke coverage.
+- The practical path is to first drive logic-focused app coverage toward 80% by extracting deterministic behavior from views and service singletons, while keeping UI tests limited to stable smoke coverage. After Batch 4, logic-focused coverage is 32.16%.

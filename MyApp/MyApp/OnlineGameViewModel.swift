@@ -179,27 +179,26 @@ final class OnlineGameViewModel {
 
     var isMyTurn: Bool { myPlayerIndex == currentActionPlayer }
 
-    var humanMinBid: Int { max(130, highBid + 5) }
+    var humanMinBid: Int { GameFlowRules.minimumBid(after: highBid) }
 
-    var humanMustPass: Bool { humanMinBid > 250 }
+    var humanMustPass: Bool { GameFlowRules.mustPass(highBid: highBid) }
 
-    var offenseSet: Set<Int> {
-        Set([highBidderIndex, partner1Index, partner2Index].filter { $0 >= 0 })
-    }
+    var offenseSet: Set<Int> { GameFlowRules.offenseSet(
+        bidderIndex: highBidderIndex,
+        partner1Index: partner1Index,
+        partner2Index: partner2Index
+    ) }
 
     var callingValid: Bool {
-        let c1 = calledCard1Rank + calledCard1Suit
-        let c2 = calledCard2Rank + calledCard2Suit
-        guard c1 != c2 else { return false }
-        let handIds = Set(myHand.map(\.id))
-        return !handIds.contains(c1) && !handIds.contains(c2)
+        GameFlowRules.isValidCalledCards(
+            calledCard1Rank + calledCard1Suit,
+            calledCard2Rank + calledCard2Suit,
+            callerHand: myHand
+        )
     }
 
     var validCardsToPlay: Set<String> {
-        if currentTrick.isEmpty { return Set(myHand.map(\.id)) }
-        let ledSuit = currentTrick[0].card.suit
-        let canFollow = myHand.filter { $0.suit == ledSuit }
-        return Set((canFollow.isEmpty ? myHand : canFollow).map(\.id))
+        GameFlowRules.validCardsToPlay(hand: myHand, currentTrick: currentTrick)
     }
 
     var currentTrickWinnerIndex: Int? {
@@ -210,11 +209,11 @@ final class OnlineGameViewModel {
     var bidHistoryOrdered: [(playerIndex: Int, amount: Int)] { bidHistory }
 
     var offensePoints: Int {
-        (0..<6).filter { offenseSet.contains($0) }.map { wonPointsPerPlayer[$0] }.reduce(0, +)
+        GameFlowRules.pointTotal(for: offenseSet, wonPointsPerPlayer: wonPointsPerPlayer)
     }
 
     var defensePoints: Int {
-        (0..<6).filter { !offenseSet.contains($0) }.map { wonPointsPerPlayer[$0] }.reduce(0, +)
+        GameFlowRules.defensePointTotal(offenseSet: offenseSet, wonPointsPerPlayer: wonPointsPerPlayer)
     }
 
     func playerName(_ index: Int) -> String {
@@ -275,7 +274,7 @@ final class OnlineGameViewModel {
         hostPartner1 = -1; hostPartner2 = -1
         hostCalledCard1 = ""; hostCalledCard2 = ""
 
-        let firstBidder = (dealerIndex + 1) % 6
+        let firstBidder = GameFlowRules.firstBidder(afterDealer: dealerIndex)
         let gs: [String: Any] = [
             "phase": OnlineGamePhase.lookingAtCards.rawValue,
             "roundNumber": roundNumber,
@@ -345,7 +344,7 @@ final class OnlineGameViewModel {
 
     func startBidding() async {
         guard isHost else { return }
-        let firstBidder = (dealerIndex + 1) % 6
+        let firstBidder = GameFlowRules.firstBidder(afterDealer: dealerIndex)
         let gs = buildGS(
             phase: .bidding,
             currentActionPlayer: firstBidder,
@@ -789,7 +788,7 @@ final class OnlineGameViewModel {
 
         // Bid amount update when it's our turn to bid
         if newPhase == .bidding && newCurrentActionPlayer == myPlayerIndex {
-            humanBidAmount = Double(max(130, highBid + 5))
+            humanBidAmount = Double(GameFlowRules.minimumBid(after: highBid))
         }
 
         // LB4: Accumulate a HistoryRound whenever a round ends so the leaderboard
@@ -975,7 +974,7 @@ final class OnlineGameViewModel {
             let amount = (actionData["bidAmount"] as? Int) ??
                 (actionData["bidAmount"] as? Int64).map(Int.init) ?? 0
             // CRIT-04: consume nonce only after all validation guards pass.
-            guard amount >= 130 && amount <= 250 else { return }
+            guard GameFlowRules.isValidBid(amount, highBid: highBid) else { return }
             lastProcessedNonce = nonce
             var newBids = bids
             newBids[playerIndex] = amount
@@ -987,12 +986,10 @@ final class OnlineGameViewModel {
             newHistory.append((playerIndex: playerIndex, amount: amount))
 
             // End bidding when only one player hasn't passed; otherwise rotate clockwise
-            let activePlayers = (0..<6).filter { !newPassed[$0] }
+            let activePlayers = GameFlowRules.activePlayers(playerHasPassed: newPassed)
             if activePlayers.count <= 1 {
                 await concludeBidding(bids: newBids, highBid: newHighBid, highBidder: newHighBidder)
-            } else {
-                var next = (playerIndex + 1) % 6
-                while newPassed[next] { next = (next + 1) % 6 }
+            } else if let next = GameFlowRules.nextActivePlayer(after: playerIndex, playerHasPassed: newPassed) {
                 let gs = buildGS(phase: .bidding, currentActionPlayer: next,
                     bids: newBids, highBid: newHighBid, highBidderIndex: newHighBidder,
                     playerHasPassed: newPassed, bidHistory: newHistory,
@@ -1010,12 +1007,10 @@ final class OnlineGameViewModel {
             newHistory.append((playerIndex: playerIndex, amount: 0))
 
             // End bidding when only one active player remains
-            let activePlayers = (0..<6).filter { !newPassed[$0] }
+            let activePlayers = GameFlowRules.activePlayers(playerHasPassed: newPassed)
             if activePlayers.count <= 1 {
                 await concludeBidding(bids: newBids, highBid: highBid, highBidder: highBidderIndex)
-            } else {
-                var next = (playerIndex + 1) % 6
-                while newPassed[next] { next = (next + 1) % 6 }
+            } else if let next = GameFlowRules.nextActivePlayer(after: playerIndex, playerHasPassed: newPassed) {
                 let gs = buildGS(phase: .bidding, currentActionPlayer: next,
                     bids: newBids, highBid: highBid, highBidderIndex: highBidderIndex,
                     playerHasPassed: newPassed, bidHistory: newHistory,
@@ -1029,10 +1024,7 @@ final class OnlineGameViewModel {
             let c2 = actionData["calledCard2"] as? String ?? ""
             // CRIT-03: use exact 48-card deck (no rank "2") so an invalid called card
             // can't slip through and produce a -1 partner index.
-            let validCardIds = Set(AIEngine.fullDeck.map(\.id))
-            guard validCardIds.contains(c1), validCardIds.contains(c2), c1 != c2,
-                  !allHands[playerIndex].map(\.id).contains(c1),
-                  !allHands[playerIndex].map(\.id).contains(c2) else { return }
+            guard GameFlowRules.isValidCalledCards(c1, c2, callerHand: allHands[playerIndex]) else { return }
             lastProcessedNonce = nonce
             let (p1, p2) = resolvePartners(c1: c1, c2: c2)
             hostPartner1 = p1; hostPartner2 = p2
@@ -1122,8 +1114,12 @@ final class OnlineGameViewModel {
                 let newTrickNum = capturedTrickNumber + 1
 
                 if newTrickNum == 8 {
-                    let offSet = Set([highBidderIndex, hostPartner1, hostPartner2].filter { $0 >= 0 })
-                    let offPts = (0..<6).filter { offSet.contains($0) }.map { newWon[$0] }.reduce(0, +)
+                    let offSet = GameFlowRules.offenseSet(
+                        bidderIndex: highBidderIndex,
+                        partner1Index: hostPartner1,
+                        partner2Index: hostPartner2
+                    )
+                    let offPts = GameFlowRules.pointTotal(for: offSet, wonPointsPerPlayer: newWon)
                     let bidMade = offPts >= highBid
 
                     let scoring = ScoringEngine.calculateRoundScores(
@@ -1189,11 +1185,7 @@ final class OnlineGameViewModel {
                 }
             } else {
                 // Trick in progress — advance to next in order
-                let trickOrder = (0..<6).map { (currentLeaderIndex + $0) % 6 }
-                let pos = trickOrder.firstIndex(of: playerIndex) ?? 0
-                // Fix: use modulo instead of min() so a stale/defaulted pos=0 can't
-                // wrap back to trickOrder[5] and re-pick the same player (or skip anyone).
-                let nextPlayer = trickOrder[(pos + 1) % 6]
+                let nextPlayer = GameFlowRules.nextPlayerInTrick(after: playerIndex, leaderIndex: currentLeaderIndex)
 
                 var gs = buildGS(phase: .playing, currentActionPlayer: nextPlayer,
                     bids: bids, highBid: highBid, highBidderIndex: highBidderIndex,
@@ -1333,11 +1325,12 @@ final class OnlineGameViewModel {
     }
 
     private func resolvePartners(c1: String, c2: String) -> (Int, Int) {
-        var p1 = -1, p2 = -1
-        for (i, hand) in allHands.enumerated() where i != highBidderIndex {
-            if hand.contains(where: { $0.id == c1 }) { p1 = i }
-            if hand.contains(where: { $0.id == c2 }) { p2 = i }
-        }
+        let (p1, p2) = GameFlowRules.resolvePartners(
+            c1: c1,
+            c2: c2,
+            hands: allHands,
+            bidderIndex: highBidderIndex
+        )
         if p1 == p2 && p1 >= 0 {
             ogVMLog.warning("[resolvePartners] p1==p2==\(p1) — both called cards in same hand (c1=\(c1) c2=\(c2))")
         }
@@ -1402,7 +1395,11 @@ final class OnlineGameViewModel {
     // MARK: - AI Auto-play (custom game, host only)
 
     private var hostOffenseSet: Set<Int> {
-        Set([highBidderIndex, hostPartner1, hostPartner2].filter { $0 >= 0 })
+        GameFlowRules.offenseSet(
+            bidderIndex: highBidderIndex,
+            partner1Index: hostPartner1,
+            partner2Index: hostPartner2
+        )
     }
 
     private func processAITurnIfNeeded(retriesRemaining: Int = 2) async {
