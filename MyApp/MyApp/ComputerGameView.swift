@@ -348,24 +348,13 @@ struct ComputerGameView: View {
             return
         }
         let names = (0..<6).map { game.playerName($0) }
-        let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
-        let history = GameHistory(
-            date: Date(),
+        _ = GameHistoryBuilder.saveHistory(
             playerNames: names,
             finalScores: finalScores,
-            winnerIndex: winnerIndex,
-            gameMode: mode
+            rounds: roundsToSave,
+            mode: mode,
+            in: modelContext
         )
-        for hr in roundsToSave { modelContext.insert(hr) }
-        history.historyRounds = roundsToSave
-        modelContext.insert(history)
-
-        // Prune: keep only last 10 games
-        let descriptor = FetchDescriptor<GameHistory>(sortBy: [SortDescriptor(\.date, order: .reverse)])
-        if let all = try? modelContext.fetch(descriptor), all.count > 10 {
-            for old in all.dropFirst(10) { modelContext.delete(old) }
-        }
-        try? modelContext.save()
     }
 
     private func currentGameMode() -> String {

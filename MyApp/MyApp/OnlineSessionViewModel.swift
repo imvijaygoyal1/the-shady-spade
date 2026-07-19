@@ -138,6 +138,40 @@ enum SessionStatus: String {
         (0..<6).filter { !aiSeats.contains($0) }.allSatisfy { playerSlots[$0].joined }
     }
 
+    static func normalizedRoomCode(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let code: String
+        if let url = URL(string: trimmed),
+           let components = URLComponents(url: url, resolvingAgainstBaseURL: true) {
+            let rawParts = [components.host].compactMap { $0 } + components.path.split(separator: "/").map(String.init)
+            let routeParts = rawParts.map { $0.lowercased() }
+            if let joinIndex = routeParts.firstIndex(of: "join"), joinIndex + 1 < rawParts.count {
+                code = rawParts[joinIndex + 1]
+            } else {
+                code = trimmed
+            }
+        } else {
+            code = trimmed
+        }
+        let cleaned = code.unicodeScalars
+            .filter { CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+            .joined()
+        return String(cleaned.prefix(6).uppercased())
+    }
+
+    static func isValidRoomCode(_ raw: String) -> Bool {
+        normalizedRoomCode(raw).count == 6
+    }
+
+    static func canStartAsSoloFallback(
+        isHost: Bool,
+        allNonHostSlotsEmpty: Bool,
+        hasFallbackHandler: Bool
+    ) -> Bool {
+        isHost && allNonHostSlotsEmpty && hasFallbackHandler
+    }
+
     // MARK: - Session CRUD
 
     @discardableResult

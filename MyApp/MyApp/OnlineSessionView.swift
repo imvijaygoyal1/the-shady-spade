@@ -369,7 +369,7 @@ private struct JoinByCodeView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .joinRoomFromQR)) { notification in
             if let incomingCode = notification.userInfo?["roomCode"] as? String {
-                code = String(incomingCode.trimmingCharacters(in: .whitespacesAndNewlines).prefix(6).uppercased())
+                code = OnlineSessionViewModel.normalizedRoomCode(incomingCode)
                 // Don't auto-join — let the player verify and tap Join
             }
         }
@@ -381,22 +381,7 @@ private struct JoinByCodeView: View {
     /// mirroring the logic in MyAppApp.handleIncomingURL.
     /// Falls back to treating the raw string as a code (future plain-code QRs).
     private static func extractRoomCode(from raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let url = URL(string: trimmed),
-           let comps = URLComponents(url: url, resolvingAgainstBaseURL: true) {
-            // Lowercase the path before splitting — generateQRCode calls .uppercased()
-            // on the full URL before encoding, so the QR contains
-            // "HTTPS://…/JOIN/ABCD12" not "https://…/join/ABCD12".
-            // Case-insensitive search ensures "JOIN" matches "join".
-            let parts = comps.path.lowercased().split(separator: "/").map(String.init)
-            if let joinIdx = parts.firstIndex(of: "join"), joinIdx + 1 < parts.count {
-                // Extract from the original (non-lowercased) path so the room code
-                // retains its original casing, then uppercase for normalisation.
-                let originalParts = comps.path.split(separator: "/").map(String.init)
-                return String(originalParts[joinIdx + 1].prefix(6).uppercased())
-            }
-        }
-        return String(trimmed.prefix(6).uppercased())
+        OnlineSessionViewModel.normalizedRoomCode(raw)
     }
 
     private func joinSession() {
@@ -705,7 +690,11 @@ Tap to join: https://shadyspade-d6b84.web.app/shadyspade/join/\(sessionVM.sessio
                         Button {
                             HapticManager.impact(.heavy)
                             Task {
-                                if sessionVM.allNonHostSlotsEmpty, let fallback = onSoloFallback {
+                                if OnlineSessionViewModel.canStartAsSoloFallback(
+                                    isHost: sessionVM.isHost,
+                                    allNonHostSlotsEmpty: sessionVM.allNonHostSlotsEmpty,
+                                    hasFallbackHandler: onSoloFallback != nil
+                                ), let fallback = onSoloFallback {
                                     let hostName = sessionVM.playerSlots[0].name
                                     let hostAvatar = sessionVM.playerSlots[0].avatar
                                     await sessionVM.deleteSession()

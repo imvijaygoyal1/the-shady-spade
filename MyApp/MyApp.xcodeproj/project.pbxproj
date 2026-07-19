@@ -58,7 +58,11 @@
 		TX100002 /* ScorekeeperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200002 /* ScorekeeperTests.swift */; };
 		TX100003 /* ScorekeeperSessionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200003 /* ScorekeeperSessionServiceTests.swift */; };
 		TX100004 /* AppRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200004 /* AppRegressionTests.swift */; };
+		TX100005 /* GameViewModelPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200005 /* GameViewModelPersistenceTests.swift */; };
+		TX100006 /* GameHistoryBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200006 /* GameHistoryBuilderTests.swift */; };
+		TX100007 /* OnlineSessionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200007 /* OnlineSessionViewModelTests.swift */; };
 		UI100001 /* ScorekeeperFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200001 /* ScorekeeperFlowUITests.swift */; };
+		UI100002 /* AppLaunchFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200002 /* AppLaunchFlowUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -132,8 +136,12 @@
 		TX200002 /* ScorekeeperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperTests.swift; sourceTree = "<group>"; };
 		TX200003 /* ScorekeeperSessionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperSessionServiceTests.swift; sourceTree = "<group>"; };
 		TX200004 /* AppRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRegressionTests.swift; sourceTree = "<group>"; };
+		TX200005 /* GameViewModelPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModelPersistenceTests.swift; sourceTree = "<group>"; };
+		TX200006 /* GameHistoryBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameHistoryBuilderTests.swift; sourceTree = "<group>"; };
+		TX200007 /* OnlineSessionViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionViewModelTests.swift; sourceTree = "<group>"; };
 		UI200000 /* MyAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		UI200001 /* ScorekeeperFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperFlowUITests.swift; sourceTree = "<group>"; };
+		UI200002 /* AppLaunchFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchFlowUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -253,6 +261,9 @@
 				TX200002 /* ScorekeeperTests.swift */,
 				TX200003 /* ScorekeeperSessionServiceTests.swift */,
 				TX200004 /* AppRegressionTests.swift */,
+				TX200005 /* GameViewModelPersistenceTests.swift */,
+				TX200006 /* GameHistoryBuilderTests.swift */,
+				TX200007 /* OnlineSessionViewModelTests.swift */,
 			);
 			path = MyAppTests;
 			sourceTree = "<group>";
@@ -261,6 +272,7 @@
 			isa = PBXGroup;
 			children = (
 				UI200001 /* ScorekeeperFlowUITests.swift */,
+				UI200002 /* AppLaunchFlowUITests.swift */,
 			);
 			path = MyAppUITests;
 			sourceTree = "<group>";
@@ -456,6 +468,9 @@
 				TX100002 /* ScorekeeperTests.swift in Sources */,
 				TX100003 /* ScorekeeperSessionServiceTests.swift in Sources */,
 				TX100004 /* AppRegressionTests.swift in Sources */,
+				TX100005 /* GameViewModelPersistenceTests.swift in Sources */,
+				TX100006 /* GameHistoryBuilderTests.swift in Sources */,
+				TX100007 /* OnlineSessionViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -464,6 +479,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				UI100001 /* ScorekeeperFlowUITests.swift in Sources */,
+				UI100002 /* AppLaunchFlowUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

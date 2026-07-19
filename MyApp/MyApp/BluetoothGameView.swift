@@ -288,22 +288,13 @@ struct BluetoothGameView: View {
         let finalScores = lastRound.runningScores
         game.gameHistorySaved = true
         let names = game.playerNames
-        let winnerIndex = (0..<6).max(by: { finalScores[$0] < finalScores[$1] }) ?? 0
-        let history = GameHistory(
-            date: Date(),
+        _ = GameHistoryBuilder.saveHistory(
             playerNames: names,
             finalScores: finalScores,
-            winnerIndex: winnerIndex,
-            gameMode: "Bluetooth"
+            rounds: rounds,
+            mode: "Bluetooth",
+            in: modelContext
         )
-        for round in rounds { modelContext.insert(round) }
-        history.historyRounds = rounds
-        modelContext.insert(history)
-        let descriptor = FetchDescriptor<GameHistory>(sortBy: [SortDescriptor(\.date, order: .reverse)])
-        if let all = try? modelContext.fetch(descriptor), all.count > 10 {
-            for old in all.dropFirst(10) { modelContext.delete(old) }
-        }
-        try? modelContext.save()
     }
 
     private func saveLatestCompletedRoundToLeaderboardIfNeeded() {

@@ -210,3 +210,76 @@ final class GameHistory {
         self.gameMode     = gameMode
     }
 }
+
+enum GameHistoryBuilder {
+    static let maxStoredGames = 10
+
+    static func winnerIndex(finalScores: [Int]) -> Int? {
+        guard finalScores.count == 6 else { return nil }
+        return (0..<6).max(by: { finalScores[$0] < finalScores[$1] })
+    }
+
+    static func makeHistory(
+        playerNames: [String],
+        finalScores: [Int],
+        rounds: [HistoryRound],
+        mode: String,
+        date: Date = Date()
+    ) -> GameHistory? {
+        guard playerNames.count == 6,
+              finalScores.count == 6,
+              !rounds.isEmpty,
+              let winnerIndex = winnerIndex(finalScores: finalScores)
+        else { return nil }
+
+        let history = GameHistory(
+            date: date,
+            playerNames: playerNames,
+            finalScores: finalScores,
+            winnerIndex: winnerIndex,
+            gameMode: mode
+        )
+        history.historyRounds = rounds.sorted { $0.roundNumber < $1.roundNumber }
+        return history
+    }
+
+    static func latestFinalScores(from rounds: [HistoryRound]) -> [Int]? {
+        rounds.sorted { $0.roundNumber < $1.roundNumber }.last?.runningScores
+    }
+
+    @discardableResult
+    static func saveHistory(
+        playerNames: [String],
+        finalScores: [Int],
+        rounds: [HistoryRound],
+        mode: String,
+        in context: ModelContext,
+        date: Date = Date()
+    ) -> GameHistory? {
+        guard let history = makeHistory(
+            playerNames: playerNames,
+            finalScores: finalScores,
+            rounds: rounds,
+            mode: mode,
+            date: date
+        ) else { return nil }
+
+        for round in history.historyRounds {
+            context.insert(round)
+        }
+        context.insert(history)
+        pruneHistory(in: context)
+        try? context.save()
+        return history
+    }
+
+    static func pruneHistory(in context: ModelContext, keeping count: Int = maxStoredGames) {
+        let descriptor = FetchDescriptor<GameHistory>(
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        guard let all = try? context.fetch(descriptor), all.count > count else { return }
+        for old in all.dropFirst(count) {
+            context.delete(old)
+        }
+    }
+}
