@@ -61,6 +61,8 @@
 		TX100005 /* GameViewModelPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200005 /* GameViewModelPersistenceTests.swift */; };
 		TX100006 /* GameHistoryBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200006 /* GameHistoryBuilderTests.swift */; };
 		TX100007 /* OnlineSessionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200007 /* OnlineSessionViewModelTests.swift */; };
+		TX100008 /* ComputerGameViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200008 /* ComputerGameViewModelTests.swift */; };
+		TX100009 /* LeaderboardPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200009 /* LeaderboardPresentationTests.swift */; };
 		UI100001 /* ScorekeeperFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200001 /* ScorekeeperFlowUITests.swift */; };
 		UI100002 /* AppLaunchFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200002 /* AppLaunchFlowUITests.swift */; };
 /* End PBXBuildFile section */
@@ -139,6 +141,8 @@
 		TX200005 /* GameViewModelPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModelPersistenceTests.swift; sourceTree = "<group>"; };
 		TX200006 /* GameHistoryBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameHistoryBuilderTests.swift; sourceTree = "<group>"; };
 		TX200007 /* OnlineSessionViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineSessionViewModelTests.swift; sourceTree = "<group>"; };
+		TX200008 /* ComputerGameViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComputerGameViewModelTests.swift; sourceTree = "<group>"; };
+		TX200009 /* LeaderboardPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardPresentationTests.swift; sourceTree = "<group>"; };
 		UI200000 /* MyAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		UI200001 /* ScorekeeperFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperFlowUITests.swift; sourceTree = "<group>"; };
 		UI200002 /* AppLaunchFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchFlowUITests.swift; sourceTree = "<group>"; };
@@ -264,6 +268,8 @@
 				TX200005 /* GameViewModelPersistenceTests.swift */,
 				TX200006 /* GameHistoryBuilderTests.swift */,
 				TX200007 /* OnlineSessionViewModelTests.swift */,
+				TX200008 /* ComputerGameViewModelTests.swift */,
+				TX200009 /* LeaderboardPresentationTests.swift */,
 			);
 			path = MyAppTests;
 			sourceTree = "<group>";
@@ -471,6 +477,8 @@
 				TX100005 /* GameViewModelPersistenceTests.swift in Sources */,
 				TX100006 /* GameHistoryBuilderTests.swift in Sources */,
 				TX100007 /* OnlineSessionViewModelTests.swift in Sources */,
+				TX100008 /* ComputerGameViewModelTests.swift in Sources */,
+				TX100009 /* LeaderboardPresentationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

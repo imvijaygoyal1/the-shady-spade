@@ -58,6 +58,32 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - solo-fallback decision gating.
 - Added `AppLaunchFlowUITests` covering the normal UI-test app launch path and mode-selection screen.
 
+### Batch 3
+
+- Added `scripts/coverage_report.py` so coverage can be inspected consistently from any Xcode `.xcresult`.
+  - Prints raw `MyApp.app` coverage from Xcode.
+  - Prints a logic-focused app coverage number that excludes large SwiftUI/render-only files.
+  - Lists the top uncovered app files by executable-line count.
+- Extracted leaderboard presentation helpers from `LeaderboardView`:
+  - `LeaderboardStatsSortKey`,
+  - `LeaderboardStatsSorter`,
+  - `LeaderboardDisplay`.
+- Kept report-mail URL formatting in `LeaderboardReportMail`, with internal visibility so the exact generated mailto URLs can be unit-tested.
+- Added `ComputerGameViewModelTests` covering:
+  - card point values,
+  - suit sorting,
+  - deal/reset state,
+  - duplicate/invalid/bidder-owned calling-card rejection,
+  - follow-suit playable-card rules,
+  - completed round score construction from won tricks,
+  - player-name/avatar fallback.
+- Added `LeaderboardPresentationTests` covering:
+  - mode-filter matching,
+  - leaderboard stat sorting by wins, points, games, and bid success rate,
+  - player-stat derived metrics,
+  - Pass & Play display text,
+  - encoded report mailto context for player detail and game-log reports.
+
 ## Verification
 
 - Focused `AppRegressionTests` passed with `5` tests and `0` failures:
@@ -78,6 +104,18 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - `MyApp.app` 10.39% (6847/65931)
   - `MyAppTests.xctest` 97.14% (2175/2239)
   - `MyAppUITests.xctest` 94.70% (125/132)
+- Focused Batch 3 unit tests passed with `10` tests, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_13-41-50--0400.xcresult`
+- Full scheme with `-enableCodeCoverage YES` after Batch 3 passed with `81` unit tests and `3` UI tests, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_13-43-27--0400.xcresult`
+- Coverage target rows from the Batch 3 full coverage bundle:
+  - `MyApp.app` 10.93% (7205/65934)
+  - `MyAppTests.xctest` 97.53% (2565/2630)
+  - `MyAppUITests.xctest` 94.70% (125/132)
+- `scripts/coverage_report.py` output from the Batch 3 full bundle:
+  - Raw app coverage: 10.93% (7205/65934)
+  - Logic-focused coverage: 29.49% (3063/10387)
+  - Largest remaining uncovered files: `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `Styles.swift`, `OnlineSessionView.swift`, `BluetoothGameViewModel.swift`, `BluetoothSessionView.swift`, `SplashView.swift`, `OnlineGameViewModel.swift`, `LeaderboardView.swift`
 - `git diff --check` passed.
 
 ## Privacy Impact
@@ -91,3 +129,11 @@ Raise useful regression coverage outside the scorekeeper surface without making 
 - Add focused tests around `ComputerGameViewModel` phase transitions that can run without UI timing.
 - Extract/test leaderboard status messaging currently embedded in Solo/Online/Bluetooth views.
 - Add integration-style tests for `LeaderboardService` queue persistence using isolated `UserDefaults` suites.
+- Extract and unit-test pure game-flow reducers from `OnlineGameViewModel` and `BluetoothGameViewModel`; these are still high-value uncovered files.
+- Add targeted UI smoke tests for `GameHistoryView`, `SettingsView`, and leaderboard empty/error states only if they remain stable in simulator automation.
+
+## Coverage Interpretation
+
+- Raw `MyApp.app` coverage is the honest Xcode target metric and currently sits at 10.93%.
+- The raw target denominator is dominated by large SwiftUI views. Raising that raw number to 80% would require broad UI/snapshot rendering coverage, significant view decomposition, or explicit coverage exclusions.
+- The practical path is to first drive logic-focused app coverage toward 80% by extracting deterministic behavior from views and service singletons, while keeping UI tests limited to stable smoke coverage.

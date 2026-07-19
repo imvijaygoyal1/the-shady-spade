@@ -5,7 +5,7 @@ struct LeaderboardView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var service = LeaderboardService.shared
     @State private var modeFilter: LeaderboardModeFilter = .all
-    @State private var sortKey: PlayerStatsTab.SortKey = .wins
+    @State private var sortKey: LeaderboardStatsSortKey = .wins
     @State private var showRecentGames = false
 
     private var filteredStats: [PlayerStat] {
@@ -65,7 +65,7 @@ struct LeaderboardView: View {
                         value: sortKey.rawValue,
                         systemImage: "arrow.up.arrow.down"
                     ) {
-                        ForEach(PlayerStatsTab.SortKey.allCases, id: \.self) { key in
+                        ForEach(LeaderboardStatsSortKey.allCases, id: \.self) { key in
                             Button(key.rawValue) {
                                 HapticManager.impact(.light)
                                 sortKey = key
@@ -160,7 +160,7 @@ struct LeaderboardView: View {
     }
 }
 
-private enum LeaderboardModeFilter: String, CaseIterable, Identifiable {
+enum LeaderboardModeFilter: String, CaseIterable, Identifiable {
     case all = "All"
     case solo = "Solo"
     case online = "Online"
@@ -185,7 +185,52 @@ private enum LeaderboardModeFilter: String, CaseIterable, Identifiable {
     }
 }
 
-private enum LeaderboardReportMail {
+enum LeaderboardStatsSortKey: String, CaseIterable {
+    case wins    = "Wins"
+    case points  = "Points"
+    case games   = "Games"
+    case bidRate = "Bid Rate"
+}
+
+enum LeaderboardStatsSorter {
+    static func sorted(_ stats: [PlayerStat], by sortKey: LeaderboardStatsSortKey) -> [PlayerStat] {
+        switch sortKey {
+        case .wins:
+            return stats.sorted {
+                if $0.wins != $1.wins {
+                    return $0.wins > $1.wins
+                }
+                return $0.totalPoints > $1.totalPoints
+            }
+        case .points:
+            return stats.sorted {
+                if $0.totalPoints != $1.totalPoints {
+                    return $0.totalPoints > $1.totalPoints
+                }
+                return $0.wins > $1.wins
+            }
+        case .games:
+            return stats.sorted {
+                if $0.gamesPlayed != $1.gamesPlayed {
+                    return $0.gamesPlayed > $1.gamesPlayed
+                }
+                return $0.wins > $1.wins
+            }
+        case .bidRate:
+            return stats.sorted {
+                $0.bidSuccessRate > $1.bidSuccessRate
+            }
+        }
+    }
+}
+
+enum LeaderboardDisplay {
+    static func displayMode(_ mode: String) -> String {
+        mode == "PassAndPlay" ? "Pass & Play" : mode
+    }
+}
+
+enum LeaderboardReportMail {
     private static let supportEmail = "imvijaygoyal1@icloud.com"
     private static let subject = "The Shady Spade leaderboard report"
 
@@ -194,7 +239,7 @@ private enum LeaderboardReportMail {
             playerName: stat.name,
             context: [
                 "Source: Leaderboard player details",
-                "Last mode: \(displayMode(stat.lastGameMode))",
+                "Last mode: \(LeaderboardDisplay.displayMode(stat.lastGameMode))",
                 "Games: \(stat.gamesPlayed)",
                 "Wins: \(stat.wins)",
                 "Total points: \(stat.totalPoints)",
@@ -207,7 +252,7 @@ private enum LeaderboardReportMail {
     static func gameLogURL(entry: GameLogEntry, playerName: String? = nil, role: String? = nil) -> URL? {
         var context = [
             "Source: Recent games",
-            "Game mode: \(displayMode(entry.gameMode))",
+            "Game mode: \(LeaderboardDisplay.displayMode(entry.gameMode))",
             "Date: \(formattedDate(entry.date))",
             "Round: \(entry.roundCount)",
             "Bid: \(entry.bid)",
@@ -265,9 +310,6 @@ private enum LeaderboardReportMail {
         return formatter.string(from: date)
     }
 
-    private static func displayMode(_ mode: String) -> String {
-        mode == "PassAndPlay" ? "Pass & Play" : mode
-    }
 }
 
 private struct LeaderboardMenuButton<Content: View>: View {
@@ -301,44 +343,11 @@ private struct LeaderboardMenuButton<Content: View>: View {
 private struct PlayerStatsTab: View {
     let stats: [PlayerStat]
     let filter: LeaderboardModeFilter
-    let sortKey: SortKey
+    let sortKey: LeaderboardStatsSortKey
     @State private var selectedStat: PlayerStat?
 
-    enum SortKey: String, CaseIterable {
-        case wins    = "Wins"
-        case points  = "Points"
-        case games   = "Games"
-        case bidRate = "Bid Rate"
-    }
-
     private var sorted: [PlayerStat] {
-        switch sortKey {
-        case .wins:
-            return stats.sorted {
-                if $0.wins != $1.wins {
-                    return $0.wins > $1.wins
-                }
-                return $0.totalPoints > $1.totalPoints
-            }
-        case .points:
-            return stats.sorted {
-                if $0.totalPoints != $1.totalPoints {
-                    return $0.totalPoints > $1.totalPoints
-                }
-                return $0.wins > $1.wins
-            }
-        case .games:
-            return stats.sorted {
-                if $0.gamesPlayed != $1.gamesPlayed {
-                    return $0.gamesPlayed > $1.gamesPlayed
-                }
-                return $0.wins > $1.wins
-            }
-        case .bidRate:
-            return stats.sorted {
-                $0.bidSuccessRate > $1.bidSuccessRate
-            }
-        }
+        LeaderboardStatsSorter.sorted(stats, by: sortKey)
     }
 
     private let medals = ["🥇", "🥈", "🥉"]
