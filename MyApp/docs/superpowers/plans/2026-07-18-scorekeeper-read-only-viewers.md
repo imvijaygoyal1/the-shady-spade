@@ -158,8 +158,8 @@ Recommended defaults:
 
 - `expiresAt = createdAt + 24 hours`
 - `Finish & Save` sets `isClosed = true` and final `updatedAt`.
-- A future cleanup Cloud Function can delete expired sessions.
-- Until cleanup exists, clients should treat `expiresAt < now` as expired and stop showing stale sessions.
+- A scheduled cleanup Cloud Function deletes expired sessions after a 48-hour grace period.
+- Until cleanup runs, clients treat `expiresAt < now` as expired and stop showing stale sessions.
 
 ## Implementation Batches
 
@@ -379,7 +379,7 @@ Implemented and verified:
   - `0` failures,
   - `0` skipped.
 - Coverage target summary from that run:
-  - `MyApp.app`: 9.23% (`6080/65685`)
+  - `MyApp.app`: 9.26% (`6080/65685`)
   - `MyAppTests.xctest`: 95.59% (`1213/1269`)
   - `MyAppUITests.xctest`: 90.00% (`81/90`)
 - Latest build installed and launched on both booted simulators:
@@ -396,13 +396,42 @@ Lifecycle decision:
 - `Finish & Save` and `Reset Scorecard` close the active live session.
 - Firestore rules deny host updates after close or expiry.
 - Client viewers show closed/expired states rather than stale editable UI.
-- Deleting expired documents remains a future backend cleanup task, best handled by a scheduled Cloud Function or similar server job.
+- A scheduled Cloud Function deletes expired documents after a 48-hour grace period.
 
 Remaining optional hardening:
 
 - Add a Firebase-isolated UI test fixture for viewer entry states if the project gets a test Firebase emulator setup.
-- Add backend cleanup for expired `scorekeeperSessions`.
 - Add manual real-device smoke before App Store release if live score viewing is intended for the next submitted build.
+
+### Batch 6: Backend Cleanup
+
+Status: complete as of 2026-07-18.
+
+Implemented:
+
+- Added Firebase Scheduler v2 function `cleanupExpiredScorekeeperSessions`.
+- Schedule: daily at `3:15 AM America/New_York`.
+- Collection: `scorekeeperSessions`.
+- Deletion criteria: `expiresAt <= now - 48 hours`.
+- Batch size: 400 documents per commit, below Firestore's 500-operation batch limit.
+- Retention behavior:
+  - app-created sessions still expire after 24 hours,
+  - viewer clients can still show expired/closed states before cleanup,
+  - old expired sessions are removed from Firestore automatically after the grace period.
+
+Verification:
+
+- `node --check functions/index.js` passed.
+- `npm --prefix functions run lint` passed.
+- `git diff --check` passed.
+- Deployed to production Firebase:
+  - `firebase deploy --only functions:cleanupExpiredScorekeeperSessions --project shadyspade-d6b84 --non-interactive`
+  - Firebase CLI created `cleanupExpiredScorekeeperSessions(us-central1)` successfully.
+
+Privacy impact:
+
+- No new user-facing data collection, upload, or sharing path.
+- This reduces retention for already documented temporary live scorekeeper data.
 
 ## Non-Goals for Phase 2
 

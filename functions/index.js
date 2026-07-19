@@ -38,6 +38,8 @@ const db = admin.firestore();
 const MIN_BID = 130;
 const MAX_BID = 250;
 const PLAYER_COUNT = 6;
+const FIRESTORE_BATCH_LIMIT = 400;
+const SCOREKEEPER_SESSION_CLEANUP_GRACE_MS = 48 * 60 * 60 * 1000;
 
 // ── Scoring (mirrors ScoringEngine.swift) ────────────────────
 function calculateScores(bid, bidMade, bidderIndex,
@@ -385,4 +387,40 @@ exports.resetMonthlyLeaderboard = onSchedule(
         console.log(`resetMonthlyLeaderboard: deleted ${docs.length} docs from ${col}`);
       }
       console.log(`Monthly leaderboard reset complete. Archive label: ${label}`);
+    });
+
+// ── Scheduled: expired scorekeeper live-session cleanup ─────
+// Live scorekeeper sessions expire after 24 hours on the client contract.
+// Keep a 48-hour grace period before deletion so recently expired viewers can
+// still show an expired/closed state instead of immediately becoming missing.
+exports.cleanupExpiredScorekeeperSessions = onSchedule(
+    {schedule: "15 3 * * *", timeZone: "America/New_York"},
+    async () => {
+      const cutoff = admin.firestore.Timestamp.fromDate(
+          new Date(Date.now() - SCOREKEEPER_SESSION_CLEANUP_GRACE_MS),
+      );
+      let deletedCount = 0;
+
+      while (true) {
+        const snap = await db.collection("scorekeeperSessions")
+            .where("expiresAt", "<=", cutoff)
+            .limit(FIRESTORE_BATCH_LIMIT)
+            .get();
+
+        if (snap.empty) break;
+
+        const batch = db.batch();
+        snap.docs.forEach((doc) => batch.delete(doc.ref));
+        await batch.commit();
+        deletedCount += snap.size;
+
+        if (snap.size < FIRESTORE_BATCH_LIMIT) break;
+      }
+
+      console.log(
+          "cleanupExpiredScorekeeperSessions: deleted",
+          deletedCount,
+          "sessions expired before",
+          cutoff.toDate().toISOString(),
+      );
     });
