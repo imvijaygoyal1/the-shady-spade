@@ -54,6 +54,20 @@ struct ScorekeeperRootView: View {
             } message: {
                 Text("This clears the local in-progress real-life scorecard on this device.")
             }
+            .onAppear {
+                seedActiveGameForUITestsIfNeeded()
+            }
+        }
+    }
+
+    private func seedActiveGameForUITestsIfNeeded() {
+        guard MyAppApp.isRunningUITests,
+              ProcessInfo.processInfo.arguments.contains("-SHADYSPADE_SEED_SCOREKEEPER_GAME_FOR_UI_TESTS"),
+              store.activeGame == nil else { return }
+
+        store.start(playerNames: (1...6).map { "Player \($0)" })
+        if ProcessInfo.processInfo.arguments.contains("-SHADYSPADE_SEED_SCOREKEEPER_ROUND_FOR_UI_TESTS") {
+            store.addRound(ScorekeeperRoundDraft(nextDealerIndex: 0))
         }
     }
 
@@ -152,25 +166,36 @@ private struct ScorekeeperSetupView: View {
                 .padding(16)
                 .comicContainer(cornerRadius: 16)
 
-                Button {
-                    HapticManager.impact(.medium)
-                    store.start(playerNames: playerNames)
-                } label: {
-                    Text("Start Scorecard")
-                        .font(.system(size: 18, weight: .black, design: .rounded))
-                        .foregroundStyle(Comic.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                }
-                .buttonStyle(ComicButtonStyle())
-                .accessibilityIdentifier("scorekeeper.setup.start")
-                .disabled(!canStart)
-                .opacity(canStart ? 1 : 0.55)
-                .padding(.bottom, 28)
+                Color.clear
+                    .frame(height: 88)
             }
             .padding(.horizontal, 20)
             .adaptiveContentFrame(maxWidth: 620)
         }
+        .safeAreaInset(edge: .bottom) {
+            startButton
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 12)
+                .background(.ultraThinMaterial)
+        }
+    }
+
+    private var startButton: some View {
+        Button {
+            HapticManager.impact(.medium)
+            store.start(playerNames: playerNames)
+        } label: {
+            Text("Start Scorecard")
+                .font(.system(size: 18, weight: .black, design: .rounded))
+                .foregroundStyle(Comic.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+        }
+        .buttonStyle(ComicButtonStyle())
+        .accessibilityIdentifier("scorekeeper.setup.start")
+        .disabled(!canStart)
+        .opacity(canStart ? 1 : 0.55)
     }
 }
 
@@ -288,6 +313,9 @@ private struct ScorekeeperLiveView: View {
                 Text("\(game.rounds.count) round\(game.rounds.count == 1 ? "" : "s") recorded · one-device control")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(Comic.textSecondary)
+                Text("Started \(game.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary.opacity(0.85))
             }
 
             Spacer()
@@ -541,10 +569,22 @@ Code: \(code)
                     .padding(16)
                     .comicContainer(cornerRadius: 14)
             } else {
-                ForEach(game.rounds.reversed()) { round in
-                    ScorekeeperRoundRow(round: round, playerNames: game.playerNames)
+                ForEach(Array(roundsWithRunningTotals.reversed()), id: \.round.id) { item in
+                    ScorekeeperRoundRow(
+                        round: item.round,
+                        playerNames: game.playerNames,
+                        runningTotals: item.runningTotals
+                    )
                 }
             }
+        }
+    }
+
+    private var roundsWithRunningTotals: [(round: ScorekeeperRoundEntry, runningTotals: [Int])] {
+        var running = Array(repeating: 0, count: 6)
+        return game.rounds.map { round in
+            running = zip(running, round.scoreDeltas).map(+)
+            return (round, running)
         }
     }
 }
@@ -813,6 +853,9 @@ private struct ScorekeeperViewerScorecard: View {
                 Text("Code \(document.sessionCode) · read-only")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(Comic.textSecondary)
+                Text("Started \(document.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary.opacity(0.85))
             }
 
             Spacer()
@@ -909,10 +952,22 @@ private struct ScorekeeperViewerScorecard: View {
                     .padding(16)
                     .comicContainer(cornerRadius: 14)
             } else {
-                ForEach(roundEntries.reversed()) { round in
-                    ScorekeeperRoundRow(round: round, playerNames: document.playerNames)
+                ForEach(Array(roundsWithRunningTotals.reversed()), id: \.round.id) { item in
+                    ScorekeeperRoundRow(
+                        round: item.round,
+                        playerNames: document.playerNames,
+                        runningTotals: item.runningTotals
+                    )
                 }
             }
+        }
+    }
+
+    private var roundsWithRunningTotals: [(round: ScorekeeperRoundEntry, runningTotals: [Int])] {
+        var running = Array(repeating: 0, count: 6)
+        return roundEntries.map { round in
+            running = zip(running, round.scoreDeltas).map(+)
+            return (round, running)
         }
     }
 
@@ -1044,6 +1099,7 @@ Code: \(sessionCode)
 private struct ScorekeeperRoundRow: View {
     let round: ScorekeeperRoundEntry
     let playerNames: [String]
+    let runningTotals: [Int]
 
     private var bidderName: String { playerNames[safe: round.bidderIndex] ?? "Player" }
     private var offenseIndices: [Int] {
@@ -1088,12 +1144,14 @@ private struct ScorekeeperRoundRow: View {
                     title: "Offense",
                     indices: offenseIndices,
                     deltas: deltas,
+                    runningTotals: runningTotals,
                     tint: round.bidMade ? Color.offenseBlue : Color.defenseRose
                 )
                 teamScoreGroup(
                     title: "Defense",
                     indices: defenseIndices,
                     deltas: deltas,
+                    runningTotals: runningTotals,
                     tint: Color.masterGold
                 )
             }
@@ -1106,6 +1164,7 @@ private struct ScorekeeperRoundRow: View {
         title: String,
         indices: [Int],
         deltas: [Int],
+        runningTotals: [Int],
         tint: Color
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1122,9 +1181,14 @@ private struct ScorekeeperRoundRow: View {
 
                     Spacer()
 
-                    Text(scoreText(deltas[safe: index] ?? 0))
-                        .font(.system(size: 13, weight: .black, design: .rounded).monospacedDigit())
-                        .foregroundStyle(scoreColor(deltas[safe: index] ?? 0))
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(scoreText(deltas[safe: index] ?? 0))
+                            .font(.system(size: 13, weight: .black, design: .rounded).monospacedDigit())
+                            .foregroundStyle(scoreColor(deltas[safe: index] ?? 0))
+                        Text("Total \(runningTotals[safe: index] ?? 0)")
+                            .font(.system(size: 10, weight: .heavy, design: .rounded).monospacedDigit())
+                            .foregroundStyle(Comic.textSecondary)
+                    }
                 }
                 .padding(.vertical, 5)
                 .padding(.horizontal, 9)

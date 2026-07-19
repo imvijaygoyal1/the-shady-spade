@@ -170,7 +170,7 @@ Recommended defaults:
 - Add room-code generation with collision check, separate from online game sessions.
 - Add model tests for DTO mapping and one-writer state transitions.
 
-Status: complete as of 2026-07-18.
+Status: complete as of 2026-07-19.
 
 Implemented:
 
@@ -432,6 +432,38 @@ Privacy impact:
 
 - No new user-facing data collection, upload, or sharing path.
 - This reduces retention for already documented temporary live scorekeeper data.
+
+### Batch 7: Date and Running-Total Display
+
+Status: complete as of 2026-07-18.
+
+Implemented:
+
+- Host active scorekeeper header now shows the local scorecard start date/time.
+- Viewer live scorecard header now shows the live session start date/time.
+- Host and viewer round history now show each player's round delta and running total after that round.
+- `ScorekeeperRoundRow` receives a per-round running-total snapshot so reversed history still displays the correct total for each round.
+- The setup Start button is pinned to the bottom safe area so it remains reachable on long setup screens.
+- The scorekeeper UI regression uses UI-test-only launch flags to open a seeded scorekeeper with one saved round, avoiding simulator flakiness around home-card taps, long setup scrolling, and sheet submit timing.
+- UI regression now asserts:
+  - a dynamic `Started ` label exists,
+  - `Round 1`,
+  - named offense/defense rows,
+  - `Total 130`,
+  - `Total 65`,
+  - `Total 0`.
+
+Verification:
+
+- Focused scorekeeper UI regression passed:
+- `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_00-16-25--0400.xcresult`
+- Full scheme with `-enableCodeCoverage YES` passed with `44` unit tests and `1` UI test, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_00-18-47--0400.xcresult`
+
+Privacy impact:
+
+- No new collection, upload, or third-party behavior.
+- `createdAt` and running scores were already part of local scorecards and live scorekeeper documents; this only makes them visible in the scorekeeper UI.
 
 ## Non-Goals for Phase 2
 

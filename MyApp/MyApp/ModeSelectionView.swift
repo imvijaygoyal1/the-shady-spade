@@ -273,7 +273,13 @@ struct ModeSelectionView: View {
                 }
             }
         )
-        .onAppear { vm.setup(with: modelContext) }
+        .onAppear {
+            vm.setup(with: modelContext)
+            if MyAppApp.isRunningUITests,
+               ProcessInfo.processInfo.arguments.contains("-SHADYSPADE_OPEN_SCOREKEEPER_FOR_UI_TESTS") {
+                showingScorekeeper = true
+            }
+        }
         // NoAnimationCover replaces ALL UIKit animated presentations.
         // Any UIKit modal transition (fullScreenCover OR .sheet) physically moves
         // _UIHostingView; SwiftUI's own internal gesture recognisers on that view

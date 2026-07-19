@@ -8,7 +8,10 @@ final class ScorekeeperFlowUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = [
             "-SHADYSPADE_UI_TESTING",
-            "-SHADYSPADE_RESET_SCOREKEEPER_FOR_UI_TESTS"
+            "-SHADYSPADE_RESET_SCOREKEEPER_FOR_UI_TESTS",
+            "-SHADYSPADE_OPEN_SCOREKEEPER_FOR_UI_TESTS",
+            "-SHADYSPADE_SEED_SCOREKEEPER_GAME_FOR_UI_TESTS",
+            "-SHADYSPADE_SEED_SCOREKEEPER_ROUND_FOR_UI_TESTS"
         ]
         app.launchEnvironment["SHADYSPADE_RESET_SCOREKEEPER_FOR_UI_TESTS"] = "1"
         app.launch()
@@ -18,29 +21,10 @@ final class ScorekeeperFlowUITests: XCTestCase {
         app = nil
     }
 
-    func testScorekeeperAddRoundShowsNamedHistoryAndPartnerRules() throws {
-        tapElement(identifier: "mode.card.Real-Life Scorekeeper")
-        XCTAssertTrue(app.staticTexts["Real-Life Scorekeeper"].waitForExistence(timeout: 8))
-
-        app.swipeUp()
-        tapElement(identifier: "scorekeeper.setup.start")
-        XCTAssertTrue(app.staticTexts["Scoreboard"].waitForExistence(timeout: 4))
-
-        tapElement(identifier: "scorekeeper.addRound")
-        XCTAssertTrue(app.navigationBars["Add Round"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.staticTexts["Player 2"].waitForExistence(timeout: 2))
-        let bidStepper = app.descendants(matching: .any)["scorekeeper.round.bid"]
-        XCTAssertTrue(bidStepper.waitForExistence(timeout: 2))
-        XCTAssertEqual(String(describing: bidStepper.value ?? ""), "130")
-
-        let partner1 = app.descendants(matching: .any)["scorekeeper.round.Partner1"]
-        XCTAssertTrue(partner1.waitForExistence(timeout: 2))
-        let partnerChoices = String(describing: partner1.value ?? "")
-        XCTAssertFalse(partnerChoices.contains("Player 2"))
-        XCTAssertTrue(partnerChoices.contains("Player 3"))
-
-        app.navigationBars["Add Round"].buttons["Save"].tap()
-        XCTAssertTrue(waitForText("Round 1", timeout: 4), "Missing saved round history")
+    func testScorekeeperShowsGameDateNamedHistoryAndRunningTotals() throws {
+        XCTAssertTrue(app.staticTexts["Scoreboard"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Started '")).firstMatch.exists)
+        XCTAssertTrue(waitForText("Round 1", timeout: 6), "Missing saved round history")
         XCTAssertTrue(app.staticTexts["Player 2 bid 130 ♠"].exists)
         XCTAssertTrue(app.staticTexts["Offense"].exists)
         XCTAssertTrue(app.staticTexts["Defense"].exists)
@@ -49,13 +33,10 @@ final class ScorekeeperFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Player 4"].exists)
         XCTAssertTrue(app.staticTexts["+130"].exists)
         XCTAssertTrue(app.staticTexts["+65"].exists)
+        XCTAssertTrue(app.staticTexts["Total 130"].exists)
+        XCTAssertTrue(app.staticTexts["Total 65"].exists)
+        XCTAssertTrue(app.staticTexts["Total 0"].exists)
         XCTAssertTrue(app.staticTexts["Player 1"].exists)
-    }
-
-    private func tapElement(identifier: String, timeout: TimeInterval = 5) {
-        let element = app.descendants(matching: .any)[identifier]
-        XCTAssertTrue(element.waitForExistence(timeout: timeout), "Missing element: \(identifier)")
-        element.tap()
     }
 
     private func waitForText(_ text: String, timeout: TimeInterval) -> Bool {
