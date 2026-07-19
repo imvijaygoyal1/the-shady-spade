@@ -1,4 +1,5 @@
 import Foundation
+import FirebaseAuth
 import FirebaseFirestore
 
 struct ScorekeeperLiveRoundDTO: Equatable {
@@ -190,6 +191,30 @@ protocol ScorekeeperSessionRemoteStore {
     func createSession(code: String, data: [String: Any]) async throws
     func updateSession(code: String, data: [String: Any]) async throws
     func fetchSession(code: String) async throws -> [String: Any]?
+    func observeSession(
+        code: String,
+        onChange: @escaping (Result<[String: Any]?, Error>) -> Void
+    ) -> ScorekeeperSessionObservation
+}
+
+protocol ScorekeeperSessionObservation {
+    func cancel()
+}
+
+private struct NoopScorekeeperSessionObservation: ScorekeeperSessionObservation {
+    func cancel() {}
+}
+
+private final class FirestoreScorekeeperSessionObservation: ScorekeeperSessionObservation {
+    private let registration: ListenerRegistration
+
+    init(registration: ListenerRegistration) {
+        self.registration = registration
+    }
+
+    func cancel() {
+        registration.remove()
+    }
 }
 
 struct FirestoreScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteStore {
@@ -209,6 +234,20 @@ struct FirestoreScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteStore {
 
     func fetchSession(code: String) async throws -> [String: Any]? {
         try await collection.document(code).getDocument().data()
+    }
+
+    func observeSession(
+        code: String,
+        onChange: @escaping (Result<[String: Any]?, Error>) -> Void
+    ) -> ScorekeeperSessionObservation {
+        let registration = collection.document(code).addSnapshotListener { snapshot, error in
+            if let error {
+                onChange(.failure(error))
+                return
+            }
+            onChange(.success(snapshot?.data()))
+        }
+        return FirestoreScorekeeperSessionObservation(registration: registration)
     }
 }
 
@@ -300,8 +339,55 @@ final class ScorekeeperSessionService {
         return document
     }
 
+    @MainActor
+    func observeSession(
+        code: String,
+        onChange: @escaping @MainActor (Result<ScorekeeperLiveSessionDocument, ScorekeeperSessionServiceError>) -> Void,
+        onError: @escaping @MainActor (Error) -> Void
+    ) -> ScorekeeperSessionObservation {
+        let normalizedCode = Self.normalizedSessionCode(code)
+        guard Self.isValidSessionCode(normalizedCode) else {
+            onChange(.failure(.sessionNotFound))
+            return NoopScorekeeperSessionObservation()
+        }
+
+        return remote.observeSession(code: normalizedCode) { result in
+            Task { @MainActor in
+                switch result {
+                case .success(let data):
+                    guard let data else {
+                        onChange(.failure(.sessionNotFound))
+                        return
+                    }
+                    guard let document = ScorekeeperLiveSessionDocument(sessionCode: normalizedCode, data: data) else {
+                        onChange(.failure(.invalidSessionData))
+                        return
+                    }
+                    onChange(.success(document))
+                case .failure(let error):
+                    onError(error)
+                }
+            }
+        }
+    }
+
+    static func normalizedSessionCode(_ code: String) -> String {
+        code
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+            .filter { $0.isASCII && ($0.isLetter || $0.isNumber) }
+    }
+
+    static func isValidSessionCode(_ code: String) -> Bool {
+        code.count == 6 && code.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber) }
+    }
+
     func canHostUpdate(document: ScorekeeperLiveSessionDocument, hostUid: String) -> Bool {
         document.hostUid == hostUid && !document.isClosed && !document.isExpired(now: now())
+    }
+
+    func isSessionExpired(_ document: ScorekeeperLiveSessionDocument) -> Bool {
+        document.isExpired(now: now())
     }
 
     private func validateHostUpdate(document: ScorekeeperLiveSessionDocument, hostUid: String) throws {
@@ -313,6 +399,196 @@ final class ScorekeeperSessionService {
         }
         guard !document.isExpired(now: now()) else {
             throw ScorekeeperSessionServiceError.sessionExpired
+        }
+    }
+}
+
+@MainActor
+@Observable final class ScorekeeperLivePublishingController {
+    private let service: ScorekeeperSessionService
+    private let hostUidProvider: () async throws -> String
+    private var hostUid: String?
+
+    var document: ScorekeeperLiveSessionDocument?
+    var isBusy = false
+    var errorMessage: String?
+
+    init(
+        service: ScorekeeperSessionService = ScorekeeperSessionService(),
+        hostUidProvider: @escaping () async throws -> String = ScorekeeperLivePublishingController.firebaseHostUid
+    ) {
+        self.service = service
+        self.hostUidProvider = hostUidProvider
+    }
+
+    var isLive: Bool {
+        guard let document, let hostUid else { return false }
+        return service.canHostUpdate(document: document, hostUid: hostUid)
+    }
+
+    var sessionCode: String? {
+        document?.sessionCode
+    }
+
+    var shareURL: URL? {
+        guard let sessionCode else { return nil }
+        return URL(string: "https://shadyspade-d6b84.web.app/shadyspade/scorekeeper/\(sessionCode)")
+    }
+
+    func startSharing(game: ScorekeeperGameState) async {
+        guard document == nil else {
+            await publish(game: game)
+            return
+        }
+
+        isBusy = true
+        errorMessage = nil
+        defer { isBusy = false }
+
+        do {
+            let uid = try await hostUidProvider()
+            hostUid = uid
+            document = try await service.createSession(hostUid: uid, game: game)
+        } catch {
+            errorMessage = "Could not start live sharing. Please try again."
+        }
+    }
+
+    func publish(game: ScorekeeperGameState) async {
+        guard let document, let hostUid else { return }
+        guard !isBusy else { return }
+
+        isBusy = true
+        errorMessage = nil
+        defer { isBusy = false }
+
+        do {
+            self.document = try await service.publish(game: game, to: document, hostUid: hostUid)
+        } catch {
+            errorMessage = "Live sharing could not sync the latest scorecard."
+        }
+    }
+
+    func close() async {
+        guard let document, let hostUid else { return }
+        guard !document.isClosed else { return }
+        guard !isBusy else { return }
+
+        isBusy = true
+        errorMessage = nil
+        defer { isBusy = false }
+
+        do {
+            self.document = try await service.close(document: document, hostUid: hostUid)
+        } catch {
+            errorMessage = "Live sharing could not be closed."
+        }
+    }
+
+    private static func firebaseHostUid() async throws -> String {
+        if let uid = Auth.auth().currentUser?.uid {
+            return uid
+        }
+        let result = try await Auth.auth().signInAnonymously()
+        return result.user.uid
+    }
+}
+
+enum ScorekeeperLiveViewerState: Equatable {
+    case idle
+    case loading
+    case live
+    case closed
+    case expired
+    case notFound
+    case invalidCode
+    case syncError
+}
+
+@MainActor
+@Observable final class ScorekeeperLiveViewingController {
+    private let service: ScorekeeperSessionService
+    private var observation: ScorekeeperSessionObservation?
+
+    var sessionCode = ""
+    var document: ScorekeeperLiveSessionDocument?
+    var state: ScorekeeperLiveViewerState = .idle
+    var errorMessage: String?
+
+    init(service: ScorekeeperSessionService = ScorekeeperSessionService()) {
+        self.service = service
+    }
+
+    var canStart: Bool {
+        ScorekeeperSessionService.isValidSessionCode(normalizedCode)
+    }
+
+    var normalizedCode: String {
+        ScorekeeperSessionService.normalizedSessionCode(sessionCode)
+    }
+
+    func startViewing(code: String? = nil) {
+        if let code {
+            sessionCode = code
+        }
+
+        let code = normalizedCode
+        guard ScorekeeperSessionService.isValidSessionCode(code) else {
+            stop()
+            state = .invalidCode
+            errorMessage = "Enter a valid 6-character scorekeeper code."
+            return
+        }
+
+        sessionCode = code
+        document = nil
+        state = .loading
+        errorMessage = nil
+        observation?.cancel()
+        observation = service.observeSession(
+            code: code,
+            onChange: { [weak self] result in
+                self?.handle(result)
+            },
+            onError: { [weak self] _ in
+                self?.state = .syncError
+                self?.errorMessage = "Live scorecard could not sync. Check your connection and try again."
+            }
+        )
+    }
+
+    func stop() {
+        observation?.cancel()
+        observation = nil
+        document = nil
+        state = .idle
+        errorMessage = nil
+    }
+
+    private func handle(_ result: Result<ScorekeeperLiveSessionDocument, ScorekeeperSessionServiceError>) {
+        switch result {
+        case .success(let document):
+            self.document = document
+            errorMessage = nil
+            if document.isClosed {
+                state = .closed
+            } else if service.isSessionExpired(document) {
+                state = .expired
+            } else {
+                state = .live
+            }
+        case .failure(.sessionNotFound):
+            document = nil
+            state = .notFound
+            errorMessage = "No live scorecard was found for this code."
+        case .failure(.invalidSessionData):
+            document = nil
+            state = .syncError
+            errorMessage = "This live scorecard data is not readable by this app version."
+        case .failure:
+            document = nil
+            state = .syncError
+            errorMessage = "Live scorecard could not sync. Check your connection and try again."
         }
     }
 }

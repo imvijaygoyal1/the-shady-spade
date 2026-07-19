@@ -22,6 +22,7 @@ final class ScorekeeperFlowUITests: XCTestCase {
         tapElement(identifier: "mode.card.Real-Life Scorekeeper")
         XCTAssertTrue(app.staticTexts["Real-Life Scorekeeper"].waitForExistence(timeout: 8))
 
+        app.swipeUp()
         tapElement(identifier: "scorekeeper.setup.start")
         XCTAssertTrue(app.staticTexts["Scoreboard"].waitForExistence(timeout: 4))
 
@@ -39,7 +40,7 @@ final class ScorekeeperFlowUITests: XCTestCase {
         XCTAssertTrue(partnerChoices.contains("Player 3"))
 
         app.navigationBars["Add Round"].buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Round 1"].waitForExistence(timeout: 4))
+        XCTAssertTrue(waitForText("Round 1", timeout: 4), "Missing saved round history")
         XCTAssertTrue(app.staticTexts["Player 2 bid 130 ♠"].exists)
         XCTAssertTrue(app.staticTexts["Offense"].exists)
         XCTAssertTrue(app.staticTexts["Defense"].exists)
@@ -55,5 +56,20 @@ final class ScorekeeperFlowUITests: XCTestCase {
         let element = app.descendants(matching: .any)[identifier]
         XCTAssertTrue(element.waitForExistence(timeout: timeout), "Missing element: \(identifier)")
         element.tap()
+    }
+
+    private func waitForText(_ text: String, timeout: TimeInterval) -> Bool {
+        let element = app.staticTexts[text]
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if element.exists {
+                return true
+            }
+            app.swipeUp()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+
+        return element.exists
     }
 }

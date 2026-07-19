@@ -155,6 +155,112 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
         XCTAssertEqual(closed.updatedAt, now)
         XCTAssertEqual(remote.updatedCodes, ["LIVE01", "LIVE01"])
     }
+
+    @MainActor
+    func test_publishingController_startPublishAndCloseTransitions() async throws {
+        let remote = FakeScorekeeperSessionRemoteStore()
+        var now = Date(timeIntervalSince1970: 2_000)
+        let service = ScorekeeperSessionService(
+            remote: remote,
+            codeGenerator: { "HOST01" },
+            now: { now },
+            expirationInterval: 600
+        )
+        let controller = ScorekeeperLivePublishingController(
+            service: service,
+            hostUidProvider: { "host-uid" }
+        )
+        var game = ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"])
+
+        await controller.startSharing(game: game)
+
+        XCTAssertEqual(controller.sessionCode, "HOST01")
+        XCTAssertTrue(controller.isLive)
+        XCTAssertEqual(controller.shareURL?.absoluteString, "https://shadyspade-d6b84.web.app/shadyspade/scorekeeper/HOST01")
+        XCTAssertNil(controller.errorMessage)
+        XCTAssertEqual(remote.createdCodes, ["HOST01"])
+
+        now = Date(timeIntervalSince1970: 2_020)
+        var round = ScorekeeperRoundDraft(nextDealerIndex: 0)
+        round.bidAmount = 145
+        game.appendRound(round)
+
+        await controller.publish(game: game)
+
+        XCTAssertEqual(controller.document?.rounds.count, 1)
+        XCTAssertEqual(controller.document?.runningScores, [0, 145, 72, 72, 0, 0])
+        XCTAssertEqual(controller.document?.updatedAt, now)
+
+        now = Date(timeIntervalSince1970: 2_040)
+        await controller.close()
+
+        XCTAssertEqual(controller.document?.updatedAt, now)
+        XCTAssertEqual(controller.document?.isClosed, true)
+        XCTAssertFalse(controller.isLive)
+        XCTAssertEqual(remote.updatedCodes, ["HOST01", "HOST01"])
+    }
+
+    @MainActor
+    func test_publishingController_reportsStartFailure() async {
+        let service = ScorekeeperSessionService(remote: ThrowingScorekeeperSessionRemoteStore())
+        let controller = ScorekeeperLivePublishingController(
+            service: service,
+            hostUidProvider: { "host-uid" }
+        )
+        let game = ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"])
+
+        await controller.startSharing(game: game)
+
+        XCTAssertNil(controller.document)
+        XCTAssertFalse(controller.isBusy)
+        XCTAssertEqual(controller.errorMessage, "Could not start live sharing. Please try again.")
+    }
+
+    @MainActor
+    func test_viewingController_rejectsInvalidCode() {
+        let controller = ScorekeeperLiveViewingController()
+
+        controller.startViewing(code: "bad")
+
+        XCTAssertEqual(controller.state, .invalidCode)
+        XCTAssertEqual(controller.errorMessage, "Enter a valid 6-character scorekeeper code.")
+    }
+
+    @MainActor
+    func test_viewingController_observesLiveClosedAndMissingStates() async {
+        let remote = FakeScorekeeperSessionRemoteStore()
+        let now = Date(timeIntervalSince1970: 3_000)
+        let service = ScorekeeperSessionService(remote: remote, now: { now })
+        let controller = ScorekeeperLiveViewingController(service: service)
+        let game = ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"])
+        let live = ScorekeeperLiveSessionDocument(
+            sessionCode: "VIEW01",
+            hostUid: "host",
+            game: game,
+            createdAt: now,
+            updatedAt: now,
+            expiresAt: now.addingTimeInterval(600)
+        )
+
+        remote.seed(code: "VIEW01", data: live.firestoreData)
+        controller.startViewing(code: "view01")
+        await Task.yield()
+
+        XCTAssertEqual(controller.sessionCode, "VIEW01")
+        XCTAssertEqual(controller.state, .live)
+        XCTAssertEqual(controller.document, live)
+
+        remote.seed(code: "VIEW01", data: live.closed(updatedAt: now.addingTimeInterval(20)).firestoreData)
+        await Task.yield()
+
+        XCTAssertEqual(controller.state, .closed)
+
+        controller.startViewing(code: "NONE01")
+        await Task.yield()
+
+        XCTAssertEqual(controller.state, .notFound)
+        XCTAssertEqual(controller.errorMessage, "No live scorecard was found for this code.")
+    }
 }
 
 private final class FakeScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteStore {
@@ -186,5 +292,51 @@ private final class FakeScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteS
 
     func fetchSession(code: String) async throws -> [String: Any]? {
         documents[code]
+    }
+
+    func observeSession(
+        code: String,
+        onChange: @escaping (Result<[String: Any]?, Error>) -> Void
+    ) -> ScorekeeperSessionObservation {
+        observers[code, default: []].append(onChange)
+        onChange(.success(documents[code]))
+        return FakeScorekeeperSessionObservation()
+    }
+
+    func seed(code: String, data: [String: Any]) {
+        documents[code] = data
+        observers[code]?.forEach { $0(.success(data)) }
+    }
+
+    private var observers: [String: [(Result<[String: Any]?, Error>) -> Void]] = [:]
+}
+
+private struct FakeScorekeeperSessionObservation: ScorekeeperSessionObservation {
+    func cancel() {}
+}
+
+private struct ThrowingScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteStore {
+    func sessionExists(code: String) async throws -> Bool {
+        throw URLError(.cannotConnectToHost)
+    }
+
+    func createSession(code: String, data: [String: Any]) async throws {
+        throw URLError(.cannotConnectToHost)
+    }
+
+    func updateSession(code: String, data: [String: Any]) async throws {
+        throw URLError(.cannotConnectToHost)
+    }
+
+    func fetchSession(code: String) async throws -> [String: Any]? {
+        throw URLError(.cannotConnectToHost)
+    }
+
+    func observeSession(
+        code: String,
+        onChange: @escaping (Result<[String: Any]?, Error>) -> Void
+    ) -> ScorekeeperSessionObservation {
+        onChange(.failure(URLError(.cannotConnectToHost)))
+        return FakeScorekeeperSessionObservation()
     }
 }

@@ -203,6 +203,41 @@ Verification:
 - Add QR/share sheet for scorekeeper viewer links.
 - Publish on start, name edits, add round, edit last round, delete last round, reset, finish.
 
+Status: complete as of 2026-07-18.
+
+Implemented:
+
+- Added `ScorekeeperLivePublishingController` as the host-side bridge between `ScorekeeperView` and `ScorekeeperSessionService`.
+- Added explicit `Share Live View` disclosure copy before the first Firebase publish.
+- Added live status card with idle, busy, error, live code, Share, Copy, and QR states.
+- Added QR/share sheet using the existing QR generator and scorekeeper-specific universal-link shape.
+- Publishes after scorecard mutations:
+  - start sharing,
+  - player-name edits,
+  - add round,
+  - edit last round,
+  - delete last round.
+- Closes the live session before reset and before finish/save.
+- Added unit coverage for controller start/publish/close transitions and start failure.
+- Updated the scorekeeper UI regression test to scroll before asserting round history because the new live sharing card moves history below the first viewport.
+- Updated `APPSTORE_PRIVACY.md`.
+- Updated and deployed the hosted privacy policy source at `/Users/vijaygoyal/MyiOSApp/shadyspade-web/privacy/index.html`.
+
+Verification:
+
+- Focused scorekeeper UI test passed:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_15-03-21--0400.xcresult`
+- Full unfiltered scheme passed: `42` passed, `0` failed, `0` skipped.
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_15-05-38--0400.xcresult`
+- Hosted privacy policy deploy succeeded:
+  - Cloudflare Worker version `80a11ff8-bc66-4d3f-8eb1-740bd0c056be`
+  - Live URL verified for `Last Updated: July 18, 2026`, `Live Scorekeeper`, `Share Live View`, and `Real-Life Scorekeeper`.
+
+Remaining after Batch 2:
+
+- Viewer UI and deep-link routing are not implemented yet.
+- Firestore security rules for `scorekeeperSessions` are still pending and must be completed before production live sharing is considered ready.
+
 ### Batch 3: Viewer UI
 
 - Add read-only `ScorekeeperViewerView`.
@@ -210,12 +245,103 @@ Verification:
 - Add deep-link route for scorekeeper viewer links.
 - Add closed/expired/offline/error states.
 
+Status: complete as of 2026-07-18.
+
+Implemented:
+
+- Added separate scorekeeper deep-link state: `DeepLinkManager.pendingScorekeeperCode`.
+- Updated URL handling for:
+  - `shadyspade://scorekeeper/{CODE}`
+  - `https://shadyspade-d6b84.web.app/shadyspade/scorekeeper/{CODE}`
+- Added `Watch Live Scorecard` from mode selection.
+- Added `ScorekeeperViewerEntryView` for manual 6-character code entry and deep-link auto-start.
+- Added `ScorekeeperLiveViewingController` with states:
+  - idle,
+  - loading,
+  - live,
+  - closed,
+  - expired,
+  - not found,
+  - invalid code,
+  - sync error.
+- Added Firestore snapshot observation for `scorekeeperSessions/{sessionCode}` through `ScorekeeperSessionService`.
+- Added read-only viewer scoreboard and round history rendering.
+- Reused `ScorekeeperRoundRow` so host and viewer history display stay consistent.
+- Added unit tests for invalid-code rejection and live/closed/not-found observer transitions.
+- Kept viewer read-only: no scorecard edit, add, delete, reset, or finish controls are exposed.
+
+Verification:
+
+- Focused scorekeeper service/viewer tests passed:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_15-20-21--0400.xcresult`
+- Focused scorekeeper UI test passed:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_15-25-40--0400.xcresult`
+- Full unfiltered scheme passed: `44` passed, `0` failed, `0` skipped.
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_15-27-47--0400.xcresult`
+- `git diff --check` passed.
+
+Remaining after Batch 3:
+
+- Firestore security rules for `scorekeeperSessions` are still pending.
+- A two-simulator/manual live host-viewer smoke is still pending until rules are in place.
+
 ### Batch 4: Privacy and Rules
 
 - Update `APPSTORE_PRIVACY.md`.
 - Update hosted privacy policy and deploy with `scripts/deploy_privacy_policy.sh`.
 - Add or update Firestore security rules for `scorekeeperSessions`.
 - Verify rules locally or against a development Firebase project.
+
+Status: complete as of 2026-07-18.
+
+Implemented:
+
+- Added `match /scorekeeperSessions/{sessionId}` to `/Users/vijaygoyal/MyiOSApp/firestore.rules`.
+- Rule behavior:
+  - reads require `request.auth != null` and a valid scorekeeper session document,
+  - creates require authenticated host UID ownership,
+  - creates require six-character uppercase alphanumeric document IDs,
+  - creates require `isClosed == false`,
+  - creates require `createdAt == updatedAt`,
+  - creates require `expiresAt > request.time`,
+  - updates require the original host UID,
+  - updates are denied after the session is closed or expired,
+  - `hostUid`, `createdAt`, and `expiresAt` are immutable,
+  - `updatedAt` must not go backwards,
+  - deletes are denied.
+- Added helper functions:
+  - `isValidRoomCode(code)`
+  - `isScorekeeperSession(data)`
+- `isScorekeeperSession` validates the top-level document contract:
+  - `kind == "scorekeeper"`
+  - `schemaVersion == 1`
+  - timestamp fields,
+  - non-empty `hostUid`,
+  - bool `isClosed`,
+  - six `playerNames`,
+  - `rounds` list capped at 100 entries,
+  - six `runningScores`,
+  - `winnerIndex` in `0..<6`.
+- Nested round object validation remains app-side because Firestore rules cannot ergonomically iterate and validate every element in a variable-length rounds list.
+
+Verification:
+
+- Deployed rules to production Firebase:
+  - `firebase deploy --only firestore:rules --project shadyspade-d6b84 --non-interactive`
+- Firebase CLI output:
+  - `cloud.firestore: rules file firestore.rules compiled successfully`
+  - `firestore: released rules firestore.rules to cloud.firestore`
+- Prior full app regression remains valid for app code:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_15-27-47--0400.xcresult`
+  - `44` passed, `0` failed, `0` skipped.
+
+Remaining after Batch 4:
+
+- Run a two-simulator/device live host-viewer smoke against production Firebase:
+  - host starts live scorecard,
+  - viewer joins by code or QR/deep link,
+  - add/edit/delete round updates viewer,
+  - finish closes viewer.
 
 ### Batch 5: Regression
 

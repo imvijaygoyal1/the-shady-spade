@@ -10,6 +10,7 @@ struct ModeSelectionView: View {
     @State private var showingBluetooth = false
     @State private var showingJoinGame = false
     @State private var showingScorekeeper = false
+    @State private var showingScorekeeperViewer = false
     @State private var showingSettings = false
     @State private var showingLeaderboard = false
     @State private var showingPlayerCount = false
@@ -149,6 +150,17 @@ struct ModeSelectionView: View {
                             HapticManager.impact(.medium)
                             showingScorekeeper = true
                         }
+
+                        ModeCard(
+                            icon: "eye.fill",
+                            title: "Watch Live Scorecard",
+                            subtitle: "Enter a scorekeeper code and follow along",
+                            color: Color(red: 0.09, green: 0.63, blue: 0.45),
+                            iconBG: Color(red: 0.09, green: 0.63, blue: 0.45)
+                        ) {
+                            HapticManager.impact(.medium)
+                            showingScorekeeperViewer = true
+                        }
                     }
                     .adaptiveContentFrame(maxWidth: 560)
                     .padding(.horizontal, isWide ? 40 : 20)
@@ -241,6 +253,17 @@ struct ModeSelectionView: View {
                         ) {
                             HapticManager.impact(.medium)
                             showingScorekeeper = true
+                        }
+
+                        ModeCard(
+                            icon: "eye.fill",
+                            title: "Watch Live Scorecard",
+                            subtitle: "Enter a scorekeeper code and follow along",
+                            color: Color(red: 0.09, green: 0.63, blue: 0.45),
+                            iconBG: Color(red: 0.09, green: 0.63, blue: 0.45)
+                        ) {
+                            HapticManager.impact(.medium)
+                            showingScorekeeperViewer = true
                         }
                     }
                     .adaptiveContentFrame(maxWidth: 560)
@@ -378,6 +401,10 @@ struct ModeSelectionView: View {
                 ScorekeeperRootView()
                     .environmentObject(themeManager)
             }
+            NoAnimationCover(isPresented: $showingScorekeeperViewer) {
+                ScorekeeperViewerEntryView(initialCode: deepLink.pendingScorekeeperCode)
+                    .environmentObject(themeManager)
+            }
         }
         .sheet(isPresented: $showingLeaderboard) {
             LeaderboardView()
@@ -391,6 +418,10 @@ struct ModeSelectionView: View {
             guard code != nil else { return }
             // Auto-navigate to the join screen when a deep link arrives
             showingJoinGame = true
+        }
+        .onChange(of: deepLink.pendingScorekeeperCode) { _, code in
+            guard code != nil else { return }
+            showingScorekeeperViewer = true
         }
     }
 }

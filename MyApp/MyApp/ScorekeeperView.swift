@@ -1,10 +1,12 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct ScorekeeperRootView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @State private var store = ScorekeeperStore()
+    @State private var livePublisher = ScorekeeperLivePublishingController()
     @State private var showingDiscardConfirmation = false
 
     var body: some View {
@@ -17,6 +19,7 @@ struct ScorekeeperRootView: View {
                     ScorekeeperLiveView(
                         game: game,
                         store: store,
+                        livePublisher: livePublisher,
                         onFinish: { finishGame(game) }
                     )
                 } else {
@@ -42,7 +45,10 @@ struct ScorekeeperRootView: View {
             ) {
                 Button("Reset Scorecard", role: .destructive) {
                     HapticManager.impact(.medium)
-                    store.clearActiveGame()
+                    Task {
+                        await livePublisher.close()
+                        store.clearActiveGame()
+                    }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -171,18 +177,23 @@ private struct ScorekeeperSetupView: View {
 private struct ScorekeeperLiveView: View {
     let game: ScorekeeperGameState
     @Bindable var store: ScorekeeperStore
+    @Bindable var livePublisher: ScorekeeperLivePublishingController
     let onFinish: () -> Void
     @State private var showingRoundEntry = false
     @State private var showingPlayerNames = false
     @State private var editingLastRound = false
     @State private var showingDeleteLast = false
     @State private var showingFinish = false
+    @State private var showingLiveShareDisclosure = false
+    @State private var showingLiveQRCode = false
+    @State private var liveCodeCopied = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 16) {
                 header
                 scoreboard
+                liveSharingStatus
                 actions
                 roundHistory
             }
@@ -204,6 +215,7 @@ private struct ScorekeeperLiveView: View {
                 } else {
                     store.addRound(draft)
                 }
+                publishCurrentScorecard()
                 editingLastRound = false
                 showingRoundEntry = false
             }
@@ -213,6 +225,7 @@ private struct ScorekeeperLiveView: View {
         .sheet(isPresented: $showingPlayerNames) {
             ScorekeeperPlayerNamesView(playerNames: game.playerNames) { names in
                 store.updatePlayerNames(names)
+                publishCurrentScorecard()
                 showingPlayerNames = false
             }
             .presentationDetents([.large])
@@ -222,14 +235,41 @@ private struct ScorekeeperLiveView: View {
             Button("Delete Last Round", role: .destructive) {
                 HapticManager.impact(.medium)
                 store.deleteLastRound()
+                publishCurrentScorecard()
             }
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Finish and save this game?", isPresented: $showingFinish, titleVisibility: .visible) {
-            Button("Save to History") { onFinish() }
+            Button("Save to History") {
+                Task {
+                    await livePublisher.close()
+                    onFinish()
+                }
+            }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The in-progress scorecard will be cleared after it is saved to local game history.")
+        }
+        .confirmationDialog("Share live scorecard?", isPresented: $showingLiveShareDisclosure, titleVisibility: .visible) {
+            Button("Start Live View") {
+                Task {
+                    await livePublisher.startSharing(game: game)
+                    if livePublisher.isLive {
+                        HapticManager.success()
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Player names, scores, and round history will temporarily sync through Firebase. Viewers can only watch; they cannot edit the scorecard.")
+        }
+        .sheet(isPresented: $showingLiveQRCode) {
+            ScorekeeperLiveShareSheet(
+                sessionCode: livePublisher.sessionCode ?? "",
+                shareURL: livePublisher.shareURL
+            )
+            .presentationDetents([.large])
+            .presentationBackground(Comic.bg)
         }
     }
 
@@ -303,6 +343,114 @@ private struct ScorekeeperLiveView: View {
         .comicContainer(cornerRadius: 18)
     }
 
+    private var liveSharingStatus: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: livePublisher.isLive ? "dot.radiowaves.left.and.right" : "qrcode")
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundStyle(livePublisher.isLive ? Color.offenseBlue : Comic.yellow)
+                    .frame(width: 34, height: 34)
+                    .background(Comic.containerBG.opacity(0.8), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(livePublisher.isLive ? "Live View On" : "Live View Off")
+                        .font(.system(size: 16, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                    Text(livePublisher.isLive
+                         ? "Read-only viewers can watch this scorecard."
+                         : "Share a QR code so others can watch scores.")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                }
+
+                Spacer()
+
+                if livePublisher.isBusy {
+                    ProgressView()
+                        .tint(Comic.yellow)
+                }
+            }
+
+            if let error = livePublisher.errorMessage {
+                Text(error)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.defenseRose)
+            }
+
+            if livePublisher.isLive, let code = livePublisher.sessionCode {
+                VStack(spacing: 10) {
+                    HStack(spacing: 6) {
+                        ForEach(Array(code.enumerated()), id: \.offset) { _, character in
+                            Text(String(character))
+                                .font(.system(size: 24, weight: .black, design: .monospaced))
+                                .foregroundStyle(Comic.yellow)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .background(Comic.yellow.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Comic.yellow.opacity(0.5), lineWidth: 1)
+                    )
+
+                    HStack(spacing: 10) {
+                        if let shareURL = livePublisher.shareURL {
+                            ShareLink(
+                                item: """
+Watch my Shady Spade scorecard.
+Code: \(code)
+\(shareURL.absoluteString)
+""",
+                                preview: SharePreview("Shady Spade Scorecard \(code)")
+                            ) {
+                                Label("Share", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+
+                        Button {
+                            UIPasteboard.general.string = code
+                            HapticManager.success()
+                            liveCodeCopied = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                liveCodeCopied = false
+                            }
+                        } label: {
+                            Label(liveCodeCopied ? "Copied" : "Copy", systemImage: liveCodeCopied ? "checkmark" : "doc.on.doc")
+                                .frame(maxWidth: .infinity)
+                        }
+
+                        Button {
+                            showingLiveQRCode = true
+                        } label: {
+                            Label("QR", systemImage: "qrcode")
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                    .buttonStyle(ComicButtonStyle(bg: Comic.containerBG, fg: Comic.textPrimary, borderColor: Comic.containerBorder))
+                }
+            } else {
+                Button {
+                    showingLiveShareDisclosure = true
+                } label: {
+                    Label("Share Live View", systemImage: "qrcode.viewfinder")
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(ComicButtonStyle())
+                .disabled(livePublisher.isBusy)
+            }
+        }
+        .padding(16)
+        .comicContainer(cornerRadius: 18)
+    }
+
     private var actions: some View {
         VStack(spacing: 10) {
             Button {
@@ -360,6 +508,15 @@ private struct ScorekeeperLiveView: View {
             .disabled(game.rounds.isEmpty)
             .opacity(game.rounds.isEmpty ? 0.55 : 1)
             .accessibilityIdentifier("scorekeeper.finishSave")
+        }
+    }
+
+    private func publishCurrentScorecard() {
+        guard livePublisher.isLive else { return }
+        Task {
+            if let activeGame = store.activeGame {
+                await livePublisher.publish(game: activeGame)
+            }
         }
     }
 
@@ -451,6 +608,424 @@ private struct ScorekeeperPlayerNamesView: View {
                         onSave(draftNames)
                     }
                     .disabled(!canSave)
+                }
+            }
+        }
+    }
+}
+
+struct ScorekeeperViewerEntryView: View {
+    let initialCode: String?
+    @Environment(\.dismiss) private var dismiss
+    @State private var viewer = ScorekeeperLiveViewingController()
+    @State private var didAutoStart = false
+
+    var body: some View {
+        ZStack {
+            Comic.bg.ignoresSafeArea()
+            ThemedBackground().ignoresSafeArea()
+
+            if let document = viewer.document, viewer.state != .notFound, viewer.state != .invalidCode {
+                ScorekeeperViewerScorecard(
+                    document: document,
+                    state: viewer.state,
+                    errorMessage: viewer.errorMessage,
+                    onChangeCode: {
+                        viewer.stop()
+                        viewer.sessionCode = ""
+                    },
+                    onClose: {
+                        viewer.stop()
+                        dismiss()
+                    }
+                )
+            } else {
+                entryContent
+            }
+        }
+        .onAppear {
+            guard !didAutoStart else { return }
+            didAutoStart = true
+            if let initialCode, !initialCode.isEmpty {
+                viewer.startViewing(code: initialCode)
+                DeepLinkManager.shared.pendingScorekeeperCode = nil
+            }
+        }
+        .onDisappear {
+            viewer.stop()
+        }
+    }
+
+    private var entryContent: some View {
+        VStack(spacing: 18) {
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .black))
+                        .foregroundStyle(Comic.textPrimary)
+                        .frame(width: 40, height: 40)
+                        .background(Comic.containerBG, in: Circle())
+                }
+                Spacer()
+            }
+
+            Spacer(minLength: 12)
+
+            VStack(spacing: 14) {
+                Image(systemName: "eye.fill")
+                    .font(.system(size: 34, weight: .black))
+                    .foregroundStyle(Comic.black)
+                    .frame(width: 68, height: 68)
+                    .background(Comic.yellow, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                Text("Watch Live Scorecard")
+                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                    .multilineTextAlignment(.center)
+
+                Text("Enter the 6-character code from the scorekeeper device.")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Scorecard Code")
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.yellow)
+
+                TextField("ABC123", text: Binding(
+                    get: { viewer.sessionCode },
+                    set: { viewer.sessionCode = ScorekeeperSessionService.normalizedSessionCode($0) }
+                ))
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .keyboardType(.asciiCapable)
+                .font(.system(size: 28, weight: .black, design: .monospaced))
+                .foregroundStyle(Comic.textPrimary)
+                .multilineTextAlignment(.center)
+                .padding(14)
+                .background(Comic.containerBG.opacity(0.85), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(viewer.canStart ? Comic.yellow : Comic.containerBorder, lineWidth: 2)
+                )
+                .accessibilityIdentifier("scorekeeper.viewer.code")
+            }
+            .padding(16)
+            .comicContainer(cornerRadius: 18)
+
+            if viewer.state == .loading {
+                ProgressView()
+                    .tint(Comic.yellow)
+            }
+
+            if let error = viewer.errorMessage {
+                Text(error)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.defenseRose)
+                    .multilineTextAlignment(.center)
+                    .padding(12)
+                    .comicContainer(cornerRadius: 14)
+            }
+
+            Button {
+                HapticManager.impact(.medium)
+                viewer.startViewing()
+            } label: {
+                Label("Watch Scorecard", systemImage: "eye.fill")
+                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+            }
+            .buttonStyle(ComicButtonStyle())
+            .disabled(!viewer.canStart || viewer.state == .loading)
+            .opacity((viewer.canStart && viewer.state != .loading) ? 1 : 0.55)
+            .accessibilityIdentifier("scorekeeper.viewer.watch")
+
+            Spacer()
+        }
+        .padding(20)
+        .adaptiveContentFrame(maxWidth: 540)
+    }
+}
+
+private struct ScorekeeperViewerScorecard: View {
+    let document: ScorekeeperLiveSessionDocument
+    let state: ScorekeeperLiveViewerState
+    let errorMessage: String?
+    let onChangeCode: () -> Void
+    let onClose: () -> Void
+
+    private var roundEntries: [ScorekeeperRoundEntry] {
+        document.rounds.map {
+            ScorekeeperRoundEntry(
+                roundNumber: $0.roundNumber,
+                dealerIndex: $0.dealerIndex,
+                bidderIndex: $0.bidderIndex,
+                bidAmount: $0.bidAmount,
+                trumpSuit: $0.trumpSuit,
+                partner1Index: $0.partner1Index,
+                partner2Index: $0.partner2Index,
+                offensePointsCaught: $0.offensePointsCaught,
+                createdAt: $0.createdAt
+            )
+        }
+    }
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 16) {
+                header
+                stateBanner
+                scoreboard
+                roundHistory
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 28)
+            .adaptiveContentFrame(maxWidth: 780)
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: "eye.fill")
+                .font(.system(size: 28, weight: .black))
+                .foregroundStyle(Comic.black)
+                .frame(width: 52, height: 52)
+                .background(Comic.yellow, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Live Scorecard")
+                    .font(.system(size: 24, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                Text("Code \(document.sessionCode) · read-only")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+            }
+
+            Spacer()
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundStyle(Comic.textPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Comic.containerBG, in: Circle())
+            }
+        }
+        .padding(16)
+        .comicContainer(cornerRadius: 18)
+    }
+
+    private var stateBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: stateIcon)
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundStyle(stateTint)
+                Text(stateTitle)
+                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                Spacer()
+                Button("Change Code", action: onChangeCode)
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.yellow)
+            }
+
+            Text(stateMessage)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(Comic.textSecondary)
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.defenseRose)
+            }
+        }
+        .padding(16)
+        .comicContainer(cornerRadius: 18)
+    }
+
+    private var scoreboard: some View {
+        let scores = document.runningScores
+        let sorted = scores.indices.sorted { scores[$0] > scores[$1] }
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Scoreboard")
+                .font(.system(size: 18, weight: .black, design: .rounded))
+                .foregroundStyle(Comic.yellow)
+
+            ForEach(Array(sorted.enumerated()), id: \.element) { rank, index in
+                HStack(spacing: 12) {
+                    Text(rank == 0 ? "🏆" : "\(rank + 1).")
+                        .font(.system(size: rank == 0 ? 22 : 14, weight: .black, design: .rounded))
+                        .frame(width: 34)
+
+                    Text(document.playerNames[safe: index] ?? "Player \(index + 1)")
+                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                        .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
+
+                    Spacer()
+
+                    Text("\(scores[index])")
+                        .font(.system(size: 18, weight: .black, design: .rounded).monospacedDigit())
+                        .foregroundStyle(rank == 0 ? Comic.yellow : Comic.textPrimary)
+                }
+                .padding(.vertical, 3)
+
+                if rank < sorted.count - 1 {
+                    Divider().overlay(Comic.containerBorder)
+                }
+            }
+        }
+        .padding(16)
+        .comicContainer(cornerRadius: 18)
+    }
+
+    private var roundHistory: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Round History")
+                .font(.system(size: 18, weight: .black, design: .rounded))
+                .foregroundStyle(Comic.yellow)
+
+            if roundEntries.isEmpty {
+                Text("No rounds have been recorded yet.")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .comicContainer(cornerRadius: 14)
+            } else {
+                ForEach(roundEntries.reversed()) { round in
+                    ScorekeeperRoundRow(round: round, playerNames: document.playerNames)
+                }
+            }
+        }
+    }
+
+    private var stateTitle: String {
+        switch state {
+        case .live: return "Live"
+        case .closed: return "Closed"
+        case .expired: return "Expired"
+        case .syncError: return "Sync Issue"
+        case .loading: return "Loading"
+        case .idle, .notFound, .invalidCode: return "Unavailable"
+        }
+    }
+
+    private var stateMessage: String {
+        switch state {
+        case .live: return "Updates appear automatically while the scorekeeper keeps sharing."
+        case .closed: return "The scorekeeper has closed this live scorecard."
+        case .expired: return "This live scorecard has expired."
+        case .syncError: return "Showing the latest scorecard we received."
+        case .loading: return "Connecting to the live scorecard."
+        case .idle, .notFound, .invalidCode: return "Enter another code to watch a scorecard."
+        }
+    }
+
+    private var stateIcon: String {
+        switch state {
+        case .live: return "dot.radiowaves.left.and.right"
+        case .closed: return "checkmark.seal.fill"
+        case .expired: return "clock.badge.exclamationmark"
+        case .syncError: return "wifi.exclamationmark"
+        case .loading: return "hourglass"
+        case .idle, .notFound, .invalidCode: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var stateTint: Color {
+        switch state {
+        case .live: return .offenseBlue
+        case .closed: return .masterGold
+        case .expired, .syncError, .notFound, .invalidCode: return .defenseRose
+        case .loading, .idle: return Comic.yellow
+        }
+    }
+}
+
+private struct ScorekeeperLiveShareSheet: View {
+    let sessionCode: String
+    let shareURL: URL?
+    @Environment(\.dismiss) private var dismiss
+
+    private var qrImage: UIImage? {
+        guard let shareURL else { return nil }
+        return LocalGameServer.makeQRCode(from: shareURL.absoluteString, size: 280)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Comic.bg.ignoresSafeArea()
+                ThemedBackground().ignoresSafeArea()
+
+                VStack(spacing: 22) {
+                    Text("Live Scorecard")
+                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+
+                    if let qrImage {
+                        Image(uiImage: qrImage)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 240, height: 240)
+                            .padding(18)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    }
+
+                    VStack(spacing: 8) {
+                        Text("CODE")
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .foregroundStyle(Comic.textSecondary)
+                            .tracking(2)
+
+                        Text(sessionCode)
+                            .font(.system(size: 34, weight: .black, design: .monospaced))
+                            .foregroundStyle(Comic.yellow)
+                    }
+                    .padding(16)
+                    .comicContainer(cornerRadius: 16)
+
+                    if let shareURL {
+                        ShareLink(
+                            item: """
+Watch my Shady Spade scorecard.
+Code: \(sessionCode)
+\(shareURL.absoluteString)
+""",
+                            preview: SharePreview("Shady Spade Scorecard \(sessionCode)")
+                        ) {
+                            Label("Share Link", systemImage: "square.and.arrow.up")
+                                .font(.system(size: 16, weight: .black, design: .rounded))
+                                .foregroundStyle(Comic.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                        }
+                        .buttonStyle(ComicButtonStyle())
+                    }
+
+                    Text("Viewers can only watch scores and round history. They cannot edit this scorecard.")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                        .multilineTextAlignment(.center)
+
+                    Spacer()
+                }
+                .padding(20)
+                .adaptiveContentFrame(maxWidth: 520)
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(.masterGold)
                 }
             }
         }

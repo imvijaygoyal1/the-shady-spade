@@ -29,6 +29,70 @@ service cloud.firestore {
         && resource.data.hostUid == request.auth.uid;
     }
 
+    match /scorekeeperSessions/{sessionId} {
+
+      allow read: if request.auth != null
+        && isScorekeeperSession(resource.data);
+
+      allow create: if request.auth != null
+        && isValidRoomCode(sessionId)
+        && isScorekeeperSession(request.resource.data)
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.isClosed == false
+        && request.resource.data.createdAt == request.resource.data.updatedAt
+        && request.resource.data.expiresAt > request.time;
+
+      allow update: if request.auth != null
+        && isScorekeeperSession(resource.data)
+        && isScorekeeperSession(request.resource.data)
+        && resource.data.hostUid == request.auth.uid
+        && request.resource.data.hostUid == resource.data.hostUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.expiresAt == resource.data.expiresAt
+        && request.resource.data.updatedAt >= resource.data.updatedAt
+        && resource.data.isClosed == false
+        && request.time < resource.data.expiresAt;
+
+      allow delete: if false;
+    }
+
+    function isValidRoomCode(code) {
+      return code.matches('[A-Z0-9]{6}');
+    }
+
+    function isScorekeeperSession(data) {
+      return data.keys().hasOnly([
+          'kind',
+          'schemaVersion',
+          'createdAt',
+          'updatedAt',
+          'expiresAt',
+          'hostUid',
+          'isClosed',
+          'playerNames',
+          'rounds',
+          'runningScores',
+          'winnerIndex'
+        ])
+        && data.kind == 'scorekeeper'
+        && data.schemaVersion == 1
+        && data.hostUid is string
+        && data.hostUid.size() > 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.expiresAt is timestamp
+        && data.isClosed is bool
+        && data.playerNames is list
+        && data.playerNames.size() == 6
+        && data.rounds is list
+        && data.rounds.size() <= 100
+        && data.runningScores is list
+        && data.runningScores.size() == 6
+        && data.winnerIndex is int
+        && data.winnerIndex >= 0
+        && data.winnerIndex < 6;
+    }
+
     function isPlayerInSession(slots, uid) {
       return slots[0].uid == uid
         || slots[1].uid == uid

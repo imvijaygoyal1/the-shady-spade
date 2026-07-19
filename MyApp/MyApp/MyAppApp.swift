@@ -7,6 +7,7 @@ import UIKit
 @Observable final class DeepLinkManager {
     static let shared = DeepLinkManager()
     var pendingJoinCode: String? = nil
+    var pendingScorekeeperCode: String? = nil
 }
 
 class AppDelegate: NSObject, UIApplicationDelegate {
@@ -75,23 +76,33 @@ struct MyAppApp: App {
     }
 
     private func handleIncomingURL(_ url: URL) {
-        // Handles shadyspade://join/ROOMCODE
-        // and https://shadyspade-d6b84.web.app/shadyspade/join/ROOMCODE
+        // Handles:
+        // shadyspade://join/ROOMCODE
+        // shadyspade://scorekeeper/ROOMCODE
+        // https://shadyspade-d6b84.web.app/shadyspade/join/ROOMCODE
+        // https://shadyspade-d6b84.web.app/shadyspade/scorekeeper/ROOMCODE
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return }
-        let parts = components.path.split(separator: "/").map(String.init)
-        guard let joinIndex = parts.firstIndex(of: "join"), joinIndex + 1 < parts.count else { return }
-        let roomCode = parts[joinIndex + 1]
-        guard !roomCode.isEmpty else { return }
-        guard roomCode.count == 6,
-              roomCode.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return }
-        // Store for cold-start deep link (CreateOrJoinView reads this on appear)
-        DeepLinkManager.shared.pendingJoinCode = roomCode
-        // Also notify in case CreateOrJoinView is already mounted (foreground tap)
-        NotificationCenter.default.post(
-            name: .joinRoomFromQR,
-            object: nil,
-            userInfo: ["roomCode": roomCode]
-        )
+        let routeParts = ([components.host].compactMap { $0 } + components.path.split(separator: "/").map(String.init))
+            .map { $0.lowercased() }
+        let rawParts = [components.host].compactMap { $0 } + components.path.split(separator: "/").map(String.init)
+
+        if let join = code(after: "join", routeParts: routeParts, rawParts: rawParts) {
+            DeepLinkManager.shared.pendingJoinCode = join
+            NotificationCenter.default.post(
+                name: .joinRoomFromQR,
+                object: nil,
+                userInfo: ["roomCode": join]
+            )
+        } else if let scorekeeper = code(after: "scorekeeper", routeParts: routeParts, rawParts: rawParts) {
+            DeepLinkManager.shared.pendingScorekeeperCode = scorekeeper
+        }
+    }
+
+    private func code(after route: String, routeParts: [String], rawParts: [String]) -> String? {
+        guard let index = routeParts.firstIndex(of: route), index + 1 < rawParts.count else { return nil }
+        let code = ScorekeeperSessionService.normalizedSessionCode(rawParts[index + 1])
+        guard ScorekeeperSessionService.isValidSessionCode(code) else { return nil }
+        return code
     }
 
     var body: some Scene {
