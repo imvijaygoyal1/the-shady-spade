@@ -223,7 +223,7 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
         controller.startViewing(code: "bad")
 
         XCTAssertEqual(controller.state, .invalidCode)
-        XCTAssertEqual(controller.errorMessage, "Enter a valid 6-character scorekeeper code.")
+        XCTAssertEqual(controller.errorMessage, "Enter exactly the 6-character code shown on the scorekeeper device.")
     }
 
     @MainActor
@@ -259,7 +259,32 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
         await Task.yield()
 
         XCTAssertEqual(controller.state, .notFound)
-        XCTAssertEqual(controller.errorMessage, "No live scorecard was found for this code.")
+        XCTAssertEqual(controller.errorMessage, "No live scorecard was found for NONE01. Check that the scorekeeper device shows Live View On, then re-enter the code.")
+    }
+
+    @MainActor
+    func test_viewingController_marksExpiredSession() async {
+        let remote = FakeScorekeeperSessionRemoteStore()
+        let now = Date(timeIntervalSince1970: 3_000)
+        let service = ScorekeeperSessionService(remote: remote, now: { now })
+        let controller = ScorekeeperLiveViewingController(service: service)
+        let game = ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"])
+        let expired = ScorekeeperLiveSessionDocument(
+            sessionCode: "OLD999",
+            hostUid: "host",
+            game: game,
+            createdAt: now.addingTimeInterval(-1_000),
+            updatedAt: now.addingTimeInterval(-100),
+            expiresAt: now.addingTimeInterval(-1)
+        )
+
+        remote.seed(code: "OLD999", data: expired.firestoreData)
+        controller.startViewing(code: "OLD999")
+        await Task.yield()
+
+        XCTAssertEqual(controller.state, .expired)
+        XCTAssertEqual(controller.document, expired)
+        XCTAssertNil(controller.errorMessage)
     }
 }
 

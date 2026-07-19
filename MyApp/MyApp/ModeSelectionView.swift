@@ -873,10 +873,14 @@ private struct ModeCard: View {
                     Text(title)
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
                         .foregroundStyle(Comic.textPrimary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(subtitle)
                         .font(.system(size: 13, weight: .heavy, design: .rounded))
                         .foregroundStyle(Comic.textSecondary)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()

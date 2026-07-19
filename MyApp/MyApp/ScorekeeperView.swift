@@ -357,8 +357,8 @@ private struct ScorekeeperLiveView: View {
                         .font(.system(size: 16, weight: .black, design: .rounded))
                         .foregroundStyle(Comic.textPrimary)
                     Text(livePublisher.isLive
-                         ? "Read-only viewers can watch this scorecard."
-                         : "Share a QR code so others can watch scores.")
+                         ? "Use this code while Live View On is visible here."
+                         : "Start Live View before others try to join.")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(Comic.textSecondary)
                 }
@@ -394,6 +394,9 @@ private struct ScorekeeperLiveView: View {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .strokeBorder(Comic.yellow.opacity(0.5), lineWidth: 1)
                     )
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Live scorecard code \(code)")
+                    .accessibilityIdentifier("scorekeeper.live.code")
 
                     HStack(spacing: 10) {
                         if let shareURL = livePublisher.shareURL {
@@ -408,6 +411,7 @@ Code: \(code)
                                 Label("Share", systemImage: "square.and.arrow.up")
                                     .frame(maxWidth: .infinity)
                             }
+                            .accessibilityLabel("Share Live Scorecard Link")
                         }
 
                         Button {
@@ -421,6 +425,7 @@ Code: \(code)
                             Label(liveCodeCopied ? "Copied" : "Copy", systemImage: liveCodeCopied ? "checkmark" : "doc.on.doc")
                                 .frame(maxWidth: .infinity)
                         }
+                        .accessibilityLabel(liveCodeCopied ? "Code Copied" : "Copy Live Scorecard Code")
 
                         Button {
                             showingLiveQRCode = true
@@ -428,6 +433,7 @@ Code: \(code)
                             Label("QR", systemImage: "qrcode")
                                 .frame(maxWidth: .infinity)
                         }
+                        .accessibilityLabel("Show Live Scorecard QR Code")
                     }
                     .font(.system(size: 13, weight: .black, design: .rounded))
                     .foregroundStyle(Comic.textPrimary)
@@ -445,6 +451,7 @@ Code: \(code)
                 }
                 .buttonStyle(ComicButtonStyle())
                 .disabled(livePublisher.isBusy)
+                .accessibilityIdentifier("scorekeeper.live.share")
             }
         }
         .padding(16)
@@ -817,6 +824,7 @@ private struct ScorekeeperViewerScorecard: View {
                     .frame(width: 42, height: 42)
                     .background(Comic.containerBG, in: Circle())
             }
+            .accessibilityLabel("Close Live Scorecard")
         }
         .padding(16)
         .comicContainer(cornerRadius: 18)
@@ -835,6 +843,7 @@ private struct ScorekeeperViewerScorecard: View {
                 Button("Change Code", action: onChangeCode)
                     .font(.system(size: 12, weight: .black, design: .rounded))
                     .foregroundStyle(Comic.yellow)
+                    .accessibilityLabel("Change Scorecard Code")
             }
 
             Text(stateMessage)
@@ -920,12 +929,12 @@ private struct ScorekeeperViewerScorecard: View {
 
     private var stateMessage: String {
         switch state {
-        case .live: return "Updates appear automatically while the scorekeeper keeps sharing."
-        case .closed: return "The scorekeeper has closed this live scorecard."
-        case .expired: return "This live scorecard has expired."
-        case .syncError: return "Showing the latest scorecard we received."
+        case .live: return "Updates appear automatically while the scorekeeper device keeps Live View On."
+        case .closed: return "The scorekeeper closed this live scorecard. Ask for a new code if play continues."
+        case .expired: return "This live scorecard expired. Ask the scorekeeper to start a new Live View."
+        case .syncError: return "Showing the latest scorecard we received. Reconnect or change code if it stops updating."
         case .loading: return "Connecting to the live scorecard."
-        case .idle, .notFound, .invalidCode: return "Enter another code to watch a scorecard."
+        case .idle, .notFound, .invalidCode: return "Enter the current code shown on the scorekeeper device."
         }
     }
 

@@ -355,6 +355,55 @@ Remaining after Batch 4:
   - finish closes viewer,
   - expired code shows expired state.
 
+Status: substantially complete as of 2026-07-18.
+
+Implemented and verified:
+
+- Added viewer-state coverage for expired sessions.
+- Hardened troubleshooting copy:
+  - invalid code asks for exactly the six-character code shown on the scorekeeper device,
+  - missing code includes the attempted code and tells the viewer to confirm the host shows `Live View On`,
+  - closed/expired/sync banners now tell the viewer what to do next.
+- Added accessibility labels/identifiers for live sharing controls:
+  - live code,
+  - share link,
+  - copy code,
+  - QR sheet,
+  - close viewer,
+  - change code.
+- Fixed mode-card title wrapping so `Real-Life Scorekeeper` does not truncate on iPhone 17.
+- Full scheme with code coverage passed:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.18_20-50-19--0400.xcresult`
+  - `44` unit tests passed,
+  - `1` UI test passed,
+  - `0` failures,
+  - `0` skipped.
+- Coverage target summary from that run:
+  - `MyApp.app`: 9.23% (`6080/65685`)
+  - `MyAppTests.xctest`: 95.59% (`1213/1269`)
+  - `MyAppUITests.xctest`: 90.00% (`81/90`)
+- Latest build installed and launched on both booted simulators:
+  - iPhone 17 Pro `DA97985A-F7CC-44F6-8281-9DD24C22B978`
+  - iPhone 17 `11AFDD37-BF1B-4BAB-8679-1B570C5530EC`
+- Visual smoke screenshots captured:
+  - `/private/tmp/shadyspade-17pro-final.png`
+  - `/private/tmp/shadyspade-17-final.png`
+
+Lifecycle decision:
+
+- Keep scorekeeper live sessions temporary.
+- `Share Live View` creates a session with `expiresAt = createdAt + 24 hours`.
+- `Finish & Save` and `Reset Scorecard` close the active live session.
+- Firestore rules deny host updates after close or expiry.
+- Client viewers show closed/expired states rather than stale editable UI.
+- Deleting expired documents remains a future backend cleanup task, best handled by a scheduled Cloud Function or similar server job.
+
+Remaining optional hardening:
+
+- Add a Firebase-isolated UI test fixture for viewer entry states if the project gets a test Firebase emulator setup.
+- Add backend cleanup for expired `scorekeeperSessions`.
+- Add manual real-device smoke before App Store release if live score viewing is intended for the next submitted build.
+
 ## Non-Goals for Phase 2
 
 - Multi-device editing.

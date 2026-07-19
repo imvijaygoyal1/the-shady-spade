@@ -536,7 +536,7 @@ enum ScorekeeperLiveViewerState: Equatable {
         guard ScorekeeperSessionService.isValidSessionCode(code) else {
             stop()
             state = .invalidCode
-            errorMessage = "Enter a valid 6-character scorekeeper code."
+            errorMessage = "Enter exactly the 6-character code shown on the scorekeeper device."
             return
         }
 
@@ -580,7 +580,7 @@ enum ScorekeeperLiveViewerState: Equatable {
         case .failure(.sessionNotFound):
             document = nil
             state = .notFound
-            errorMessage = "No live scorecard was found for this code."
+            errorMessage = "No live scorecard was found for \(sessionCode). Check that the scorekeeper device shows Live View On, then re-enter the code."
         case .failure(.invalidSessionData):
             document = nil
             state = .syncError
