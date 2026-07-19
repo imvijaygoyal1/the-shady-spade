@@ -37,6 +37,7 @@
 		LC100002 /* LeaderboardConsentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = LC200002 /* LeaderboardConsentSheet.swift */; };
 		LGS100001 /* LocalGameServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = LGS200001 /* LocalGameServer.swift */; };
 		LPQ100001 /* LeaderboardPendingQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = LPQ200001 /* LeaderboardPendingQueue.swift */; };
+		LSR100001 /* LeaderboardSendRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = LSR200001 /* LeaderboardSendRequest.swift */; };
 		LS100001 /* LeaderboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = LS200001 /* LeaderboardService.swift */; };
 		LV100001 /* LeaderboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = LV200001 /* LeaderboardView.swift */; };
 		M1000001 /* CardDealAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = M2000001 /* CardDealAnimationView.swift */; };
@@ -68,6 +69,7 @@
 		TX100010 /* GameFlowRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200010 /* GameFlowRulesTests.swift */; };
 		TX100011 /* MultiplayerViewModelRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200011 /* MultiplayerViewModelRulesTests.swift */; };
 		TX100012 /* LeaderboardPendingQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200012 /* LeaderboardPendingQueueTests.swift */; };
+		TX100013 /* LeaderboardSendRequestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200013 /* LeaderboardSendRequestTests.swift */; };
 		UI100001 /* ScorekeeperFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200001 /* ScorekeeperFlowUITests.swift */; };
 		UI100002 /* AppLaunchFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200002 /* AppLaunchFlowUITests.swift */; };
 /* End PBXBuildFile section */
@@ -121,6 +123,7 @@
 		LC200002 /* LeaderboardConsentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardConsentSheet.swift; sourceTree = "<group>"; };
 		LGS200001 /* LocalGameServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalGameServer.swift; sourceTree = "<group>"; };
 		LPQ200001 /* LeaderboardPendingQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardPendingQueue.swift; sourceTree = "<group>"; };
+		LSR200001 /* LeaderboardSendRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardSendRequest.swift; sourceTree = "<group>"; };
 		LS200001 /* LeaderboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardService.swift; sourceTree = "<group>"; };
 		LV200001 /* LeaderboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardView.swift; sourceTree = "<group>"; };
 		M2000001 /* CardDealAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardDealAnimationView.swift; sourceTree = "<group>"; };
@@ -153,6 +156,7 @@
 		TX200010 /* GameFlowRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameFlowRulesTests.swift; sourceTree = "<group>"; };
 		TX200011 /* MultiplayerViewModelRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiplayerViewModelRulesTests.swift; sourceTree = "<group>"; };
 		TX200012 /* LeaderboardPendingQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardPendingQueueTests.swift; sourceTree = "<group>"; };
+		TX200013 /* LeaderboardSendRequestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardSendRequestTests.swift; sourceTree = "<group>"; };
 		UI200000 /* MyAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		UI200001 /* ScorekeeperFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperFlowUITests.swift; sourceTree = "<group>"; };
 		UI200002 /* AppLaunchFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchFlowUITests.swift; sourceTree = "<group>"; };
@@ -240,6 +244,7 @@
 				LC200001 /* LeaderboardConsentManager.swift */,
 				LC200002 /* LeaderboardConsentSheet.swift */,
 				LPQ200001 /* LeaderboardPendingQueue.swift */,
+				LSR200001 /* LeaderboardSendRequest.swift */,
 				LS200001 /* LeaderboardService.swift */,
 				PF200001 /* ProfanityFilter.swift */,
 				LV200001 /* LeaderboardView.swift */,
@@ -285,6 +290,7 @@
 				TX200010 /* GameFlowRulesTests.swift */,
 				TX200011 /* MultiplayerViewModelRulesTests.swift */,
 				TX200012 /* LeaderboardPendingQueueTests.swift */,
+				TX200013 /* LeaderboardSendRequestTests.swift */,
 			);
 			path = MyAppTests;
 			sourceTree = "<group>";
@@ -475,6 +481,7 @@
 				LC100001 /* LeaderboardConsentManager.swift in Sources */,
 				LC100002 /* LeaderboardConsentSheet.swift in Sources */,
 				LPQ100001 /* LeaderboardPendingQueue.swift in Sources */,
+				LSR100001 /* LeaderboardSendRequest.swift in Sources */,
 				LS100001 /* LeaderboardService.swift in Sources */,
 				PF100001 /* ProfanityFilter.swift in Sources */,
 				LV100001 /* LeaderboardView.swift in Sources */,
@@ -499,6 +506,7 @@
 				TX100010 /* GameFlowRulesTests.swift in Sources */,
 				TX100011 /* MultiplayerViewModelRulesTests.swift in Sources */,
 				TX100012 /* LeaderboardPendingQueueTests.swift in Sources */,
+				TX100013 /* LeaderboardSendRequestTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

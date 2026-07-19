@@ -150,16 +150,6 @@ struct PlayerStat: Identifiable {
     }
 }
 
-// MARK: - Send Result
-
-private enum SendResult {
-    case success
-    /// Server rejected the payload (4xx). Retrying will not help — discard the record.
-    case serverRejected(String)
-    /// Network error or 5xx. Safe to enqueue and retry later.
-    case networkFailure
-}
-
 // MARK: - LeaderboardService
 
 @MainActor
@@ -503,22 +493,6 @@ final class LeaderboardService {
     // MARK: - HTTP send (shared by live + flush paths)
 
     private func sendRecord(_ record: PendingGameRecord) async -> SendResult {
-        let payload: [String: Any] = [
-            "sessionCode":         record.sessionCode ?? "",
-            "gameMode":            record.gameMode,
-            "playerNames":         record.playerNames,
-            "finalScores":         record.finalScores,
-            "aiSeats":             record.aiSeats,
-            "winnerIndex":         record.winnerIndex,
-            "bid":                 record.bid,
-            "bidMade":             record.bidMade,
-            "bidderIndex":         record.bidderIndex,
-            "partner1Index":       record.partner1Index,
-            "partner2Index":       record.partner2Index,
-            "defensePointsCaught": record.defensePointsCaught,
-            "roundCount":          record.roundCount
-        ]
-
         let maxAttempts = 3
         for attempt in 1...maxAttempts {
             do {
@@ -526,7 +500,9 @@ final class LeaderboardService {
                 request.httpMethod = "POST"
                 request.timeoutInterval = 10
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.httpBody = try JSONSerialization.data(withJSONObject: ["data": payload])
+                request.httpBody = try JSONSerialization.data(
+                    withJSONObject: LeaderboardSendRequest.wrappedPayload(for: record)
+                )
 
                 guard let user = Auth.auth().currentUser else {
                     lbLog.error("no current user (attempt \(attempt))")
@@ -544,19 +520,19 @@ final class LeaderboardService {
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                 let body   = String(data: data, encoding: .utf8) ?? "unknown"
 
-                if status == 200 {
+                let result = LeaderboardSendRequest.result(forHTTPStatus: status)
+                if result == .success {
                     lbLog.info("record sent ✓ attempt=\(attempt)")
-                    return .success
+                    return result
                 }
 
                 lbLog.error("HTTP \(status) attempt=\(attempt): \(body)")
 
-                if status >= 400 && status < 500 {
+                if case .serverRejected = result {
                     // Server explicitly rejected the payload — retrying will not help.
                     // Surface the error to the caller instead of masking it.
-                    let reason = "HTTP \(status)"
                     lbLog.error("server rejected record (terminal): \(body)")
-                    return .serverRejected(reason)
+                    return result
                 }
                 // 5xx or unexpected — fall through to retry
             } catch {

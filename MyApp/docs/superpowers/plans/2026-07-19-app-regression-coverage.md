@@ -134,6 +134,23 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - oldest-record eviction once the queue exceeds 100 records,
   - removal of both the sent record and a same-game replacement.
 
+### Batch 6
+
+- Added `LeaderboardSendRequest` as a pure helper for Cloud Function send behavior:
+  - pending-record payload construction,
+  - `["data": ...]` request wrapping,
+  - HTTP status classification into success, terminal server rejection, or retryable network failure.
+- Moved `SendResult` out of private `LeaderboardService` scope so response classification can be unit-tested.
+- Refactored `LeaderboardService.sendRecord` to call `LeaderboardSendRequest` while preserving:
+  - success removal behavior for HTTP 200,
+  - terminal 4xx rejection behavior,
+  - retry/enqueue behavior for network errors, 5xx, and unexpected statuses.
+- Added `LeaderboardSendRequestTests` covering:
+  - exact Cloud Function payload fields,
+  - empty-string fallback for a nil session code,
+  - wrapped request body shape,
+  - 200/4xx/5xx/unexpected status classification.
+
 ## Verification
 
 - Focused `AppRegressionTests` passed with `5` tests and `0` failures:
@@ -191,26 +208,34 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - Logic-focused coverage: 32.64% (3414/10458)
   - `LeaderboardService.swift` coverage: 50.12%
   - Largest remaining uncovered files: `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `Styles.swift`, `OnlineSessionView.swift`, `BluetoothGameViewModel.swift`, `BluetoothSessionView.swift`, `SplashView.swift`, `OnlineGameViewModel.swift`, `LeaderboardView.swift`
+- Focused Batch 6 send-request tests passed with `3` tests, `0` failures, `0` skips.
+- First full scheme coverage attempt after Batch 6 failed before assertions because the simulator test runner died during launch:
+  - `NSMachErrorDomain -308`, `Failed to install or launch the test runner`, `Lost connection to testmanagerd`
+- Full scheme with `-enableCodeCoverage YES` after Batch 6 passed on rerun with `98` tests, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_14-29-24--0400.xcresult`
+- `scripts/coverage_report.py` output from the Batch 6 full bundle:
+  - Raw app coverage: 11.49% (7587/66020)
+  - Logic-focused coverage: 32.89% (3445/10473)
+  - Largest remaining uncovered files: `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `Styles.swift`, `OnlineSessionView.swift`, `BluetoothGameViewModel.swift`, `BluetoothSessionView.swift`, `SplashView.swift`, `OnlineGameViewModel.swift`, `LeaderboardView.swift`
 - `git diff --check` passed.
 
 ## Privacy Impact
 
 - No new data collection, upload, retention, or third-party behavior.
-- These batches only made existing privacy/consent, leaderboard-payload, local-history, room-code, and launch decisions testable.
+- These batches only made existing privacy/consent, leaderboard-payload, send-classification, local-history, room-code, and launch decisions testable.
 - No privacy policy or App Store privacy-label update required.
 
 ## Next Coverage Candidates
 
 - Add focused tests around `ComputerGameViewModel` phase transitions that can run without UI timing.
 - Extract/test leaderboard status messaging currently embedded in Solo/Online/Bluetooth views.
-- Add integration-style tests for `LeaderboardService` queue persistence using isolated `UserDefaults` suites.
 - Continue extracting and unit-testing pure game-flow reducers from `OnlineGameViewModel` and `BluetoothGameViewModel`, especially game-state dictionary encode/decode and completed-round history accumulation.
-- Extract/test leaderboard HTTP payload construction and response classification without `URLSession`/Firebase Auth, if we want to continue raising service coverage without network dependency.
 - Extract leaderboard Firestore snapshot mapping for `PlayerStat` and `GameLogEntry` into pure mappers and test malformed/missing fields.
 - Add targeted UI smoke tests for `GameHistoryView`, `SettingsView`, and leaderboard empty/error states only if they remain stable in simulator automation.
+- Consider extracting deterministic view-state builders from `ComputerGameView.swift`, `OnlineGameView.swift`, and `BluetoothGameView.swift`; these files dominate raw coverage but are mostly declarative SwiftUI.
 
 ## Coverage Interpretation
 
-- Raw `MyApp.app` coverage is the honest Xcode target metric and currently sits at 11.45%.
+- Raw `MyApp.app` coverage is the honest Xcode target metric and currently sits at 11.49%.
 - The raw target denominator is dominated by large SwiftUI views. Raising that raw number to 80% would require broad UI/snapshot rendering coverage, significant view decomposition, or explicit coverage exclusions.
-- The practical path is to first drive logic-focused app coverage toward 80% by extracting deterministic behavior from views and service singletons, while keeping UI tests limited to stable smoke coverage. After Batch 5, logic-focused coverage is 32.64%.
+- The practical path is to first drive logic-focused app coverage toward 80% by extracting deterministic behavior from views and service singletons, while keeping UI tests limited to stable smoke coverage. After Batch 6, logic-focused coverage is 32.89%.
