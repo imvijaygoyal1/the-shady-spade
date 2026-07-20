@@ -822,46 +822,12 @@ private struct MainMenuActions: View {
                 )
             }
 
-            VStack(alignment: .leading, spacing: 9) {
-                Text("Scorekeeper Tools")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(Comic.yellow.opacity(0.88))
-
-                if toolsSideBySide {
-                    HStack(spacing: 10) {
-                        ScorekeeperToolCard(
-                            icon: "square.grid.3x3.fill",
-                            title: "Real-Life Scorekeeper",
-                            subtitle: "Track a physical card table",
-                            action: onScorekeeper
-                        )
-
-                        ScorekeeperToolCard(
-                            icon: "eye.fill",
-                            title: "Watch Live Scorecard",
-                            subtitle: "Follow with a code",
-                            action: onViewer
-                        )
-                    }
-                } else {
-                    VStack(spacing: 9) {
-                        ScorekeeperToolCard(
-                            icon: "square.grid.3x3.fill",
-                            title: "Real-Life Scorekeeper",
-                            subtitle: "Track a physical card table",
-                            action: onScorekeeper
-                        )
-
-                        ScorekeeperToolCard(
-                            icon: "eye.fill",
-                            title: "Watch Live Scorecard",
-                            subtitle: "Follow with a code",
-                            action: onViewer
-                        )
-                    }
-                }
-            }
-            .padding(.top, 2)
+            ScorekeeperToolsPanel(
+                toolsSideBySide: toolsSideBySide,
+                onScorekeeper: onScorekeeper,
+                onViewer: onViewer
+            )
+            .padding(.top, 4)
         }
     }
 }
@@ -974,6 +940,74 @@ private struct SecondaryMenuCard: View {
     }
 }
 
+private struct ScorekeeperToolsPanel: View {
+    let toolsSideBySide: Bool
+    let onScorekeeper: () -> Void
+    let onViewer: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(Comic.yellow.opacity(0.42))
+                    .frame(height: 1)
+
+                Text("Scorekeeper Tools")
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.yellow.opacity(0.92))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+
+                Rectangle()
+                    .fill(Comic.yellow.opacity(0.42))
+                    .frame(height: 1)
+            }
+
+            if toolsSideBySide {
+                HStack(spacing: 8) {
+                    ScorekeeperToolCard(
+                        icon: "square.grid.3x3.fill",
+                        title: "Real-Life Scorekeeper",
+                        subtitle: "Track a physical card table",
+                        action: onScorekeeper
+                    )
+
+                    ScorekeeperToolCard(
+                        icon: "eye.fill",
+                        title: "Watch Live Scorecard",
+                        subtitle: "Follow with a code",
+                        action: onViewer
+                    )
+                }
+            } else {
+                VStack(spacing: 8) {
+                    ScorekeeperToolCard(
+                        icon: "square.grid.3x3.fill",
+                        title: "Real-Life Scorekeeper",
+                        subtitle: "Track a physical card table",
+                        action: onScorekeeper
+                    )
+
+                    ScorekeeperToolCard(
+                        icon: "eye.fill",
+                        title: "Watch Live Scorecard",
+                        subtitle: "Follow with a code",
+                        action: onViewer
+                    )
+                }
+            }
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 11)
+        .background(Comic.containerBG.opacity(0.58))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Comic.yellow.opacity(0.36), lineWidth: 1)
+        )
+    }
+}
+
 private struct ScorekeeperToolCard: View {
     let icon: String
     let title: String
@@ -982,39 +1016,45 @@ private struct ScorekeeperToolCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 9) {
-                HStack(spacing: 8) {
+            HStack(spacing: 7) {
+                ZStack {
+                    Circle()
+                        .fill(Comic.yellow.opacity(0.13))
+                        .frame(width: 28, height: 28)
+                        .overlay(Circle().strokeBorder(Comic.yellow.opacity(0.28), lineWidth: 0.8))
                     Image(systemName: icon)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(Comic.yellow)
-                    Spacer(minLength: 4)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .black, design: .rounded))
-                        .foregroundStyle(Comic.textSecondary)
                 }
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .font(.system(size: 12, weight: .black, design: .rounded))
                         .foregroundStyle(Comic.textPrimary)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.82)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.68)
                     Text(subtitle)
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .font(.system(size: 10, weight: .heavy, design: .rounded))
                         .foregroundStyle(Comic.textSecondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                 }
+
+                Spacer(minLength: 2)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary.opacity(0.9))
             }
-            .padding(13)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: 106)
-            .background(Comic.containerBG.opacity(0.72))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .frame(minHeight: 66)
+            .background(Comic.black.opacity(0.34))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(Comic.containerBorder.opacity(0.7), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Comic.containerBorder.opacity(0.46), lineWidth: 0.8)
             )
         }
         .buttonStyle(BouncyButton())

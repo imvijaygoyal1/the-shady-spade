@@ -20,6 +20,13 @@ Redesign the root menu so `New Game` is the dominant primary action, `Local / Bl
     - `Real-Life Scorekeeper`, subtitle `Track a physical card table`.
     - `Watch Live Scorecard`, subtitle `Follow with a code`.
 - Scorekeeper tools render side-by-side on widths that fit cleanly and stack on narrower screens.
+- Refined the scorekeeper area into one compact tertiary utility panel:
+  - full-width dark green parent panel,
+  - subtle gold border,
+  - `Scorekeeper Tools` title with thin gold divider lines,
+  - two contained compact tool cards,
+  - smaller horizontal row layout with left icon, centered text, and right chevron,
+  - thinner inner-card borders and shorter heights than the main action cards.
 - Removed the bottom copyright from the main menu to avoid crowding.
 - Preserved all existing navigation behavior by reusing the same action state transitions.
 - Removed the now-unused private `ModeCard` component.
@@ -36,6 +43,8 @@ Redesign the root menu so `New Game` is the dominant primary action, `Local / Bl
   - `xcodebuild -quiet -project MyApp/MyApp.xcodeproj -scheme MyApp -destination 'generic/platform=iOS Simulator' build`
 - Focused iPhone 17 launch UI test passed:
   - `xcodebuild test -quiet -project MyApp/MyApp.xcodeproj -scheme MyApp -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:MyAppUITests/AppLaunchFlowUITests/testLaunchShowsModeSelectionWithoutNetworkBackedServices`
+- Focused iPhone 17 launch UI test passed after compact scorekeeper-panel refinement with `1` test, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.20_16-39-34--0400.xcresult`
 - Full scheme with coverage passed after the top-button fix with `110` tests, `0` failures, `0` skips:
   - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.20_16-18-26--0400.xcresult`
 - Coverage target rows from the final bundle:
@@ -54,4 +63,4 @@ Redesign the root menu so `New Game` is the dominant primary action, `Local / Bl
 
 ## Deferred
 
-- Batch 9 coverage work remains paused while UI uplift work is active.
+- No main-menu uplift items currently deferred.
