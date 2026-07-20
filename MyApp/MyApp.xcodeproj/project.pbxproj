@@ -53,6 +53,7 @@
 		SK100003 /* ScorekeeperSessionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SK200003 /* ScorekeeperSessionService.swift */; };
 		SGS100001 /* SyncedGameStateMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = SGS200001 /* SyncedGameStateMapper.swift */; };
 		MAV100001 /* MultiplayerActionValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = MAV200001 /* MultiplayerActionValidator.swift */; };
+		SSL100001 /* ShadySpadeLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = SSL200001 /* ShadySpadeLinks.swift */; };
 		TE100001 /* ThemeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200001 /* ThemeEngine.swift */; };
 		TE100002 /* Themes.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200002 /* Themes.swift */; };
 		TE100003 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200003 /* ThemeManager.swift */; };
@@ -145,6 +146,7 @@
 		SK200003 /* ScorekeeperSessionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperSessionService.swift; sourceTree = "<group>"; };
 		SGS200001 /* SyncedGameStateMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedGameStateMapper.swift; sourceTree = "<group>"; };
 		MAV200001 /* MultiplayerActionValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiplayerActionValidator.swift; sourceTree = "<group>"; };
+		SSL200001 /* ShadySpadeLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadySpadeLinks.swift; sourceTree = "<group>"; };
 		TE200001 /* ThemeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeEngine.swift; sourceTree = "<group>"; };
 		TE200002 /* Themes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Themes.swift; sourceTree = "<group>"; };
 		TE200003 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
@@ -238,6 +240,7 @@
 				SGS200001 /* SyncedGameStateMapper.swift */,
 				GF200001 /* GameFlowRules.swift */,
 				MAV200001 /* MultiplayerActionValidator.swift */,
+				SSL200001 /* ShadySpadeLinks.swift */,
 				H2000001 /* ComputerGameViewModel.swift */,
 				I2000001 /* ComputerGameView.swift */,
 				J2000001 /* OnlineGameViewModel.swift */,
@@ -478,6 +481,7 @@
 				G1000001 /* ModeSelectionView.swift in Sources */,
 				GF100001 /* GameFlowRules.swift in Sources */,
 				MAV100001 /* MultiplayerActionValidator.swift in Sources */,
+				SSL100001 /* ShadySpadeLinks.swift in Sources */,
 				H1000001 /* ComputerGameViewModel.swift in Sources */,
 				I1000001 /* ComputerGameView.swift in Sources */,
 				J1000001 /* OnlineGameViewModel.swift in Sources */,

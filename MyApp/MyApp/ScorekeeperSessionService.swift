@@ -432,7 +432,7 @@ final class ScorekeeperSessionService {
 
     var shareURL: URL? {
         guard let sessionCode else { return nil }
-        return URL(string: "https://shadyspade-d6b84.web.app/shadyspade/scorekeeper/\(sessionCode)")
+        return ShadySpadeLinks.scorekeeperURL(sessionCode: sessionCode)
     }
 
     func startSharing(game: ScorekeeperGameState) async {

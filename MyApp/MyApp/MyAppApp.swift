@@ -107,6 +107,8 @@ struct MyAppApp: App {
         // Handles:
         // shadyspade://join/ROOMCODE
         // shadyspade://scorekeeper/ROOMCODE
+        // https://shadyspade.vijaygoyal.org/join/ROOMCODE
+        // https://shadyspade.vijaygoyal.org/scorekeeper/ROOMCODE
         // https://shadyspade-d6b84.web.app/shadyspade/join/ROOMCODE
         // https://shadyspade-d6b84.web.app/shadyspade/scorekeeper/ROOMCODE
         switch AppDeepLinkRouter.route(for: url) {

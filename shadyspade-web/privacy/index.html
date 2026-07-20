@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy – The Shady Spade</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --gold: #C9A84C;
+      --gold-light: #E8C96A;
+      --dark: #0D0F1A;
+      --dark-card: #151825;
+      --dark-border: #2A2D40;
+      --text-primary: #F0EDE8;
+      --text-secondary: #9A98A8;
+      --spade: #C9A84C;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background-color: var(--dark);
+      color: var(--text-primary);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      line-height: 1.8;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(201,168,76,0.12) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 40% at 90% 90%, rgba(107,33,168,0.08) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+      position: relative;
+      z-index: 1;
+    }
+
+    header {
+      text-align: center;
+      padding: 64px 0 48px;
+      border-bottom: 1px solid var(--dark-border);
+      margin-bottom: 56px;
+    }
+
+    .spade-icon {
+      font-size: 48px;
+      display: block;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 0 20px rgba(201,168,76,0.5));
+    }
+
+    header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(28px, 6vw, 44px);
+      font-weight: 900;
+      color: var(--gold);
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    header .subtitle {
+      color: var(--text-secondary);
+      font-size: 15px;
+      font-weight: 400;
+    }
+
+    .last-updated {
+      display: inline-block;
+      margin-top: 20px;
+      background: rgba(201,168,76,0.12);
+      border: 1px solid rgba(201,168,76,0.3);
+      color: var(--gold);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 16px;
+      border-radius: 100px;
+      letter-spacing: 0.5px;
+    }
+
+    .summary-banner {
+      background: linear-gradient(135deg, rgba(201,168,76,0.12), rgba(107,33,168,0.08));
+      border: 1px solid rgba(201,168,76,0.25);
+      border-radius: 16px;
+      padding: 28px 32px;
+      margin-bottom: 48px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .summary-banner::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+
+    .summary-banner h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      color: var(--gold);
+      margin-bottom: 16px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .summary-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .summary-item .icon {
+      font-size: 18px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .summary-item p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .summary-item strong {
+      display: block;
+      color: var(--text-primary);
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    section { margin-bottom: 44px; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .section-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(201,168,76,0.15);
+      border: 1px solid rgba(201,168,76,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--gold);
+      flex-shrink: 0;
+    }
+
+    h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .card {
+      background: var(--dark-card);
+      border: 1px solid var(--dark-border);
+      border-radius: 14px;
+      padding: 24px 28px;
+    }
+
+    p {
+      color: var(--text-secondary);
+      font-size: 15px;
+      margin-bottom: 14px;
+    }
+
+    p:last-child { margin-bottom: 0; }
+
+    ul { list-style: none; padding: 0; }
+
+    ul li {
+      color: var(--text-secondary);
+      font-size: 15px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    ul li:last-child { border-bottom: none; }
+
+    ul li::before {
+      content: '♠';
+      color: var(--gold);
+      font-size: 12px;
+      margin-top: 4px;
+      flex-shrink: 0;
+      opacity: 0.7;
+    }
+
+    strong { color: var(--text-primary); font-weight: 500; }
+
+    .container,
+    .card,
+    .summary-banner,
+    .contact-card,
+    ul li,
+    p,
+    a,
+    code {
+      min-width: 0;
+    }
+
+    p,
+    li,
+    a {
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+
+    code {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+    .highlight {
+      background: rgba(21, 128, 61, 0.1);
+      border: 1px solid rgba(21,128,61,0.3);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-top: 16px;
+    }
+
+    .highlight p {
+      color: #86efac;
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .contact-card {
+      background: linear-gradient(135deg, rgba(201,168,76,0.08), rgba(201,168,76,0.03));
+      border: 1px solid rgba(201,168,76,0.2);
+      border-radius: 14px;
+      padding: 28px;
+      text-align: center;
+    }
+
+    .contact-card p { margin-bottom: 8px; }
+
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--dark-border), transparent);
+      margin: 48px 0;
+    }
+
+    footer {
+      text-align: center;
+      padding-top: 32px;
+      border-top: 1px solid var(--dark-border);
+    }
+
+    footer p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    footer .gold { color: var(--gold); }
+
+    @media (max-width: 600px) {
+      header { padding: 40px 0 32px; }
+      .container { padding: 0 16px 64px; }
+      .card,
+      .summary-banner,
+      .contact-card { padding: 18px 16px; }
+      .summary-grid { grid-template-columns: 1fr; }
+      ul li { gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <span class="spade-icon">♠</span>
+      <h1>Privacy Policy</h1>
+      <p class="subtitle">The Shady Spade — Card Game App</p>
+      <span class="last-updated">Last Updated: July 18, 2026</span>
+    </header>
+
+    <!-- Quick Summary -->
+    <div class="summary-banner">
+      <h2>The Short Version</h2>
+      <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 0;">We built The Shady Spade to be played, not to collect your data. Here's what that means:</p>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <span class="icon">🚫</span>
+          <p><strong>No Email Required</strong>No account, no sign-in, no email address ever collected.</p>
+        </div>
+        <div class="summary-item">
+          <span class="icon">👤</span>
+          <p><strong>Avatar Names Only</strong>You choose a fun game name — not your real name.</p>
+        </div>
+        <div class="summary-item">
+          <span class="icon">🔒</span>
+          <p><strong>No Data Sold</strong>We never sell, share, or monetize any information.</p>
+        </div>
+        <div class="summary-item">
+          <span class="icon">🏆</span>
+          <p><strong>Leaderboard Optional</strong>Your chosen game name and stats upload only if you allow score uploads.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 1 -->
+    <section>
+      <div class="section-header">
+        <div class="section-number">1</div>
+        <h2>Who We Are</h2>
+      </div>
+      <div class="card">
+        <p>The Shady Spade is a 6-player card game application developed for iOS. This Privacy Policy explains how the app handles information when you use it. By downloading or playing The Shady Spade, you agree to the practices described in this policy.</p>
+        <p>This app is designed with privacy as a core principle — we collect as little information as possible and keep what we do use on your device wherever possible.</p>
+      </div>
+    </section>
+
+    <!-- Section 2 -->
+    <section>
+      <div class="section-header">
+        <div class="section-number">2</div>
+        <h2>Information We Collect</h2>
+      </div>
+      <div class="card">
+        <p>The Shady Spade is designed to be played without providing any personal information. Here is everything the app may collect:</p>
+        <ul>
+          <li><strong>Avatar Name:</strong> A game nickname you choose yourself. This is not your real name. It is stored locally on your device and used on the global leaderboard only if you allow score uploads.</li>
+          <li><strong>Avatar Selection:</strong> Your chosen avatar (emoji character) is stored locally on your device.</li>
+          <li><strong>Game Session Code (Online &amp; Multiplayer Mode):</strong> A temporary 6-character code generated to connect players. This code expires when the game ends or within 24 hours.</li>
+          <li><strong>Live Scorekeeper Session Code:</strong> If you choose Share Live View in Real-Life Scorekeeper mode, the app creates a temporary 6-character code so other players can watch a read-only scorecard.</li>
+          <li><strong>Game History:</strong> Game score history for the last 10 games is stored locally on your device. This data never leaves your device and is deleted when you uninstall the app.</li>
+          <li><strong>Global Leaderboard:</strong> If you allow score uploads, completed-round leaderboard data is stored on Firebase Firestore servers to power the global leaderboard. This may include your chosen avatar name, avatar selection, game mode, wins, games played, bid history, scores, and gameplay results (bids made or set, points scored). This data is associated with your avatar name only — not your real name or any personal identifier.</li>
+          <li><strong>Live Scorekeeper Data:</strong> If you choose Share Live View in Real-Life Scorekeeper mode, player names, running scores, and round history are temporarily synced through Firebase Firestore so viewers with the code or QR link can watch the scorecard. Viewers cannot edit the scorecard.</li>
+          <li><strong>Anonymous Device Token:</strong> The app uses Firebase Anonymous Authentication to secure leaderboard writes. A silent anonymous token is created on your device on first launch — no email, phone number, or personal information is required or collected.</li>
+          <li><strong>App Preferences:</strong> Settings such as theme selection, display mode (Dark, Light, or System), player names, and avatars are stored locally using Apple's UserDefaults/AppStorage on your device only.</li>
+          <li><strong>Camera Access (QR Scanning):</strong> The app requests camera permission when you use the QR code scanner to join an online game. The camera feed is processed entirely on-device by Apple's AVFoundation framework to read the QR code. No camera images or video are stored, transmitted, or shared. Camera access is only requested when you tap "Scan QR Code" and can be revoked at any time in iOS Settings.</li>
+          <li><strong>URL Scheme &amp; Universal Links:</strong> The app registers the <code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">shadyspade://</code> custom URL scheme and handles universal links at <code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">https://shadyspade.vijaygoyal.org/join/{CODE}</code> and <code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">https://shadyspade.vijaygoyal.org/scorekeeper/{CODE}</code>. QR codes and invite text shared between players encode the full universal link URL. No data beyond the 6-character room or scorecard code is transmitted via either mechanism. Legacy Firebase universal links may still be accepted for older invites.</li>
+          <li><strong>Local Network Access (TV Dashboard — Bluetooth Mode Only):</strong> When hosting a Bluetooth game, the app can optionally start a local web server on your device accessible within your Wi-Fi network. This server shares the current game state (player avatar names, scores, cards played, bid information) with any browser on the same local network, so it can be displayed on a TV. No data is sent to the internet. The server runs only while you are hosting a Bluetooth game and stops automatically when the game ends. You are shown the local URL and a QR code before any device connects.</li>
+        </ul>
+        <div class="highlight">
+          <p>✅ We do <strong>not</strong> collect your real name, email address, phone number, location, contacts, photos, or any other personal data. Only your chosen in-game avatar name is used.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3 -->
+    <section>
+      <div class="section-header">
+        <div class="section-number">3</div>
+        <h2>Online Multiplayer, Leaderboard &amp; Firebase</h2>
+      </div>
+      <div class="card">
+        <p>The Shady Spade uses <strong>Google Firebase</strong> for real-time online game sessions, optional live scorekeeper viewing, and the global leaderboard.</p>
+        <ul>
+          <li>Firebase is used to synchronise game state (cards played, scores, turn order) between players in the same <strong>Online Mode</strong> session.</li>
+          <li>Firebase is used to sync player names, scores, and round history for a <strong>Real-Life Scorekeeper</strong> scorecard only after you choose Share Live View and confirm the live sharing prompt.</li>
+          <li>Only your chosen <strong>avatar name</strong> and <strong>game actions</strong> are transmitted — never personal information.</li>
+          <li>All session data is deleted from Firebase servers when the game session ends.</li>
+          <li>Firebase may collect anonymous technical data such as crash reports and performance metrics as described in <a href="https://firebase.google.com/support/privacy" style="color: var(--gold);">Google's Privacy Policy</a>.</li>
+          <li><strong>Solo, Bluetooth, and Pass &amp; Play modes</strong> do not use Firebase for game sync. If you allow score uploads, Firebase records leaderboard stats at game end in <em>all</em> modes (Solo, Online, Bluetooth, Pass &amp; Play).</li>
+          <li><strong>Monthly leaderboard archiving:</strong> At the start of each calendar month, a scheduled Cloud Function automatically archives the previous month's leaderboard data (avatar names, win counts, scores, and game log entries) into a historical snapshot collection on Firebase Firestore. This archive is used to preserve all-time statistics and is not shared with any third party. You may request deletion of both live and archived data by contacting us.</li>
+        </ul>
+        <p style="margin-top: 16px;">Before leaderboard score uploads are enabled, the app asks for your consent and explains that leaderboard data will be uploaded to our Firebase server. You can choose <strong>Allow Score Uploads</strong> or <strong>Play Without Uploading Scores</strong>. If you do not allow uploads, you can still play and your completed-round scores are not uploaded to the global leaderboard.</p>
+        <p>When score uploads are allowed and a game completes in any mode, game result data is processed by <strong>Google Cloud Functions</strong> (us-central1 region) to validate scores server-side before writing to the leaderboard. This uses your avatar name, avatar selection, game mode, bid amount, scores, and round results. If your device is offline at the time, the record is queued locally only after consent has been granted and submitted automatically when connectivity is restored.</p>
+      </div>
+    </section>
+
+    <!-- Section 4 -->
+    <section>
+      <div class="section-header">
+        <div class="section-number">4</div>
+        <h2>How We Use Information</h2>
+      </div>
+      <div class="card">
+        <p>The limited information collected is used solely for the following purposes:</p>
+        <ul>
+          <li>Displaying your chosen avatar name and emoji during gameplay</li>
+          <li>Connecting you to an online game session when you enter or share a session code</li>
+          <li>Reading a QR code via the camera to extract a room code (camera feed is never stored or transmitted)</li>
+          <li>Remembering your app preferences, including appearance/theme choices, between sessions</li>
+          <li>Tracking scores within the current game session</li>
+          <li>Showing a read-only live scorecard to people who have the temporary scorekeeper code or QR link when you opt in</li>
+          <li>Displaying your game statistics on the global leaderboard</li>
+          <li>Displaying game state on a local-network TV dashboard when you opt in during Bluetooth host mode</li>
+        </ul>
+        <p>We do <strong>not</strong> use any information for advertising, analytics, profiling, or any purpose other than making the game work.</p>
+      </div>
+    </section>
+
+    <!-- Section 5 -->
+    <section>
+      <div class="section-header">
+        <div class="section-number">5</div>
+        <h2>Data Sharing &amp; Third Parties</h2>
+      </div>
+      <div class="card">
+        <p>We do not sell, rent, trade, or share your information with any third parties for commercial purposes. The only third-party services used are:</p>
+        <ul>
+          <li><strong>Google Firebase</strong> — for online multiplayer synchronisation, optional live scorekeeper viewing, and leaderboard data storage, as described in Section 3.</li>
+          <li><strong>Google Cloud Functions</strong> — processes game results server-side to validate and record leaderboard data. Operated by Google LLC under the same Firebase privacy terms.</li>
+        </ul>
+        <p>We do not integrate advertising networks, social media trackers, analytics platforms, or any other data-collecting third-party services.</p>
+      </div>
+    </section>
+
+    <!-- Section 6 -->
+    <section>
+      <div class="section-header">
+        <div class="section-number">6</div>
+        <h2>Children's Privacy</h2>
+      </div>
+      <div class="card">
+        <p>The Shady Spade does not knowingly collect any personal information from children under the age of 13. The app does not require account creation, does not collect email addresses, and does not request any personal identifying information from any user of any age.</p>
+        <p>Because no personal data is collected, The Shady Spade is designed to be safe for all ages.</p>
+      </div>
+    </section>
+
+    <!-- Section 7 -->
+    <section>
+      <div class="section-header">
+        <div class="section-number">7</div>
+        <h2>Data Storage &amp; Retention</h2>
+      </div>
+      <div class="card">
+        <ul>
+          <li><strong>Avatar name and preferences</strong> are stored locally on your device using Apple's UserDefaults/AppStorage and persist until you delete the app. Appearance preferences such as selected theme and display mode do not leave your device.</li>
+          <li><strong>Game session data</strong> (scores, cards played) is held in memory only and is automatically erased when the app is closed.</li>
+          <li><strong>Online session codes</strong> expire automatically within 24 hours or immediately when a game ends.</li>
+          <li><strong>Live scorekeeper session codes and scorecard data</strong> expire automatically within 24 hours or when the scorekeeper host finishes, resets, or closes live sharing. Until server cleanup removes an expired record, the app treats expired or closed scorekeeper sessions as unavailable.</li>
+          <li><strong>Leaderboard data</strong> (avatar name, avatar selection, game mode, wins, scores, bid history, and round results) is stored on Firebase Firestore servers indefinitely to maintain all-time rankings only if you allow score uploads. Game log entries are limited to the 50 most recent games. At the start of each month, a Cloud Function archives the prior month's statistics into a historical snapshot — this archived data also persists indefinitely. To request deletion of both live and archived leaderboard data, contact us via the support details below.</li>
+          <li><strong>Pending leaderboard records</strong> are stored in an encrypted file protected by iOS Data Protection (<code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">completeFileProtectionUnlessOpen</code>) only when you have allowed score uploads and your device is offline. Records are flushed to Firebase automatically when connectivity is restored and deleted from the device once confirmed by the server.</li>
+          <li><strong>Anonymous auth token</strong> is stored on your device by Firebase and persists across app launches. It is removed when you uninstall the app.</li>
+          <li>You can remove all locally stored data at any time by deleting the app from your device.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Section 8 -->
+    <section>
+      <div class="section-header">
+        <div class="section-number">8</div>
+        <h2>Game Modes &amp; Data</h2>
+      </div>
+      <div class="card">
+        <p>The Shady Spade offers multiple game modes, each with different data implications:</p>
+        <ul>
+          <li><strong>Solo Mode:</strong> Play against 5 AI opponents on your device. No game sync data leaves your device. Leaderboard stats are recorded to Firebase at game end only if you allow score uploads.</li>
+          <li><strong>Online Mode:</strong> Play with real players (and optionally AI-filled seats) over the internet using a session code. Firebase syncs game state using only avatar names and game actions. Leaderboard stats are recorded at game end only if you allow score uploads. You can start an Online session directly from the "New Game" screen by choosing 2 or more players.</li>
+          <li><strong>Bluetooth Mode:</strong> Play with nearby players over a local Bluetooth/Wi-Fi connection using Apple's Multipeer Connectivity framework. No internet connection is required and no game data is sent to external servers during play. Leaderboard stats are recorded to Firebase at game end only if you allow score uploads. Optionally, the host device can share a live game-state dashboard on the local Wi-Fi network for display on a TV — see "Local Network Access" in Section 2.</li>
+          <li><strong>Pass &amp; Play (Hot Seat):</strong> Multiple humans share one device, passing it between turns. No game sync data leaves your device. Leaderboard stats are recorded at game end only if you allow score uploads.</li>
+          <li><strong>Real-Life Scorekeeper:</strong> Track a physical-card game on one device. Scorecards are local by default. If you choose Share Live View, the app temporarily syncs player names, running scores, and round history to Firebase so people with the code or QR link can watch a read-only scorecard.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Section 9 -->
+    <section>
+      <div class="section-header">
+        <div class="section-number">9</div>
+        <h2>Your Rights</h2>
+      </div>
+      <div class="card">
+        <p>Because we collect minimal data and store most of it locally on your device, you have full control:</p>
+        <ul>
+          <li>You can change your avatar name and avatar at any time within the app</li>
+          <li>You can delete all local app data by uninstalling The Shady Spade from your device</li>
+          <li>You can request deletion of your leaderboard data by contacting us at the details below</li>
+          <li>You can play without allowing leaderboard uploads. If you choose <strong>Play Without Uploading Scores</strong>, completed-round scores are not uploaded to the global leaderboard.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Section 10 -->
+    <section>
+      <div class="section-header">
+        <div class="section-number">10</div>
+        <h2>Changes to This Policy</h2>
+      </div>
+      <div class="card">
+        <p>We may update this Privacy Policy from time to time. If we make significant changes, we will update the "Last Updated" date at the top of this page. We encourage you to review this policy periodically. Continued use of the app after changes are posted constitutes acceptance of the updated policy.</p>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Contact -->
+    <section>
+      <div class="contact-card">
+        <span style="font-size: 32px; display: block; margin-bottom: 12px;">♠</span>
+        <h2 style="font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 12px; color: var(--gold);">Questions or Concerns?</h2>
+        <p>If you have any questions about this Privacy Policy or how The Shady Spade handles your information, please reach out.</p>
+        <p style="color: var(--text-primary); font-weight: 500;">The Shady Spade Support</p>
+        <p><a href="mailto:imvijaygoyal1@icloud.com" style="color: var(--gold);">imvijaygoyal1@icloud.com</a></p>
+        <p><a href="/support" style="color: var(--gold);">Support Page</a></p>
+        <p style="font-size: 13px; margin-top: 8px;">This app was built with privacy as a foundation — we're happy to answer any questions.</p>
+      </div>
+    </section>
+
+    <footer>
+      <p class="gold">♠ The Shady Spade</p>
+      <p>© 2026 The Shady Spade. All rights reserved.</p>
+      <p style="margin-top: 8px;">Effective Date: March 22, 2026 · Last Revised: June 22, 2026</p>
+    </footer>
+
+  </div>
+</body>
+</html>

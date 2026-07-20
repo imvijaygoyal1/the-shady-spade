@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Support - The Shady Spade</title>
+  <style>
+    :root {
+      --gold: #C9A84C;
+      --dark: #0D0F1A;
+      --card: #151825;
+      --border: #2A2D40;
+      --text: #F0EDE8;
+      --muted: #A7A4B5;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(201,168,76,0.14) 0%, transparent 70%),
+        linear-gradient(180deg, #0D0F1A 0%, #101421 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+
+    main {
+      width: min(760px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 64px 0 40px;
+    }
+
+    a { color: var(--gold); }
+
+    .back {
+      display: inline-block;
+      color: var(--muted);
+      text-decoration: none;
+      margin-bottom: 32px;
+    }
+
+    h1 {
+      font-size: clamp(34px, 6vw, 56px);
+      line-height: 1;
+      letter-spacing: 0;
+      margin-bottom: 16px;
+    }
+
+    .lede {
+      color: var(--muted);
+      font-size: 17px;
+      margin-bottom: 28px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(21, 24, 37, 0.86);
+      padding: 22px;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      color: var(--gold);
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    p + p { margin-top: 10px; }
+
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="/">← The Shady Spade</a>
+    <h1>Support</h1>
+    <p class="lede">
+      Contact The Shady Spade Support for help, privacy questions, deletion
+      requests, or leaderboard name reports.
+    </p>
+
+    <section class="card">
+      <h2>Email</h2>
+      <p><a href="mailto:imvijaygoyal1@icloud.com">imvijaygoyal1@icloud.com</a></p>
+      <p class="muted">
+        For leaderboard reports, include the player name and any available game
+        context. The app's report action can prefill this for you.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Privacy</h2>
+      <p class="muted">
+        Read the privacy policy for details about leaderboard data, local
+        preferences, Firebase Anonymous Authentication, and data deletion
+        requests.
+      </p>
+      <p><a href="/privacy">Privacy Policy</a></p>
+    </section>
+  </main>
+</body>
+</html>

@@ -8,11 +8,33 @@ final class AppRegressionTests: XCTestCase {
             .join("ABC123")
         )
         XCTAssertEqual(
+            AppDeepLinkRouter.route(for: URL(string: "https://shadyspade.vijaygoyal.org/join/sms123")!),
+            .join("SMS123")
+        )
+        XCTAssertEqual(
+            AppDeepLinkRouter.route(for: URL(string: "https://shadyspade.vijaygoyal.org/scorekeeper/view01")!),
+            .scorekeeper("VIEW01")
+        )
+        XCTAssertEqual(
             AppDeepLinkRouter.route(for: URL(string: "https://shadyspade-d6b84.web.app/shadyspade/scorekeeper/view01")!),
             .scorekeeper("VIEW01")
         )
         XCTAssertNil(AppDeepLinkRouter.route(for: URL(string: "shadyspade://scorekeeper/short")!))
         XCTAssertNil(AppDeepLinkRouter.route(for: URL(string: "https://shadyspade-d6b84.web.app/shadyspade/help/ABC123")!))
+    }
+
+    func test_brandedUniversalLinkBuildersCreateCanonicalInviteURLs() {
+        XCTAssertEqual(
+            ShadySpadeLinks.joinURL(roomCode: "ab-c123!").absoluteString,
+            "https://shadyspade.vijaygoyal.org/join/ABC123"
+        )
+        XCTAssertEqual(
+            ShadySpadeLinks.scorekeeperURL(sessionCode: "view01").absoluteString,
+            "https://shadyspade.vijaygoyal.org/scorekeeper/VIEW01"
+        )
+        XCTAssertTrue(ShadySpadeLinks.joinInviteText(roomCode: "abc123").contains(
+            "https://shadyspade.vijaygoyal.org/join/ABC123"
+        ))
     }
 
     func test_leaderboardConsentResolution_requiresCurrentDisclosureForGrantedState() {

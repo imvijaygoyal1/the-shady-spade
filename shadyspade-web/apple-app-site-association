@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "7B5U5LACV3.com.vijaygoyal.theshadyspade",
+        "paths": [
+          "/join/*",
+          "/scorekeeper/*",
+          "/shadyspade/join/*",
+          "/shadyspade/scorekeeper/*"
+        ]
+      }
+    ]
+  }
+}

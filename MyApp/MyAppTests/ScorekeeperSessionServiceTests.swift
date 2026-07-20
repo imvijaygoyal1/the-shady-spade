@@ -225,7 +225,7 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
 
         XCTAssertEqual(controller.sessionCode, "HOST01")
         XCTAssertTrue(controller.isLive)
-        XCTAssertEqual(controller.shareURL?.absoluteString, "https://shadyspade-d6b84.web.app/shadyspade/scorekeeper/HOST01")
+        XCTAssertEqual(controller.shareURL?.absoluteString, "https://shadyspade.vijaygoyal.org/scorekeeper/HOST01")
         XCTAssertNil(controller.errorMessage)
         XCTAssertEqual(remote.createdCodes, ["HOST01"])
 

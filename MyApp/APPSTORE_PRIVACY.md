@@ -13,6 +13,10 @@ File: `/Users/vijaygoyal/MyiOSApp/shadyspade-web/privacy/index.html`
 Related static pages:
 
 - `/Users/vijaygoyal/MyiOSApp/shadyspade-web/index.html`
+- `/Users/vijaygoyal/MyiOSApp/shadyspade-web/.well-known/apple-app-site-association`
+- `/Users/vijaygoyal/MyiOSApp/shadyspade-web/apple-app-site-association`
+- `/Users/vijaygoyal/MyiOSApp/shadyspade-web/join/index.html`
+- `/Users/vijaygoyal/MyiOSApp/shadyspade-web/scorekeeper/index.html`
 - `/Users/vijaygoyal/MyiOSApp/shadyspade-web/support/index.html`
 
 ## Deployment
@@ -29,22 +33,7 @@ Use the deploy script instead of deploying directly from `shadyspade-web`:
 
 Reason: `shadyspade-web` can contain local `.wrangler` cache files. The script copies only public files into a clean temporary directory before deploying.
 
-Manual equivalent:
-
-```bash
-tmpdir=/private/tmp/shadyspade-web-clean
-rm -rf "$tmpdir"
-mkdir -p "$tmpdir"
-cp -R /Users/vijaygoyal/MyiOSApp/shadyspade-web/index.html \
-  /Users/vijaygoyal/MyiOSApp/shadyspade-web/privacy \
-  /Users/vijaygoyal/MyiOSApp/shadyspade-web/support \
-  "$tmpdir"
-npx wrangler deploy "$tmpdir" \
-  --name winter-band-18fa \
-  --assets "$tmpdir" \
-  --compatibility-date 2026-06-22 \
-  --domain shadyspade.vijaygoyal.org
-```
+The script also deploys a small Worker shim so `/join/{CODE}` and `/scorekeeper/{CODE}` render fallback pages while `.well-known/apple-app-site-association` is served as `application/json`.
 
 ## Verification
 
@@ -52,12 +41,16 @@ After every privacy policy deploy:
 
 ```bash
 curl -L https://shadyspade.vijaygoyal.org/privacy | rg "Last Updated|Allow Score Uploads|Play Without Uploading Scores|only if you allow score uploads"
+curl -L -D - https://shadyspade.vijaygoyal.org/.well-known/apple-app-site-association | rg -i "content-type: application/json|7B5U5LACV3.com.vijaygoyal.theshadyspade|/join/\\*|/scorekeeper/\\*"
+curl -L https://shadyspade.vijaygoyal.org/join/ABC123 | tee /tmp/shadyspade-join.html | rg "Join The Shady Spade" && rg "ABC123" /tmp/shadyspade-join.html
+curl -L https://shadyspade.vijaygoyal.org/scorekeeper/HOST01 | tee /tmp/shadyspade-scorekeeper.html | rg "Watch Live Scorecard" && rg "HOST01" /tmp/shadyspade-scorekeeper.html
 curl -I https://shadyspade.vijaygoyal.org/.wrangler/cache/wrangler-account.json
 ```
 
 Expected:
 
 - The live policy contains the latest date and consent-gated leaderboard language.
+- The branded domain serves the AASA file as JSON plus join and scorekeeper fallback pages.
 - The `.wrangler` cache URL returns `404`.
 
 ## Privacy Data Map

@@ -10,6 +10,10 @@ final class OnlineSessionViewModelTests: XCTestCase {
             "Z9Y8X7"
         )
         XCTAssertEqual(
+            OnlineSessionViewModel.normalizedRoomCode("https://shadyspade.vijaygoyal.org/join/sms123"),
+            "SMS123"
+        )
+        XCTAssertEqual(
             OnlineSessionViewModel.normalizedRoomCode("SHADYSPADE://JOIN/qwe123"),
             "QWE123"
         )

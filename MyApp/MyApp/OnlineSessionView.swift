@@ -332,10 +332,10 @@ private struct JoinByCodeView: View {
         .sheet(isPresented: $showScanner) {
             VStack(spacing: 0) {
                 QRScannerView { scannedCode in
-                    // Issue #1 fix: QR encodes the full universal link URL
-                    // (https://shadyspade-d6b84.web.app/shadyspade/join/ABCD12).
-                    // The old code did .prefix(6) on the raw URL, yielding "HTTPS:"
-                    // instead of the room code. Parse the path component after "join".
+                    // QR/SMS invites encode the full branded universal link URL
+                    // (https://shadyspade.vijaygoyal.org/join/ABCD12).
+                    // Parse the path component after "join" instead of prefixing
+                    // the raw URL, which would yield "HTTPS:" instead of the code.
                     let extracted = Self.extractRoomCode(from: scannedCode)
                     let isValid = extracted.count == 6 &&
                         extracted.allSatisfy { $0.isLetter || $0.isNumber }
@@ -375,8 +375,8 @@ private struct JoinByCodeView: View {
         }
     }
 
-    /// Issue #1 fix: QR codes encode the full universal link URL
-    /// (https://shadyspade-d6b84.web.app/shadyspade/join/ABCD12).
+    /// QR codes encode the full branded universal link URL
+    /// (https://shadyspade.vijaygoyal.org/join/ABCD12).
     /// This extracts the 6-char room code from the path segment after "join",
     /// mirroring the logic in MyAppApp.handleIncomingURL.
     /// Falls back to treating the raw string as a code (future plain-code QRs).
@@ -530,11 +530,7 @@ private struct SessionLobbyView: View {
                         let buttonWidth = (geo.size.width - 20) / 3
                         HStack(spacing: 10) {
                             ShareLink(
-                                item: """
-Join my Shady Spade game! 🃏
-Room Code: \(sessionVM.sessionCode ?? "")
-Tap to join: https://shadyspade-d6b84.web.app/shadyspade/join/\(sessionVM.sessionCode ?? "")
-""",
+                                item: ShadySpadeLinks.joinInviteText(roomCode: sessionVM.sessionCode ?? ""),
                                 preview: SharePreview(
                                     "Shady Spade — Room \(sessionVM.sessionCode ?? "")"
                                 )
@@ -787,7 +783,7 @@ Tap to join: https://shadyspade-d6b84.web.app/shadyspade/join/\(sessionVM.sessio
             if let code = sessionVM.sessionCode {
                 QRCodeSheetView(
                     roomCode: code,
-                    qrImage: generateQRCode(from: "https://shadyspade-d6b84.web.app/shadyspade/join/\(code)")
+                    qrImage: generateQRCode(from: ShadySpadeLinks.joinURL(roomCode: code).absoluteString)
                 )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
@@ -881,11 +877,7 @@ struct QRCodeSheetView: View {
                     .buttonStyle(BouncyButton())
 
                     ShareLink(
-                        item: """
-Join my Shady Spade game! 🃏
-Room Code: \(roomCode)
-Tap to join: https://shadyspade-d6b84.web.app/shadyspade/join/\(roomCode)
-""",
+                        item: ShadySpadeLinks.joinInviteText(roomCode: roomCode),
                         preview: SharePreview(
                             "Shady Spade — Room \(roomCode)",
                             image: Image(uiImage: qrImage)

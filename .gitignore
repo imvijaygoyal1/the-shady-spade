@@ -38,6 +38,6 @@ GoogleService-Info.plist
 .env.*
 secrets.json
 
-# Neighbor app/site workspaces kept outside this repo
-/shadyspade-web/
+# Hosted static assets for The Shady Spade are source files; keep local Wrangler cache ignored.
+/shadyspade-web/.wrangler/
 /xBill/
