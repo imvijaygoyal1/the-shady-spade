@@ -128,6 +128,10 @@ struct ModeSelectionView: View {
                             onScorekeeper: openScorekeeper,
                             onViewer: openScorekeeperViewer
                         )
+
+                        Spacer(minLength: 12)
+
+                        MainMenuCopyrightFooter()
                     }
                     .adaptiveContentFrame(maxWidth: 560)
                     .padding(.horizontal, isWide ? 40 : 20)
@@ -175,6 +179,9 @@ struct ModeSelectionView: View {
                     .padding(.horizontal, 20)
 
                     Spacer()
+
+                    MainMenuCopyrightFooter()
+                        .padding(.bottom, 16)
                 }
             }
         )
@@ -832,6 +839,18 @@ private struct MainMenuActions: View {
     }
 }
 
+private struct MainMenuCopyrightFooter: View {
+    var body: some View {
+        Text("© 2026 Vijay Goyal. All rights reserved.")
+            .font(.system(size: 10, weight: .bold, design: .rounded))
+            .foregroundStyle(Comic.textSecondary.opacity(0.52))
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .frame(maxWidth: .infinity)
+            .accessibilityIdentifier("mode.footer.copyright")
+    }
+}
+
 private struct PrimaryMenuCard: View {
     let icon: String
     let title: String
@@ -953,7 +972,7 @@ private struct ScorekeeperToolsPanel: View {
                     .frame(height: 1)
 
                 Text("Scorekeeper Tools")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .font(.system(size: 14, weight: .black, design: .rounded))
                     .foregroundStyle(Comic.yellow.opacity(0.92))
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
@@ -1016,40 +1035,43 @@ private struct ScorekeeperToolCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 9) {
+            HStack(spacing: 8) {
                 ZStack {
                     Circle()
                         .fill(Comic.yellow.opacity(0.13))
-                        .frame(width: 32, height: 32)
+                        .frame(width: 30, height: 30)
                         .overlay(Circle().strokeBorder(Comic.yellow.opacity(0.28), lineWidth: 0.8))
                     Image(systemName: icon)
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Comic.yellow)
                 }
+                .layoutPriority(0)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .font(.system(size: 15, weight: .black, design: .rounded))
                         .foregroundStyle(Comic.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.88)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(subtitle)
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
                         .foregroundStyle(Comic.textSecondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.86)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Spacer(minLength: 2)
+                .layoutPriority(2)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .font(.system(size: 12, weight: .black, design: .rounded))
                     .foregroundStyle(Comic.textSecondary.opacity(0.9))
+                    .layoutPriority(0)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 10)
+            .padding(.vertical, 11)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: 74)
+            .frame(minHeight: 96)
             .background(Comic.black.opacity(0.34))
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(

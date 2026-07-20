@@ -24,6 +24,7 @@ final class AppLaunchFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Scorekeeper Tools"].exists)
         XCTAssertTrue(app.staticTexts["Track a physical card table"].exists)
         XCTAssertTrue(app.staticTexts["Follow with a code"].exists)
+        XCTAssertTrue(app.staticTexts["© 2026 Vijay Goyal. All rights reserved."].exists)
 
         XCTAssertTrue(app.buttons["mode.top.leaderboard"].exists)
         XCTAssertTrue(app.buttons["mode.top.leaderboard"].isHittable)

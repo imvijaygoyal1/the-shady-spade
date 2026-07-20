@@ -27,8 +27,10 @@ Redesign the root menu so `New Game` is the dominant primary action, `Local / Bl
   - two contained compact tool cards,
   - smaller horizontal row layout with left icon, centered text, and right chevron,
   - thinner inner-card borders and shorter heights than the main action cards.
-- Increased scorekeeper panel typography and icon sizes after simulator review showed the compact labels were too small; the section remains tertiary through containment, muted fill, thinner borders, and smaller row height than the main action cards.
-- Removed the bottom copyright from the main menu to avoid crowding.
+- Increased scorekeeper panel typography and icon sizes after simulator review showed the compact labels were too small; the section remains tertiary through containment, muted fill, and thinner borders.
+- Follow-up simulator screenshot review showed the side-by-side tool cards were still truncating labels. The final tuning gives the text stack layout priority, allows titles/subtitles to wrap, avoids aggressive one-line shrinkage, and keeps the compact panel readable on iPhone 17.
+- Restored the bottom copyright as a low-emphasis line below the scorekeeper panel:
+  - `© 2026 Vijay Goyal. All rights reserved.`
 - Preserved all existing navigation behavior by reusing the same action state transitions.
 - Removed the now-unused private `ModeCard` component.
 - Fixed a post-install tap regression where the scrollable menu layer sat above the top bar in the `ZStack`, making the visible trophy/settings buttons untappable. The top bar now has a higher `zIndex` than the menu content.
@@ -48,6 +50,13 @@ Redesign the root menu so `New Game` is the dominant primary action, `Local / Bl
   - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.20_16-39-34--0400.xcresult`
 - Focused iPhone 17 launch UI test passed after scorekeeper readability tuning with `1` test, `0` failures, `0` skips:
   - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.20_16-46-51--0400.xcresult`
+- Built Debug for generic iOS Simulator, installed on both booted simulators, and launched both:
+  - iPhone 17 Pro `DA97985A-F7CC-44F6-8281-9DD24C22B978`
+  - iPhone 17 `11AFDD37-BF1B-4BAB-8679-1B570C5530EC`
+- Screenshot verification after final readability/copyright fix:
+  - `/private/tmp/shadyspade-copyright-bottom-check.png`
+- Focused iPhone 17 launch UI test passed after adding the copyright assertion with `1` test, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.20_18-28-29--0400.xcresult`
 - Full scheme with coverage passed after the top-button fix with `110` tests, `0` failures, `0` skips:
   - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.20_16-18-26--0400.xcresult`
 - Coverage target rows from the final bundle:
