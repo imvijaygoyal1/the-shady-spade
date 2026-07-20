@@ -977,13 +977,13 @@ final class BluetoothGameViewModel: NSObject {
             "highBid": highBid,
             "highBidderIndex": highBidderIndex,
             "playerHasPassed": playerHasPassed,
-            "bidHistory": bidHistory.map { ["pi": $0.playerIndex, "amt": $0.amount] as [String: Any] },
+            "bidHistory": SyncedGameStateMapper.encodedBidHistory(bidHistory),
             "trumpSuit": trumpSuit.rawValue,
             "calledCard1": calledCard1,
             "calledCard2": calledCard2,
             "partner1Index": partner1Index,
             "partner2Index": partner2Index,
-            "currentTrick": currentTrick.map { e -> [String: Any] in ["pi": e.playerIndex, "card": e.card.id] },
+            "currentTrick": SyncedGameStateMapper.encodedCurrentTrick(currentTrick),
             "currentLeaderIndex": currentLeaderIndex,
             "trickNumber": trickNumber,
             "wonPointsPerPlayer": wonPointsPerPlayer,
@@ -993,22 +993,7 @@ final class BluetoothGameViewModel: NSObject {
             "playerNames": playerNames,
             "playerAvatars": playerAvatars,
             "aiSeats": aiSeats,
-            "completedRounds": completedRounds.map { r -> [String: Any] in
-                [
-                    "roundNumber":          r.roundNumber,
-                    "dealerIndex":          r.dealerIndex,
-                    "bidderIndex":          r.bidderIndex,
-                    "bidAmount":            r.bidAmount,
-                    "trumpSuit":            r.trumpSuitRaw,
-                    "callCard1":            r.callCard1,
-                    "callCard2":            r.callCard2,
-                    "partner1Index":        r.partner1Index,
-                    "partner2Index":        r.partner2Index,
-                    "offensePointsCaught":  r.offensePointsCaught,
-                    "defensePointsCaught":  r.defensePointsCaught,
-                    "runningScores":        r.runningScores
-                ]
-            }
+            "completedRounds": SyncedGameStateMapper.encodedCompletedRounds(completedRounds)
         ]
     }
 
@@ -1017,8 +1002,8 @@ final class BluetoothGameViewModel: NSObject {
     func applyGameState(_ gs: [String: Any]) {
         lastStateReceivedAt = Date()
         consecutiveStaleRequests = 0
-        func i(_ key: String) -> Int { (gs[key] as? Int) ?? (gs[key] as? Int64).map(Int.init) ?? 0 }
-        func iDef(_ key: String, _ def: Int) -> Int { (gs[key] as? Int) ?? (gs[key] as? Int64).map(Int.init) ?? def }
+        func i(_ key: String) -> Int { SyncedGameStateMapper.int(gs[key]) }
+        func iDef(_ key: String, _ def: Int) -> Int { SyncedGameStateMapper.int(gs[key], default: def) }
 
         let newPhase = OnlineGamePhase(rawValue: gs["phase"] as? String ?? "") ?? .dealing
         let newRoundNumber = i("roundNumber")
@@ -1087,8 +1072,8 @@ final class BluetoothGameViewModel: NSObject {
         if let avatars = gs["playerAvatars"] as? [String], avatars.count == 6 {
             playerAvatars = avatars
         }
-        if let aiSeatsAny = gs["aiSeats"] as? [Any] {
-            aiSeats = aiSeatsAny.compactMap { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) }
+        if gs["aiSeats"] is [Any] {
+            aiSeats = SyncedGameStateMapper.aiSeats(from: gs["aiSeats"])
         }
         if let sid = gs["gameSessionId"] as? String, !sid.isEmpty {
             gameSessionId = sid
@@ -1132,21 +1117,14 @@ final class BluetoothGameViewModel: NSObject {
         dealerIndex = i("dealerIndex")
         currentActionPlayer = newCurrentActionPlayer
 
-        if let bidsAny = gs["bids"] as? [Any], bidsAny.count == 6 {
-            bids = bidsAny.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? -1 }
+        if let parsedBids = SyncedGameStateMapper.sixInts(from: gs["bids"], default: -1) {
+            bids = parsedBids
         }
-        if let passedAny = gs["playerHasPassed"] as? [Any], passedAny.count == 6 {
-            playerHasPassed = passedAny.map { ($0 as? Bool) ?? false }
+        if let parsedPassed = SyncedGameStateMapper.sixBools(from: gs["playerHasPassed"]) {
+            playerHasPassed = parsedPassed
         }
         if let histArr = gs["bidHistory"] as? [[String: Any]] {
-            let parsed = histArr.compactMap { entry -> (playerIndex: Int, amount: Int)? in
-                guard let pi  = (entry["pi"]  as? Int) ?? (entry["pi"]  as? Int64).map(Int.init),
-                      let amt = (entry["amt"] as? Int) ?? (entry["amt"] as? Int64).map(Int.init),
-                      pi >= 0 && pi < 6
-                else { return nil }
-                return (playerIndex: pi, amount: amt)
-            }
-            bidHistory = latestBidPerPlayer(parsed)
+            bidHistory = SyncedGameStateMapper.bidHistory(from: histArr, boundsChecked: true)
         }
         highBid = i("highBid")
         highBidderIndex = iDef("highBidderIndex", -1)
@@ -1182,22 +1160,16 @@ final class BluetoothGameViewModel: NSObject {
             trickWinners = []
         }
 
-        if let wpp = gs["wonPointsPerPlayer"] as? [Any], wpp.count == 6 {
-            wonPointsPerPlayer = wpp.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? 0 }
+        if let parsedPoints = SyncedGameStateMapper.sixInts(from: gs["wonPointsPerPlayer"], default: 0) {
+            wonPointsPerPlayer = parsedPoints
         }
-        if let rs = gs["runningScores"] as? [Any], rs.count == 6 {
-            runningScores = rs.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? 0 }
+        if let parsedScores = SyncedGameStateMapper.sixInts(from: gs["runningScores"], default: 0) {
+            runningScores = parsedScores
         }
         message = gs["message"] as? String ?? ""
 
-        if let trickArr = gs["currentTrick"] as? [[String: Any]] {
-            currentTrick = trickArr.compactMap { entry in
-                guard let pi = (entry["pi"] as? Int) ?? (entry["pi"] as? Int64).map(Int.init),
-                      pi >= 0 && pi < 6,
-                      let cardId = entry["card"] as? String,
-                      let card = parseCard(cardId) else { return nil }
-                return (playerIndex: pi, card: card)
-            }
+        if gs["currentTrick"] is [[String: Any]] {
+            currentTrick = SyncedGameStateMapper.currentTrick(from: gs["currentTrick"])
         }
 
         // Fallback: coalesced MC broadcast where the pre-parse check (line ~928) missed
@@ -1228,29 +1200,13 @@ final class BluetoothGameViewModel: NSObject {
         // BT-GAP-06/09: Merge completedRounds synced from host — allows reconnecting
         // non-host clients to recover full round history without re-playing rounds.
         if let rawRounds = gs["completedRounds"] as? [[String: Any]] {
-            for rd in rawRounds {
-                let rn = (rd["roundNumber"] as? Int) ?? -1
-                guard rn >= 0 else { continue }
-                guard !completedRounds.contains(where: { $0.roundNumber == rn }) else { continue }
-                let rsRaw = rd["runningScores"] as? [Int] ?? Array(repeating: 0, count: 6)
-                let runScores = rsRaw.count == 6 ? rsRaw : Array(repeating: 0, count: 6)
-                let p1 = (rd["partner1Index"] as? Int) ?? -1
-                let p2 = (rd["partner2Index"] as? Int) ?? -1
-                guard p1 >= 0, p2 >= 0 else { continue }
-                completedRounds.append(HistoryRound(
-                    roundNumber: rn,
-                    dealerIndex: (rd["dealerIndex"] as? Int) ?? 0,
-                    bidderIndex: (rd["bidderIndex"] as? Int) ?? 0,
-                    bidAmount:   (rd["bidAmount"] as? Int) ?? 130,
-                    trumpSuit:   TrumpSuit(rawValue: rd["trumpSuit"] as? String ?? "") ?? .spades,
-                    callCard1:   rd["callCard1"] as? String ?? "",
-                    callCard2:   rd["callCard2"] as? String ?? "",
-                    partner1Index:       p1,
-                    partner2Index:       p2,
-                    offensePointsCaught: (rd["offensePointsCaught"] as? Int) ?? 0,
-                    defensePointsCaught: (rd["defensePointsCaught"] as? Int) ?? 0,
-                    runningScores:       runScores
-                ))
+            let newRounds = SyncedGameStateMapper.completedRounds(
+                from: rawRounds,
+                excludingRoundNumbers: Set(completedRounds.map(\.roundNumber))
+            )
+            for round in newRounds {
+                completedRounds.append(round)
+                let rn = round.roundNumber
                 aiLog.info("[completedRounds] synced round=\(rn) from host")
             }
         }
@@ -1263,20 +1219,23 @@ final class BluetoothGameViewModel: NSObject {
             // completedRounds (above) provides correction for reconnecting clients.
             if !completedRounds.contains(where: { $0.roundNumber == roundNumber })
                 && partner1Index >= 0 && partner2Index >= 0 {
-                completedRounds.append(HistoryRound(
+                if let round = SyncedGameStateMapper.completedRound(
                     roundNumber: roundNumber,
                     dealerIndex: dealerIndex,
-                    bidderIndex: highBidderIndex >= 0 ? highBidderIndex : 0,
-                    bidAmount: highBid,
+                    highBidderIndex: highBidderIndex,
+                    highBid: highBid,
                     trumpSuit: trumpSuit,
-                    callCard1: calledCard1,
-                    callCard2: calledCard2,
+                    calledCard1: calledCard1,
+                    calledCard2: calledCard2,
                     partner1Index: partner1Index,
                     partner2Index: partner2Index,
-                    offensePointsCaught: offensePoints,
-                    defensePointsCaught: defensePoints,
-                    runningScores: runningScores
-                ))
+                    offensePoints: offensePoints,
+                    defensePoints: defensePoints,
+                    runningScores: runningScores,
+                    requiresResolvedPartners: true
+                ) {
+                    completedRounds.append(round)
+                }
                 let rn = roundNumber; let total = completedRounds.count
                 aiLog.info("[completedRounds] appended round=\(rn) total=\(total)")
             } else if !completedRounds.contains(where: { $0.roundNumber == roundNumber }) {

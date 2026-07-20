@@ -51,6 +51,7 @@
 		SK100001 /* ScorekeeperModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = SK200001 /* ScorekeeperModels.swift */; };
 		SK100002 /* ScorekeeperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SK200002 /* ScorekeeperView.swift */; };
 		SK100003 /* ScorekeeperSessionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SK200003 /* ScorekeeperSessionService.swift */; };
+		SGS100001 /* SyncedGameStateMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = SGS200001 /* SyncedGameStateMapper.swift */; };
 		TE100001 /* ThemeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200001 /* ThemeEngine.swift */; };
 		TE100002 /* Themes.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200002 /* Themes.swift */; };
 		TE100003 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TE200003 /* ThemeManager.swift */; };
@@ -72,6 +73,7 @@
 		TX100012 /* LeaderboardPendingQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200012 /* LeaderboardPendingQueueTests.swift */; };
 		TX100013 /* LeaderboardSendRequestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200013 /* LeaderboardSendRequestTests.swift */; };
 		TX100014 /* LeaderboardSnapshotMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200014 /* LeaderboardSnapshotMapperTests.swift */; };
+		TX100015 /* SyncedGameStateMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200015 /* SyncedGameStateMapperTests.swift */; };
 		UI100001 /* ScorekeeperFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200001 /* ScorekeeperFlowUITests.swift */; };
 		UI100002 /* AppLaunchFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI200002 /* AppLaunchFlowUITests.swift */; };
 /* End PBXBuildFile section */
@@ -139,6 +141,7 @@
 		SK200001 /* ScorekeeperModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperModels.swift; sourceTree = "<group>"; };
 		SK200002 /* ScorekeeperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperView.swift; sourceTree = "<group>"; };
 		SK200003 /* ScorekeeperSessionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperSessionService.swift; sourceTree = "<group>"; };
+		SGS200001 /* SyncedGameStateMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedGameStateMapper.swift; sourceTree = "<group>"; };
 		TE200001 /* ThemeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeEngine.swift; sourceTree = "<group>"; };
 		TE200002 /* Themes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Themes.swift; sourceTree = "<group>"; };
 		TE200003 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
@@ -161,6 +164,7 @@
 		TX200012 /* LeaderboardPendingQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardPendingQueueTests.swift; sourceTree = "<group>"; };
 		TX200013 /* LeaderboardSendRequestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardSendRequestTests.swift; sourceTree = "<group>"; };
 		TX200014 /* LeaderboardSnapshotMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardSnapshotMapperTests.swift; sourceTree = "<group>"; };
+		TX200015 /* SyncedGameStateMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedGameStateMapperTests.swift; sourceTree = "<group>"; };
 		UI200000 /* MyAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		UI200001 /* ScorekeeperFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperFlowUITests.swift; sourceTree = "<group>"; };
 		UI200002 /* AppLaunchFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchFlowUITests.swift; sourceTree = "<group>"; };
@@ -227,6 +231,7 @@
 				SK200001 /* ScorekeeperModels.swift */,
 				SK200002 /* ScorekeeperView.swift */,
 				SK200003 /* ScorekeeperSessionService.swift */,
+				SGS200001 /* SyncedGameStateMapper.swift */,
 				GF200001 /* GameFlowRules.swift */,
 				H2000001 /* ComputerGameViewModel.swift */,
 				I2000001 /* ComputerGameView.swift */,
@@ -297,6 +302,7 @@
 				TX200012 /* LeaderboardPendingQueueTests.swift */,
 				TX200013 /* LeaderboardSendRequestTests.swift */,
 				TX200014 /* LeaderboardSnapshotMapperTests.swift */,
+				TX200015 /* SyncedGameStateMapperTests.swift */,
 			);
 			path = MyAppTests;
 			sourceTree = "<group>";
@@ -484,6 +490,7 @@
 				SK100001 /* ScorekeeperModels.swift in Sources */,
 				SK100002 /* ScorekeeperView.swift in Sources */,
 				SK100003 /* ScorekeeperSessionService.swift in Sources */,
+				SGS100001 /* SyncedGameStateMapper.swift in Sources */,
 				LC100001 /* LeaderboardConsentManager.swift in Sources */,
 				LC100002 /* LeaderboardConsentSheet.swift in Sources */,
 				LPQ100001 /* LeaderboardPendingQueue.swift in Sources */,
@@ -515,6 +522,7 @@
 				TX100012 /* LeaderboardPendingQueueTests.swift in Sources */,
 				TX100013 /* LeaderboardSendRequestTests.swift in Sources */,
 				TX100014 /* LeaderboardSnapshotMapperTests.swift in Sources */,
+				TX100015 /* SyncedGameStateMapperTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

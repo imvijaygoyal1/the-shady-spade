@@ -613,8 +613,8 @@ final class OnlineGameViewModel {
     }
 
     private func parseGameState(_ gs: [String: Any]) {
-        func i(_ key: String) -> Int { (gs[key] as? Int) ?? (gs[key] as? Int64).map(Int.init) ?? 0 }
-        func iDef(_ key: String, _ def: Int) -> Int { (gs[key] as? Int) ?? (gs[key] as? Int64).map(Int.init) ?? def }
+        func i(_ key: String) -> Int { SyncedGameStateMapper.int(gs[key]) }
+        func iDef(_ key: String, _ def: Int) -> Int { SyncedGameStateMapper.int(gs[key], default: def) }
 
         let newPhase = OnlineGamePhase(rawValue: gs["phase"] as? String ?? "") ?? .dealing
         let newRoundNumber = iDef("roundNumber", 1)
@@ -687,20 +687,14 @@ final class OnlineGameViewModel {
         roundNumber = newRoundNumber
         dealerIndex = i("dealerIndex")
         currentActionPlayer = newCurrentActionPlayer
-        if let bidsAny = gs["bids"] as? [Any], bidsAny.count == 6 {
-            bids = bidsAny.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? -1 }
+        if let parsedBids = SyncedGameStateMapper.sixInts(from: gs["bids"], default: -1) {
+            bids = parsedBids
         }
-        if let passedAny = gs["playerHasPassed"] as? [Any], passedAny.count == 6 {
-            playerHasPassed = passedAny.map { ($0 as? Bool) ?? false }
+        if let parsedPassed = SyncedGameStateMapper.sixBools(from: gs["playerHasPassed"]) {
+            playerHasPassed = parsedPassed
         }
         if let histArr = gs["bidHistory"] as? [[String: Any]] {
-            let parsed = histArr.compactMap { entry -> (playerIndex: Int, amount: Int)? in
-                guard let pi  = (entry["pi"]  as? Int) ?? (entry["pi"]  as? Int64).map(Int.init),
-                      let amt = (entry["amt"] as? Int) ?? (entry["amt"] as? Int64).map(Int.init)
-                else { return nil }
-                return (playerIndex: pi, amount: amt)
-            }
-            bidHistory = latestBidPerPlayer(parsed)
+            bidHistory = SyncedGameStateMapper.bidHistory(from: histArr, boundsChecked: false)
         }
         highBid = i("highBid")
         highBidderIndex = iDef("highBidderIndex", -1)
@@ -746,23 +740,17 @@ final class OnlineGameViewModel {
             trickWinners = []
         }
 
-        if let wpp = gs["wonPointsPerPlayer"] as? [Any], wpp.count == 6 {
-            wonPointsPerPlayer = wpp.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? 0 }
+        if let parsedPoints = SyncedGameStateMapper.sixInts(from: gs["wonPointsPerPlayer"], default: 0) {
+            wonPointsPerPlayer = parsedPoints
         }
-        if let rs = gs["runningScores"] as? [Any], rs.count == 6 {
-            runningScores = rs.map { ($0 as? Int) ?? ($0 as? Int64).map(Int.init) ?? 0 }
+        if let parsedScores = SyncedGameStateMapper.sixInts(from: gs["runningScores"], default: 0) {
+            runningScores = parsedScores
         }
         message = gs["message"] as? String ?? ""
 
         // Parse currentTrick
-        if let trickArr = gs["currentTrick"] as? [[String: Any]] {
-            currentTrick = trickArr.compactMap { entry in
-                guard let pi = (entry["pi"] as? Int) ?? (entry["pi"] as? Int64).map(Int.init),
-                      pi >= 0 && pi < 6,
-                      let cardId = entry["card"] as? String,
-                      let card = parseCard(cardId) else { return nil }
-                return (playerIndex: pi, card: card)
-            }
+        if gs["currentTrick"] is [[String: Any]] {
+            currentTrick = SyncedGameStateMapper.currentTrick(from: gs["currentTrick"])
         }
 
         // Fallback: coalesced Firestore snapshot where the pre-parse check (line ~608) missed
@@ -795,20 +783,23 @@ final class OnlineGameViewModel {
         // receives stats for every round, not just the last one.
         if newPhase == .roundComplete {
             if !completedRounds.contains(where: { $0.roundNumber == roundNumber }) {
-                completedRounds.append(HistoryRound(
+                if let round = SyncedGameStateMapper.completedRound(
                     roundNumber: roundNumber,
                     dealerIndex: dealerIndex,
-                    bidderIndex: highBidderIndex >= 0 ? highBidderIndex : 0,
-                    bidAmount: highBid,
+                    highBidderIndex: highBidderIndex,
+                    highBid: highBid,
                     trumpSuit: trumpSuit,
-                    callCard1: calledCard1,
-                    callCard2: calledCard2,
-                    partner1Index: partner1Index >= 0 ? partner1Index : 0,
-                    partner2Index: partner2Index >= 0 ? partner2Index : 0,
-                    offensePointsCaught: offensePoints,
-                    defensePointsCaught: defensePoints,
-                    runningScores: runningScores
-                ))
+                    calledCard1: calledCard1,
+                    calledCard2: calledCard2,
+                    partner1Index: partner1Index,
+                    partner2Index: partner2Index,
+                    offensePoints: offensePoints,
+                    defensePoints: defensePoints,
+                    runningScores: runningScores,
+                    requiresResolvedPartners: false
+                ) {
+                    completedRounds.append(round)
+                }
                 let rn = roundNumber; let total = completedRounds.count
                 ogVMLog.info("[completedRounds] appended round=\(rn) total=\(total)")
             } else {
@@ -1290,13 +1281,13 @@ final class OnlineGameViewModel {
             "highBid": highBid,
             "highBidderIndex": highBidderIndex,
             "playerHasPassed": playerHasPassed,
-            "bidHistory": bidHistory.map { ["pi": $0.playerIndex, "amt": $0.amount] as [String: Any] },
+            "bidHistory": SyncedGameStateMapper.encodedBidHistory(bidHistory),
             "trumpSuit": trumpSuit.rawValue,
             "calledCard1": calledCard1,
             "calledCard2": calledCard2,
             "partner1Index": partner1Index,
             "partner2Index": partner2Index,
-            "currentTrick": currentTrick.map { e -> [String: Any] in ["pi": e.playerIndex, "card": e.card.id] },
+            "currentTrick": SyncedGameStateMapper.encodedCurrentTrick(currentTrick),
             "currentLeaderIndex": currentLeaderIndex,
             "trickNumber": trickNumber,
             "wonPointsPerPlayer": wonPointsPerPlayer,

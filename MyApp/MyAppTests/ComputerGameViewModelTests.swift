@@ -125,6 +125,34 @@ final class ComputerGameViewModelTests: XCTestCase {
         XCTAssertEqual(round.defensePointsCaught, 5)
     }
 
+    func test_humanConfirmCallingResolvesPartnersAndTransitionsToHumanPlaying() async {
+        let vm = ComputerGameViewModel(humanName: "Host", dealerIndex: 0, roundNumber: 1)
+        vm.highBidderIndex = 0
+        vm.highBid = 150
+        vm.currentHumanPlayerIndex = 0
+        vm.hands[0] = [Card(rank: "A", suit: "♠")]
+        vm.hands[2] = [Card(rank: "Q", suit: "♥")]
+        vm.hands[4] = [Card(rank: "J", suit: "♦")]
+        vm.calledCard1Rank = "Q"
+        vm.calledCard1Suit = "♥"
+        vm.calledCard2Rank = "J"
+        vm.calledCard2Suit = "♦"
+
+        vm.humanConfirmCalling()
+
+        await waitUntil(timeout: 1.0) {
+            vm.phase == .humanPlaying
+        }
+
+        XCTAssertEqual(vm.partner1Index, 2)
+        XCTAssertEqual(vm.partner2Index, 4)
+        XCTAssertEqual(vm.currentLeaderIndex, 0)
+        XCTAssertEqual(vm.currentActionPlayer, 0)
+        XCTAssertEqual(vm.phase, .humanPlaying)
+
+        vm.cancelAllContinuationsIfNeeded()
+    }
+
     func test_customPlayerNamesAndAvatarsFallbackByIndex() {
         let vm = ComputerGameViewModel(
             humanSeats: [1, 3],
@@ -140,5 +168,16 @@ final class ComputerGameViewModelTests: XCTestCase {
         XCTAssertEqual(vm.playerAvatar(0), "🐙")
         XCTAssertEqual(vm.playerAvatar(5), "🦁")
         XCTAssertTrue(vm.isPassAndPlay)
+    }
+
+    private func waitUntil(
+        timeout: TimeInterval,
+        condition: @escaping @MainActor () -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
     }
 }

@@ -171,6 +171,33 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - malformed game-log defaults.
 - Fixed a same-file compiler warning in `LeaderboardService.enqueue` by changing an unmutated local from `var` to `let`.
 
+### Batch 8
+
+- Added `SyncedGameStateMapper` as a pure helper shared by Online and Bluetooth game modes:
+  - Int/Int64 conversion,
+  - six-player Int/Bool array parsing,
+  - AI-seat filtering,
+  - bid-history decode with latest-value normalization,
+  - bid-history encoding,
+  - current-trick decode with player bounds and deck-valid card checks,
+  - current-trick encoding,
+  - completed-round encoding,
+  - host-synced completed-round decoding with duplicate/invalid-partner filtering,
+  - round-complete `HistoryRound` construction with Online fallback behavior and Bluetooth partner validation.
+- Refactored `OnlineGameViewModel` to use the helper for game-state array parsing, bid-history parsing, current-trick parsing, round-complete construction, and outgoing game-state encoding.
+- Refactored `BluetoothGameViewModel` to use the helper for the same areas plus host-synced completed-round decoding and completed-round encoding.
+- Added `SyncedGameStateMapperTests` covering:
+  - mixed Int/Int64 six-value parsing,
+  - wrong-count rejection,
+  - malformed Bool fallback,
+  - AI-seat bounds filtering,
+  - latest bid history in first-appearance order,
+  - Online-style unbounded and Bluetooth-style bounded bid-history parsing,
+  - current-trick card/player validation,
+  - completed-round decode/encode/dedupe,
+  - Online fallback versus Bluetooth resolved-partner requirement.
+- Added `ComputerGameViewModelTests.test_humanConfirmCallingResolvesPartnersAndTransitionsToHumanPlaying` to cover the solo human calling-to-playing transition without UI automation.
+
 ## Verification
 
 - Focused `AppRegressionTests` passed with `5` tests and `0` failures:
@@ -252,25 +279,38 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - Raw app coverage: 11.41% (7527/65940)
   - Logic-focused coverage: 32.57% (3385/10393)
   - Largest remaining uncovered files: `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `Styles.swift`, `OnlineSessionView.swift`, `BluetoothGameViewModel.swift`, `BluetoothSessionView.swift`, `SplashView.swift`, `OnlineGameViewModel.swift`, `LeaderboardView.swift`
+- Focused Batch 8 model/mapper tests passed:
+  - `MyAppTests/ComputerGameViewModelTests`
+  - `MyAppTests/SyncedGameStateMapperTests`
+- Full scheme with `-enableCodeCoverage YES` after Batch 8 passed with `110` tests, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.19_21-56-02--0400.xcresult`
+- Coverage target rows from the Batch 8 full coverage bundle:
+  - `MyApp.app` 11.79% (7780/65986)
+  - `MyAppTests.xctest` 98.18% (3554/3620)
+  - `MyAppUITests.xctest` 94.70% (125/132)
+- `scripts/coverage_report.py` output from the Batch 8 full bundle:
+  - Raw app coverage: 11.79% (7780/65986)
+  - Logic-focused coverage: 34.85% (3638/10439)
+  - Largest remaining uncovered files: `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `Styles.swift`, `OnlineSessionView.swift`, `BluetoothSessionView.swift`, `BluetoothGameViewModel.swift`, `SplashView.swift`, `OnlineGameViewModel.swift`, `LeaderboardView.swift`
 - `git diff --check` passed.
 
 ## Privacy Impact
 
 - No new data collection, upload, retention, or third-party behavior.
-- These batches only made existing privacy/consent, leaderboard-payload, leaderboard-read mapping, send-classification, local-history, room-code, and launch decisions testable.
+- These batches only made existing privacy/consent, leaderboard-payload, leaderboard-read mapping, send-classification, local-history, room-code, synced game-state, completed-round, and launch decisions testable.
 - No privacy policy or App Store privacy-label update required.
 
 ## Next Coverage Candidates
 
-- Add focused tests around `ComputerGameViewModel` phase transitions that can run without UI timing.
 - Extract/test leaderboard status messaging currently embedded in Solo/Online/Bluetooth views.
-- Continue extracting and unit-testing pure game-flow reducers from `OnlineGameViewModel` and `BluetoothGameViewModel`, especially game-state dictionary encode/decode and completed-round history accumulation.
+- Continue extracting and unit-testing remaining pure reducers from `OnlineGameViewModel` and `BluetoothGameViewModel`, especially host action validation/result decisions that still combine state mutation with Firestore/Multipeer writes.
+- Add focused tests around additional `ComputerGameViewModel` phase transitions only where continuations can be cancelled deterministically without long sleeps.
 - Add targeted UI smoke tests for `GameHistoryView`, `SettingsView`, and leaderboard empty/error states only if they remain stable in simulator automation.
 - Consider extracting deterministic view-state builders from `ComputerGameView.swift`, `OnlineGameView.swift`, and `BluetoothGameView.swift`; these files dominate raw coverage but are mostly declarative SwiftUI.
 
 ## Coverage Interpretation
 
-- Raw `MyApp.app` coverage is the honest Xcode target metric and currently sits at 11.41%.
+- Raw `MyApp.app` coverage is the honest Xcode target metric and currently sits at 11.79%.
 - The raw target denominator is dominated by large SwiftUI views. Raising that raw number to 80% would require broad UI/snapshot rendering coverage, significant view decomposition, or explicit coverage exclusions.
-- The practical path is to first drive logic-focused app coverage toward 80% by extracting deterministic behavior from views and service singletons, while keeping UI tests limited to stable smoke coverage. After Batch 7, logic-focused coverage is 32.57%.
-- Batch 7 increased direct contract coverage but moved covered inline listener code into a new helper, so the raw and logic-focused percentages dipped slightly while the suite grew from `98` to `103` passing tests.
+- The practical path is to first drive logic-focused app coverage toward 80% by extracting deterministic behavior from views and service singletons, while keeping UI tests limited to stable smoke coverage. After Batch 8, logic-focused coverage is 34.85%.
+- Batch 7 increased direct contract coverage but moved covered inline listener code into a new helper, so the raw and logic-focused percentages dipped slightly while the suite grew from `98` to `103` passing tests. Batch 8 recovered and improved the baseline by moving duplicated Online/Bluetooth synced-state logic into a tested helper, raising the suite to `110` passing tests.
