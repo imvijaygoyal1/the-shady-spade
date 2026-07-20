@@ -953,7 +953,7 @@ private struct ScorekeeperToolsPanel: View {
                     .frame(height: 1)
 
                 Text("Scorekeeper Tools")
-                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .font(.system(size: 13, weight: .black, design: .rounded))
                     .foregroundStyle(Comic.yellow.opacity(0.92))
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
@@ -1016,25 +1016,25 @@ private struct ScorekeeperToolCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 7) {
+            HStack(spacing: 9) {
                 ZStack {
                     Circle()
                         .fill(Comic.yellow.opacity(0.13))
-                        .frame(width: 28, height: 28)
+                        .frame(width: 32, height: 32)
                         .overlay(Circle().strokeBorder(Comic.yellow.opacity(0.28), lineWidth: 0.8))
                     Image(systemName: icon)
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(Comic.yellow)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .font(.system(size: 14, weight: .black, design: .rounded))
                         .foregroundStyle(Comic.textPrimary)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.68)
+                        .minimumScaleFactor(0.72)
                     Text(subtitle)
-                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
                         .foregroundStyle(Comic.textSecondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
@@ -1043,13 +1043,13 @@ private struct ScorekeeperToolCard: View {
                 Spacer(minLength: 2)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .black, design: .rounded))
+                    .font(.system(size: 11, weight: .black, design: .rounded))
                     .foregroundStyle(Comic.textSecondary.opacity(0.9))
             }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: 66)
+            .frame(minHeight: 74)
             .background(Comic.black.opacity(0.34))
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
