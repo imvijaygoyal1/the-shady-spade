@@ -954,8 +954,7 @@ final class OnlineGameViewModel {
                   (actionData["playerIndex"] as? Int64).map(Int.init)
         else { return }
 
-        guard playerIndex >= 0 && playerIndex < 6 else { return }
-        guard playerIndex == currentActionPlayer else { return }
+        guard GameFlowRules.isValidSeat(playerIndex) else { return }
 
         // Capture a stable snapshot of pass state before any async/switch work.
         let capturedPassed = playerHasPassed
@@ -965,7 +964,12 @@ final class OnlineGameViewModel {
             let amount = (actionData["bidAmount"] as? Int) ??
                 (actionData["bidAmount"] as? Int64).map(Int.init) ?? 0
             // CRIT-04: consume nonce only after all validation guards pass.
-            guard GameFlowRules.isValidBid(amount, highBid: highBid) else { return }
+            guard MultiplayerActionValidator.validateBid(
+                playerIndex: playerIndex,
+                amount: amount,
+                currentActionPlayer: currentActionPlayer,
+                highBid: highBid
+            ) == .accepted else { return }
             lastProcessedNonce = nonce
             var newBids = bids
             newBids[playerIndex] = amount
@@ -989,6 +993,10 @@ final class OnlineGameViewModel {
             }
 
         case "pass":
+            guard MultiplayerActionValidator.validatePass(
+                playerIndex: playerIndex,
+                currentActionPlayer: currentActionPlayer
+            ) == .accepted else { return }
             lastProcessedNonce = nonce
             var newBids = bids
             newBids[playerIndex] = 0
@@ -1015,7 +1023,13 @@ final class OnlineGameViewModel {
             let c2 = actionData["calledCard2"] as? String ?? ""
             // CRIT-03: use exact 48-card deck (no rank "2") so an invalid called card
             // can't slip through and produce a -1 partner index.
-            guard GameFlowRules.isValidCalledCards(c1, c2, callerHand: allHands[playerIndex]) else { return }
+            guard MultiplayerActionValidator.validateCalledCards(
+                playerIndex: playerIndex,
+                currentActionPlayer: currentActionPlayer,
+                calledCard1: c1,
+                calledCard2: c2,
+                bidderHand: allHands[playerIndex]
+            ) == .accepted else { return }
             lastProcessedNonce = nonce
             let (p1, p2) = resolvePartners(c1: c1, c2: c2)
             hostPartner1 = p1; hostPartner2 = p2
@@ -1038,8 +1052,14 @@ final class OnlineGameViewModel {
 
         case "playCard":
             let cardId = actionData["cardId"] as? String ?? ""
-            guard let card = parseCard(cardId),
-                  allHands[playerIndex].contains(where: { $0.id == cardId }) else {
+            guard MultiplayerActionValidator.validateCardPlay(
+                playerIndex: playerIndex,
+                currentActionPlayer: currentActionPlayer,
+                cardId: cardId,
+                hand: allHands[playerIndex],
+                currentTrick: currentTrick
+            ) == .accepted,
+                  let card = parseCard(cardId) else {
                 // Card invalid or already played (stale action). Reset the AI lock flag
                 // first — a sleeping AI task may hold it, which would cause the re-trigger
                 // below to bail silently and leave the game frozen.

@@ -198,6 +198,32 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - Online fallback versus Bluetooth resolved-partner requirement.
 - Added `ComputerGameViewModelTests.test_humanConfirmCallingResolvesPartnersAndTransitionsToHumanPlaying` to cover the solo human calling-to-playing transition without UI automation.
 
+### Batch 9
+
+- Added `MultiplayerActionValidator` as a pure helper shared by Online and Bluetooth host action paths:
+  - player-index bounds validation,
+  - wrong-turn rejection,
+  - bid validation against the current minimum and 250 maximum,
+  - duplicate called-card rejection,
+  - invalid called-card rejection against the 48-card deck,
+  - bidder-owned called-card rejection,
+  - invalid played-card rejection,
+  - card-not-in-hand rejection,
+  - follow-suit card-play enforcement.
+- Refactored `OnlineGameViewModel.processPendingAction` so bid, pass, call-cards, and play-card actions call the shared validator before consuming the nonce or writing game state.
+- Refactored `BluetoothGameViewModel` host action processors so bid, pass, call-cards, and play-card actions call the same validator before local mutation, Multipeer replies, or broadcasts.
+- Added `MultiplayerActionValidatorTests` covering:
+  - invalid player index,
+  - wrong-turn actions,
+  - bid below opening minimum,
+  - bid below the next legal minimum after an existing high bid,
+  - bid above 250,
+  - duplicate/invalid/bidder-owned called cards,
+  - invalid card IDs,
+  - card not in hand,
+  - follow-suit rejection,
+  - valid bid/called-card/card-play acceptance.
+
 ## Verification
 
 - Focused `AppRegressionTests` passed with `5` tests and `0` failures:
@@ -292,28 +318,29 @@ Raise useful regression coverage outside the scorekeeper surface without making 
   - Raw app coverage: 11.79% (7780/65986)
   - Logic-focused coverage: 34.85% (3638/10439)
   - Largest remaining uncovered files: `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `Styles.swift`, `OnlineSessionView.swift`, `BluetoothSessionView.swift`, `BluetoothGameViewModel.swift`, `SplashView.swift`, `OnlineGameViewModel.swift`, `LeaderboardView.swift`
+- Focused Batch 9 validator tests passed:
+  - `MyAppTests/MultiplayerActionValidatorTests`
+- Full scheme with `-enableCodeCoverage YES` after Batch 9 passed with `114` tests, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.20_16-32-49--0400.xcresult`
+- Coverage target rows from the Batch 9 full coverage bundle:
+  - `MyApp.app` 11.76% (7766/66012)
+  - `MyAppTests.xctest` 98.31% (3840/3906)
+  - `MyAppUITests.xctest` 94.51% (155/164)
+- `scripts/coverage_report.py` output from the Batch 9 full bundle:
+  - Raw app coverage: 11.76% (7766/66012)
+  - Logic-focused coverage: 35.16% (3709/10550)
+  - Largest remaining uncovered files: `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`, `Styles.swift`, `OnlineSessionView.swift`, `BluetoothSessionView.swift`, `BluetoothGameViewModel.swift`, `SplashView.swift`, `OnlineGameViewModel.swift`, `LeaderboardView.swift`
 - `git diff --check` passed.
 
 ## Privacy Impact
 
 - No new data collection, upload, retention, or third-party behavior.
-- These batches only made existing privacy/consent, leaderboard-payload, leaderboard-read mapping, send-classification, local-history, room-code, synced game-state, completed-round, and launch decisions testable.
+- These batches only made existing privacy/consent, leaderboard-payload, leaderboard-read mapping, send-classification, local-history, room-code, synced game-state, completed-round, multiplayer action validation, and launch decisions testable.
 - No privacy policy or App Store privacy-label update required.
 
 ## Next Coverage Candidates
 
 - The user-requested main menu UI uplift was completed in `docs/superpowers/plans/2026-07-19-main-menu-uplift.md`. Do not start the next coverage batch until the user explicitly resumes coverage work.
-- Deferred Batch 9: extract/test multiplayer action validation and result decisions from Online/Bluetooth view models:
-  - invalid player index,
-  - wrong-turn actions,
-  - bid below current minimum,
-  - bid above 250,
-  - duplicate/invalid called cards,
-  - bidder-owned called cards,
-  - invalid card IDs,
-  - off-turn card play,
-  - follow-suit enforcement,
-  - accept/reject/transform decisions before Firestore/Multipeer writes.
 - Extract/test leaderboard status messaging currently embedded in Solo/Online/Bluetooth views.
 - Continue extracting and unit-testing remaining pure reducers from `OnlineGameViewModel` and `BluetoothGameViewModel`, especially host action validation/result decisions that still combine state mutation with Firestore/Multipeer writes.
 - Add focused tests around additional `ComputerGameViewModel` phase transitions only where continuations can be cancelled deterministically without long sleeps.
@@ -322,7 +349,7 @@ Raise useful regression coverage outside the scorekeeper surface without making 
 
 ## Coverage Interpretation
 
-- Raw `MyApp.app` coverage is the honest Xcode target metric and currently sits at 11.79%.
+- Raw `MyApp.app` coverage is the honest Xcode target metric and currently sits at 11.76%.
 - The raw target denominator is dominated by large SwiftUI views. Raising that raw number to 80% would require broad UI/snapshot rendering coverage, significant view decomposition, or explicit coverage exclusions.
-- The practical path is to first drive logic-focused app coverage toward 80% by extracting deterministic behavior from views and service singletons, while keeping UI tests limited to stable smoke coverage. After Batch 8, logic-focused coverage is 34.85%.
-- Batch 7 increased direct contract coverage but moved covered inline listener code into a new helper, so the raw and logic-focused percentages dipped slightly while the suite grew from `98` to `103` passing tests. Batch 8 recovered and improved the baseline by moving duplicated Online/Bluetooth synced-state logic into a tested helper, raising the suite to `110` passing tests.
+- The practical path is to first drive logic-focused app coverage toward 80% by extracting deterministic behavior from views and service singletons, while keeping UI tests limited to stable smoke coverage. After Batch 9, logic-focused coverage is 35.16%.
+- Batch 7 increased direct contract coverage but moved covered inline listener code into a new helper, so the raw and logic-focused percentages dipped slightly while the suite grew from `98` to `103` passing tests. Batch 8 recovered and improved the baseline by moving duplicated Online/Bluetooth synced-state logic into a tested helper, raising the suite to `110` passing tests. Batch 9 added host action-admission coverage and raised the suite to `114` passing tests; raw app coverage dipped slightly because the new helper added executable lines while the large SwiftUI denominator still dominates.

@@ -707,8 +707,12 @@ final class BluetoothGameViewModel: NSObject {
 
     private func processBid(playerIndex: Int, amount: Int) async {
         guard isHost else { return }
-        guard playerIndex == currentActionPlayer else { return }
-        guard GameFlowRules.isValidBid(amount, highBid: highBid) else { return }
+        guard MultiplayerActionValidator.validateBid(
+            playerIndex: playerIndex,
+            amount: amount,
+            currentActionPlayer: currentActionPlayer,
+            highBid: highBid
+        ) == .accepted else { return }
         let capturedPassed = playerHasPassed   // MED-12: stable snapshot, not re-read mid-function
         var newBids = bids
         newBids[playerIndex] = amount
@@ -735,7 +739,10 @@ final class BluetoothGameViewModel: NSObject {
 
     private func processPass(playerIndex: Int) async {
         guard isHost else { return }
-        guard playerIndex == currentActionPlayer else { return }
+        guard MultiplayerActionValidator.validatePass(
+            playerIndex: playerIndex,
+            currentActionPlayer: currentActionPlayer
+        ) == .accepted else { return }
         let capturedPassed = playerHasPassed   // MED-12: stable snapshot
         var newBids = bids
         newBids[playerIndex] = 0
@@ -788,8 +795,13 @@ final class BluetoothGameViewModel: NSObject {
 
     private func processCallCards(playerIndex: Int, trump: TrumpSuit, c1: String, c2: String) async {
         guard isHost else { return }
-        guard playerIndex == currentActionPlayer else { return }
-        guard GameFlowRules.isValidCalledCards(c1, c2, callerHand: allHands[playerIndex]) else { return }
+        guard MultiplayerActionValidator.validateCalledCards(
+            playerIndex: playerIndex,
+            currentActionPlayer: currentActionPlayer,
+            calledCard1: c1,
+            calledCard2: c2,
+            bidderHand: allHands[playerIndex]
+        ) == .accepted else { return }
         let (p1, p2) = resolvePartners(c1: c1, c2: c2)
         hostPartner1 = p1; hostPartner2 = p2
         hostCalledCard1 = c1; hostCalledCard2 = c2
@@ -812,9 +824,14 @@ final class BluetoothGameViewModel: NSObject {
 
     private func processPlayCard(playerIndex: Int, cardId: String) async {
         guard isHost else { return }
-        guard playerIndex == currentActionPlayer else { return }
-        guard let card = parseCard(cardId),
-              allHands[playerIndex].contains(where: { $0.id == cardId }) else {
+        guard MultiplayerActionValidator.validateCardPlay(
+            playerIndex: playerIndex,
+            currentActionPlayer: currentActionPlayer,
+            cardId: cardId,
+            hand: allHands[playerIndex],
+            currentTrick: currentTrick
+        ) == .accepted,
+              let card = parseCard(cardId) else {
             // Card is invalid or not in hand (e.g. stale action). Reset the AI lock
             // flag first — a sleeping AI task may hold it, which would cause the
             // re-trigger below to bail silently and leave the game frozen.
