@@ -302,6 +302,18 @@ Raise useful regression coverage outside the scorekeeper surface without making 
 
 ## Next Coverage Candidates
 
+- The user-requested main menu UI uplift was completed in `docs/superpowers/plans/2026-07-19-main-menu-uplift.md`. Do not start the next coverage batch until the user explicitly resumes coverage work.
+- Deferred Batch 9: extract/test multiplayer action validation and result decisions from Online/Bluetooth view models:
+  - invalid player index,
+  - wrong-turn actions,
+  - bid below current minimum,
+  - bid above 250,
+  - duplicate/invalid called cards,
+  - bidder-owned called cards,
+  - invalid card IDs,
+  - off-turn card play,
+  - follow-suit enforcement,
+  - accept/reject/transform decisions before Firestore/Multipeer writes.
 - Extract/test leaderboard status messaging currently embedded in Solo/Online/Bluetooth views.
 - Continue extracting and unit-testing remaining pure reducers from `OnlineGameViewModel` and `BluetoothGameViewModel`, especially host action validation/result decisions that still combine state mutation with Firestore/Multipeer writes.
 - Add focused tests around additional `ComputerGameViewModel` phase transitions only where continuations can be cancelled deterministically without long sleeps.

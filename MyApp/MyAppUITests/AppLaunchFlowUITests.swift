@@ -18,10 +18,28 @@ final class AppLaunchFlowUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["The Shady Spade"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["Choose a game mode"].exists)
-        XCTAssertTrue(app.buttons["mode.card.New Game"].exists)
-        XCTAssertTrue(app.buttons["mode.card.Local / Bluetooth"].exists)
-        XCTAssertTrue(app.buttons["mode.card.Join a Game"].exists)
-        XCTAssertTrue(app.buttons["mode.card.Real-Life Scorekeeper"].exists)
-        XCTAssertTrue(app.buttons["mode.card.Watch Live Scorecard"].exists)
+        XCTAssertTrue(app.staticTexts["Solo or invite friends"].exists)
+        XCTAssertTrue(app.staticTexts["Nearby play, no internet"].exists)
+        XCTAssertTrue(app.staticTexts["Enter a room code"].exists)
+        XCTAssertTrue(app.staticTexts["Scorekeeper Tools"].exists)
+        XCTAssertTrue(app.staticTexts["Track a physical card table"].exists)
+        XCTAssertTrue(app.staticTexts["Follow with a code"].exists)
+
+        XCTAssertTrue(app.buttons["mode.top.leaderboard"].exists)
+        XCTAssertTrue(app.buttons["mode.top.leaderboard"].isHittable)
+        XCTAssertTrue(app.buttons["mode.top.settings"].exists)
+        XCTAssertTrue(app.buttons["mode.top.settings"].isHittable)
+
+        [
+            "mode.card.New Game",
+            "mode.card.Local / Bluetooth",
+            "mode.card.Join a Game",
+            "mode.card.Real-Life Scorekeeper",
+            "mode.card.Watch Live Scorecard"
+        ].forEach { identifier in
+            let button = app.buttons[identifier]
+            XCTAssertTrue(button.exists, "\(identifier) should exist")
+            XCTAssertTrue(button.isHittable, "\(identifier) should be visible and tappable")
+        }
     }
 }

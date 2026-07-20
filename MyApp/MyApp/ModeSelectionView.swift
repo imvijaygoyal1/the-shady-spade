@@ -32,6 +32,40 @@ struct ModeSelectionView: View {
     @AppStorage("hasCompletedGuidedFirstGame") private var hasCompletedGuidedFirstGame = false
     @State private var deepLink = DeepLinkManager.shared
 
+    private func startNewGame() {
+        HapticManager.impact(.medium)
+        selectedPlayerCount = 1
+        pendingName = soloPlayerName
+        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+        pendingMode = "New Game"
+        showingNamePrompt = true
+    }
+
+    private func startBluetooth() {
+        HapticManager.impact(.medium)
+        pendingName = soloPlayerName
+        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+        pendingMode = "Local / Bluetooth"
+        showingNamePrompt = true
+    }
+
+    private func startJoinGame() {
+        HapticManager.impact(.medium)
+        pendingName = soloPlayerName
+        pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+        pendingMode = "Join a Game"
+        showingNamePrompt = true
+    }
+
+    private func openScorekeeper() {
+        HapticManager.impact(.medium)
+        showingScorekeeper = true
+    }
+
+    private func openScorekeeperViewer() {
+        HapticManager.impact(.medium)
+        showingScorekeeperViewer = true
+    }
 
     private var portraitBody: some View {
         ZStack {
@@ -55,6 +89,7 @@ struct ModeSelectionView: View {
                                 Comic.yellow, lineWidth: 2))
                     }
                     .padding(.leading, 20)
+                    .accessibilityIdentifier("mode.top.leaderboard")
 
                     Spacer()
 
@@ -71,109 +106,37 @@ struct ModeSelectionView: View {
                             .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
                     }
                     .padding(.trailing, 20)
+                    .accessibilityIdentifier("mode.top.settings")
                 }
-                .padding(.top, 56)
+                .padding(.top, 52)
                 Spacer()
             }
+            .zIndex(2)
 
             GeometryReader { geo in
                 let isWide = geo.size.width > 500
-                VStack(spacing: 0) {
-                    Spacer()
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: isWide ? 18 : 14) {
+                        MainMenuHeader(isWide: isWide)
+                            .padding(.bottom, isWide ? 8 : 2)
 
-                    VStack(spacing: 14) {
-                        Image(systemName: "suit.spade.fill")
-                            .font(.system(size: isWide ? 96 : 72))
-                            .foregroundStyle(Comic.yellow)
-                            .shadow(color: Comic.black, radius: 0, x: 3, y: 3)
-                        Text("The Shady Spade")
-                            .font(.system(size: isWide ? 42 : 34, weight: .black))
-                            .foregroundStyle(Comic.textPrimary)
-                            .shadow(color: Comic.black.opacity(0.18), radius: 0, x: 2, y: 2)
-                        Text("Choose a game mode")
-                            .font(.system(size: isWide ? 17 : 15, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Comic.textSecondary)
-                    }
-                    .padding(.bottom, isWide ? 64 : 52)
-
-                    VStack(spacing: 16) {
-                        ModeCard(
-                            icon: "play.circle.fill",
-                            title: "New Game",
-                            subtitle: "Play alone or invite friends — AI fills empty seats",
-                            color: Comic.yellow,
-                            iconBG: Comic.yellow
-                        ) {
-                            HapticManager.impact(.medium)
-                            selectedPlayerCount = 1
-                            pendingName = soloPlayerName
-                            pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                            pendingMode = "New Game"
-                            showingNamePrompt = true
-                        }
-
-                        ModeCard(
-                            icon: "dot.radiowaves.left.and.right",
-                            title: "Local / Bluetooth",
-                            subtitle: "Play nearby — no internet needed",
-                            color: Comic.red,
-                            iconBG: Comic.red
-                        ) {
-                            HapticManager.impact(.medium)
-                            pendingName = soloPlayerName
-                            pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                            pendingMode = "Local / Bluetooth"
-                            showingNamePrompt = true
-                        }
-
-                        ModeCard(
-                            icon: "arrow.right.circle.fill",
-                            title: "Join a Game",
-                            subtitle: "Have a room code? Jump straight in",
-                            color: Color(red: 0.09, green: 0.63, blue: 0.45),
-                            iconBG: Color(red: 0.09, green: 0.63, blue: 0.45)
-                        ) {
-                            HapticManager.impact(.medium)
-                            pendingName = soloPlayerName
-                            pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                            pendingMode = "Join a Game"
-                            showingNamePrompt = true
-                        }
-
-                        ModeCard(
-                            icon: "square.grid.3x3.fill",
-                            title: "Real-Life Scorekeeper",
-                            subtitle: "Track a six-player table game with physical cards",
-                            color: Color.offenseBlue,
-                            iconBG: Color.offenseBlue
-                        ) {
-                            HapticManager.impact(.medium)
-                            showingScorekeeper = true
-                        }
-
-                        ModeCard(
-                            icon: "eye.fill",
-                            title: "Watch Live Scorecard",
-                            subtitle: "Enter a scorekeeper code and follow along",
-                            color: Color(red: 0.09, green: 0.63, blue: 0.45),
-                            iconBG: Color(red: 0.09, green: 0.63, blue: 0.45)
-                        ) {
-                            HapticManager.impact(.medium)
-                            showingScorekeeperViewer = true
-                        }
+                        MainMenuActions(
+                            toolsSideBySide: geo.size.width >= 390,
+                            onNewGame: startNewGame,
+                            onBluetooth: startBluetooth,
+                            onJoin: startJoinGame,
+                            onScorekeeper: openScorekeeper,
+                            onViewer: openScorekeeperViewer
+                        )
                     }
                     .adaptiveContentFrame(maxWidth: 560)
                     .padding(.horizontal, isWide ? 40 : 20)
-
-                    Spacer()
-
-                    Text("© 2026 Vijay Goyal. All rights reserved.")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.25))
-                        .padding(.bottom, 20)
+                    .padding(.top, 104)
+                    .padding(.bottom, 22)
+                    .frame(minHeight: geo.size.height, alignment: .top)
                 }
-                .frame(width: geo.size.width, height: geo.size.height)
             }
+            .zIndex(1)
         }
     }
 
@@ -200,72 +163,14 @@ struct ModeSelectionView: View {
                 VStack {
                     Spacer()
 
-                    VStack(spacing: 12) {
-                        ModeCard(
-                            icon: "play.circle.fill",
-                            title: "New Game",
-                            subtitle: "Play alone or invite friends — AI fills empty seats",
-                            color: Comic.yellow,
-                            iconBG: Comic.yellow
-                        ) {
-                            HapticManager.impact(.medium)
-                            selectedPlayerCount = 1
-                            pendingName = soloPlayerName
-                            pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                            pendingMode = "New Game"
-                            showingNamePrompt = true
-                        }
-
-                        ModeCard(
-                            icon: "dot.radiowaves.left.and.right",
-                            title: "Local / Bluetooth",
-                            subtitle: "Play nearby — no internet needed",
-                            color: Comic.red,
-                            iconBG: Comic.red
-                        ) {
-                            HapticManager.impact(.medium)
-                            pendingName = soloPlayerName
-                            pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                            pendingMode = "Local / Bluetooth"
-                            showingNamePrompt = true
-                        }
-
-                        ModeCard(
-                            icon: "arrow.right.circle.fill",
-                            title: "Join a Game",
-                            subtitle: "Have a room code? Jump straight in",
-                            color: Color(red: 0.09, green: 0.63, blue: 0.45),
-                            iconBG: Color(red: 0.09, green: 0.63, blue: 0.45)
-                        ) {
-                            HapticManager.impact(.medium)
-                            pendingName = soloPlayerName
-                            pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
-                            pendingMode = "Join a Game"
-                            showingNamePrompt = true
-                        }
-
-                        ModeCard(
-                            icon: "square.grid.3x3.fill",
-                            title: "Real-Life Scorekeeper",
-                            subtitle: "Track a six-player table game with physical cards",
-                            color: Color.offenseBlue,
-                            iconBG: Color.offenseBlue
-                        ) {
-                            HapticManager.impact(.medium)
-                            showingScorekeeper = true
-                        }
-
-                        ModeCard(
-                            icon: "eye.fill",
-                            title: "Watch Live Scorecard",
-                            subtitle: "Enter a scorekeeper code and follow along",
-                            color: Color(red: 0.09, green: 0.63, blue: 0.45),
-                            iconBG: Color(red: 0.09, green: 0.63, blue: 0.45)
-                        ) {
-                            HapticManager.impact(.medium)
-                            showingScorekeeperViewer = true
-                        }
-                    }
+                    MainMenuActions(
+                        toolsSideBySide: true,
+                        onNewGame: startNewGame,
+                        onBluetooth: startBluetooth,
+                        onJoin: startJoinGame,
+                        onScorekeeper: openScorekeeper,
+                        onViewer: openScorekeeperViewer
+                    )
                     .adaptiveContentFrame(maxWidth: 560)
                     .padding(.horizontal, 20)
 
@@ -857,51 +762,260 @@ private struct PlayerCountSheet: View {
     }
 }
 
-private struct ModeCard: View {
+private struct MainMenuHeader: View {
+    let isWide: Bool
+
+    var body: some View {
+        VStack(spacing: isWide ? 10 : 7) {
+            Image(systemName: "suit.spade.fill")
+                .font(.system(size: isWide ? 64 : 44, weight: .black))
+                .foregroundStyle(Comic.yellow)
+                .shadow(color: Comic.black, radius: 0, x: 2, y: 2)
+
+            Text("The Shady Spade")
+                .font(.system(size: isWide ? 38 : 30, weight: .black))
+                .foregroundStyle(Comic.textPrimary)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .shadow(color: Comic.black.opacity(0.18), radius: 0, x: 2, y: 2)
+
+            Text("Choose a game mode")
+                .font(.system(size: isWide ? 16 : 14, weight: .heavy, design: .rounded))
+                .foregroundStyle(Comic.textSecondary)
+        }
+    }
+}
+
+private struct MainMenuActions: View {
+    let toolsSideBySide: Bool
+    let onNewGame: () -> Void
+    let onBluetooth: () -> Void
+    let onJoin: () -> Void
+    let onScorekeeper: () -> Void
+    let onViewer: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            PrimaryMenuCard(
+                icon: "play.circle.fill",
+                title: "New Game",
+                subtitle: "Solo or invite friends",
+                action: onNewGame
+            )
+
+            VStack(spacing: 10) {
+                SecondaryMenuCard(
+                    icon: "dot.radiowaves.left.and.right",
+                    title: "Local / Bluetooth",
+                    subtitle: "Nearby play, no internet",
+                    accent: Comic.red,
+                    action: onBluetooth
+                )
+
+                SecondaryMenuCard(
+                    icon: "arrow.right.circle.fill",
+                    title: "Join a Game",
+                    subtitle: "Enter a room code",
+                    accent: Color(red: 0.09, green: 0.63, blue: 0.45),
+                    action: onJoin
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 9) {
+                Text("Scorekeeper Tools")
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.yellow.opacity(0.88))
+
+                if toolsSideBySide {
+                    HStack(spacing: 10) {
+                        ScorekeeperToolCard(
+                            icon: "square.grid.3x3.fill",
+                            title: "Real-Life Scorekeeper",
+                            subtitle: "Track a physical card table",
+                            action: onScorekeeper
+                        )
+
+                        ScorekeeperToolCard(
+                            icon: "eye.fill",
+                            title: "Watch Live Scorecard",
+                            subtitle: "Follow with a code",
+                            action: onViewer
+                        )
+                    }
+                } else {
+                    VStack(spacing: 9) {
+                        ScorekeeperToolCard(
+                            icon: "square.grid.3x3.fill",
+                            title: "Real-Life Scorekeeper",
+                            subtitle: "Track a physical card table",
+                            action: onScorekeeper
+                        )
+
+                        ScorekeeperToolCard(
+                            icon: "eye.fill",
+                            title: "Watch Live Scorecard",
+                            subtitle: "Follow with a code",
+                            action: onViewer
+                        )
+                    }
+                }
+            }
+            .padding(.top, 2)
+        }
+    }
+}
+
+private struct PrimaryMenuCard: View {
     let icon: String
     let title: String
     let subtitle: String
-    let color: Color
-    /// Solid icon-background colour
-    var iconBG: Color = Comic.yellow
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 18) {
+            HStack(spacing: 16) {
                 ZStack {
                     Circle()
-                        .fill(iconBG)
-                        .frame(width: 56, height: 56)
-                        .overlay(Circle().strokeBorder(Comic.black, lineWidth: Comic.borderWidth))
+                        .fill(Comic.black.opacity(0.18))
+                        .frame(width: 62, height: 62)
+                        .overlay(Circle().strokeBorder(Comic.black.opacity(0.45), lineWidth: 2))
                     Image(systemName: icon)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(Comic.white)
+                        .font(.system(size: 28, weight: .black))
+                        .foregroundStyle(Comic.black)
                 }
-                .shadow(color: Comic.black.opacity(0.85), radius: 0, x: 3, y: 3)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Comic.textPrimary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .font(.system(size: 25, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.black)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                     Text(subtitle)
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Comic.textSecondary)
-                        .multilineTextAlignment(.leading)
+                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.black.opacity(0.72))
+                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer()
+                Spacer(minLength: 8)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Comic.textPrimary)
+                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.black)
             }
-            .padding(20)
-            .comicContainer(cornerRadius: 20)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 22)
+            .frame(minHeight: 112)
+            .background(Comic.yellow)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Comic.black, lineWidth: Comic.borderWidth)
+            )
+            .shadow(color: Comic.black.opacity(0.9), radius: 0, x: 4, y: 4)
+        }
+        .buttonStyle(BouncyButton())
+        .accessibilityIdentifier("mode.card.\(title)")
+    }
+}
+
+private struct SecondaryMenuCard: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let accent: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(accent.opacity(0.18))
+                        .frame(width: 44, height: 44)
+                        .overlay(Circle().strokeBorder(accent.opacity(0.65), lineWidth: 1.5))
+                    Image(systemName: icon)
+                        .font(.system(size: 19, weight: .bold))
+                        .foregroundStyle(accent)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary.opacity(0.9))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .frame(minHeight: 76)
+            .background(Comic.containerBG.opacity(0.86))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Comic.containerBorder.opacity(0.9), lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(BouncyButton())
+        .accessibilityIdentifier("mode.card.\(title)")
+    }
+}
+
+private struct ScorekeeperToolCard: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Comic.yellow)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.82)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(subtitle)
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Comic.textSecondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(13)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 106)
+            .background(Comic.containerBG.opacity(0.72))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Comic.containerBorder.opacity(0.7), lineWidth: 1)
+            )
         }
         .buttonStyle(BouncyButton())
         .accessibilityIdentifier("mode.card.\(title)")
