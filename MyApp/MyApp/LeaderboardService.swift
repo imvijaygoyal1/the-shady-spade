@@ -277,22 +277,7 @@ final class LeaderboardService {
                     return
                 }
                 self.playerStats = snap?.documents.compactMap {
-                    doc -> PlayerStat? in
-                    let d = doc.data()
-                    guard let name = d["name"] as? String,
-                          !name.isEmpty else { return nil }
-                    return PlayerStat(
-                        name: name,
-                        wins: d["wins"] as? Int ?? 0,
-                        gamesPlayed: d["gamesPlayed"] as? Int ?? 0,
-                        totalPoints: d["totalPoints"] as? Int ?? 0,
-                        totalBids: d["totalBids"] as? Int ?? 0,
-                        bidsMade: d["bidsMade"] as? Int ?? 0,
-                        lastPlayed: (d["lastPlayed"] as? Timestamp)?
-                            .dateValue() ?? Date(),
-                        lastGameMode: d["lastGameMode"] as? String
-                            ?? "Solo"
-                    )
+                    LeaderboardSnapshotMapper.playerStat(from: $0.data())
                 } ?? []
             }
 
@@ -306,37 +291,10 @@ final class LeaderboardService {
                     self.reattachListeners()
                     return
                 }
-                self.gameLog = snap?.documents.compactMap {
-                    doc -> GameLogEntry? in
-                    let d = doc.data()
-                    let defenseRaw = d["defense"]
-                        as? [[String: Any]] ?? []
-                    let defenseNames = defenseRaw.compactMap {
-                        $0["name"] as? String
-                    }.filter { !$0.isEmpty }
-                    return GameLogEntry(
-                        id: doc.documentID,
-                        date: (d["date"] as? Timestamp)?
-                            .dateValue() ?? Date(),
-                        gameMode: d["gameMode"] as? String
-                            ?? "Solo",
-                        bid: d["bid"] as? Int ?? 0,
-                        bidMade: d["bidMade"] as? Bool ?? false,
-                        bidderName: d["bidderName"] as? String
-                            ?? "",
-                        bidderScore: d["bidderScore"] as? Int ?? 0,
-                        partner1Name: d["partner1Name"] as? String
-                            ?? "",
-                        partner1Score: d["partner1Score"] as? Int
-                            ?? 0,
-                        partner2Name: d["partner2Name"] as? String
-                            ?? "",
-                        partner2Score: d["partner2Score"] as? Int
-                            ?? 0,
-                        defenseNames: defenseNames,
-                        defensePointsCaught:
-                            d["defensePointsCaught"] as? Int ?? 0,
-                        roundCount: d["roundCount"] as? Int ?? 1
+                self.gameLog = snap?.documents.map {
+                    LeaderboardSnapshotMapper.gameLogEntry(
+                        documentID: $0.documentID,
+                        data: $0.data()
                     )
                 } ?? []
             }
@@ -550,7 +508,7 @@ final class LeaderboardService {
     // MARK: - Pending Queue
 
     private func enqueue(_ record: PendingGameRecord) {
-        var records = loadPendingRecords()
+        let records = loadPendingRecords()
         if let existingIdx = records.firstIndex(where: { $0.deduplicationKey == record.deduplicationKey }) {
             // BT-GAP-14: Replace the existing record with the newer one so the caller's
             // UUID (pending.id) matches what is stored. If we kept the old UUID,
