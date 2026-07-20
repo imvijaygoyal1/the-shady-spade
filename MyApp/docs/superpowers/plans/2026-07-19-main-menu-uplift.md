@@ -57,6 +57,16 @@ Redesign the root menu so `New Game` is the dominant primary action, `Local / Bl
   - `/private/tmp/shadyspade-copyright-bottom-check.png`
 - Focused iPhone 17 launch UI test passed after adding the copyright assertion with `1` test, `0` failures, `0` skips:
   - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.20_18-28-29--0400.xcresult`
+- Post-fix visual QA on both booted simulators after commit `02afcc5`:
+  - iPhone 17 portrait screenshot: `/private/tmp/shadyspade-qa-iphone17-portrait.png`
+  - iPhone 17 Pro portrait screenshot: `/private/tmp/shadyspade-qa-iphone17pro-portrait.png`
+  - Verified all five actions are visible, scorekeeper tools are readable, top trophy/settings controls are visible, and the copyright footer sits at the bottom above the home indicator.
+  - CLI note: this Xcode `simctl` exposes screenshot/video/display geometry but no direct orientation rotation command, so landscape was not screenshot-verified from CLI in this pass.
+- Full scheme with coverage passed after the final footer/readability fix with `114` tests, `0` failures, `0` skips:
+  - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.20_18-41-06--0400.xcresult`
+- Coverage script output from the final full bundle:
+  - Raw app coverage: 11.88% (7851/66097)
+  - Logic-focused coverage: 35.16% (3709/10550)
 - Full scheme with coverage passed after the top-button fix with `110` tests, `0` failures, `0` skips:
   - `/Users/vijaygoyal/Library/Developer/Xcode/DerivedData/MyApp-elxlvmrzwbclzobtlfohtvgqzosy/Logs/Test/Test-MyApp-2026.07.20_16-18-26--0400.xcresult`
 - Coverage target rows from the final bundle:
