@@ -303,6 +303,58 @@ private struct HistoryRoundCard: View {
     }
 }
 
+// MARK: - UI Test History Catalog
+
+struct UITestGameHistoryCatalogView: View {
+    private let game: GameHistory = {
+        let game = GameHistory(
+            date: Date(timeIntervalSince1970: 1_783_900_000),
+            playerNames: ["Vijay", "Shikha", "Manish", "Anya", "Rohan", "Maya"],
+            finalScores: [220, 145, 90, 30, 10, 0],
+            winnerIndex: 0,
+            gameMode: "Solo"
+        )
+        game.historyRounds = [
+            HistoryRound(
+                roundNumber: 1,
+                dealerIndex: 5,
+                bidderIndex: 0,
+                bidAmount: 130,
+                trumpSuit: .spades,
+                callCard1: "A♥",
+                callCard2: "K♦",
+                partner1Index: 1,
+                partner2Index: 2,
+                offensePointsCaught: 130,
+                defensePointsCaught: 60,
+                runningScores: [130, 65, 65, 0, 0, 0]
+            ),
+            HistoryRound(
+                roundNumber: 2,
+                dealerIndex: 0,
+                bidderIndex: 3,
+                bidAmount: 135,
+                trumpSuit: .hearts,
+                callCard1: "A♠",
+                callCard2: "K♣",
+                partner1Index: 4,
+                partner2Index: 5,
+                offensePointsCaught: 80,
+                defensePointsCaught: 110,
+                runningScores: [220, 145, 90, 30, 10, 0]
+            )
+        ]
+        return game
+    }()
+
+    var body: some View {
+        NavigationStack {
+            GameHistoryDetailView(game: game)
+        }
+        .environmentObject(ThemeManager.shared)
+    }
+}
+
 // MARK: - Safe array subscript
 
 extension Array {

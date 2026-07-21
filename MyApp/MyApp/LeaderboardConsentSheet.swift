@@ -29,6 +29,7 @@ struct LeaderboardConsentSheet: View {
                 Link("Privacy Policy", destination: URL(string: "https://shadyspade.vijaygoyal.org/privacy")!)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(ThemeManager.shared.colours.accentColor)
+                    .accessibilityIdentifier("leaderboardConsent.privacyPolicy")
             }
             .padding(.horizontal, 28)
 

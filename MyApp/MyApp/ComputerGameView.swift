@@ -1702,7 +1702,7 @@ private struct PlayingPhaseView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
                     .opacity(waitPulse ? 1.0 : 0.2)
-                    .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: waitPulse)
+                    .animation(MyAppApp.isRunningUITests ? nil : .easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: waitPulse)
                     .onAppear { waitPulse = true }
                     .onDisappear { waitPulse = false }
             } else {
@@ -1789,7 +1789,7 @@ private struct PlayingPhaseView: View {
                         .overlay(Capsule().strokeBorder(Comic.yellow, lineWidth: 2))
                 )
                 .opacity(turnTextPulse ? 1.0 : 0.0)
-                .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: turnTextPulse)
+                .animation(MyAppApp.isRunningUITests ? nil : .easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: turnTextPulse)
                 .onAppear { turnTextPulse = true }
                 .onDisappear { turnTextPulse = false }
             }
@@ -1848,7 +1848,7 @@ private struct PlayingPhaseView: View {
                             .overlay(Capsule().strokeBorder(Comic.yellow, lineWidth: 2))
                     )
                     .opacity(turnTextPulse ? 1.0 : 0.0)
-                    .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: turnTextPulse)
+                    .animation(MyAppApp.isRunningUITests ? nil : .easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: turnTextPulse)
                     .onAppear { turnTextPulse = true }
                     .onDisappear { turnTextPulse = false }
             }
@@ -2888,6 +2888,170 @@ private struct GameOverView: View {
                 }
             }
         )
+    }
+}
+
+// MARK: - UI Test Gameplay Catalog
+
+struct UITestSoloGameplayCatalogView: View {
+    @State private var selectedPhase = 0
+    @State private var game = UITestSoloGameplayCatalogView.seededGame()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            UITestCatalogPhaseBar(
+                phases: ["Bidding", "Calling", "Playing", "Round", "Final"],
+                selectedIndex: $selectedPhase
+            )
+
+            ZStack {
+                Comic.bg.ignoresSafeArea()
+                ThemedBackground().ignoresSafeArea()
+
+                switch selectedPhase {
+                case 0:
+                    BiddingPhaseView(game: game)
+                case 1:
+                    CallingCardsView(game: game)
+                case 2:
+                    PlayingPhaseView(game: game)
+                case 3:
+                    RoundCompleteView(
+                        game: game,
+                        previousRunningScores: [0, 0, 0, 0, 0, 0],
+                        previousRounds: [],
+                        onNextRound: {},
+                        onEndGame: {},
+                        onQuit: {}
+                    )
+                default:
+                    GameOverView(
+                        runningScores: [130, 65, 65, 0, 0, 0],
+                        playerNames: (0..<6).map { game.playerName($0) },
+                        onPlayAgain: {},
+                        onHistory: {},
+                        onQuit: {}
+                    )
+                }
+            }
+            .accessibilityIdentifier("uitest.solo.phase.\(Self.phaseIdentifier(for: selectedPhase))")
+        }
+        .onChange(of: selectedPhase) { _, phase in
+            game = Self.seededGame(for: phase)
+        }
+    }
+
+    private static func phaseIdentifier(for phaseIndex: Int) -> String {
+        ["bidding", "calling", "playing", "round", "final"][safe: phaseIndex] ?? "unknown"
+    }
+
+    private static func seededGame(for phaseIndex: Int = 0) -> ComputerGameViewModel {
+        let names = ["Vijay", "Shikha", "Manish", "Anya", "Rohan", "Maya"]
+        let avatars = ["🦁", "🦊", "🐯", "🐼", "🐸", "🐵"]
+        let game = ComputerGameViewModel(
+            humanSeats: [0],
+            allNames: names,
+            allAvatars: avatars,
+            dealerIndex: 5,
+            roundNumber: 1
+        )
+        seedSharedState(game)
+        switch phaseIndex {
+        case 1:
+            game.phase = .callingCards
+        case 2:
+            game.phase = .humanPlaying
+            game.currentActionPlayer = 0
+            game.currentLeaderIndex = 0
+            game.currentTrick = [(playerIndex: 5, card: Card(rank: "9", suit: "♥"))]
+            game.lastCompletedTrick = [
+                (0, Card(rank: "A", suit: "♠")),
+                (1, Card(rank: "K", suit: "♠")),
+                (2, Card(rank: "Q", suit: "♠"))
+            ]
+            game.lastTrickWinnerIndex = 0
+            game.lastTrickPoints = 30
+        case 3:
+            game.phase = .roundComplete
+            game.wonTricks = [
+                [
+                    Card(rank: "3", suit: "♠"),
+                    Card(rank: "A", suit: "♠"),
+                    Card(rank: "K", suit: "♠"),
+                    Card(rank: "Q", suit: "♠"),
+                    Card(rank: "J", suit: "♠"),
+                    Card(rank: "10", suit: "♠"),
+                    Card(rank: "5", suit: "♠"),
+                    Card(rank: "5", suit: "♥")
+                ],
+                [],
+                [],
+                [Card(rank: "A", suit: "♥"), Card(rank: "K", suit: "♥"), Card(rank: "Q", suit: "♥")],
+                [Card(rank: "A", suit: "♦"), Card(rank: "K", suit: "♦")],
+                [Card(rank: "A", suit: "♣")]
+            ]
+            game.completedTricks = [[
+                (0, Card(rank: "A", suit: "♠")),
+                (1, Card(rank: "K", suit: "♠")),
+                (2, Card(rank: "Q", suit: "♠")),
+                (3, Card(rank: "J", suit: "♠")),
+                (4, Card(rank: "10", suit: "♠")),
+                (5, Card(rank: "9", suit: "♠"))
+            ]]
+            game.trickWinners = [0]
+        default:
+            game.phase = .humanBidding
+        }
+        return game
+    }
+
+    private static func seedSharedState(_ game: ComputerGameViewModel) {
+        game.hands = [
+            [Card(rank: "3", suit: "♠"), Card(rank: "A", suit: "♠"), Card(rank: "K", suit: "♠"), Card(rank: "Q", suit: "♠"), Card(rank: "J", suit: "♠"), Card(rank: "10", suit: "♠"), Card(rank: "9", suit: "♠"), Card(rank: "8", suit: "♠")],
+            [Card(rank: "A", suit: "♥"), Card(rank: "K", suit: "♥"), Card(rank: "Q", suit: "♥"), Card(rank: "J", suit: "♥"), Card(rank: "10", suit: "♥"), Card(rank: "9", suit: "♥"), Card(rank: "8", suit: "♥"), Card(rank: "7", suit: "♥")],
+            [Card(rank: "A", suit: "♦"), Card(rank: "K", suit: "♦"), Card(rank: "Q", suit: "♦"), Card(rank: "J", suit: "♦"), Card(rank: "10", suit: "♦"), Card(rank: "9", suit: "♦"), Card(rank: "8", suit: "♦"), Card(rank: "7", suit: "♦")],
+            [Card(rank: "A", suit: "♣"), Card(rank: "K", suit: "♣"), Card(rank: "Q", suit: "♣"), Card(rank: "J", suit: "♣"), Card(rank: "10", suit: "♣"), Card(rank: "9", suit: "♣"), Card(rank: "8", suit: "♣"), Card(rank: "7", suit: "♣")],
+            [Card(rank: "6", suit: "♠"), Card(rank: "5", suit: "♠"), Card(rank: "4", suit: "♠"), Card(rank: "A", suit: "♥"), Card(rank: "5", suit: "♥"), Card(rank: "4", suit: "♥"), Card(rank: "3", suit: "♥"), Card(rank: "6", suit: "♦")],
+            [Card(rank: "6", suit: "♣"), Card(rank: "5", suit: "♣"), Card(rank: "4", suit: "♣"), Card(rank: "3", suit: "♣"), Card(rank: "6", suit: "♥"), Card(rank: "5", suit: "♦"), Card(rank: "4", suit: "♦"), Card(rank: "3", suit: "♦")]
+        ]
+        game.currentHumanPlayerIndex = 0
+        game.currentBidTurn = 0
+        game.humanMinBid = 130
+        game.humanBidAmount = 130
+        game.bids = [130, 0, 0, -1, -1, -1]
+        game.playerHasPassed = [false, true, true, false, false, false]
+        game.bidHistory = [(0, 130), (1, 0), (2, 0)]
+        game.highBid = 130
+        game.highBidderIndex = 0
+        game.trumpSuit = .spades
+        game.calledCard1Rank = "A"
+        game.calledCard1Suit = "♥"
+        game.calledCard2Rank = "K"
+        game.calledCard2Suit = "♦"
+        game.partner1Index = 1
+        game.partner2Index = 2
+        game.revealedPartner1Index = 1
+        game.revealedPartner2Index = 2
+        game.partner1Revealed = true
+        game.partner2Revealed = true
+        game.trickNumber = 2
+        game.wonTricks = [
+            [
+                Card(rank: "3", suit: "♠"),
+                Card(rank: "A", suit: "♠"),
+                Card(rank: "K", suit: "♠"),
+                Card(rank: "Q", suit: "♠"),
+                Card(rank: "J", suit: "♠"),
+                Card(rank: "10", suit: "♠"),
+                Card(rank: "5", suit: "♠"),
+                Card(rank: "5", suit: "♥")
+            ],
+            [Card(rank: "J", suit: "♥"), Card(rank: "10", suit: "♥"), Card(rank: "A", suit: "♦"), Card(rank: "K", suit: "♦")],
+            [Card(rank: "Q", suit: "♦"), Card(rank: "J", suit: "♦")],
+            [Card(rank: "A", suit: "♥"), Card(rank: "K", suit: "♥"), Card(rank: "Q", suit: "♥")],
+            [Card(rank: "A", suit: "♣"), Card(rank: "K", suit: "♣")],
+            [Card(rank: "10", suit: "♣")]
+        ]
     }
 }
 

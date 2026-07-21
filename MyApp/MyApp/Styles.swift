@@ -1143,7 +1143,7 @@ struct LiveDot: View {
             .frame(width: 7, height: 7)
             .shadow(color: green.opacity(pulse ? 0.85 : 0.25), radius: pulse ? 6 : 2)
             .scaleEffect(pulse ? 1.4 : 1.0)
-            .animation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true), value: pulse)
+            .animation(MyAppApp.isRunningUITests ? nil : .easeInOut(duration: 0.95).repeatForever(autoreverses: true), value: pulse)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
             .onAppear { pulse = true }
@@ -1594,7 +1594,7 @@ struct AvatarRoleCard: View {
                             lineWidth: 4
                         )
                         .padding(-3)
-                        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: glowPulse)
+                        .animation(MyAppApp.isRunningUITests ? nil : .easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: glowPulse)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
@@ -1822,6 +1822,38 @@ struct AvatarPickerCard: View {
             x: isSelected ? 2 : 3,
             y: isSelected ? 2 : 3
         )
+    }
+}
+
+// MARK: - UI Test Catalog Components
+
+struct UITestCatalogPhaseBar: View {
+    let phases: [String]
+    @Binding var selectedIndex: Int
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(phases.enumerated()), id: \.offset) { index, phase in
+                    Button {
+                        selectedIndex = index
+                    } label: {
+                        Text(phase)
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .foregroundStyle(selectedIndex == index ? Comic.black : Comic.textPrimary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(selectedIndex == index ? Comic.yellow : Comic.containerBG)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("uitest.phase.\(phase)")
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+        }
+        .background(Comic.black.opacity(0.42))
     }
 }
 
@@ -2181,7 +2213,7 @@ struct ShimmerModifier: ViewModifier {
                     )
                     .blendMode(.screen)
                     .opacity(isActive ? 1 : 0)
-                    .animation(.linear(duration: 1.4).repeatForever(autoreverses: false), value: sweeping)
+                    .animation(MyAppApp.isRunningUITests ? nil : .linear(duration: 1.4).repeatForever(autoreverses: false), value: sweeping)
                     .animation(.easeInOut(duration: 0.25), value: isActive)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
@@ -2480,7 +2512,7 @@ struct BiddingTwoColumnLayout: View {
                             // Pulsing green layer scoped to this leaf — never reaches the Button's gesture recognizer
                             TurnUI.activeColor
                                 .opacity(bidPulse ? 1 : 0)
-                                .animation(.easeInOut(duration: 0.65).repeatForever(autoreverses: true), value: bidPulse)
+                                .animation(MyAppApp.isRunningUITests ? nil : .easeInOut(duration: 0.65).repeatForever(autoreverses: true), value: bidPulse)
                                 .allowsHitTesting(false)
                                 .accessibilityHidden(true)
                             HStack(spacing: 6) {

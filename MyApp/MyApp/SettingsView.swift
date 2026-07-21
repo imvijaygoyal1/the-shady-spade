@@ -175,7 +175,7 @@ private struct ThemeSwatchButton: View {
 
 // MARK: - How To Play View
 
-private struct HowToPlayView: View {
+struct HowToPlayView: View {
     @EnvironmentObject var themeManager: ThemeManager
 
     private let topics: [HowToPlayTopic] = [

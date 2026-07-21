@@ -13,6 +13,12 @@ struct ModeSelectionView: View {
     @State private var showingScorekeeperViewer = false
     @State private var showingSettings = false
     @State private var showingLeaderboard = false
+    @State private var showingSoloGameplayCatalog = false
+    @State private var showingOnlineGameplayCatalog = false
+    @State private var showingBluetoothGameplayCatalog = false
+    @State private var showingGameHistoryCatalog = false
+    @State private var showingHowToPlayCatalog = false
+    @State private var showingLeaderboardConsentCatalog = false
     @State private var showingPlayerCount = false
     @State private var selectedPlayerCount = 1
     @State private var showingNamePrompt = false
@@ -189,11 +195,58 @@ struct ModeSelectionView: View {
             vm.setup(with: modelContext)
             if MyAppApp.isRunningUITests {
                 let arguments = ProcessInfo.processInfo.arguments
+                if arguments.contains("-SHADYSPADE_OPEN_SETTINGS_FOR_UI_TESTS") {
+                    showingSettings = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_LEADERBOARD_FOR_UI_TESTS") {
+                    showingLeaderboard = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_NAME_PROMPT_FOR_UI_TESTS") {
+                    pendingName = soloPlayerName.isEmpty ? "Player" : soloPlayerName
+                    pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                    pendingMode = "New Game"
+                    showingNamePrompt = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_PLAYER_COUNT_FOR_UI_TESTS") {
+                    selectedPlayerCount = 1
+                    showingPlayerCount = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_GUIDED_SOLO_CHOICE_FOR_UI_TESTS") {
+                    showingGuidedSoloChoice = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_JOIN_GAME_FOR_UI_TESTS") {
+                    pendingName = soloPlayerName.isEmpty ? "Player" : soloPlayerName
+                    pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                    showingJoinGame = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_BLUETOOTH_FOR_UI_TESTS") {
+                    pendingName = soloPlayerName.isEmpty ? "Player" : soloPlayerName
+                    pendingAvatar = soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
+                    showingBluetooth = true
+                }
                 if arguments.contains("-SHADYSPADE_OPEN_SCOREKEEPER_FOR_UI_TESTS") {
                     showingScorekeeper = true
                 }
                 if arguments.contains("-SHADYSPADE_OPEN_SCOREKEEPER_VIEWER_FOR_UI_TESTS") {
                     showingScorekeeperViewer = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_SOLO_GAMEPLAY_CATALOG_FOR_UI_TESTS") {
+                    showingSoloGameplayCatalog = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_ONLINE_GAMEPLAY_CATALOG_FOR_UI_TESTS") {
+                    showingOnlineGameplayCatalog = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_BLUETOOTH_GAMEPLAY_CATALOG_FOR_UI_TESTS") {
+                    showingBluetoothGameplayCatalog = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_HISTORY_DETAIL_FOR_UI_TESTS") {
+                    showingGameHistoryCatalog = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_HOW_TO_PLAY_FOR_UI_TESTS") {
+                    showingHowToPlayCatalog = true
+                }
+                if arguments.contains("-SHADYSPADE_OPEN_LEADERBOARD_CONSENT_FOR_UI_TESTS") {
+                    showingLeaderboardConsentCatalog = true
                 }
             }
         }
@@ -327,6 +380,35 @@ struct ModeSelectionView: View {
             NoAnimationCover(isPresented: $showingScorekeeperViewer) {
                 ScorekeeperViewerEntryView(initialCode: deepLink.pendingScorekeeperCode)
                     .environmentObject(themeManager)
+            }
+            NoAnimationCover(isPresented: $showingSoloGameplayCatalog) {
+                UITestSoloGameplayCatalogView()
+                    .environmentObject(themeManager)
+            }
+            NoAnimationCover(isPresented: $showingOnlineGameplayCatalog) {
+                UITestOnlineGameplayCatalogView()
+                    .environmentObject(themeManager)
+            }
+            NoAnimationCover(isPresented: $showingBluetoothGameplayCatalog) {
+                UITestBluetoothGameplayCatalogView()
+                    .environmentObject(themeManager)
+            }
+            NoAnimationCover(isPresented: $showingGameHistoryCatalog) {
+                UITestGameHistoryCatalogView()
+                    .environmentObject(themeManager)
+            }
+            NoAnimationCover(isPresented: $showingHowToPlayCatalog) {
+                NavigationStack {
+                    HowToPlayView()
+                        .environmentObject(themeManager)
+                }
+            }
+            NoAnimationCover(isPresented: $showingLeaderboardConsentCatalog) {
+                LeaderboardConsentSheet(
+                    onAllow: {},
+                    onDeny: {},
+                    disableInteractiveDismiss: true
+                )
             }
         }
         .sheet(isPresented: $showingLeaderboard) {
@@ -493,6 +575,7 @@ private struct NamePromptSheet: View {
     private var portrait: some View {
         GeometryReader { geo in
             let isPad = geo.size.width > 600
+            let topContentPadding = max(72, geo.safeAreaInsets.top + 12)
             ZStack {
                 Comic.bg.ignoresSafeArea()
 
@@ -513,7 +596,7 @@ private struct NamePromptSheet: View {
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 24) {
                             avatarPreview(width: 100, height: 132)
-                                .padding(.top, 28)
+                                .padding(.top, topContentPadding)
                             titleBlock(large: false)
                             nameField(large: false)
                                 .padding(.horizontal, 28)
