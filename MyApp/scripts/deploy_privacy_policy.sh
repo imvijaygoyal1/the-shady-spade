@@ -109,11 +109,11 @@ export default {
       });
     }
 
-    if (path.match(/^\/(?:shadyspade\/)?join\/[A-Za-z0-9-_%]+\/?$/)) {
+    if (path.match(/^\/(?:shadyspade\/)?join\/[A-Za-z0-9-_%]+\/?$/i)) {
       return fallbackWithCode("/join/index.html", "room-code");
     }
 
-    if (path.match(/^\/(?:shadyspade\/)?scorekeeper\/[A-Za-z0-9-_%]+\/?$/)) {
+    if (path.match(/^\/(?:shadyspade\/)?scorekeeper\/[A-Za-z0-9-_%]+\/?$/i)) {
       return fallbackWithCode("/scorekeeper/index.html", "scorekeeper-code");
     }
 
@@ -140,9 +140,13 @@ cat > "$TMP_DIR/wrangler.jsonc" <<CONFIG
       "/.well-known/apple-app-site-association",
       "/apple-app-site-association",
       "/join/*",
+      "/JOIN/*",
       "/scorekeeper/*",
+      "/SCOREKEEPER/*",
       "/shadyspade/join/*",
+      "/shadyspade/JOIN/*",
       "/shadyspade/scorekeeper/*",
+      "/shadyspade/SCOREKEEPER/*",
       "/.wrangler/*"
     ]
   }
@@ -174,9 +178,19 @@ curl -L --max-time 15 "https://$DOMAIN/join/ABC123" > "$join_page"
 rg "Join The Shady Spade" "$join_page"
 rg "ABC123" "$join_page"
 
+uppercase_join_page="$(mktemp)"
+curl -L --max-time 15 "https://$DOMAIN/JOIN/IUCFXC" > "$uppercase_join_page"
+rg "Join The Shady Spade" "$uppercase_join_page"
+rg "IUCFXC" "$uppercase_join_page"
+
 scorekeeper_page="$(mktemp)"
 curl -L --max-time 15 "https://$DOMAIN/scorekeeper/HOST01" > "$scorekeeper_page"
 rg "Watch Live Scorecard" "$scorekeeper_page"
 rg "HOST01" "$scorekeeper_page"
+
+uppercase_scorekeeper_page="$(mktemp)"
+curl -L --max-time 15 "https://$DOMAIN/SCOREKEEPER/VIEW01" > "$uppercase_scorekeeper_page"
+rg "Watch Live Scorecard" "$uppercase_scorekeeper_page"
+rg "VIEW01" "$uppercase_scorekeeper_page"
 
 echo "Static site deploy verified."

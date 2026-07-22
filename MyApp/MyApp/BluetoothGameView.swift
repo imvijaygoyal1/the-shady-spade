@@ -166,20 +166,6 @@ struct BluetoothGameView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: game.isReconnecting)
-        .overlay(alignment: .topLeading) {
-            let activePhase = ![.roundComplete, .gameOver].contains(game.phase)
-            if activePhase {
-                MultiplayerStatusPill(
-                    title: game.isMigrating ? "Host Migration" : (game.isHost ? "Bluetooth Host" : "Bluetooth Player"),
-                    detail: bluetoothStatusDetail,
-                    systemImage: game.isMigrating ? "arrow.triangle.2.circlepath" : (game.isHost ? "person.badge.key.fill" : "dot.radiowaves.left.and.right"),
-                    tint: (game.isReconnecting || game.isMigrating) ? ThemeManager.shared.colours.warningColor : ThemeManager.shared.colours.successColor
-                )
-                .padding(.top, 8)
-                .padding(.leading, 16)
-                .transition(.opacity)
-            }
-        }
         .overlay(alignment: .topTrailing) {
             let activePhase = ![.roundComplete, .gameOver].contains(game.phase)
             VStack(spacing: 8) {
@@ -268,14 +254,6 @@ struct BluetoothGameView: View {
             )
             .presentationDetents([.medium])
         }
-    }
-
-    private var bluetoothStatusDetail: String {
-        let humans = (0..<6).filter { !game.aiSeats.contains($0) && !game.playerName($0).isEmpty }.count
-        let ai = game.aiSeats.count
-        if game.isMigrating { return "Electing a new host · play paused" }
-        if game.isReconnecting { return "Trying to reach host · actions queued" }
-        return "Round \(game.roundNumber) · \(humans) human\(humans == 1 ? "" : "s") · \(ai) AI"
     }
 
     /// Saves local completed-round history when the player quits. Leaderboard rows

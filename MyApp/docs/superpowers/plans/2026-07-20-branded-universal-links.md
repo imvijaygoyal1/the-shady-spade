@@ -87,3 +87,19 @@ Manual checks still required on a physical iPhone:
 - Confirm installed app opens directly and routes to the right flow.
 
 Simulator testing can verify parsing, generated URLs, fallback pages, and app launch behavior, but it cannot fully prove Apple's live universal-link association cache and Camera-app behavior.
+
+## 2026-07-21 QR Scan Fix
+
+Observed issue:
+
+- Scanning an Online game QR code outside the app opened Chrome/Safari to a mostly blank `shadyspade.vijaygoyal.org` page and exposed a downloaded `IUCFXC.txt`/empty response instead of opening the app.
+
+Root cause:
+
+- `OnlineSessionView.generateQRCode(from:)` uppercased the entire URL before encoding it. That changed the route path from `/join/IUCFXC` to `/JOIN/IUCFXC`.
+- The Cloudflare Worker fallback routes were case-sensitive and only matched lowercase `/join/*` and `/scorekeeper/*`, so uppercase `/JOIN/*` returned a blank `404`.
+
+Fix:
+
+- QR generation now encodes the URL exactly as built by `ShadySpadeLinks.joinURL(...)`.
+- Cloudflare Worker fallback route matching is now case-insensitive for already-generated uppercase links.
