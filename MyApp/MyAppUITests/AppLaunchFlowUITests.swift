@@ -200,6 +200,8 @@ final class ScreenCatalogUITests: XCTestCase {
         assertVisible(app.staticTexts["Final Scores"], name: "Final scores")
         assertVisible(app.staticTexts["Vijay"].firstMatch, name: "History player name")
         assertVisible(app.staticTexts["Round 1"], name: "First history round")
+        assertVisible(app.buttons["Share Scorecard"], name: "Share scorecard button")
+        assertVisible(app.buttons["Delete Saved Game"], name: "Delete saved game button")
         assertElement(title, staysWithin: app, minimumTop: 44)
         keepScreenshot(named: "screen-catalog-game-history-detail", app: app)
     }

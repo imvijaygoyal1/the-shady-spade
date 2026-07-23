@@ -78,17 +78,11 @@ struct ScorekeeperRootView: View {
 
     private func finishGame(_ game: ScorekeeperGameState) {
         let finalScores = game.runningScores
-        let history = GameHistory(
-            date: Date(),
-            playerNames: game.playerNames,
-            finalScores: finalScores,
-            winnerIndex: game.winnerIndex,
-            gameMode: "Scorekeeper"
-        )
         var running = Array(repeating: 0, count: 6)
+        var historyRounds: [HistoryRound] = []
         for round in game.rounds {
             running = zip(running, round.scoreDeltas).map(+)
-            history.historyRounds.append(
+            historyRounds.append(
                 HistoryRound(
                     roundNumber: round.roundNumber,
                     dealerIndex: round.dealerIndex,
@@ -105,8 +99,13 @@ struct ScorekeeperRootView: View {
                 )
             )
         }
-        modelContext.insert(history)
-        try? modelContext.save()
+        _ = GameHistoryBuilder.saveHistory(
+            playerNames: game.playerNames,
+            finalScores: finalScores,
+            rounds: historyRounds,
+            mode: "Scorekeeper",
+            in: modelContext
+        )
         store.clearActiveGame()
         HapticManager.success()
         dismiss()

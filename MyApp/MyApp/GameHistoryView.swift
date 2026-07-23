@@ -7,6 +7,15 @@ struct GameHistoryView: View {
     @EnvironmentObject private var themeManager: ThemeManager
     @Query(sort: \GameHistory.date, order: .reverse) private var games: [GameHistory]
     @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+    @State private var selectedFilter: GameHistoryFilter = .all
+
+    private var filteredGames: [GameHistory] {
+        games.filter { game in
+            selectedFilter.matches(game)
+                && searchMatches(game)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -15,10 +24,14 @@ struct GameHistoryView: View {
 
                 if games.isEmpty {
                     emptyState
+                } else if filteredGames.isEmpty {
+                    noResultsState
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            ForEach(games.prefix(10)) { game in
+                            filterBar
+
+                            ForEach(filteredGames) { game in
                                 NavigationLink(destination: GameHistoryDetailView(game: game)) {
                                     GameHistoryRow(game: game)
                                 }
@@ -34,6 +47,7 @@ struct GameHistoryView: View {
             }
             .navigationTitle("Game History")
             .navigationBarTitleDisplayMode(.large)
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search players or modes")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -42,6 +56,42 @@ struct GameHistoryView: View {
             }
         }
         .roomyIPadSheet()
+    }
+
+    private func searchMatches(_ game: GameHistory) -> Bool {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return true }
+        let haystack = ([game.gameMode] + game.playerNames + [
+            game.date.formatted(date: .abbreviated, time: .omitted),
+            game.date.formatted(date: .numeric, time: .omitted)
+        ]).joined(separator: " ")
+        return haystack.localizedCaseInsensitiveContains(query)
+    }
+
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(GameHistoryFilter.allCases) { filter in
+                    Button {
+                        selectedFilter = filter
+                    } label: {
+                        Label(filter.title, systemImage: filter.systemImage)
+                            .font(.caption.bold())
+                            .foregroundStyle(selectedFilter == filter ? Color.black : Color.adaptivePrimary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(selectedFilter == filter ? Color.masterGold : Color.adaptiveSubtle, in: Capsule())
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Color.adaptiveDivider, lineWidth: selectedFilter == filter ? 0 : 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+        .accessibilityIdentifier("history.filterBar")
     }
 
     private var emptyState: some View {
@@ -57,6 +107,67 @@ struct GameHistoryView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
+        }
+    }
+
+    private var noResultsState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: 52))
+                .foregroundStyle(.secondary)
+            Text("No Matching Games")
+                .font(.title3.bold())
+                .foregroundStyle(.adaptivePrimary)
+            Text("Try a different player name, date, or game mode.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+        }
+    }
+}
+
+private enum GameHistoryFilter: String, CaseIterable, Identifiable {
+    case all
+    case scorekeeper
+    case solo
+    case online
+    case local
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: "All"
+        case .scorekeeper: "Scorekeeper"
+        case .solo: "Solo"
+        case .online: "Online"
+        case .local: "Local"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .all: "clock.arrow.circlepath"
+        case .scorekeeper: "square.grid.3x3.fill"
+        case .solo: "person.fill"
+        case .online: "network"
+        case .local: "dot.radiowaves.left.and.right"
+        }
+    }
+
+    func matches(_ game: GameHistory) -> Bool {
+        switch self {
+        case .all:
+            return true
+        case .scorekeeper:
+            return game.gameMode == "Scorekeeper"
+        case .solo:
+            return game.gameMode == "Solo"
+        case .online:
+            return game.gameMode == "Online"
+        case .local:
+            return game.gameMode == "Multiplayer" || game.gameMode == "Custom" || game.gameMode == "Bluetooth"
         }
     }
 }
@@ -134,7 +245,10 @@ private struct GameHistoryRow: View {
 
 struct GameHistoryDetailView: View {
     @EnvironmentObject private var themeManager: ThemeManager
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     let game: GameHistory
+    @State private var showingDeleteConfirmation = false
 
     private var sortedRounds: [HistoryRound] {
         game.historyRounds.sorted { $0.roundNumber < $1.roundNumber }
@@ -163,6 +277,36 @@ struct GameHistoryDetailView: View {
         }
         .navigationTitle("Game · \(game.date.formatted(date: .abbreviated, time: .omitted))")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                ShareLink(
+                    item: GameHistoryExportFormatter.text(for: game),
+                    preview: SharePreview("Shady Spade Scorecard")
+                ) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityLabel("Share Scorecard")
+            }
+
+            ToolbarItem(placement: .destructiveAction) {
+                Button(role: .destructive) {
+                    showingDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .accessibilityLabel("Delete Saved Game")
+            }
+        }
+        .confirmationDialog("Delete this saved game?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete Saved Game", role: .destructive) {
+                modelContext.delete(game)
+                try? modelContext.save()
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the saved local history entry. It does not affect leaderboard or live scorecard data.")
+        }
     }
 
     private var finalScoreboard: some View {

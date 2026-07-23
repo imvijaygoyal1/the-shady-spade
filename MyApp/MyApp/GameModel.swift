@@ -283,3 +283,55 @@ enum GameHistoryBuilder {
         }
     }
 }
+
+enum GameHistoryExportFormatter {
+    static func text(for game: GameHistory) -> String {
+        let sortedRounds = game.historyRounds.sorted { $0.roundNumber < $1.roundNumber }
+        let winnerName = game.playerNames[safe: game.winnerIndex] ?? "Player \(game.winnerIndex + 1)"
+        let winnerScore = game.finalScores[safe: game.winnerIndex] ?? 0
+
+        var lines = [
+            "The Shady Spade Scorecard",
+            "Mode: \(game.gameMode)",
+            "Played: \(game.date.formatted(date: .abbreviated, time: .shortened))",
+            "Winner: \(winnerName) (\(winnerScore))",
+            "",
+            "Final Scores"
+        ]
+
+        for index in 0..<min(6, game.playerNames.count) {
+            let name = game.playerNames[safe: index] ?? "Player \(index + 1)"
+            let score = game.finalScores[safe: index] ?? 0
+            lines.append("\(index + 1). \(name): \(score)")
+        }
+
+        lines.append("")
+        lines.append("Rounds")
+
+        if sortedRounds.isEmpty {
+            lines.append("No rounds recorded.")
+        } else {
+            for round in sortedRounds {
+                let bidder = game.playerNames[safe: round.bidderIndex] ?? "Player \(round.bidderIndex + 1)"
+                let partner1 = game.playerNames[safe: round.partner1Index] ?? "Player \(round.partner1Index + 1)"
+                let partner2 = game.playerNames[safe: round.partner2Index] ?? "Player \(round.partner2Index + 1)"
+                let result = round.isSet ? "set" : "made"
+
+                lines.append(
+                    "Round \(round.roundNumber): \(bidder) \(result) \(round.bidAmount) \(round.trumpSuit.displayName) with \(partner1), \(partner2)"
+                )
+                lines.append("  Running: \(runningScoreLine(game: game, scores: round.runningScores))")
+            }
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    private static func runningScoreLine(game: GameHistory, scores: [Int]) -> String {
+        (0..<min(6, game.playerNames.count)).map { index in
+            let name = game.playerNames[safe: index] ?? "Player \(index + 1)"
+            let score = scores[safe: index] ?? 0
+            return "\(name) \(score)"
+        }.joined(separator: ", ")
+    }
+}

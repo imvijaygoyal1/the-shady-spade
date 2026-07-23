@@ -96,6 +96,41 @@ final class GameHistoryBuilderTests: XCTestCase {
         XCTAssertNil(GameHistoryBuilder.latestFinalScores(from: []))
     }
 
+    func test_exportFormatterIncludesScorekeeperSummaryAndRounds() {
+        let game = GameHistory(
+            date: Date(timeIntervalSince1970: 1_783_900_000),
+            playerNames: ["Amit", "Shikha", "Manish", "Vijay", "Sweta", "Megha"],
+            finalScores: [130, 65, 65, 0, 0, 0],
+            winnerIndex: 0,
+            gameMode: "Scorekeeper"
+        )
+        game.historyRounds = [
+            HistoryRound(
+                roundNumber: 1,
+                dealerIndex: 5,
+                bidderIndex: 0,
+                bidAmount: 130,
+                trumpSuit: .spades,
+                callCard1: "",
+                callCard2: "",
+                partner1Index: 1,
+                partner2Index: 2,
+                offensePointsCaught: 130,
+                defensePointsCaught: 120,
+                runningScores: [130, 65, 65, 0, 0, 0]
+            )
+        ]
+
+        let export = GameHistoryExportFormatter.text(for: game)
+
+        XCTAssertTrue(export.contains("The Shady Spade Scorecard"))
+        XCTAssertTrue(export.contains("Mode: Scorekeeper"))
+        XCTAssertTrue(export.contains("Winner: Amit (130)"))
+        XCTAssertTrue(export.contains("1. Amit: 130"))
+        XCTAssertTrue(export.contains("Round 1: Amit made 130 Spades with Shikha, Manish"))
+        XCTAssertTrue(export.contains("Running: Amit 130, Shikha 65, Manish 65"))
+    }
+
     private func makeHistoryRound(roundNumber: Int, runningScores: [Int]) -> HistoryRound {
         HistoryRound(
             roundNumber: roundNumber,
