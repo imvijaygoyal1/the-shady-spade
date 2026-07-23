@@ -7,6 +7,7 @@ struct ScorekeeperRootView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var store = ScorekeeperStore()
     @State private var livePublisher = ScorekeeperLivePublishingController()
+    @State private var watchBridge = ScorekeeperWatchBridge()
     @State private var showingDiscardConfirmation = false
 
     var body: some View {
@@ -55,7 +56,11 @@ struct ScorekeeperRootView: View {
                 Text("This clears the local in-progress real-life scorecard on this device.")
             }
             .onAppear {
+                watchBridge.configure(store: store, livePublisher: livePublisher)
                 seedActiveGameForUITestsIfNeeded()
+            }
+            .onChange(of: store.activeGame) { _, _ in
+                watchBridge.sendSnapshot()
             }
         }
     }

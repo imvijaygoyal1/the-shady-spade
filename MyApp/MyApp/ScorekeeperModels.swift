@@ -187,6 +187,10 @@ struct ScorekeeperRoundDraft: Equatable {
             return "Bid must be between 130 and 240."
         }
 
+        guard bidderIndex != dealerIndex else {
+            return "Dealer cannot be the bidder."
+        }
+
         guard partner1Index != bidderIndex,
               partner2Index != bidderIndex else {
             return "Partners cannot be the bidder."
