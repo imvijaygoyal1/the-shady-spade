@@ -6,6 +6,29 @@ Validate the current The Shady Spade state after live scorekeeper polish across 
 
 ## Automated Results
 
+- Full UI regression runner added on 2026-07-24:
+  - Script: `scripts/run_full_ui_regression.sh`
+  - Default scope: `MyAppUITests`
+  - Batch scopes: `app-launch`, `gameplay`, `scorekeeper`, `screen-catalog`
+  - Stable timeout settings: `-default-test-execution-time-allowance 90` and `-maximum-test-execution-time-allowance 120`
+  - Optional coverage: `--coverage`
+  - Run examples:
+    - `DEVICE_UDID=58521AC2-0750-4B57-A033-6DD2D725B2A0 scripts/run_full_ui_regression.sh`
+    - `scripts/run_full_ui_regression.sh --device "iPhone 17" --batch scorekeeper`
+    - `scripts/run_full_ui_regression.sh --udid 58521AC2-0750-4B57-A033-6DD2D725B2A0 --coverage`
+- 2026-07-24 full UI validation:
+  - First no-allowance full UI run failed with `7` failures, all `Test crashed with signal kill`.
+  - The failing subset passed after adding the 90/120 second execution-time allowance:
+    - Result bundle: `build/full-ui-failing-subset-2026-07-24.xcresult`
+    - Tests: `7`, failures `0`, skips `0`
+  - Full `MyAppUITests` then passed with the same allowance:
+    - Result bundle: `build/full-ui-suite-2026-07-24-with-allowance.xcresult`
+    - Tests: `21`, failures `0`, skips `0`
+  - Script verification passed:
+    - Command: `DEVICE_UDID=58521AC2-0750-4B57-A033-6DD2D725B2A0 ARTIFACT_DIR=build/ui-regression/script-verification-20260724-final scripts/run_full_ui_regression.sh`
+    - Result bundle: `build/ui-regression/script-verification-20260724-final/all-ui-regression.xcresult`
+    - Tests: `21`, no failure issues in `.xcresult`
+  - Conclusion: use the script or include the allowance flags for full UI regression. The no-allowance failure was XCTest runner timeout/kill behavior, not a UI assertion failure.
 - Full regression with coverage passed:
   - Command target: `xcodebuild test -project MyApp.xcodeproj -scheme MyApp -destination id=58521AC2-0750-4B57-A033-6DD2D725B2A0 -enableCodeCoverage YES`
   - Result bundle: `build/release-readiness/full-regression-coverage-udid.xcresult`
