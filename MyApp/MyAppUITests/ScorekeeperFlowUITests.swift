@@ -61,6 +61,33 @@ final class ScorekeeperFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Total 0"].exists)
     }
 
+    func testAddRoundTrumpSelectorUsesRealSuitButtons() throws {
+        launchApp(arguments: [
+            "-SHADYSPADE_UI_TESTING",
+            "-SHADYSPADE_RESET_SCOREKEEPER_FOR_UI_TESTS",
+            "-SHADYSPADE_OPEN_SCOREKEEPER_FOR_UI_TESTS",
+            "-SHADYSPADE_SEED_SCOREKEEPER_GAME_FOR_UI_TESTS",
+            "-SHADYSPADE_OPEN_SCOREKEEPER_ADD_ROUND_FOR_UI_TESTS"
+        ])
+
+        XCTAssertTrue(app.navigationBars["Add Round"].waitForExistence(timeout: 8))
+        let spades = app.buttons["Spades trump"]
+        let hearts = app.buttons["Hearts trump"]
+        let diamonds = app.buttons["Diamonds trump"]
+        let clubs = app.buttons["Clubs trump"]
+
+        scrollToElement(spades, timeout: 6)
+        XCTAssertTrue(spades.exists)
+        XCTAssertTrue(hearts.exists)
+        XCTAssertTrue(diamonds.exists)
+        XCTAssertTrue(clubs.exists)
+
+        hearts.tap()
+        XCTAssertTrue(hearts.exists)
+
+        keepScreenshot(named: "scorekeeper-add-round-real-trump-selector")
+    }
+
     private func launchApp(arguments: [String]) {
         app = XCUIApplication()
         app.launchArguments = arguments
@@ -81,5 +108,26 @@ final class ScorekeeperFlowUITests: XCTestCase {
         }
 
         return element.exists
+    }
+
+    private func scrollToElement(_ element: XCUIElement, timeout: TimeInterval) {
+        let deadline = Date().addingTimeInterval(timeout)
+        let scrollView = app.scrollViews.firstMatch
+
+        while Date() < deadline, !element.exists {
+            if scrollView.exists {
+                scrollView.swipeUp()
+            } else {
+                app.swipeUp()
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+    }
+
+    private func keepScreenshot(named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

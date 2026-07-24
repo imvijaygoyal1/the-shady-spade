@@ -2,6 +2,7 @@ import SwiftUI
 import Foundation
 
 struct CardDealAnimationView: View {
+    @EnvironmentObject private var themeManager: ThemeManager
     let playerNames: [String]
     let playerAvatars: [String]
     let humanPlayerIndex: Int
@@ -25,11 +26,14 @@ struct CardDealAnimationView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // ── Felt background ──────────────────────────
-                Color(red: 0.04, green: 0.11, blue: 0.06)
+                themeManager.colours.screenBackground
                     .ignoresSafeArea()
 
-                // Felt texture rings
+                ThemedBackground()
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+
                 feltRings(geo: geo)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
@@ -62,24 +66,23 @@ struct CardDealAnimationView: View {
                             weight: .heavy,
                             design: .rounded))
                         .foregroundStyle(humanReady
-                            ? .masterGold
-                            : Color(red: 0.6,
-                                green: 0.85, blue: 0.6))
+                            ? themeManager.colours.accentColor
+                            : themeManager.colours.successColor)
                         .animation(.easeInOut(duration: 0.3),
                             value: statusText)
+                        .accessibilityIdentifier("cardDealAnimation.status")
 
                     // Progress bar
                     let total = 48
                     let dealt = dealtTo.reduce(0, +)
                     ZStack(alignment: .leading) {
                         Capsule()
-                            .fill(Color.white.opacity(0.08))
+                            .fill(themeManager.colours.separator)
                             .frame(width: 160, height: 4)
                         Capsule()
                             .fill(humanReady
-                                ? Color.masterGold
-                                : Color(red: 0.3,
-                                    green: 0.85, blue: 0.4))
+                                ? themeManager.colours.accentColor
+                                : themeManager.colours.successColor)
                             .frame(
                                 width: 160 * CGFloat(dealt)
                                     / CGFloat(total),
@@ -107,19 +110,19 @@ struct CardDealAnimationView: View {
         return ZStack {
             Circle()
                 .strokeBorder(
-                    Color.white.opacity(0.04),
+                    themeManager.colours.separator.opacity(0.45),
                     lineWidth: 1)
                 .frame(width: r1 * 2, height: r1 * 2)
                 .position(x: cx, y: cy)
             Circle()
                 .strokeBorder(
-                    Color.white.opacity(0.04),
+                    themeManager.colours.separator.opacity(0.45),
                     lineWidth: 1)
                 .frame(width: r2 * 2, height: r2 * 2)
                 .position(x: cx, y: cy)
             Circle()
                 .strokeBorder(
-                    Color.white.opacity(0.03),
+                    themeManager.colours.separator.opacity(0.35),
                     lineWidth: 1)
                 .frame(width: r3 * 2, height: r3 * 2)
                 .position(x: cx, y: cy)
@@ -149,16 +152,15 @@ struct CardDealAnimationView: View {
                 Rectangle()
                     .fill(isHuman
                         ? (done
-                            ? Color.masterGold
-                            : Color.masterGold.opacity(0.55))
-                        : Color.white.opacity(0.07))
+                            ? themeManager.colours.primaryButton
+                            : themeManager.colours.primaryButton.opacity(0.55))
+                        : themeManager.colours.containerBackground.opacity(0.92))
                 Text(isHuman ? "YOU" : "AI")
                     .font(.system(size: 6, weight: .heavy,
                         design: .rounded))
                     .foregroundStyle(isHuman
-                        ? Color(red: 0.1, green: 0.06,
-                            blue: 0.0)
-                        : Color.white.opacity(0.45))
+                        ? themeManager.colours.primaryButtonText
+                        : themeManager.colours.textTertiary)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 14)
@@ -167,8 +169,8 @@ struct CardDealAnimationView: View {
             ZStack {
                 Rectangle()
                     .fill(isHuman
-                        ? Color.masterGold.opacity(0.12)
-                        : Color.white.opacity(0.04))
+                        ? themeManager.colours.accentColor.opacity(0.12)
+                        : themeManager.colours.containerBackground.opacity(0.72))
                 Text(playerAvatar(i))
                     .font(.system(size: isHuman
                         ? cardH * 0.44
@@ -185,17 +187,16 @@ struct CardDealAnimationView: View {
             ZStack {
                 Rectangle()
                     .fill(isHuman
-                        ? Color.masterGold.opacity(
+                        ? themeManager.colours.accentColor.opacity(
                             done ? 0.25 : 0.1)
-                        : Color.white.opacity(0.04))
+                        : themeManager.colours.containerBackground.opacity(0.72))
                 if done {
                     Image(systemName: "checkmark")
                         .font(.system(size: 8,
                             weight: .black))
                         .foregroundStyle(isHuman
-                            ? Color.masterGold
-                            : Color(red: 0.3,
-                                green: 0.85, blue: 0.4))
+                            ? themeManager.colours.accentColor
+                            : themeManager.colours.successColor)
                         .transition(.scale
                             .combined(with: .opacity))
                 } else if count > 0 {
@@ -205,15 +206,15 @@ struct CardDealAnimationView: View {
                             design: .rounded)
                             .monospacedDigit())
                         .foregroundStyle(isHuman
-                            ? Color.masterGold.opacity(0.8)
-                            : Color.white.opacity(0.45))
+                            ? themeManager.colours.accentColor.opacity(0.8)
+                            : themeManager.colours.textTertiary)
                         .contentTransition(.numericText())
                 } else {
                     Text("—")
                         .font(.system(size: 7,
                             weight: .heavy))
                         .foregroundStyle(
-                            Color.white.opacity(0.2))
+                            themeManager.colours.textTertiary.opacity(0.5))
                 }
             }
             .frame(maxWidth: .infinity)
@@ -228,12 +229,11 @@ struct CardDealAnimationView: View {
                 style: .continuous)
                 .strokeBorder(
                     isHuman
-                        ? Color.masterGold
+                        ? themeManager.colours.accentColor
                             .opacity(done ? 1.0 : 0.5)
                         : done
-                            ? Color(red: 0.3, green: 0.85,
-                                blue: 0.4).opacity(0.6)
-                            : Color.white.opacity(0.1),
+                            ? themeManager.colours.successColor.opacity(0.6)
+                            : themeManager.colours.containerBorder.opacity(0.35),
                     lineWidth: isHuman ? 2 : 1.5
                 )
         )
@@ -243,8 +243,8 @@ struct CardDealAnimationView: View {
                 .font(.system(size: 7, weight: .heavy,
                     design: .rounded))
                 .foregroundStyle(isHuman
-                    ? Color.masterGold.opacity(0.9)
-                    : Color.white.opacity(0.45))
+                    ? themeManager.colours.accentColor.opacity(0.9)
+                    : themeManager.colours.textTertiary)
                 .lineLimit(1)
                 .offset(y: 14)
         }
@@ -271,12 +271,11 @@ struct CardDealAnimationView: View {
 
     private var cardBack: some View {
         RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .fill(Color.white)
+            .fill(themeManager.colours.cardBackground)
             .overlay {
                 RoundedRectangle(cornerRadius: 4,
                     style: .continuous)
-                    .fill(Color(red: 0.06, green: 0.16,
-                        blue: 0.45))
+                    .fill(cardBackFill)
                     .padding(4)
             }
             .overlay {
@@ -284,16 +283,30 @@ struct CardDealAnimationView: View {
                     .font(.system(size: 18,
                         weight: .black))
                     .foregroundStyle(
-                        Color.white.opacity(0.25))
+                        themeManager.colours.shadySpadeText.opacity(0.28))
             }
             .overlay(
                 RoundedRectangle(cornerRadius: 7,
                     style: .continuous)
                     .strokeBorder(
-                        Color(red: 0.06, green: 0.16,
-                            blue: 0.45),
+                        themeManager.colours.cardBorder,
                         lineWidth: 2)
             )
+    }
+
+    private var cardBackFill: AnyShapeStyle {
+        switch themeManager.behaviour.cardBackStyle {
+        case .solid(let color):
+            AnyShapeStyle(color)
+        case .gradient(let colors):
+            AnyShapeStyle(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+        case .patternedGradient(let base, let patternColor):
+            AnyShapeStyle(LinearGradient(
+                colors: base + [patternColor.opacity(0.25)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ))
+        }
     }
 
     // MARK: - Flying card
@@ -306,18 +319,17 @@ struct CardDealAnimationView: View {
         let dst = playerPos(card.playerIndex, geo: geo)
         return RoundedRectangle(cornerRadius: 3,
             style: .continuous)
-            .fill(Color.white)
+            .fill(themeManager.colours.cardBackground)
             .overlay {
                 RoundedRectangle(cornerRadius: 2,
                     style: .continuous)
-                    .fill(Color(red: 0.06, green: 0.16,
-                        blue: 0.45))
+                    .fill(cardBackFill)
                     .padding(2)
             }
             .overlay {
                 Text("♠")
                     .font(.system(size: 8, weight: .black))
-                    .foregroundStyle(Color.white.opacity(0.3))
+                    .foregroundStyle(themeManager.colours.shadySpadeText.opacity(0.3))
             }
             .frame(width: 20, height: 29)
             .shadow(color: .black.opacity(0.5),

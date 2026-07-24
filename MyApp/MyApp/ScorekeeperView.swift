@@ -216,6 +216,7 @@ private struct ScorekeeperLiveView: View {
     @State private var showingLiveShareDisclosure = false
     @State private var showingLiveQRCode = false
     @State private var liveCodeCopied = false
+    @State private var openedRoundEntryForUITests = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -300,6 +301,20 @@ private struct ScorekeeperLiveView: View {
             .presentationDetents([.large])
             .presentationBackground(Comic.bg)
         }
+        .onAppear {
+            openRoundEntryForUITestsIfNeeded()
+        }
+    }
+
+    private func openRoundEntryForUITestsIfNeeded() {
+        guard MyAppApp.isRunningUITests,
+              !openedRoundEntryForUITests,
+              ProcessInfo.processInfo.arguments.contains("-SHADYSPADE_OPEN_SCOREKEEPER_ADD_ROUND_FOR_UI_TESTS")
+        else { return }
+
+        openedRoundEntryForUITests = true
+        editingLastRound = false
+        showingRoundEntry = true
     }
 
     private var header: some View {
@@ -1411,13 +1426,19 @@ private struct ScorekeeperRoundEntryView: View {
             .accessibilityIdentifier("scorekeeper.round.bid")
             .accessibilityValue("\(draft.bidAmount)")
 
-            Picker("Trump", selection: $draft.trumpSuit) {
+            HStack(spacing: 8) {
                 ForEach(TrumpSuit.allCases, id: \.self) { suit in
-                    Text("\(suit.rawValue) \(suit.displayName)").tag(suit)
+                    TrumpSuitButton(
+                        suit: suit,
+                        isSelected: draft.trumpSuit == suit
+                    ) {
+                        draft.trumpSuit = suit
+                        HapticManager.impact(.light)
+                    }
                 }
             }
-            .pickerStyle(.segmented)
             .accessibilityIdentifier("scorekeeper.round.trump")
+            .accessibilityElement(children: .contain)
         }
         .padding(14)
         .comicContainer(cornerRadius: 14)
@@ -1444,5 +1465,58 @@ private struct ScorekeeperRoundEntryView: View {
         }
         .padding(14)
         .comicContainer(cornerRadius: 14)
+    }
+}
+
+private struct TrumpSuitButton: View {
+    let suit: TrumpSuit
+    let isSelected: Bool
+    let action: () -> Void
+
+    private var suitColor: Color {
+        suit.isRed
+            ? Color(red: 0.78, green: 0.02, blue: 0.05)
+            : Color(red: 0.05, green: 0.05, blue: 0.06)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Text(suit.rawValue)
+                    .font(.system(size: 25, weight: .black, design: .rounded))
+                    .foregroundStyle(suitColor)
+
+                Text(suit.displayName)
+                    .font(.system(size: 9, weight: .black, design: .rounded))
+                    .foregroundStyle(suitColor.opacity(0.82))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 60)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.white.opacity(isSelected ? 0.96 : 0.78))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(isSelected ? Comic.yellow : suitColor.opacity(0.26), lineWidth: isSelected ? 2.5 : 1.2)
+            )
+            .overlay(alignment: .topTrailing) {
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundStyle(Comic.yellow)
+                        .background(Circle().fill(Color.white))
+                        .offset(x: 5, y: -5)
+                }
+            }
+            .shadow(color: isSelected ? Comic.yellow.opacity(0.28) : Color.black.opacity(0.12), radius: isSelected ? 5 : 2, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("scorekeeper.round.trump.\(suit.displayName)")
+        .accessibilityLabel("\(suit.displayName) trump")
+        .accessibilityHint("Selects \(suit.displayName) as trump")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

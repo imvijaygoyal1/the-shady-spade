@@ -59,6 +59,18 @@ final class AppLaunchFlowUITests: XCTestCase {
             "Name prompt content should be pushed below the Dynamic Island/status-bar area."
         )
     }
+
+    func testJoinGameNamePromptUsesJoinActionLabel() throws {
+        app = launchShadySpade()
+
+        let joinGame = app.buttons["mode.card.Join a Game"]
+        XCTAssertTrue(joinGame.waitForExistence(timeout: 8))
+        joinGame.tap()
+
+        XCTAssertTrue(app.staticTexts["Join a Game"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Join Game"].exists)
+        XCTAssertFalse(app.buttons["Start Game"].exists)
+    }
 }
 
 final class ScreenCatalogUITests: XCTestCase {
@@ -234,6 +246,14 @@ final class GameplayScreenCatalogUITests: XCTestCase {
         app = launchShadySpade(arguments: ["-SHADYSPADE_OPEN_BLUETOOTH_GAMEPLAY_CATALOG_FOR_UI_TESTS"])
 
         assertGameplayCatalogVisible(modeName: "bluetooth", firstPlayerName: "You")
+    }
+
+    func testCardDealAnimationScreenCatalog() throws {
+        app = launchShadySpade(arguments: ["-SHADYSPADE_OPEN_CARD_DEAL_FOR_UI_TESTS"])
+
+        assertVisible(app.staticTexts["cardDealAnimation.status"].firstMatch, name: "Card deal status")
+        assertVisible(app.staticTexts["Vijay"].firstMatch, name: "Card deal first player")
+        keepScreenshot(named: "screen-catalog-card-deal-animation", app: app)
     }
 
     private func assertGameplayCatalogVisible(modeName: String, firstPlayerName: String) {

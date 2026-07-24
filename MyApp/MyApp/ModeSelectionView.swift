@@ -19,6 +19,7 @@ struct ModeSelectionView: View {
     @State private var showingGameHistoryCatalog = false
     @State private var showingHowToPlayCatalog = false
     @State private var showingLeaderboardConsentCatalog = false
+    @State private var showingCardDealCatalog = false
     @State private var showingPlayerCount = false
     @State private var selectedPlayerCount = 1
     @State private var showingNamePrompt = false
@@ -248,6 +249,9 @@ struct ModeSelectionView: View {
                 if arguments.contains("-SHADYSPADE_OPEN_LEADERBOARD_CONSENT_FOR_UI_TESTS") {
                     showingLeaderboardConsentCatalog = true
                 }
+                if arguments.contains("-SHADYSPADE_OPEN_CARD_DEAL_FOR_UI_TESTS") {
+                    showingCardDealCatalog = true
+                }
             }
         }
         // NoAnimationCover replaces ALL UIKit animated presentations.
@@ -410,6 +414,10 @@ struct ModeSelectionView: View {
                     disableInteractiveDismiss: true
                 )
             }
+            NoAnimationCover(isPresented: $showingCardDealCatalog) {
+                UITestCardDealCatalogView()
+                    .environmentObject(themeManager)
+            }
         }
         .sheet(isPresented: $showingLeaderboard) {
             LeaderboardView()
@@ -428,6 +436,17 @@ struct ModeSelectionView: View {
             guard code != nil else { return }
             showingScorekeeperViewer = true
         }
+    }
+}
+
+private struct UITestCardDealCatalogView: View {
+    var body: some View {
+        CardDealAnimationView(
+            playerNames: ["Vijay", "Shikha", "Manish", "Anya", "Rohan", "Maya"],
+            playerAvatars: ["🦁", "🦊", "🐯", "🐼", "🦉", "🐲"],
+            humanPlayerIndex: 0,
+            onComplete: {}
+        )
     }
 }
 
@@ -535,6 +554,13 @@ private struct NamePromptSheet: View {
     private var trimmed: String { pendingName.trimmingCharacters(in: .whitespaces) }
     private var isProfane: Bool { ProfanityFilter.isProfane(trimmed) }
     private var canStart: Bool { !trimmed.isEmpty && !isProfane }
+    private var actionTitle: String {
+        switch mode {
+        case "Join a Game": "Join Game"
+        case "Local / Bluetooth": "Continue"
+        default: "Start Game"
+        }
+    }
 
     var body: some View {
         AdaptiveLayout {
@@ -711,7 +737,7 @@ private struct NamePromptSheet: View {
 
     private func startButton(large: Bool) -> some View {
         Button(action: onStart) {
-            Text("Start Game")
+            Text(actionTitle)
                 .font(.system(size: large ? 22 : 18, weight: .black, design: .rounded))
                 .foregroundStyle(canStart ? Comic.black : Color.secondary)
                 .frame(maxWidth: .infinity)
