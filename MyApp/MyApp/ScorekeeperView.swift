@@ -376,21 +376,20 @@ private struct ScorekeeperLiveView: View {
     }
 
     private var liveSharingStatus: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let status = livePublisher.statusPresentation
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 10) {
-                Image(systemName: livePublisher.isLive ? "dot.radiowaves.left.and.right" : "qrcode")
+                Image(systemName: status.systemImage)
                     .font(.system(size: 18, weight: .black))
                     .foregroundStyle(livePublisher.isLive ? Color.offenseBlue : Comic.yellow)
                     .frame(width: 34, height: 34)
                     .background(Comic.containerBG.opacity(0.8), in: Circle())
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(livePublisher.isLive ? "Live View On" : "Live View Off")
+                    Text(status.title)
                         .font(.system(size: 16, weight: .black, design: .rounded))
                         .foregroundStyle(Comic.textPrimary)
-                    Text(livePublisher.isLive
-                         ? "Use this code while Live View On is visible here."
-                         : "Start Live View before others try to join.")
+                    Text(status.message)
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(Comic.textSecondary)
                 }
@@ -466,6 +465,17 @@ Code: \(code)
                                 .frame(maxWidth: .infinity)
                         }
                         .accessibilityLabel("Show Live Scorecard QR Code")
+
+                        Button {
+                            Task {
+                                await livePublisher.close()
+                            }
+                        } label: {
+                            Label("Stop", systemImage: "stop.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(livePublisher.isBusy)
+                        .accessibilityLabel("Stop Live View")
                     }
                     .font(.system(size: 13, weight: .black, design: .rounded))
                     .foregroundStyle(Comic.textPrimary)
@@ -475,7 +485,7 @@ Code: \(code)
                 Button {
                     showingLiveShareDisclosure = true
                 } label: {
-                    Label("Share Live View", systemImage: "qrcode.viewfinder")
+                    Label(livePublisher.document == nil ? "Share Live View" : "Start New Live View", systemImage: "qrcode.viewfinder")
                         .font(.system(size: 14, weight: .black, design: .rounded))
                         .foregroundStyle(Comic.black)
                         .frame(maxWidth: .infinity)
@@ -681,6 +691,9 @@ struct ScorekeeperViewerEntryView: View {
                     document: document,
                     state: viewer.state,
                     errorMessage: viewer.errorMessage,
+                    onReconnect: {
+                        viewer.startViewing()
+                    },
                     onChangeCode: {
                         viewer.stop()
                         viewer.sessionCode = ""
@@ -837,6 +850,7 @@ private struct ScorekeeperViewerScorecard: View {
     let document: ScorekeeperLiveSessionDocument
     let state: ScorekeeperLiveViewerState
     let errorMessage: String?
+    let onReconnect: () -> Void
     let onChangeCode: () -> Void
     let onClose: () -> Void
 
@@ -907,24 +921,37 @@ private struct ScorekeeperViewerScorecard: View {
     }
 
     private var stateBanner: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let status = ScorekeeperLiveViewerStatusPresentation.make(state: state)
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Image(systemName: stateIcon)
+                Image(systemName: status.systemImage)
                     .font(.system(size: 18, weight: .black))
                     .foregroundStyle(stateTint)
-                Text(stateTitle)
+                Text(status.title)
                     .font(.system(size: 16, weight: .black, design: .rounded))
                     .foregroundStyle(Comic.textPrimary)
                 Spacer()
-                Button("Change Code", action: onChangeCode)
+                if let actionTitle = status.actionTitle {
+                    Button(actionTitle) {
+                        if state == .syncError {
+                            onReconnect()
+                        } else {
+                            onChangeCode()
+                        }
+                    }
                     .font(.system(size: 12, weight: .black, design: .rounded))
                     .foregroundStyle(Comic.yellow)
-                    .accessibilityLabel("Change Scorecard Code")
+                    .accessibilityLabel(actionTitle == "Reconnect" ? "Reconnect Live Scorecard" : "Change Scorecard Code")
+                }
             }
 
-            Text(stateMessage)
+            Text(status.message)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(Comic.textSecondary)
+
+            Text("Last updated \(document.updatedAt.formatted(date: .omitted, time: .shortened))")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(Comic.textSecondary.opacity(0.85))
 
             if let errorMessage {
                 Text(errorMessage)
@@ -1001,39 +1028,6 @@ private struct ScorekeeperViewerScorecard: View {
         return roundEntries.map { round in
             running = zip(running, round.scoreDeltas).map(+)
             return (round, running)
-        }
-    }
-
-    private var stateTitle: String {
-        switch state {
-        case .live: return "Live"
-        case .closed: return "Closed"
-        case .expired: return "Expired"
-        case .syncError: return "Sync Issue"
-        case .loading: return "Loading"
-        case .idle, .notFound, .invalidCode: return "Unavailable"
-        }
-    }
-
-    private var stateMessage: String {
-        switch state {
-        case .live: return "Updates appear automatically while the scorekeeper device keeps Live View On."
-        case .closed: return "The scorekeeper closed this live scorecard. Ask for a new code if play continues."
-        case .expired: return "This live scorecard expired. Ask the scorekeeper to start a new Live View."
-        case .syncError: return "Showing the latest scorecard we received. Reconnect or change code if it stops updating."
-        case .loading: return "Connecting to the live scorecard."
-        case .idle, .notFound, .invalidCode: return "Enter the current code shown on the scorekeeper device."
-        }
-    }
-
-    private var stateIcon: String {
-        switch state {
-        case .live: return "dot.radiowaves.left.and.right"
-        case .closed: return "checkmark.seal.fill"
-        case .expired: return "clock.badge.exclamationmark"
-        case .syncError: return "wifi.exclamationmark"
-        case .loading: return "hourglass"
-        case .idle, .notFound, .invalidCode: return "exclamationmark.triangle.fill"
         }
     }
 

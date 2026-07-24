@@ -435,18 +435,28 @@ final class ScorekeeperSessionService {
         return ShadySpadeLinks.scorekeeperURL(sessionCode: sessionCode)
     }
 
+    var statusPresentation: ScorekeeperLiveHostStatusPresentation {
+        ScorekeeperLiveHostStatusPresentation.make(
+            isLive: isLive,
+            isBusy: isBusy,
+            hasError: errorMessage != nil,
+            hasSession: document != nil
+        )
+    }
+
     func startSharing(game: ScorekeeperGameState) async {
-        guard document == nil else {
+        if let document, let hostUid, service.canHostUpdate(document: document, hostUid: hostUid) {
             await publish(game: game)
             return
         }
 
-        isBusy = true
+        document = nil
         errorMessage = nil
+        isBusy = true
         defer { isBusy = false }
 
         do {
-            let uid = try await hostUidProvider()
+            let uid = try await existingOrNewHostUid()
             hostUid = uid
             document = try await service.createSession(hostUid: uid, game: game)
         } catch {
@@ -492,6 +502,13 @@ final class ScorekeeperSessionService {
         let result = try await Auth.auth().signInAnonymously()
         return result.user.uid
     }
+
+    private func existingOrNewHostUid() async throws -> String {
+        if let hostUid {
+            return hostUid
+        }
+        return try await hostUidProvider()
+    }
 }
 
 enum ScorekeeperLiveViewerState: Equatable {
@@ -503,6 +520,131 @@ enum ScorekeeperLiveViewerState: Equatable {
     case notFound
     case invalidCode
     case syncError
+}
+
+struct ScorekeeperLiveHostStatusPresentation: Equatable {
+    var title: String
+    var message: String
+    var systemImage: String
+    var showsCode: Bool
+
+    static func make(
+        isLive: Bool,
+        isBusy: Bool,
+        hasError: Bool,
+        hasSession: Bool
+    ) -> ScorekeeperLiveHostStatusPresentation {
+        if isBusy {
+            return ScorekeeperLiveHostStatusPresentation(
+                title: isLive ? "Syncing Live View" : "Starting Live View",
+                message: isLive ? "Publishing the latest scorecard for viewers." : "Creating a shareable code for this scorecard.",
+                systemImage: "arrow.triangle.2.circlepath",
+                showsCode: isLive
+            )
+        }
+
+        if isLive {
+            return ScorekeeperLiveHostStatusPresentation(
+                title: "Live View On",
+                message: "Viewers can watch while this status stays on.",
+                systemImage: "dot.radiowaves.left.and.right",
+                showsCode: true
+            )
+        }
+
+        if hasError {
+            return ScorekeeperLiveHostStatusPresentation(
+                title: "Live View Needs Attention",
+                message: hasSession ? "Retry sync or start a new Live View if viewers stop receiving updates." : "Start Live View again when your connection is available.",
+                systemImage: "wifi.exclamationmark",
+                showsCode: false
+            )
+        }
+
+        if hasSession {
+            return ScorekeeperLiveHostStatusPresentation(
+                title: "Live View Closed",
+                message: "Start Live View again to create a new code for viewers.",
+                systemImage: "checkmark.seal.fill",
+                showsCode: false
+            )
+        }
+
+        return ScorekeeperLiveHostStatusPresentation(
+            title: "Live View Off",
+            message: "Start Live View before others try to join.",
+            systemImage: "qrcode",
+            showsCode: false
+        )
+    }
+}
+
+struct ScorekeeperLiveViewerStatusPresentation: Equatable {
+    var title: String
+    var message: String
+    var systemImage: String
+    var actionTitle: String?
+
+    static func make(state: ScorekeeperLiveViewerState) -> ScorekeeperLiveViewerStatusPresentation {
+        switch state {
+        case .idle:
+            return ScorekeeperLiveViewerStatusPresentation(
+                title: "Enter Code",
+                message: "Enter the current code shown on the scorekeeper device.",
+                systemImage: "qrcode.viewfinder",
+                actionTitle: nil
+            )
+        case .loading:
+            return ScorekeeperLiveViewerStatusPresentation(
+                title: "Connecting",
+                message: "Connecting to the live scorecard.",
+                systemImage: "hourglass",
+                actionTitle: nil
+            )
+        case .live:
+            return ScorekeeperLiveViewerStatusPresentation(
+                title: "Live",
+                message: "Updates appear automatically while the scorekeeper device keeps Live View On.",
+                systemImage: "dot.radiowaves.left.and.right",
+                actionTitle: nil
+            )
+        case .closed:
+            return ScorekeeperLiveViewerStatusPresentation(
+                title: "Live View Closed",
+                message: "The scorekeeper closed this live scorecard. Ask for a new code if play continues.",
+                systemImage: "checkmark.seal.fill",
+                actionTitle: "Change Code"
+            )
+        case .expired:
+            return ScorekeeperLiveViewerStatusPresentation(
+                title: "Live View Expired",
+                message: "This live scorecard expired. Ask the scorekeeper to start a new Live View.",
+                systemImage: "clock.badge.exclamationmark",
+                actionTitle: "Change Code"
+            )
+        case .notFound:
+            return ScorekeeperLiveViewerStatusPresentation(
+                title: "No Live View Found",
+                message: "Check that the scorekeeper device shows Live View On, then re-enter the code.",
+                systemImage: "exclamationmark.triangle.fill",
+                actionTitle: "Change Code"
+            )
+        case .invalidCode:
+            return ScorekeeperLiveViewerStatusPresentation(
+                title: "Invalid Code",
+                message: "Enter exactly the 6-character code shown on the scorekeeper device.",
+                systemImage: "exclamationmark.triangle.fill",
+                actionTitle: nil
+            )
+        case .syncError:
+            return ScorekeeperLiveViewerStatusPresentation(
+                title: "Sync Issue",
+                message: "Showing the latest scorecard we received. Reconnect if it stops updating.",
+                systemImage: "wifi.exclamationmark",
+                actionTitle: "Reconnect"
+            )
+        }
+    }
 }
 
 @MainActor

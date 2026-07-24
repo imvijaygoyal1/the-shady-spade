@@ -79,6 +79,52 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
         XCTAssertFalse(ScorekeeperSessionService.isValidSessionCode("ABC12!"))
     }
 
+    func test_liveHostStatusPresentation_coversPrimaryStates() {
+        XCTAssertEqual(
+            ScorekeeperLiveHostStatusPresentation.make(isLive: false, isBusy: false, hasError: false, hasSession: false),
+            ScorekeeperLiveHostStatusPresentation(
+                title: "Live View Off",
+                message: "Start Live View before others try to join.",
+                systemImage: "qrcode",
+                showsCode: false
+            )
+        )
+
+        XCTAssertEqual(
+            ScorekeeperLiveHostStatusPresentation.make(isLive: true, isBusy: false, hasError: false, hasSession: true).title,
+            "Live View On"
+        )
+        XCTAssertEqual(
+            ScorekeeperLiveHostStatusPresentation.make(isLive: true, isBusy: true, hasError: false, hasSession: true).title,
+            "Syncing Live View"
+        )
+        XCTAssertEqual(
+            ScorekeeperLiveHostStatusPresentation.make(isLive: false, isBusy: false, hasError: true, hasSession: true).title,
+            "Live View Needs Attention"
+        )
+        XCTAssertEqual(
+            ScorekeeperLiveHostStatusPresentation.make(isLive: false, isBusy: false, hasError: false, hasSession: true).title,
+            "Live View Closed"
+        )
+    }
+
+    func test_liveViewerStatusPresentation_coversRecoveryActions() {
+        XCTAssertEqual(ScorekeeperLiveViewerStatusPresentation.make(state: .live).title, "Live")
+        XCTAssertNil(ScorekeeperLiveViewerStatusPresentation.make(state: .live).actionTitle)
+
+        XCTAssertEqual(ScorekeeperLiveViewerStatusPresentation.make(state: .syncError).title, "Sync Issue")
+        XCTAssertEqual(ScorekeeperLiveViewerStatusPresentation.make(state: .syncError).actionTitle, "Reconnect")
+
+        XCTAssertEqual(ScorekeeperLiveViewerStatusPresentation.make(state: .closed).title, "Live View Closed")
+        XCTAssertEqual(ScorekeeperLiveViewerStatusPresentation.make(state: .closed).actionTitle, "Change Code")
+
+        XCTAssertEqual(ScorekeeperLiveViewerStatusPresentation.make(state: .expired).title, "Live View Expired")
+        XCTAssertEqual(ScorekeeperLiveViewerStatusPresentation.make(state: .expired).actionTitle, "Change Code")
+
+        XCTAssertEqual(ScorekeeperLiveViewerStatusPresentation.make(state: .notFound).title, "No Live View Found")
+        XCTAssertEqual(ScorekeeperLiveViewerStatusPresentation.make(state: .notFound).actionTitle, "Change Code")
+    }
+
     func test_createSession_writesDocumentWithExpiration() async throws {
         let remote = FakeScorekeeperSessionRemoteStore()
         let now = Date(timeIntervalSince1970: 1_000)
@@ -277,6 +323,33 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
         XCTAssertEqual(remote.updatedCodes, ["HOST02"])
         XCTAssertEqual(controller.document?.rounds.count, 1)
         XCTAssertEqual(controller.document?.updatedAt, now)
+    }
+
+    @MainActor
+    func test_publishingController_createsNewSessionAfterClosedSession() async throws {
+        let remote = FakeScorekeeperSessionRemoteStore()
+        var codes = ["HOST03", "HOST04"]
+        let now = Date(timeIntervalSince1970: 4_200)
+        let service = ScorekeeperSessionService(
+            remote: remote,
+            codeGenerator: { codes.removeFirst() },
+            now: { now },
+            expirationInterval: 600
+        )
+        let controller = ScorekeeperLivePublishingController(
+            service: service,
+            hostUidProvider: { "host-uid" }
+        )
+        let game = ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"])
+
+        await controller.startSharing(game: game)
+        await controller.close()
+        await controller.startSharing(game: game)
+
+        XCTAssertEqual(remote.createdCodes, ["HOST03", "HOST04"])
+        XCTAssertEqual(controller.sessionCode, "HOST04")
+        XCTAssertTrue(controller.isLive)
+        XCTAssertNil(controller.errorMessage)
     }
 
     @MainActor
