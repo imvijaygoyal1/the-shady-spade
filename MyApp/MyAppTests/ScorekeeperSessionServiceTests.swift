@@ -302,7 +302,8 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
         let failed = await failingController.publish(game: game, sourceLiveSessionCode: nil)
 
         XCTAssertNil(failed)
-        XCTAssertEqual(failingController.errorMessage, "Final scorecard could not be shared. It was still saved locally.")
+        XCTAssertTrue(failingController.errorMessage?.hasPrefix("Final scorecard could not be shared:") == true)
+        XCTAssertTrue(failingController.errorMessage?.contains("NSURLErrorDomain") == true)
     }
 
     func test_fetchSession_reportsMissingAndInvalidData() async {
