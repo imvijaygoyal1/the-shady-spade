@@ -11,6 +11,7 @@ struct ModeSelectionView: View {
     @State private var showingJoinGame = false
     @State private var showingScorekeeper = false
     @State private var showingScorekeeperViewer = false
+    @State private var showingPublishedScorecardViewer = false
     @State private var showingSettings = false
     @State private var showingLeaderboard = false
     @State private var showingSoloGameplayCatalog = false
@@ -231,6 +232,9 @@ struct ModeSelectionView: View {
                 if arguments.contains("-SHADYSPADE_OPEN_SCOREKEEPER_VIEWER_FOR_UI_TESTS") {
                     showingScorekeeperViewer = true
                 }
+                if arguments.contains("-SHADYSPADE_OPEN_PUBLISHED_SCORECARD_FOR_UI_TESTS") {
+                    showingPublishedScorecardViewer = true
+                }
                 if arguments.contains("-SHADYSPADE_OPEN_SOLO_GAMEPLAY_CATALOG_FOR_UI_TESTS") {
                     showingSoloGameplayCatalog = true
                 }
@@ -385,6 +389,10 @@ struct ModeSelectionView: View {
                 ScorekeeperViewerEntryView(initialCode: deepLink.pendingScorekeeperCode)
                     .environmentObject(themeManager)
             }
+            NoAnimationCover(isPresented: $showingPublishedScorecardViewer) {
+                PublishedScorecardViewerEntryView(initialCode: deepLink.pendingPublishedScorecardCode)
+                    .environmentObject(themeManager)
+            }
             NoAnimationCover(isPresented: $showingSoloGameplayCatalog) {
                 UITestSoloGameplayCatalogView()
                     .environmentObject(themeManager)
@@ -435,6 +443,10 @@ struct ModeSelectionView: View {
         .onChange(of: deepLink.pendingScorekeeperCode) { _, code in
             guard code != nil else { return }
             showingScorekeeperViewer = true
+        }
+        .onChange(of: deepLink.pendingPublishedScorecardCode) { _, code in
+            guard code != nil else { return }
+            showingPublishedScorecardViewer = true
         }
     }
 }

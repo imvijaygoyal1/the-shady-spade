@@ -75,6 +75,21 @@
 
     p { color: var(--muted); font-size: 17px; }
 
+    .open-app {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      margin-top: 18px;
+      padding: 12px 18px;
+      border-radius: 999px;
+      background: var(--gold);
+      color: #0D0F1A;
+      font-size: 16px;
+      font-weight: 900;
+      text-decoration: none;
+    }
+
     footer {
       color: var(--muted);
       font-size: 13px;
@@ -92,6 +107,7 @@
       <div class="label">Scorecard Code</div>
       <div class="code" id="scorekeeper-code">------</div>
       <p>Open The Shady Spade, tap Watch Live Scorecard, and enter this code if the app did not open automatically.</p>
+      <a class="open-app" id="open-app" href="shadyspade://scorekeeper/">Open in The Shady Spade</a>
     </section>
 
     <footer>
@@ -103,6 +119,13 @@
     const parts = window.location.pathname.split("/").filter(Boolean);
     const code = (parts[parts.length - 1] || "").replace(/[^a-z0-9]/gi, "").slice(0, 6).toUpperCase();
     document.getElementById("scorekeeper-code").textContent = code || "------";
+    const appURL = `shadyspade://scorekeeper/${code}`;
+    document.getElementById("open-app").href = appURL;
+    if (code) {
+      window.setTimeout(() => {
+        window.location.href = appURL;
+      }, 450);
+    }
   </script>
 </body>
 </html>

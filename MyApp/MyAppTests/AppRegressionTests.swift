@@ -2,7 +2,7 @@ import XCTest
 @testable import MyApp
 
 final class AppRegressionTests: XCTestCase {
-    func test_deepLinkRouter_normalizesJoinAndScorekeeperRoutes() {
+    func test_deepLinkRouter_normalizesJoinScorekeeperAndScorecardRoutes() {
         XCTAssertEqual(
             AppDeepLinkRouter.route(for: URL(string: "shadyspade://join/ab-c123!")!),
             .join("ABC123")
@@ -19,6 +19,18 @@ final class AppRegressionTests: XCTestCase {
             AppDeepLinkRouter.route(for: URL(string: "https://shadyspade-d6b84.web.app/shadyspade/scorekeeper/view01")!),
             .scorekeeper("VIEW01")
         )
+        XCTAssertEqual(
+            AppDeepLinkRouter.route(for: URL(string: "shadyspade://scorecard/final1")!),
+            .scorecard("FINAL1")
+        )
+        XCTAssertEqual(
+            AppDeepLinkRouter.route(for: URL(string: "https://shadyspade.vijaygoyal.org/scorecard/final1")!),
+            .scorecard("FINAL1")
+        )
+        XCTAssertEqual(
+            AppDeepLinkRouter.route(for: URL(string: "https://shadyspade-d6b84.web.app/shadyspade/scorecard/final1")!),
+            .scorecard("FINAL1")
+        )
         XCTAssertNil(AppDeepLinkRouter.route(for: URL(string: "shadyspade://scorekeeper/short")!))
         XCTAssertNil(AppDeepLinkRouter.route(for: URL(string: "https://shadyspade-d6b84.web.app/shadyspade/help/ABC123")!))
     }
@@ -31,6 +43,10 @@ final class AppRegressionTests: XCTestCase {
         XCTAssertEqual(
             ShadySpadeLinks.scorekeeperURL(sessionCode: "view01").absoluteString,
             "https://shadyspade.vijaygoyal.org/scorekeeper/VIEW01"
+        )
+        XCTAssertEqual(
+            ShadySpadeLinks.scorecardURL(scorecardCode: "final-1!").absoluteString,
+            "https://shadyspade.vijaygoyal.org/scorecard/FINAL1"
         )
         XCTAssertTrue(ShadySpadeLinks.joinInviteText(roomCode: "abc123").contains(
             "https://shadyspade.vijaygoyal.org/join/ABC123"

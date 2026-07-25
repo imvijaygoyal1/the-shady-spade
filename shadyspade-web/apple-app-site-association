@@ -7,8 +7,10 @@
         "paths": [
           "/join/*",
           "/scorekeeper/*",
+          "/scorecard/*",
           "/shadyspade/join/*",
-          "/shadyspade/scorekeeper/*"
+          "/shadyspade/scorekeeper/*",
+          "/shadyspade/scorecard/*"
         ]
       }
     ]

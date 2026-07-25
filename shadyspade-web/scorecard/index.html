@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Join The Shady Spade</title>
+  <title>View Shady Spade Final Scorecard</title>
   <style>
     :root {
       --gold: #C9A84C;
@@ -100,14 +100,14 @@
 <body>
   <main>
     <div class="mark">♠</div>
-    <h1>Join The Shady Spade</h1>
-    <p>If The Shady Spade is installed, this link opens the app and fills in the room code automatically.</p>
+    <h1>Final Scorecard</h1>
+    <p>If The Shady Spade is installed, this link opens the app and loads the final read-only scorecard.</p>
 
     <section class="card">
-      <div class="label">Room Code</div>
-      <div class="code" id="room-code">------</div>
-      <p>Open The Shady Spade, tap Join a Game, and enter this code if the app did not open automatically.</p>
-      <a class="open-app" id="open-app" href="shadyspade://join/">Open in The Shady Spade</a>
+      <div class="label">Final Scorecard Code</div>
+      <div class="code" id="scorecard-code">------</div>
+      <p>Open The Shady Spade and enter this code in the final scorecard viewer if the app did not open automatically.</p>
+      <a class="open-app" id="open-app" href="shadyspade://scorecard/">Open in The Shady Spade</a>
     </section>
 
     <footer>
@@ -118,8 +118,8 @@
   <script>
     const parts = window.location.pathname.split("/").filter(Boolean);
     const code = (parts[parts.length - 1] || "").replace(/[^a-z0-9]/gi, "").slice(0, 6).toUpperCase();
-    document.getElementById("room-code").textContent = code || "------";
-    const appURL = `shadyspade://join/${code}`;
+    document.getElementById("scorecard-code").textContent = code || "------";
+    const appURL = `shadyspade://scorecard/${code}`;
     document.getElementById("open-app").href = appURL;
     if (code) {
       window.setTimeout(() => {

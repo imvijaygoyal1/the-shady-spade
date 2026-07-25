@@ -304,7 +304,7 @@
       <span class="spade-icon">♠</span>
       <h1>Privacy Policy</h1>
       <p class="subtitle">The Shady Spade — Card Game App</p>
-      <span class="last-updated">Last Updated: July 18, 2026</span>
+      <span class="last-updated">Last Updated: July 24, 2026</span>
     </header>
 
     <!-- Quick Summary -->
@@ -359,10 +359,11 @@
           <li><strong>Game History:</strong> Game score history for the last 10 games is stored locally on your device. This data never leaves your device and is deleted when you uninstall the app.</li>
           <li><strong>Global Leaderboard:</strong> If you allow score uploads, completed-round leaderboard data is stored on Firebase Firestore servers to power the global leaderboard. This may include your chosen avatar name, avatar selection, game mode, wins, games played, bid history, scores, and gameplay results (bids made or set, points scored). This data is associated with your avatar name only — not your real name or any personal identifier.</li>
           <li><strong>Live Scorekeeper Data:</strong> If you choose Share Live View in Real-Life Scorekeeper mode, player names, running scores, and round history are temporarily synced through Firebase Firestore so viewers with the code or QR link can watch the scorecard. Viewers cannot edit the scorecard.</li>
+          <li><strong>Published Final Scorecards:</strong> If you choose Save &amp; Share Final Scorecard after a Real-Life Scorekeeper game, the final player names, scores, round history, winner, and game dates are uploaded to Firebase Firestore so anyone with the final scorecard link can view a read-only copy later.</li>
           <li><strong>Anonymous Device Token:</strong> The app uses Firebase Anonymous Authentication to secure leaderboard writes. A silent anonymous token is created on your device on first launch — no email, phone number, or personal information is required or collected.</li>
           <li><strong>App Preferences:</strong> Settings such as theme selection, display mode (Dark, Light, or System), player names, and avatars are stored locally using Apple's UserDefaults/AppStorage on your device only.</li>
           <li><strong>Camera Access (QR Scanning):</strong> The app requests camera permission when you use the QR code scanner to join an online game. The camera feed is processed entirely on-device by Apple's AVFoundation framework to read the QR code. No camera images or video are stored, transmitted, or shared. Camera access is only requested when you tap "Scan QR Code" and can be revoked at any time in iOS Settings.</li>
-          <li><strong>URL Scheme &amp; Universal Links:</strong> The app registers the <code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">shadyspade://</code> custom URL scheme and handles universal links at <code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">https://shadyspade.vijaygoyal.org/join/{CODE}</code> and <code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">https://shadyspade.vijaygoyal.org/scorekeeper/{CODE}</code>. QR codes and invite text shared between players encode the full universal link URL. No data beyond the 6-character room or scorecard code is transmitted via either mechanism. Legacy Firebase universal links may still be accepted for older invites.</li>
+          <li><strong>URL Scheme &amp; Universal Links:</strong> The app registers the <code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">shadyspade://</code> custom URL scheme and handles universal links at <code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">https://shadyspade.vijaygoyal.org/join/{CODE}</code>, <code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">https://shadyspade.vijaygoyal.org/scorekeeper/{CODE}</code>, and <code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">https://shadyspade.vijaygoyal.org/scorecard/{CODE}</code>. QR codes and invite text shared between players encode the full universal link URL. No data beyond the 6-character room, live scorekeeper, or final scorecard code is transmitted via either mechanism. Legacy Firebase universal links may still be accepted for older invites.</li>
           <li><strong>Local Network Access (TV Dashboard — Bluetooth Mode Only):</strong> When hosting a Bluetooth game, the app can optionally start a local web server on your device accessible within your Wi-Fi network. This server shares the current game state (player avatar names, scores, cards played, bid information) with any browser on the same local network, so it can be displayed on a TV. No data is sent to the internet. The server runs only while you are hosting a Bluetooth game and stops automatically when the game ends. You are shown the local URL and a QR code before any device connects.</li>
         </ul>
         <div class="highlight">
@@ -378,10 +379,11 @@
         <h2>Online Multiplayer, Leaderboard &amp; Firebase</h2>
       </div>
       <div class="card">
-        <p>The Shady Spade uses <strong>Google Firebase</strong> for real-time online game sessions, optional live scorekeeper viewing, and the global leaderboard.</p>
+        <p>The Shady Spade uses <strong>Google Firebase</strong> for real-time online game sessions, optional live scorekeeper viewing, optional published final scorecards, and the global leaderboard.</p>
         <ul>
           <li>Firebase is used to synchronise game state (cards played, scores, turn order) between players in the same <strong>Online Mode</strong> session.</li>
           <li>Firebase is used to sync player names, scores, and round history for a <strong>Real-Life Scorekeeper</strong> scorecard only after you choose Share Live View and confirm the live sharing prompt.</li>
+          <li>Firebase is used to store a final read-only Real-Life Scorekeeper scorecard only if you choose Save &amp; Share Final Scorecard. Anyone with the final scorecard link can view that scorecard.</li>
           <li>Only your chosen <strong>avatar name</strong> and <strong>game actions</strong> are transmitted — never personal information.</li>
           <li>All session data is deleted from Firebase servers when the game session ends.</li>
           <li>Firebase may collect anonymous technical data such as crash reports and performance metrics as described in <a href="https://firebase.google.com/support/privacy" style="color: var(--gold);">Google's Privacy Policy</a>.</li>
@@ -408,6 +410,7 @@
           <li>Remembering your app preferences, including appearance/theme choices, between sessions</li>
           <li>Tracking scores within the current game session</li>
           <li>Showing a read-only live scorecard to people who have the temporary scorekeeper code or QR link when you opt in</li>
+          <li>Showing a published final scorecard to people who have the final scorecard link when you choose Save &amp; Share Final Scorecard</li>
           <li>Displaying your game statistics on the global leaderboard</li>
           <li>Displaying game state on a local-network TV dashboard when you opt in during Bluetooth host mode</li>
         </ul>
@@ -424,7 +427,7 @@
       <div class="card">
         <p>We do not sell, rent, trade, or share your information with any third parties for commercial purposes. The only third-party services used are:</p>
         <ul>
-          <li><strong>Google Firebase</strong> — for online multiplayer synchronisation, optional live scorekeeper viewing, and leaderboard data storage, as described in Section 3.</li>
+          <li><strong>Google Firebase</strong> — for online multiplayer synchronisation, optional live scorekeeper viewing, optional published final scorecards, and leaderboard data storage, as described in Section 3.</li>
           <li><strong>Google Cloud Functions</strong> — processes game results server-side to validate and record leaderboard data. Operated by Google LLC under the same Firebase privacy terms.</li>
         </ul>
         <p>We do not integrate advertising networks, social media trackers, analytics platforms, or any other data-collecting third-party services.</p>
@@ -455,6 +458,7 @@
           <li><strong>Game session data</strong> (scores, cards played) is held in memory only and is automatically erased when the app is closed.</li>
           <li><strong>Online session codes</strong> expire automatically within 24 hours or immediately when a game ends.</li>
           <li><strong>Live scorekeeper session codes and scorecard data</strong> expire automatically within 24 hours or when the scorekeeper host finishes, resets, or closes live sharing. Until server cleanup removes an expired record, the app treats expired or closed scorekeeper sessions as unavailable.</li>
+          <li><strong>Published final scorecards</strong> remain available to anyone with the final scorecard link unless they are removed or deleted after a support request. Published scorecards are separate from temporary live scorekeeper sessions.</li>
           <li><strong>Leaderboard data</strong> (avatar name, avatar selection, game mode, wins, scores, bid history, and round results) is stored on Firebase Firestore servers indefinitely to maintain all-time rankings only if you allow score uploads. Game log entries are limited to the 50 most recent games. At the start of each month, a Cloud Function archives the prior month's statistics into a historical snapshot — this archived data also persists indefinitely. To request deletion of both live and archived leaderboard data, contact us via the support details below.</li>
           <li><strong>Pending leaderboard records</strong> are stored in an encrypted file protected by iOS Data Protection (<code style="font-family: monospace; font-size: 13px; color: var(--gold-light);">completeFileProtectionUnlessOpen</code>) only when you have allowed score uploads and your device is offline. Records are flushed to Firebase automatically when connectivity is restored and deleted from the device once confirmed by the server.</li>
           <li><strong>Anonymous auth token</strong> is stored on your device by Firebase and persists across app launches. It is removed when you uninstall the app.</li>
@@ -476,7 +480,7 @@
           <li><strong>Online Mode:</strong> Play with real players (and optionally AI-filled seats) over the internet using a session code. Firebase syncs game state using only avatar names and game actions. Leaderboard stats are recorded at game end only if you allow score uploads. You can start an Online session directly from the "New Game" screen by choosing 2 or more players.</li>
           <li><strong>Bluetooth Mode:</strong> Play with nearby players over a local Bluetooth/Wi-Fi connection using Apple's Multipeer Connectivity framework. No internet connection is required and no game data is sent to external servers during play. Leaderboard stats are recorded to Firebase at game end only if you allow score uploads. Optionally, the host device can share a live game-state dashboard on the local Wi-Fi network for display on a TV — see "Local Network Access" in Section 2.</li>
           <li><strong>Pass &amp; Play (Hot Seat):</strong> Multiple humans share one device, passing it between turns. No game sync data leaves your device. Leaderboard stats are recorded at game end only if you allow score uploads.</li>
-          <li><strong>Real-Life Scorekeeper:</strong> Track a physical-card game on one device. Scorecards are local by default. If you choose Share Live View, the app temporarily syncs player names, running scores, and round history to Firebase so people with the code or QR link can watch a read-only scorecard.</li>
+          <li><strong>Real-Life Scorekeeper:</strong> Track a physical-card game on one device. Scorecards are local by default. If you choose Share Live View, the app temporarily syncs player names, running scores, and round history to Firebase so people with the code or QR link can watch a read-only scorecard. If you choose Save &amp; Share Final Scorecard, the app uploads a final read-only scorecard that anyone with the link can view later.</li>
         </ul>
       </div>
     </section>

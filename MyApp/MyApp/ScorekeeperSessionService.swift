@@ -251,6 +251,139 @@ struct FirestoreScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteStore {
     }
 }
 
+struct PublishedScorecardDocument: Equatable {
+    static let kind = "publishedScorecard"
+    static let sourceType = "scorekeeper"
+    static let schemaVersion = 1
+
+    var scorecardCode: String
+    var hostUid: String
+    var sourceLiveSessionCode: String?
+    var createdAt: Date
+    var publishedAt: Date
+    var gameStartedAt: Date
+    var gameFinishedAt: Date
+    var isDeleted: Bool
+    var playerNames: [String]
+    var rounds: [ScorekeeperLiveRoundDTO]
+    var runningScores: [Int]
+    var winnerIndex: Int
+
+    init(
+        scorecardCode: String,
+        hostUid: String,
+        sourceLiveSessionCode: String?,
+        game: ScorekeeperGameState,
+        createdAt: Date,
+        publishedAt: Date,
+        gameFinishedAt: Date,
+        isDeleted: Bool = false
+    ) {
+        self.scorecardCode = scorecardCode
+        self.hostUid = hostUid
+        self.sourceLiveSessionCode = sourceLiveSessionCode
+        self.createdAt = createdAt
+        self.publishedAt = publishedAt
+        self.gameStartedAt = game.createdAt
+        self.gameFinishedAt = gameFinishedAt
+        self.isDeleted = isDeleted
+        self.playerNames = game.playerNames
+        self.rounds = game.rounds.map(ScorekeeperLiveRoundDTO.init(round:))
+        self.runningScores = game.runningScores
+        self.winnerIndex = game.winnerIndex
+    }
+
+    init?(scorecardCode: String, data: [String: Any]) {
+        guard data["kind"] as? String == Self.kind,
+              data["sourceType"] as? String == Self.sourceType,
+              Self.int(data["schemaVersion"]) == Self.schemaVersion,
+              let hostUid = data["hostUid"] as? String,
+              let createdAt = Self.date(data["createdAt"]),
+              let publishedAt = Self.date(data["publishedAt"]),
+              let gameStartedAt = Self.date(data["gameStartedAt"]),
+              let gameFinishedAt = Self.date(data["gameFinishedAt"]),
+              let isDeleted = data["isDeleted"] as? Bool,
+              let rawPlayerNames = data["playerNames"] as? [String],
+              let rawRounds = data["rounds"] as? [[String: Any]],
+              let rawRunningScores = data["runningScores"] as? [Any],
+              let winnerIndex = Self.int(data["winnerIndex"]) else {
+            return nil
+        }
+
+        let rounds = rawRounds.compactMap(ScorekeeperLiveRoundDTO.init)
+        guard rounds.count == rawRounds.count else { return nil }
+
+        self.scorecardCode = scorecardCode
+        self.hostUid = hostUid
+        self.sourceLiveSessionCode = data["sourceLiveSessionCode"] as? String
+        self.createdAt = createdAt
+        self.publishedAt = publishedAt
+        self.gameStartedAt = gameStartedAt
+        self.gameFinishedAt = gameFinishedAt
+        self.isDeleted = isDeleted
+        self.playerNames = ScorekeeperGameState.normalizedPlayerNames(rawPlayerNames)
+        self.rounds = rounds
+        self.runningScores = rawRunningScores.compactMap(Self.int)
+        self.winnerIndex = winnerIndex
+    }
+
+    var firestoreData: [String: Any] {
+        var data: [String: Any] = [
+            "kind": Self.kind,
+            "sourceType": Self.sourceType,
+            "schemaVersion": Self.schemaVersion,
+            "createdAt": Timestamp(date: createdAt),
+            "publishedAt": Timestamp(date: publishedAt),
+            "gameStartedAt": Timestamp(date: gameStartedAt),
+            "gameFinishedAt": Timestamp(date: gameFinishedAt),
+            "hostUid": hostUid,
+            "isDeleted": isDeleted,
+            "playerNames": playerNames,
+            "rounds": rounds.map(\.firestoreData),
+            "runningScores": runningScores,
+            "winnerIndex": winnerIndex
+        ]
+        if let sourceLiveSessionCode {
+            data["sourceLiveSessionCode"] = sourceLiveSessionCode
+        }
+        return data
+    }
+
+    var shareURL: URL {
+        ShadySpadeLinks.scorecardURL(scorecardCode: scorecardCode)
+    }
+
+    private static func int(_ value: Any?) -> Int? {
+        (value as? Int) ?? (value as? Int64).map(Int.init) ?? (value as? NSNumber).map(\.intValue)
+    }
+
+    private static func date(_ value: Any?) -> Date? {
+        (value as? Timestamp)?.dateValue() ?? value as? Date
+    }
+}
+
+protocol PublishedScorecardRemoteStore {
+    func scorecardExists(code: String) async throws -> Bool
+    func createScorecard(code: String, data: [String: Any]) async throws
+    func fetchScorecard(code: String) async throws -> [String: Any]?
+}
+
+struct FirestorePublishedScorecardRemoteStore: PublishedScorecardRemoteStore {
+    private let collection = Firestore.firestore().collection("publishedScorecards")
+
+    func scorecardExists(code: String) async throws -> Bool {
+        try await collection.document(code).getDocument().exists
+    }
+
+    func createScorecard(code: String, data: [String: Any]) async throws {
+        try await collection.document(code).setData(data)
+    }
+
+    func fetchScorecard(code: String) async throws -> [String: Any]? {
+        try await collection.document(code).getDocument().data()
+    }
+}
+
 enum ScorekeeperSessionServiceError: Error, Equatable {
     case noUniqueCode
     case hostMismatch
@@ -403,6 +536,77 @@ final class ScorekeeperSessionService {
     }
 }
 
+enum PublishedScorecardServiceError: Error, Equatable {
+    case noUniqueCode
+    case invalidCode
+    case scorecardNotFound
+    case scorecardDeleted
+    case invalidScorecardData
+}
+
+final class PublishedScorecardService {
+    private let remote: PublishedScorecardRemoteStore
+    private let codeGenerator: () -> String
+    private let now: () -> Date
+
+    init(
+        remote: PublishedScorecardRemoteStore = FirestorePublishedScorecardRemoteStore(),
+        codeGenerator: @escaping () -> String = ScorekeeperSessionService.generateRoomCode,
+        now: @escaping () -> Date = Date.init
+    ) {
+        self.remote = remote
+        self.codeGenerator = codeGenerator
+        self.now = now
+    }
+
+    func findUniqueScorecardCode(maxAttempts: Int = 5) async throws -> String {
+        for _ in 0..<maxAttempts {
+            let code = codeGenerator()
+            if try await !remote.scorecardExists(code: code) {
+                return code
+            }
+        }
+        throw PublishedScorecardServiceError.noUniqueCode
+    }
+
+    func publishFinalScorecard(
+        hostUid: String,
+        sourceLiveSessionCode: String?,
+        game: ScorekeeperGameState
+    ) async throws -> PublishedScorecardDocument {
+        let code = try await findUniqueScorecardCode()
+        let publishedAt = now()
+        let document = PublishedScorecardDocument(
+            scorecardCode: code,
+            hostUid: hostUid,
+            sourceLiveSessionCode: sourceLiveSessionCode,
+            game: game,
+            createdAt: publishedAt,
+            publishedAt: publishedAt,
+            gameFinishedAt: publishedAt
+        )
+        try await remote.createScorecard(code: code, data: document.firestoreData)
+        return document
+    }
+
+    func fetchScorecard(code: String) async throws -> PublishedScorecardDocument {
+        let normalizedCode = ScorekeeperSessionService.normalizedSessionCode(code)
+        guard ScorekeeperSessionService.isValidSessionCode(normalizedCode) else {
+            throw PublishedScorecardServiceError.invalidCode
+        }
+        guard let data = try await remote.fetchScorecard(code: normalizedCode) else {
+            throw PublishedScorecardServiceError.scorecardNotFound
+        }
+        guard let document = PublishedScorecardDocument(scorecardCode: normalizedCode, data: data) else {
+            throw PublishedScorecardServiceError.invalidScorecardData
+        }
+        guard !document.isDeleted else {
+            throw PublishedScorecardServiceError.scorecardDeleted
+        }
+        return document
+    }
+}
+
 @MainActor
 @Observable final class ScorekeeperLivePublishingController {
     private let service: ScorekeeperSessionService
@@ -495,7 +699,7 @@ final class ScorekeeperSessionService {
         }
     }
 
-    private static func firebaseHostUid() async throws -> String {
+    static func firebaseHostUid() async throws -> String {
         if let uid = Auth.auth().currentUser?.uid {
             return uid
         }
@@ -508,6 +712,129 @@ final class ScorekeeperSessionService {
             return hostUid
         }
         return try await hostUidProvider()
+    }
+}
+
+@MainActor
+@Observable final class PublishedScorecardController {
+    private let service: PublishedScorecardService
+    private let hostUidProvider: () async throws -> String
+
+    var document: PublishedScorecardDocument?
+    var isBusy = false
+    var errorMessage: String?
+
+    init(
+        service: PublishedScorecardService = PublishedScorecardService(),
+        hostUidProvider: @escaping () async throws -> String = ScorekeeperLivePublishingController.firebaseHostUid
+    ) {
+        self.service = service
+        self.hostUidProvider = hostUidProvider
+    }
+
+    var shareURL: URL? {
+        document?.shareURL
+    }
+
+    func publish(game: ScorekeeperGameState, sourceLiveSessionCode: String?) async -> PublishedScorecardDocument? {
+        guard !isBusy else { return nil }
+
+        isBusy = true
+        errorMessage = nil
+        defer { isBusy = false }
+
+        do {
+            let hostUid = try await hostUidProvider()
+            let published = try await service.publishFinalScorecard(
+                hostUid: hostUid,
+                sourceLiveSessionCode: sourceLiveSessionCode,
+                game: game
+            )
+            document = published
+            return published
+        } catch {
+            #if DEBUG
+            errorMessage = "Final scorecard could not be shared: \(error.localizedDescription)"
+            #else
+            errorMessage = "Final scorecard could not be shared. Check your connection and try again, or save this scorecard locally only."
+            #endif
+            return nil
+        }
+    }
+}
+
+enum PublishedScorecardViewerState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case notFound
+    case deleted
+    case invalidCode
+    case syncError
+}
+
+@MainActor
+@Observable final class PublishedScorecardViewingController {
+    private let service: PublishedScorecardService
+
+    var scorecardCode = ""
+    var document: PublishedScorecardDocument?
+    var state: PublishedScorecardViewerState = .idle
+    var errorMessage: String?
+
+    init(service: PublishedScorecardService = PublishedScorecardService()) {
+        self.service = service
+    }
+
+    var canFetch: Bool {
+        ScorekeeperSessionService.isValidSessionCode(normalizedCode)
+    }
+
+    var normalizedCode: String {
+        ScorekeeperSessionService.normalizedSessionCode(scorecardCode)
+    }
+
+    func fetch(code: String? = nil) {
+        if let code {
+            scorecardCode = code
+        }
+
+        let code = normalizedCode
+        guard ScorekeeperSessionService.isValidSessionCode(code) else {
+            document = nil
+            state = .invalidCode
+            errorMessage = "Enter exactly the 6-character scorecard code."
+            return
+        }
+
+        scorecardCode = code
+        document = nil
+        state = .loading
+        errorMessage = nil
+
+        Task {
+            do {
+                let fetched = try await service.fetchScorecard(code: code)
+                document = fetched
+                state = .loaded
+            } catch PublishedScorecardServiceError.scorecardNotFound {
+                document = nil
+                state = .notFound
+                errorMessage = "No final scorecard was found for \(code). Check the code and try again."
+            } catch PublishedScorecardServiceError.scorecardDeleted {
+                document = nil
+                state = .deleted
+                errorMessage = "This final scorecard is no longer available."
+            } catch PublishedScorecardServiceError.invalidCode {
+                document = nil
+                state = .invalidCode
+                errorMessage = "Enter exactly the 6-character scorecard code."
+            } catch {
+                document = nil
+                state = .syncError
+                errorMessage = "Final scorecard could not be loaded. Check your connection and try again."
+            }
+        }
     }
 }
 

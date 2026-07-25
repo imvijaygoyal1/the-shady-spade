@@ -8,11 +8,13 @@ import UIKit
     static let shared = DeepLinkManager()
     var pendingJoinCode: String? = nil
     var pendingScorekeeperCode: String? = nil
+    var pendingPublishedScorecardCode: String? = nil
 }
 
 enum AppDeepLinkRoute: Equatable {
     case join(String)
     case scorekeeper(String)
+    case scorecard(String)
 }
 
 enum AppDeepLinkRouter {
@@ -26,6 +28,9 @@ enum AppDeepLinkRouter {
         }
         if let scorekeeper = code(after: "scorekeeper", routeParts: routeParts, rawParts: rawParts) {
             return .scorekeeper(scorekeeper)
+        }
+        if let scorecard = code(after: "scorecard", routeParts: routeParts, rawParts: rawParts) {
+            return .scorecard(scorecard)
         }
         return nil
     }
@@ -107,10 +112,13 @@ struct MyAppApp: App {
         // Handles:
         // shadyspade://join/ROOMCODE
         // shadyspade://scorekeeper/ROOMCODE
+        // shadyspade://scorecard/ROOMCODE
         // https://shadyspade.vijaygoyal.org/join/ROOMCODE
         // https://shadyspade.vijaygoyal.org/scorekeeper/ROOMCODE
+        // https://shadyspade.vijaygoyal.org/scorecard/ROOMCODE
         // https://shadyspade-d6b84.web.app/shadyspade/join/ROOMCODE
         // https://shadyspade-d6b84.web.app/shadyspade/scorekeeper/ROOMCODE
+        // https://shadyspade-d6b84.web.app/shadyspade/scorecard/ROOMCODE
         switch AppDeepLinkRouter.route(for: url) {
         case .join(let join):
             DeepLinkManager.shared.pendingJoinCode = join
@@ -121,6 +129,8 @@ struct MyAppApp: App {
             )
         case .scorekeeper(let scorekeeper):
             DeepLinkManager.shared.pendingScorekeeperCode = scorekeeper
+        case .scorecard(let scorecard):
+            DeepLinkManager.shared.pendingPublishedScorecardCode = scorecard
         case nil:
             return
         }

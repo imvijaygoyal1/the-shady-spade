@@ -11,6 +11,10 @@ enum ShadySpadeLinks {
         URL(string: "https://\(brandedHost)/scorekeeper/\(normalizedCode(sessionCode))")!
     }
 
+    static func scorecardURL(scorecardCode: String) -> URL {
+        URL(string: "https://\(brandedHost)/scorecard/\(normalizedCode(scorecardCode))")!
+    }
+
     static func joinInviteText(roomCode: String) -> String {
         let code = normalizedCode(roomCode)
         return """

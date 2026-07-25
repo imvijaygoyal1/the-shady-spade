@@ -15,6 +15,7 @@ required_paths=(
   "$WEB_SOURCE/apple-app-site-association"
   "$WEB_SOURCE/join"
   "$WEB_SOURCE/privacy"
+  "$WEB_SOURCE/scorecard"
   "$WEB_SOURCE/scorekeeper"
   "$WEB_SOURCE/support"
 )
@@ -50,6 +51,7 @@ cp -R \
   "$WEB_SOURCE/apple-app-site-association" \
   "$WEB_SOURCE/join" \
   "$WEB_SOURCE/privacy" \
+  "$WEB_SOURCE/scorecard" \
   "$WEB_SOURCE/scorekeeper" \
   "$WEB_SOURCE/support" \
   "$ASSETS_DIR"
@@ -99,7 +101,7 @@ export default {
     }
 
     if (path === "/.well-known/apple-app-site-association" || path === "/apple-app-site-association") {
-      const response = await fetchAsset(path);
+      const response = await fetchAsset("/apple-app-site-association");
       const headers = new Headers(response.headers);
       headers.set("content-type", "application/json");
       return new Response(response.body, {
@@ -115,6 +117,10 @@ export default {
 
     if (path.match(/^\/(?:shadyspade\/)?scorekeeper\/[A-Za-z0-9-_%]+\/?$/i)) {
       return fallbackWithCode("/scorekeeper/index.html", "scorekeeper-code");
+    }
+
+    if (path.match(/^\/(?:shadyspade\/)?scorecard\/[A-Za-z0-9-_%]+\/?$/i)) {
+      return fallbackWithCode("/scorecard/index.html", "scorecard-code");
     }
 
     return env.ASSETS.fetch(request);
@@ -143,10 +149,14 @@ cat > "$TMP_DIR/wrangler.jsonc" <<CONFIG
       "/JOIN/*",
       "/scorekeeper/*",
       "/SCOREKEEPER/*",
+      "/scorecard/*",
+      "/SCORECARD/*",
       "/shadyspade/join/*",
       "/shadyspade/JOIN/*",
       "/shadyspade/scorekeeper/*",
       "/shadyspade/SCOREKEEPER/*",
+      "/shadyspade/scorecard/*",
+      "/shadyspade/SCORECARD/*",
       "/.wrangler/*"
     ]
   }
@@ -170,7 +180,7 @@ fi
 echo "Verifying universal link assets..."
 aasa_headers="$(mktemp)"
 curl -L --max-time 15 -D "$aasa_headers" "https://$DOMAIN/.well-known/apple-app-site-association" \
-  | rg "7B5U5LACV3.com.vijaygoyal.theshadyspade|/join/\\*|/scorekeeper/\\*"
+  | rg "7B5U5LACV3.com.vijaygoyal.theshadyspade|/join/\\*|/scorekeeper/\\*|/scorecard/\\*"
 rg -i "content-type: application/json" "$aasa_headers"
 
 join_page="$(mktemp)"
@@ -188,9 +198,19 @@ curl -L --max-time 15 "https://$DOMAIN/scorekeeper/HOST01" > "$scorekeeper_page"
 rg "Watch Live Scorecard" "$scorekeeper_page"
 rg "HOST01" "$scorekeeper_page"
 
+scorecard_page="$(mktemp)"
+curl -L --max-time 15 "https://$DOMAIN/scorecard/FINAL1" > "$scorecard_page"
+rg "Final Scorecard" "$scorecard_page"
+rg "FINAL1" "$scorecard_page"
+
 uppercase_scorekeeper_page="$(mktemp)"
 curl -L --max-time 15 "https://$DOMAIN/SCOREKEEPER/VIEW01" > "$uppercase_scorekeeper_page"
 rg "Watch Live Scorecard" "$uppercase_scorekeeper_page"
 rg "VIEW01" "$uppercase_scorekeeper_page"
+
+uppercase_scorecard_page="$(mktemp)"
+curl -L --max-time 15 "https://$DOMAIN/SCORECARD/FINAL2" > "$uppercase_scorecard_page"
+rg "Final Scorecard" "$uppercase_scorecard_page"
+rg "FINAL2" "$uppercase_scorecard_page"
 
 echo "Static site deploy verified."

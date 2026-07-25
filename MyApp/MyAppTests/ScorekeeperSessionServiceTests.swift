@@ -149,6 +149,162 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
         XCTAssertEqual(fetched, document)
     }
 
+    func test_publishedScorecardDocument_mapsGameStateToFirestoreAndBack() {
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+        let publishedAt = Date(timeIntervalSince1970: 2_000)
+        let round = ScorekeeperRoundEntry(
+            roundNumber: 1,
+            dealerIndex: 0,
+            bidderIndex: 1,
+            bidAmount: 150,
+            trumpSuit: .spades,
+            partner1Index: 2,
+            partner2Index: 3,
+            offensePointsCaught: 150,
+            createdAt: startedAt.addingTimeInterval(60)
+        )
+        let game = ScorekeeperGameState(
+            createdAt: startedAt,
+            playerNames: ["Amit", "Shikha", "Manish", "Vijay", "Sweta", "Megha"],
+            rounds: [round]
+        )
+
+        let document = PublishedScorecardDocument(
+            scorecardCode: "FINAL1",
+            hostUid: "host-uid",
+            sourceLiveSessionCode: "LIVE01",
+            game: game,
+            createdAt: publishedAt,
+            publishedAt: publishedAt,
+            gameFinishedAt: publishedAt
+        )
+
+        XCTAssertEqual(document.scorecardCode, "FINAL1")
+        XCTAssertEqual(document.sourceLiveSessionCode, "LIVE01")
+        XCTAssertEqual(document.rounds.count, 1)
+        XCTAssertEqual(document.runningScores, [0, 150, 75, 75, 0, 0])
+        XCTAssertEqual(document.shareURL.absoluteString, "https://shadyspade.vijaygoyal.org/scorecard/FINAL1")
+
+        let parsed = PublishedScorecardDocument(scorecardCode: "FINAL1", data: document.firestoreData)
+
+        XCTAssertEqual(parsed, document)
+    }
+
+    func test_publishedScorecardService_publishesFinalSnapshotAndFetchesIt() async throws {
+        let remote = FakePublishedScorecardRemoteStore()
+        let now = Date(timeIntervalSince1970: 3_000)
+        let service = PublishedScorecardService(
+            remote: remote,
+            codeGenerator: { "FINAL1" },
+            now: { now }
+        )
+        let round = ScorekeeperRoundEntry(
+            roundNumber: 1,
+            dealerIndex: 0,
+            bidderIndex: 1,
+            bidAmount: 130,
+            trumpSuit: .spades,
+            partner1Index: 2,
+            partner2Index: 3,
+            offensePointsCaught: 130,
+            createdAt: now.addingTimeInterval(-60)
+        )
+        let game = ScorekeeperGameState(
+            createdAt: now.addingTimeInterval(-120),
+            playerNames: ["A", "B", "C", "D", "E", "F"],
+            rounds: [round]
+        )
+
+        let published = try await service.publishFinalScorecard(
+            hostUid: "host",
+            sourceLiveSessionCode: "LIVE01",
+            game: game
+        )
+
+        XCTAssertEqual(published.scorecardCode, "FINAL1")
+        XCTAssertEqual(published.hostUid, "host")
+        XCTAssertEqual(published.sourceLiveSessionCode, "LIVE01")
+        XCTAssertEqual(published.publishedAt, now)
+        XCTAssertEqual(remote.createdCodes, ["FINAL1"])
+
+        let fetched = try await service.fetchScorecard(code: "final1")
+        XCTAssertEqual(fetched, published)
+    }
+
+    func test_publishedScorecardService_skipsCollisionsAndRejectsDeletedOrInvalidData() async throws {
+        let remote = FakePublishedScorecardRemoteStore(existingCodes: ["AAAAAA"])
+        var codes = ["AAAAAA", "BBBBBB"]
+        let service = PublishedScorecardService(
+            remote: remote,
+            codeGenerator: { codes.removeFirst() }
+        )
+
+        let code = try await service.findUniqueScorecardCode()
+        XCTAssertEqual(code, "BBBBBB")
+        XCTAssertEqual(remote.scorecardExistsLookups, ["AAAAAA", "BBBBBB"])
+
+        do {
+            _ = try await service.fetchScorecard(code: "bad")
+            XCTFail("Expected invalid code")
+        } catch PublishedScorecardServiceError.invalidCode {}
+
+        remote.seed(code: "BAD001", data: ["kind": "other"])
+        do {
+            _ = try await service.fetchScorecard(code: "BAD001")
+            XCTFail("Expected invalid scorecard data")
+        } catch PublishedScorecardServiceError.invalidScorecardData {}
+
+        let now = Date(timeIntervalSince1970: 4_000)
+        let deleted = PublishedScorecardDocument(
+            scorecardCode: "DEL001",
+            hostUid: "host",
+            sourceLiveSessionCode: nil,
+            game: ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"]),
+            createdAt: now,
+            publishedAt: now,
+            gameFinishedAt: now,
+            isDeleted: true
+        )
+        remote.seed(code: "DEL001", data: deleted.firestoreData)
+
+        do {
+            _ = try await service.fetchScorecard(code: "DEL001")
+            XCTFail("Expected deleted scorecard")
+        } catch PublishedScorecardServiceError.scorecardDeleted {}
+    }
+
+    @MainActor
+    func test_publishedScorecardController_reportsSuccessAndFailure() async {
+        let remote = FakePublishedScorecardRemoteStore()
+        let now = Date(timeIntervalSince1970: 5_000)
+        let service = PublishedScorecardService(
+            remote: remote,
+            codeGenerator: { "FINAL2" },
+            now: { now }
+        )
+        let controller = PublishedScorecardController(
+            service: service,
+            hostUidProvider: { "host" }
+        )
+        let game = ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"])
+
+        let published = await controller.publish(game: game, sourceLiveSessionCode: nil)
+
+        XCTAssertEqual(published?.scorecardCode, "FINAL2")
+        XCTAssertEqual(controller.shareURL?.absoluteString, "https://shadyspade.vijaygoyal.org/scorecard/FINAL2")
+        XCTAssertNil(controller.errorMessage)
+
+        let failingController = PublishedScorecardController(
+            service: PublishedScorecardService(remote: ThrowingPublishedScorecardRemoteStore()),
+            hostUidProvider: { "host" }
+        )
+
+        let failed = await failingController.publish(game: game, sourceLiveSessionCode: nil)
+
+        XCTAssertNil(failed)
+        XCTAssertEqual(failingController.errorMessage, "Final scorecard could not be shared. It was still saved locally.")
+    }
+
     func test_fetchSession_reportsMissingAndInvalidData() async {
         let remote = FakeScorekeeperSessionRemoteStore()
         let service = ScorekeeperSessionService(remote: remote)
@@ -591,5 +747,49 @@ private struct ThrowingScorekeeperSessionRemoteStore: ScorekeeperSessionRemoteSt
     ) -> ScorekeeperSessionObservation {
         onChange(.failure(URLError(.cannotConnectToHost)))
         return FakeScorekeeperSessionObservation()
+    }
+}
+
+private final class FakePublishedScorecardRemoteStore: PublishedScorecardRemoteStore {
+    private var documents: [String: [String: Any]]
+    private(set) var createdCodes: [String] = []
+    private(set) var scorecardExistsLookups: [String] = []
+
+    init(existingCodes: Set<String> = []) {
+        documents = existingCodes.reduce(into: [:]) { result, code in
+            result[code] = ["exists": true]
+        }
+    }
+
+    func scorecardExists(code: String) async throws -> Bool {
+        scorecardExistsLookups.append(code)
+        return documents[code] != nil
+    }
+
+    func createScorecard(code: String, data: [String: Any]) async throws {
+        createdCodes.append(code)
+        documents[code] = data
+    }
+
+    func fetchScorecard(code: String) async throws -> [String: Any]? {
+        documents[code]
+    }
+
+    func seed(code: String, data: [String: Any]) {
+        documents[code] = data
+    }
+}
+
+private struct ThrowingPublishedScorecardRemoteStore: PublishedScorecardRemoteStore {
+    func scorecardExists(code: String) async throws -> Bool {
+        throw URLError(.cannotConnectToHost)
+    }
+
+    func createScorecard(code: String, data: [String: Any]) async throws {
+        throw URLError(.cannotConnectToHost)
+    }
+
+    func fetchScorecard(code: String) async throws -> [String: Any]? {
+        throw URLError(.cannotConnectToHost)
     }
 }

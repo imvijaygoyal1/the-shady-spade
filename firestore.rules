@@ -56,6 +56,30 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /publishedScorecards/{scorecardId} {
+
+      allow read: if request.auth != null
+        && isPublishedScorecard(resource.data)
+        && resource.data.isDeleted == false;
+
+      allow create: if request.auth != null
+        && isValidRoomCode(scorecardId)
+        && isPublishedScorecard(request.resource.data)
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.isDeleted == false
+        && request.resource.data.createdAt == request.resource.data.publishedAt;
+
+      allow update: if request.auth != null
+        && isPublishedScorecard(resource.data)
+        && isPublishedScorecard(request.resource.data)
+        && resource.data.hostUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeleted'])
+        && resource.data.isDeleted == false
+        && request.resource.data.isDeleted == true;
+
+      allow delete: if false;
+    }
+
     function isValidRoomCode(code) {
       return code.matches('[A-Z0-9]{6}');
     }
@@ -82,6 +106,45 @@ service cloud.firestore {
         && data.updatedAt is timestamp
         && data.expiresAt is timestamp
         && data.isClosed is bool
+        && data.playerNames is list
+        && data.playerNames.size() == 6
+        && data.rounds is list
+        && data.rounds.size() <= 100
+        && data.runningScores is list
+        && data.runningScores.size() == 6
+        && data.winnerIndex is int
+        && data.winnerIndex >= 0
+        && data.winnerIndex < 6;
+    }
+
+    function isPublishedScorecard(data) {
+      return data.keys().hasOnly([
+          'kind',
+          'sourceType',
+          'schemaVersion',
+          'createdAt',
+          'publishedAt',
+          'gameStartedAt',
+          'gameFinishedAt',
+          'hostUid',
+          'sourceLiveSessionCode',
+          'isDeleted',
+          'playerNames',
+          'rounds',
+          'runningScores',
+          'winnerIndex'
+        ])
+        && data.kind == 'publishedScorecard'
+        && data.sourceType == 'scorekeeper'
+        && data.schemaVersion == 1
+        && data.hostUid is string
+        && data.hostUid.size() > 0
+        && (!data.keys().hasAny(['sourceLiveSessionCode']) || data.sourceLiveSessionCode is string)
+        && data.createdAt is timestamp
+        && data.publishedAt is timestamp
+        && data.gameStartedAt is timestamp
+        && data.gameFinishedAt is timestamp
+        && data.isDeleted is bool
         && data.playerNames is list
         && data.playerNames.size() == 6
         && data.rounds is list
