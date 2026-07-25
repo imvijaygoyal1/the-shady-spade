@@ -304,7 +304,7 @@
       <span class="spade-icon">♠</span>
       <h1>Privacy Policy</h1>
       <p class="subtitle">The Shady Spade — Card Game App</p>
-      <span class="last-updated">Last Updated: July 24, 2026</span>
+      <span class="last-updated">Last Updated: July 25, 2026</span>
     </header>
 
     <!-- Quick Summary -->
@@ -385,7 +385,7 @@
           <li>Firebase is used to sync player names, scores, and round history for a <strong>Real-Life Scorekeeper</strong> scorecard only after you choose Share Live View and confirm the live sharing prompt.</li>
           <li>Firebase is used to store a final read-only Real-Life Scorekeeper scorecard only if you choose Save &amp; Share Final Scorecard. Anyone with the final scorecard link can view that scorecard.</li>
           <li>Only your chosen <strong>avatar name</strong> and <strong>game actions</strong> are transmitted — never personal information.</li>
-          <li>All session data is deleted from Firebase servers when the game session ends.</li>
+          <li>Temporary online game session data is deleted from Firebase servers when the game session ends. Temporary live scorekeeper session data expires automatically within 24 hours or when the host finishes, resets, or closes live sharing.</li>
           <li>Firebase may collect anonymous technical data such as crash reports and performance metrics as described in <a href="https://firebase.google.com/support/privacy" style="color: var(--gold);">Google's Privacy Policy</a>.</li>
           <li><strong>Solo, Bluetooth, and Pass &amp; Play modes</strong> do not use Firebase for game sync. If you allow score uploads, Firebase records leaderboard stats at game end in <em>all</em> modes (Solo, Online, Bluetooth, Pass &amp; Play).</li>
           <li><strong>Monthly leaderboard archiving:</strong> At the start of each calendar month, a scheduled Cloud Function automatically archives the previous month's leaderboard data (avatar names, win counts, scores, and game log entries) into a historical snapshot collection on Firebase Firestore. This archive is used to preserve all-time statistics and is not shared with any third party. You may request deletion of both live and archived data by contacting us.</li>

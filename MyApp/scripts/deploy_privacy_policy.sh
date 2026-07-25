@@ -168,7 +168,7 @@ npx wrangler deploy --config "$TMP_DIR/wrangler.jsonc"
 
 echo "Verifying live privacy policy text..."
 curl -L --max-time 15 "https://$DOMAIN/privacy" \
-  | rg "Last Updated|Allow Score Uploads|Play Without Uploading Scores|only if you allow score uploads"
+  | rg "Last Updated|Allow Score Uploads|Play Without Uploading Scores|only if you allow score uploads|Temporary online game session data|Published final scorecards"
 
 echo "Verifying Wrangler cache paths are not public..."
 cache_status="$(curl -I -s --max-time 15 "https://$DOMAIN/.wrangler/cache/wrangler-account.json" | awk 'NR==1 { print $2 }')"

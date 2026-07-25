@@ -349,6 +349,8 @@ struct HowToPlayView: View {
             · End Game & Save - save the completed round and show Final Standings
             · Quit to Menu - leave the table/menu flow
 
+            In Real-Life Scorekeeper, Finish & Save lets you save locally only or upload a final read-only scorecard link with Save & Share Final Scorecard.
+
             Mid-round End Game is allowed. If the game is ended mid-round:
             · The current unfinished round is discarded
             · No leaderboard update is sent for that unfinished round
@@ -373,6 +375,8 @@ struct HowToPlayView: View {
             If a leaderboard save cannot be sent immediately, the app can queue it and sync later. The save status row tells you whether a round was saved, queued, failed, host-managed, or not saved.
 
             Local Game History keeps recent completed game summaries on your device.
+
+            Real-Life Scorekeeper games are saved to Local Game History when you finish and save them. If you choose Save & Share Final Scorecard, the app also creates a read-only shared scorecard link.
             """
         ),
         HowToPlayTopic(
@@ -389,7 +393,28 @@ struct HowToPlayView: View {
 
             Join a Game - Enter a room code or scan a QR code to join an Online table.
 
+            Real-Life Scorekeeper - Track scores for a physical card table without playing cards inside the app.
+
+            Watch Live Scorecard - Enter a live scorekeeper code or open a shared link to follow a read-only scorecard.
+
             TV Dashboard for Bluetooth - The Bluetooth host can show a local web dashboard on another screen using the lobby's TV option. It shows public table information, not private hands.
+            """
+        ),
+        HowToPlayTopic(
+            emoji: "📝",
+            title: "Scorekeeper Tools",
+            content: """
+            Real-Life Scorekeeper is for games played with real cards at a physical table.
+
+            One device owns the scorecard. That scorekeeper enters player names, adds rounds, adjusts the dealer when needed, and can undo or edit the last round.
+
+            Share Live View creates a temporary read-only code and QR link. Other players can watch the live scorecard, but they cannot change scores.
+
+            Save to History keeps the final scorecard on the scorekeeper's device.
+
+            Save & Share Final Scorecard saves local history and uploads a final read-only scorecard that anyone with the link can open later.
+
+            Watch Live Scorecard is for viewing only. It is not used to edit the real-life scorekeeper game.
             """
         ),
         HowToPlayTopic(

@@ -41,7 +41,7 @@ The script also deploys a small Worker shim so `/join/{CODE}`, `/scorekeeper/{CO
 After every privacy policy deploy:
 
 ```bash
-curl -L https://shadyspade.vijaygoyal.org/privacy | rg "Last Updated|Allow Score Uploads|Play Without Uploading Scores|only if you allow score uploads"
+curl -L https://shadyspade.vijaygoyal.org/privacy | rg "Last Updated|Allow Score Uploads|Play Without Uploading Scores|only if you allow score uploads|Temporary online game session data|Published final scorecards"
 curl -L -D - https://shadyspade.vijaygoyal.org/.well-known/apple-app-site-association | rg -i "content-type: application/json|7B5U5LACV3.com.vijaygoyal.theshadyspade|/join/\\*|/scorekeeper/\\*|/scorecard/\\*"
 curl -L https://shadyspade.vijaygoyal.org/join/ABC123 | tee /tmp/shadyspade-join.html | rg "Join The Shady Spade" && rg "ABC123" /tmp/shadyspade-join.html
 curl -L https://shadyspade.vijaygoyal.org/scorekeeper/HOST01 | tee /tmp/shadyspade-scorekeeper.html | rg "Watch Live Scorecard" && rg "HOST01" /tmp/shadyspade-scorekeeper.html
@@ -51,7 +51,7 @@ curl -I https://shadyspade.vijaygoyal.org/.wrangler/cache/wrangler-account.json
 
 Expected:
 
-- The live policy contains the latest date and consent-gated leaderboard language.
+- The live policy contains the latest date, consent-gated leaderboard language, temporary-session cleanup wording, and published-final-scorecard retention wording.
 - The branded domain serves the AASA file as JSON plus join, scorekeeper, and final scorecard fallback pages.
 - The `.wrangler` cache URL returns `404`.
 
