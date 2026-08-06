@@ -123,14 +123,31 @@ enum SessionStatus: String {
     /// Called by GameViewModel to propagate round updates
     var onSessionUpdated: (() -> Void)? = nil
 
-    private var listener: ListenerRegistration? = nil
+    /// `nonisolated(unsafe)` so `deinit` can release it without being `@MainActor`-isolated.
+    ///
+    /// This is safe by construction rather than by convention: every other access is on the main
+    /// actor, and `deinit` runs only when the last reference is gone, so no concurrent access is
+    /// possible. Isolating the *deinit* instead is what corrupted the heap — see the note there.
+    nonisolated(unsafe) private var listener: ListenerRegistration? = nil
     private let db = Firestore.firestore()
     // Pending values stored by prepareLocalSession for later Firebase write
     private var pendingUID: String = ""
     private var pendingName: String = ""
     private var pendingAvatar: String = ""
 
-    @MainActor deinit { listener?.remove() }
+    // NOT `@MainActor deinit`. The class is `@MainActor`, so isolating the deinit looks like the
+    // tidy thing to do — but with `IPHONEOS_DEPLOYMENT_TARGET = 17.0` an isolated deinit has to
+    // back-deploy through `swift_task_deinitOnExecutorMainActorBackDeploy`, and that shim corrupts
+    // the heap: deallocation aborted with
+    // `___BUG_IN_CLIENT_OF_LIBMALLOC_POINTER_BEING_FREED_WAS_NOT_ALLOCATED`.
+    //
+    // It is not a test-only problem — it fires whenever this view model is released, which happens
+    // every time a user leaves an online game. Two unit tests crashed on it deterministically.
+    //
+    // `ListenerRegistration.remove()` is thread-safe (the Firestore SDK is), so a plain deinit is
+    // both correct and sufficient. Do not re-add the isolation until the deployment target is
+    // iOS 18+, where no back-deployment shim is involved.
+    deinit { listener?.remove() }
 
     var allSlotsJoined: Bool { playerSlots.allSatisfy(\.joined) }
 
