@@ -150,10 +150,48 @@ struct PlayerStat: Identifiable {
     }
 }
 
+/// Tracks leaderboard sends that are currently in flight.
+///
+/// A send is refused if **either** the record id **or** its deduplication key is already in
+/// flight. Both dimensions matter and they catch different mistakes:
+///
+/// - **id** stops the same record object being sent twice concurrently (e.g. a retry racing a
+///   flush).
+/// - **deduplication key** stops two *different* record objects describing the **same completed
+///   game** both being written — the case that produces a duplicate leaderboard entry, which a
+///   user sees and cannot remove.
+///
+/// A value type with no dependencies, so the rule can be asserted directly rather than inferred
+/// from the behaviour of the service that owns it.
+struct InFlightSendTracker {
+    private var ids = Set<UUID>()
+    private var deduplicationKeys = Set<String>()
+
+    /// Marks the send as in flight and returns `true`, or returns `false` if it already was.
+    mutating func claim(id: UUID, deduplicationKey: String) -> Bool {
+        guard !isInFlight(id: id, deduplicationKey: deduplicationKey) else { return false }
+        ids.insert(id)
+        deduplicationKeys.insert(deduplicationKey)
+        return true
+    }
+
+    func isInFlight(id: UUID, deduplicationKey: String) -> Bool {
+        ids.contains(id) || deduplicationKeys.contains(deduplicationKey)
+    }
+
+    /// Releases the claim. Safe to call for a send that was never claimed.
+    mutating func release(id: UUID, deduplicationKey: String) {
+        ids.remove(id)
+        deduplicationKeys.remove(deduplicationKey)
+    }
+}
+
 // MARK: - LeaderboardService
 
 @MainActor
+
 @Observable
+
 final class LeaderboardService {
     static let shared = LeaderboardService()
 
@@ -179,8 +217,9 @@ final class LeaderboardService {
     private var listenerAttachTask: Task<Void, Never>?
     private var reattachTask: Task<Void, Never>?
     private var authStateHandle: AuthStateDidChangeListenerHandle?
-    private var inFlightRecordIDs = Set<UUID>()
-    private var inFlightDeduplicationKeys = Set<String>()
+    /// `@ObservationIgnored`: in-flight bookkeeping is not view state, and observing it makes the
+    /// Observation macro wrap the initializer in a nonisolated accessor.
+    @ObservationIgnored private var inFlightSends = InFlightSendTracker()
 
     private init() {}
 
@@ -617,21 +656,15 @@ final class LeaderboardService {
     }
 
     private func claimSend(_ record: PendingGameRecord) -> Bool {
-        let key = record.deduplicationKey
-        guard !isSendInFlight(record) else { return false }
-        inFlightRecordIDs.insert(record.id)
-        inFlightDeduplicationKeys.insert(key)
-        return true
+        inFlightSends.claim(id: record.id, deduplicationKey: record.deduplicationKey)
     }
 
     private func isSendInFlight(_ record: PendingGameRecord) -> Bool {
-        inFlightRecordIDs.contains(record.id)
-            || inFlightDeduplicationKeys.contains(record.deduplicationKey)
+        inFlightSends.isInFlight(id: record.id, deduplicationKey: record.deduplicationKey)
     }
 
     private func releaseSend(_ record: PendingGameRecord) {
-        inFlightRecordIDs.remove(record.id)
-        inFlightDeduplicationKeys.remove(record.deduplicationKey)
+        inFlightSends.release(id: record.id, deduplicationKey: record.deduplicationKey)
     }
 
     /// Removes a sent record from the persistent queue by ID and same-game

@@ -113,3 +113,83 @@ final class LeaderboardPendingQueueTests: XCTestCase {
         )
     }
 }
+
+// MARK: - InFlightSendTracker
+
+/// The rule that stops a completed game being written to the leaderboard twice.
+///
+/// It lived as two private `Set`s inside `LeaderboardService` at 0% coverage, so the one guard
+/// against duplicate leaderboard entries could not be asserted at all. Duplicates are visible to
+/// the user and cannot be removed, and the leaderboard has prior form here — a earlier audit
+/// found 19 findings in this area.
+final class InFlightSendTrackerTests: XCTestCase {
+
+    func test_claimSucceedsOnceThenRefusesTheSameRecord() {
+        var tracker = InFlightSendTracker()
+        let id = UUID()
+
+        XCTAssertTrue(tracker.claim(id: id, deduplicationKey: "game-a"))
+        XCTAssertFalse(tracker.claim(id: id, deduplicationKey: "game-a"),
+                       "A second claim for the same send must be refused.")
+    }
+
+    /// The case that actually produces a duplicate leaderboard row: two *different* record
+    /// objects describing the same completed game. Matching on id alone would let both through.
+    func test_claimRefusesADifferentRecordWithTheSameDeduplicationKey() {
+        var tracker = InFlightSendTracker()
+
+        XCTAssertTrue(tracker.claim(id: UUID(), deduplicationKey: "same-game"))
+        XCTAssertFalse(tracker.claim(id: UUID(), deduplicationKey: "same-game"),
+                       "A different record for the same game must not send concurrently.")
+    }
+
+    /// The mirror case: matching on key alone would wrongly block a legitimate retry that
+    /// carries a fresh key, so the id dimension has to be checked too.
+    func test_claimRefusesTheSameIDEvenWithADifferentKey() {
+        var tracker = InFlightSendTracker()
+        let id = UUID()
+
+        XCTAssertTrue(tracker.claim(id: id, deduplicationKey: "key-1"))
+        XCTAssertFalse(tracker.claim(id: id, deduplicationKey: "key-2"))
+    }
+
+    func test_releaseAllowsTheSendToBeClaimedAgain() {
+        var tracker = InFlightSendTracker()
+        let id = UUID()
+
+        XCTAssertTrue(tracker.claim(id: id, deduplicationKey: "game-a"))
+        tracker.release(id: id, deduplicationKey: "game-a")
+        XCTAssertTrue(tracker.claim(id: id, deduplicationKey: "game-a"),
+                      "After a send completes, a retry must be allowed — otherwise a failed "
+                      + "send could never be retried and the score would be lost.")
+    }
+
+    /// Independent games must not block each other, or a busy flush would drop scores. Asserting
+    /// only the refusals would pass against a tracker that refused everything.
+    func test_independentGamesCanBeInFlightTogether() {
+        var tracker = InFlightSendTracker()
+
+        XCTAssertTrue(tracker.claim(id: UUID(), deduplicationKey: "game-a"))
+        XCTAssertTrue(tracker.claim(id: UUID(), deduplicationKey: "game-b"))
+        XCTAssertTrue(tracker.claim(id: UUID(), deduplicationKey: "game-c"))
+    }
+
+    func test_releasingOneSendDoesNotReleaseAnother() {
+        var tracker = InFlightSendTracker()
+        let a = UUID(), b = UUID()
+        XCTAssertTrue(tracker.claim(id: a, deduplicationKey: "game-a"))
+        XCTAssertTrue(tracker.claim(id: b, deduplicationKey: "game-b"))
+
+        tracker.release(id: a, deduplicationKey: "game-a")
+
+        XCTAssertFalse(tracker.isInFlight(id: a, deduplicationKey: "game-a"))
+        XCTAssertTrue(tracker.isInFlight(id: b, deduplicationKey: "game-b"),
+                      "Releasing one send must not clear another.")
+    }
+
+    func test_releasingAnUnclaimedSendIsHarmless() {
+        var tracker = InFlightSendTracker()
+        tracker.release(id: UUID(), deduplicationKey: "never-claimed")
+        XCTAssertTrue(tracker.claim(id: UUID(), deduplicationKey: "never-claimed"))
+    }
+}
