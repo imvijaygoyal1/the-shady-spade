@@ -213,3 +213,122 @@ final class ScorekeeperWatchBridgeTests: XCTestCase {
         )
     }
 }
+
+// MARK: - Reply snapshot
+
+/// The snapshot the Watch receives after an action. The rule under test is that the reply carries
+/// *that action's own* outcome, which is what tells the Watch user whether their round was recorded
+/// and why not when it was refused.
+///
+/// This was previously latched in a `pendingStatusMessage` property on the bridge — written
+/// synchronously in `handle`, read inside a spawned `Task`. Two messages arriving back-to-back
+/// enqueue as `handle(A)`, `handle(B)`, `replyA`, `replyB`, so A's reply read B's message and
+/// cleared the latch, and B fell back to the generic "Ready for Round N". Both replies were wrong.
+/// The message is now a parameter, so it cannot be read off shared state at all.
+///
+/// Not covered here: the bridge's `handle` and its `WCSessionDelegate` methods, which reach
+/// `WCSession.default` (a singleton) and cannot be exercised without a transport seam. A seam-based
+/// test there would assert what the fake returned, not what the app does.
+final class ScorekeeperWatchReplySnapshotTests: XCTestCase {
+
+    @MainActor
+    private func makeStore(_ name: String) -> ScorekeeperStore {
+        let suite = UserDefaults(suiteName: name)!
+        suite.removePersistentDomain(forName: name)
+        return ScorekeeperStore(defaults: suite)
+    }
+
+    /// A refusal must reach the Watch. Falling back to the default "Ready for Round N" would tell
+    /// the user their round was accepted when it was rejected.
+    @MainActor
+    func test_replySnapshotCarriesTheGivenMessageOverTheDefault() {
+        let store = makeStore("ScorekeeperWatchReplySnapshotTests.refusal")
+        store.start(playerNames: ["A", "B", "C", "D", "E", "F"])
+
+        let defaultSnapshot = ScorekeeperWatchActionHandler.snapshot(from: store.activeGame)
+        XCTAssertEqual(defaultSnapshot.statusMessage, "Ready for Round 1")
+
+        let reply = ScorekeeperWatchActionHandler.replySnapshot(
+            for: store.activeGame,
+            statusMessage: "No round to undo."
+        )
+
+        XCTAssertEqual(reply.statusMessage, "No round to undo.")
+    }
+
+    /// Only the status message may differ. If the reply also changed scores or the round number the
+    /// Watch would render a scorecard that never existed.
+    @MainActor
+    func test_replySnapshotChangesNothingButTheMessage() {
+        let store = makeStore("ScorekeeperWatchReplySnapshotTests.fields")
+        store.start(playerNames: ["A", "B", "C", "D", "E", "F"])
+        _ = ScorekeeperWatchActionHandler.apply(
+            ScorekeeperWatchActionPayload(
+                type: .addRound,
+                draft: ScorekeeperWatchRoundDraftPayload(
+                    dealerIndex: 0,
+                    bidderIndex: 1,
+                    bidAmount: 130,
+                    trumpSuitRaw: TrumpSuit.spades.rawValue,
+                    partner1Index: 2,
+                    partner2Index: 3,
+                    bidMade: true
+                )
+            ),
+            to: store
+        )
+
+        var expected = ScorekeeperWatchActionHandler.snapshot(from: store.activeGame)
+        expected.statusMessage = "Last round removed."
+
+        let reply = ScorekeeperWatchActionHandler.replySnapshot(
+            for: store.activeGame,
+            statusMessage: "Last round removed."
+        )
+
+        XCTAssertEqual(reply, expected)
+        XCTAssertEqual(reply.runningScores, [0, 130, 65, 65, 0, 0])
+        XCTAssertTrue(reply.isActive)
+    }
+
+    /// A refusal with no scorecard must still explain itself. Returning the bare `.inactive`
+    /// snapshot would replace the reason with "No active scorecard" — the state, not the outcome.
+    @MainActor
+    func test_replySnapshotExplainsARefusalEvenWithNoActiveGame() {
+        let reply = ScorekeeperWatchActionHandler.replySnapshot(
+            for: nil,
+            statusMessage: "No round to undo."
+        )
+
+        XCTAssertEqual(reply.statusMessage, "No round to undo.")
+        XCTAssertFalse(reply.isActive)
+        XCTAssertEqual(reply.runningScores, [0, 0, 0, 0, 0, 0])
+    }
+
+    /// The anti-interleaving property, stated directly: two replies built from one game state must
+    /// each keep their own message. The latch this replaced could not satisfy this.
+    @MainActor
+    func test_twoRepliesFromTheSameStateKeepTheirOwnMessages() {
+        let store = makeStore("ScorekeeperWatchReplySnapshotTests.interleave")
+        store.start(playerNames: ["A", "B", "C", "D", "E", "F"])
+
+        let first = ScorekeeperWatchActionHandler.replySnapshot(
+            for: store.activeGame, statusMessage: "Round details missing.")
+        let second = ScorekeeperWatchActionHandler.replySnapshot(
+            for: store.activeGame, statusMessage: "Snapshot sent.")
+
+        XCTAssertEqual(first.statusMessage, "Round details missing.")
+        XCTAssertEqual(second.statusMessage, "Snapshot sent.")
+    }
+
+    /// A malformed message must decode to `nil` so the delegate replies with the inactive snapshot
+    /// rather than acting on a half-parsed action.
+    func test_malformedWatchMessageDoesNotDecodeIntoAnAction() {
+        XCTAssertNil(ScorekeeperWatchMessageCodec.decode(
+            ScorekeeperWatchActionPayload.self, from: [:]))
+        XCTAssertNil(ScorekeeperWatchMessageCodec.decode(
+            ScorekeeperWatchActionPayload.self, from: ["payload": "not-json"]))
+        XCTAssertNil(ScorekeeperWatchMessageCodec.decode(
+            ScorekeeperWatchActionPayload.self, from: ["type": "notARealActionType"]))
+    }
+}

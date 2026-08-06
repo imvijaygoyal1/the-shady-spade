@@ -30,6 +30,24 @@ enum ScorekeeperWatchActionHandler {
         )
     }
 
+    /// The snapshot sent back to the Watch after an action, carrying that action's own outcome.
+    ///
+    /// `statusMessage` is a parameter rather than instance state on the bridge deliberately. It was
+    /// previously latched in a `pendingStatusMessage` property, written synchronously in `handle`
+    /// and read inside a spawned `Task`. For two messages arriving back-to-back the enqueue order is
+    /// `handle(A)`, `handle(B)`, `replyA`, `replyB` — so the reply to A read B's message and cleared
+    /// the latch, and B then fell back to the generic "Ready for Round N". Both replies were wrong.
+    /// Passing the message in makes that interleaving unrepresentable.
+    @MainActor
+    static func replySnapshot(
+        for game: ScorekeeperGameState?,
+        statusMessage: String
+    ) -> ScorekeeperWatchSnapshot {
+        var result = snapshot(from: game)
+        result.statusMessage = statusMessage
+        return result
+    }
+
     @MainActor
     static func apply(
         _ action: ScorekeeperWatchActionPayload,
@@ -79,7 +97,6 @@ enum ScorekeeperWatchActionHandler {
 @Observable final class ScorekeeperWatchBridge: NSObject {
     private weak var store: ScorekeeperStore?
     private weak var livePublisher: ScorekeeperLivePublishingController?
-    private var pendingStatusMessage: String?
 
     var isReachable = false
     var lastMessage = "Apple Watch companion is ready."
@@ -124,15 +141,16 @@ enum ScorekeeperWatchActionHandler {
 
         let result = ScorekeeperWatchActionHandler.apply(action, to: store)
         lastMessage = result.message
-        pendingStatusMessage = result.message
 
         Task { @MainActor in
             if result.accepted, let activeGame = store.activeGame {
                 await livePublisher?.publish(game: activeGame)
             }
-            var snapshot = ScorekeeperWatchActionHandler.snapshot(from: store.activeGame)
-            snapshot.statusMessage = pendingStatusMessage ?? snapshot.statusMessage
-            pendingStatusMessage = nil
+            // `result.message` is captured, not read back off the bridge — see `replySnapshot`.
+            let snapshot = ScorekeeperWatchActionHandler.replySnapshot(
+                for: store.activeGame,
+                statusMessage: result.message
+            )
             let encoded = ScorekeeperWatchMessageCodec.encode(snapshot)
             updateApplicationContext(encoded)
             replyHandler?(encoded)
