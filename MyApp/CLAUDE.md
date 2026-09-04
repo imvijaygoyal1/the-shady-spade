@@ -3,6 +3,16 @@
 > **IMPORTANT FOR CLAUDE:** After every code change to this project, update this file to reflect the change. New file → add to File Map. New component → add to Styles section. Changed pattern → update Key Patterns. Version bump → update App Identity. This file must always stay current.
 > **RELEASE TRACKING:** v1.10 is **approved and live** on the App Store. v2.0 (build 11) is in release prep — the first release containing the Apple Watch companion, Real-Life Scorekeeper, and published scorecards. Log all post-v1.10 changes under the v2.0 section below.
 > **ISSUE/FIX LOGGING PATTERN:** For every bug fix or behavior change, add a v1.9 changelog entry with Symptom, Root Cause, Fix, reusable Pattern, Verification, and changed files. Also add or update a plan note under `docs/superpowers/plans/YYYY-MM-DD-short-slug.md` so future Claude sessions can reconstruct the analysis and implementation.
+> **RELEASE TAGGING RULE (added 2026-09-04):** **Tag every submission, at submission time.**
+> `git tag -a v<version>-build<n> <commit> -m "<version> (build <n>) — SUBMITTED <date>"`, then
+> `git push origin <tag>`. Amend the message with the outcome (APPROVED / REJECTED + guideline)
+> when Apple responds. This exists because the v1.10 boundary turned out to be **underivable** —
+> no tags, version bumps swept into unrelated commits, and build `8` absent from git entirely —
+> and had to be reconstructed by inference. Existing tags:
+> `v1.9-build7-rejected` (high confidence), `v1.10-build8-live-approx` (**approximate — read the
+> tag message before trusting it**), `v2.0-build11-prep` (not yet submitted; replace with a real
+> `v2.0` tag on the submitted commit).
+>
 > **PRIVACY IMPACT RULE:** Before completing any change involving data collection, storage, upload, Firebase, leaderboard, camera, contacts, photos, notifications, accounts, analytics, or third-party services, check `APPSTORE_PRIVACY.md` and update the hosted privacy policy if behavior changed. Privacy policy source: `/Users/vijaygoyal/MyiOSApp/shadyspade-web/privacy/index.html`; live URL: `https://shadyspade.vijaygoyal.org/privacy`; deploy via `./scripts/deploy_privacy_policy.sh`.
 
 ## v2.0 Changelog
