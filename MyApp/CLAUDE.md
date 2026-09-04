@@ -13,6 +13,22 @@
 > tag message before trusting it**), `v2.0-build11-prep` (not yet submitted; replace with a real
 > `v2.0` tag on the submitted commit).
 >
+> **⚠️ KNOWN OPEN ISSUE (2026-09-04): `xcodebuild test` hangs before compiling.** The CLI stalls
+> after `CreateBuildDescription` at `ExecuteExternalTool ... clang -v -E -dM`, with **zero**
+> `SwiftCompile` lines, ~5s CPU over 20 minutes, and several hung `clang -v -E -dM` probes alive at
+> once (iPhoneSimulator *and* WatchSimulator). **Reproduced in the owner's own terminal**, so it is
+> not an agent-shell sandbox artifact.
+> **Eliminated by test, not by reasoning:** the clang binary (the exact hung command run by hand
+> returns 509 lines in ~1s); SPM resolution (all 14 packages resolve instantly); the destination
+> (`-showBuildSettings` succeeds, 1,225 lines); watchOS runtimes/SDKs (26.4 and 26.5 both
+> installed, 20 watch simulators present); DerivedData staleness (cleared 5.2 GB, unchanged);
+> foreground vs background; and the machine itself (xBill, which has **no Watch target**, builds,
+> archives and exports fine on the same machine in the same session).
+> **The cause is NOT established.** The only structural difference identified is that this scheme
+> builds a Watch target and a 64-target Firebase graph. Do not record a cause until one is isolated.
+> **Try Xcode.app (Cmd+U) first** — a GUI build is the quickest way to tell whether the project is
+> healthy and only the CLI path is affected.
+>
 > **PRIVACY IMPACT RULE:** Before completing any change involving data collection, storage, upload, Firebase, leaderboard, camera, contacts, photos, notifications, accounts, analytics, or third-party services, check `APPSTORE_PRIVACY.md` and update the hosted privacy policy if behavior changed. Privacy policy source: `/Users/vijaygoyal/MyiOSApp/shadyspade-web/privacy/index.html`; live URL: `https://shadyspade.vijaygoyal.org/privacy`; deploy via `./scripts/deploy_privacy_policy.sh`.
 
 ## v2.0 Changelog
