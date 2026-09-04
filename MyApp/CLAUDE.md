@@ -13,21 +13,48 @@
 > tag message before trusting it**), `v2.0-build11-prep` (not yet submitted; replace with a real
 > `v2.0` tag on the submitted commit).
 >
-> **⚠️ KNOWN OPEN ISSUE (2026-09-04): `xcodebuild test` hangs before compiling.** The CLI stalls
-> after `CreateBuildDescription` at `ExecuteExternalTool ... clang -v -E -dM`, with **zero**
-> `SwiftCompile` lines, ~5s CPU over 20 minutes, and several hung `clang -v -E -dM` probes alive at
-> once (iPhoneSimulator *and* WatchSimulator). **Reproduced in the owner's own terminal**, so it is
-> not an agent-shell sandbox artifact.
-> **Eliminated by test, not by reasoning:** the clang binary (the exact hung command run by hand
-> returns 509 lines in ~1s); SPM resolution (all 14 packages resolve instantly); the destination
-> (`-showBuildSettings` succeeds, 1,225 lines); watchOS runtimes/SDKs (26.4 and 26.5 both
-> installed, 20 watch simulators present); DerivedData staleness (cleared 5.2 GB, unchanged);
-> foreground vs background; and the machine itself (xBill, which has **no Watch target**, builds,
-> archives and exports fine on the same machine in the same session).
-> **The cause is NOT established.** The only structural difference identified is that this scheme
-> builds a Watch target and a 64-target Firebase graph. Do not record a cause until one is isolated.
-> **Try Xcode.app (Cmd+U) first** — a GUI build is the quickest way to tell whether the project is
-> healthy and only the CLI path is affected.
+> **⚠️ Xcode 26 build-service deadlock: `xcodebuild` can hang before compiling (diagnosed 2026-09-04).**
+> **Symptom.** The build stalls after `CreateBuildDescription` at
+> `ExecuteExternalTool ... clang -v -E -dM`, with **zero** `SwiftCompile` lines, a few seconds of
+> CPU over many minutes, and one or more `clang -v -E -dM` processes alive at 0% CPU. Reproduced in
+> the owner's own terminal, so it is not an agent-shell artifact. **Intermittent, not deterministic**
+> — a later identical run cleared it unaided, so a green run does not mean it is gone.
+>
+> **Root cause — a pipe-buffer deadlock, established by stack trace, byte counts and intervention.**
+> `sample` on a hung probe shows it blocked in a syscall, not computing:
+> `clang::driver::Command::Print` → `llvm::raw_ostream::write` → `raw_fd_ostream::write_impl` →
+> `write (libsystem_kernel.dylib)`. The probe's `-v` output is **16,358 bytes** (stdout) + 5,093
+> (stderr); the buffer it writes into is **8,192 bytes**. The parent is `SWBBuildService`
+> (`Xcode.app/Contents/SharedFrameworks/SwiftBuild.framework/PlugIns/`), idle at 0% CPU with its
+> worker threads parked in `_pthread_wqthread` — it never drains the pipe, so clang blocks forever
+> at the buffer limit on a `/dev/null` no-op that should take under a second.
+> **Proven by intervention:** killing the one blocked probe moved the build from 23,612 bytes and
+> **0** compile lines to 767,516 bytes and **58** compile lines within seconds.
+>
+> **Workaround.** Run a watchdog beside the build that kills any `clang -v -E -dM` still alive
+> across two consecutive 10s polls — they legitimately finish in under a second, so this cannot
+> kill a healthy one:
+> ```bash
+> nohup bash -c 'prev=""; while true; do
+>   cur=$(pgrep -f "clang -v -E -dM" | tr "\n" " ")
+>   for p in $cur; do case " $prev " in *" $p "*) kill "$p" 2>/dev/null;; esac; done
+>   prev="$cur"; sleep 10
+> done' >/tmp/watchdog.log 2>&1 &
+> ```
+> ⚠️ `ps -o etimes=` is **Linux-only**; on macOS it fails and the watchdog silently kills nothing.
+> Use the seen-twice check above, not an age comparison.
+>
+> **Eliminated by test, so do not re-investigate:** the clang binary (the exact hung command by hand
+> returns 509 lines in ~1s), SPM resolution (all 14 packages resolve instantly), the destination
+> (`-showBuildSettings` succeeds), watchOS runtimes/SDKs (26.4 and 26.5 installed, 20 watch
+> simulators), DerivedData staleness (cleared 5.2 GB, no change), foreground vs background, and the
+> machine (xBill, which has no Watch target, builds and archives fine in the same session).
+> **Not established:** why this project hits it and xBill does not. The visible difference is that
+> this scheme spans iOS **and** watchOS and fires several probes at once. That is an observation,
+> not a finding.
+>
+> **This is an Apple bug** — a build service that does not drain a child's stdout will deadlock on
+> any sufficiently verbose toolchain query. Worth a Feedback Assistant report with the sample trace.
 >
 > **PRIVACY IMPACT RULE:** Before completing any change involving data collection, storage, upload, Firebase, leaderboard, camera, contacts, photos, notifications, accounts, analytics, or third-party services, check `APPSTORE_PRIVACY.md` and update the hosted privacy policy if behavior changed. Privacy policy source: `/Users/vijaygoyal/MyiOSApp/shadyspade-web/privacy/index.html`; live URL: `https://shadyspade.vijaygoyal.org/privacy`; deploy via `./scripts/deploy_privacy_policy.sh`.
 
