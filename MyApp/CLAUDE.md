@@ -54,7 +54,11 @@
 > not a finding.
 >
 > **This is an Apple bug** — a build service that does not drain a child's stdout will deadlock on
-> any sufficiently verbose toolchain query. Worth a Feedback Assistant report with the sample trace.
+> any sufficiently verbose toolchain query. **Reported to Apple via Feedback Assistant 2026-09-04**
+> (FB number not recorded here — add it when known). Report and attachments kept at
+> `~/Desktop/xcode-feedback/`: the `sample` trace, the byte measurements, the environment, the
+> build log and the `.xcactivitylog`. Recorded against Xcode 26.6 (17F113) / macOS 26.6.2 (25G83),
+> MacBook Pro M1, 8 GB. **If a later Xcode fixes it, this whole entry can go.**
 >
 > **PRIVACY IMPACT RULE:** Before completing any change involving data collection, storage, upload, Firebase, leaderboard, camera, contacts, photos, notifications, accounts, analytics, or third-party services, check `APPSTORE_PRIVACY.md` and update the hosted privacy policy if behavior changed. Privacy policy source: `/Users/vijaygoyal/MyiOSApp/shadyspade-web/privacy/index.html`; live URL: `https://shadyspade.vijaygoyal.org/privacy`; deploy via `./scripts/deploy_privacy_policy.sh`.
 
