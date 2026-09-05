@@ -1,7 +1,10 @@
 import SwiftUI
+import OSLog
 import FirebaseFirestore
 import FirebaseAuth
 import Observation
+
+private let osvmLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "OnlineSessionVM")
 
 // MARK: - Supporting Types
 
@@ -403,7 +406,7 @@ enum SessionStatus: String {
                     "aiSeats": currentAISeats
                 ])
             } catch {
-                print("[removePlayer] AI slot clear failed for slot \(slotIndex): \(error.localizedDescription)")
+                osvmLog.error("removePlayer: AI slot clear failed for slot \(slotIndex): \(error.localizedDescription, privacy: .public)")
             }
         } else {
             // Removing a human player — replace with AI bot
@@ -428,7 +431,7 @@ enum SessionStatus: String {
                     "removedSlot": slotIndex
                 ])
             } catch {
-                print("[removePlayer] human→AI replacement failed for slot \(slotIndex): \(error.localizedDescription)")
+                osvmLog.error("removePlayer: human→AI replacement failed for slot \(slotIndex): \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -475,7 +478,7 @@ enum SessionStatus: String {
                 do {
                     try await ref.updateData(["playerSlots": slotsData, "aiSeats": currentAISeats])
                 } catch {
-                    print("[startGame] AI auto-fill write failed: \(error.localizedDescription)")
+                    osvmLog.error("startGame: AI auto-fill write failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
         }

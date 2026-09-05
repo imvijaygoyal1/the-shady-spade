@@ -421,12 +421,15 @@ private struct ScorekeeperLiveView: View {
             .adaptiveContentFrame(maxWidth: 780)
         }
         .sheet(isPresented: $showingRoundEntry) {
+            // SPADE-01: no force unwrap. `rounds` can empty while this sheet is open — the Watch
+            // can send `.undoLastRound` — and a sheet body re-evaluates on every store change.
+            if let initialDraft = ScorekeeperRoundDraft.forRoundEntry(
+                editingLastRound: editingLastRound, game: game
+            ) {
             ScorekeeperRoundEntryView(
                 title: editingLastRound ? "Edit Last Round" : "Add Round",
                 playerNames: game.playerNames,
-                initialDraft: editingLastRound
-                    ? ScorekeeperRoundDraft(round: game.rounds.last!)
-                    : ScorekeeperRoundDraft(nextDealerIndex: game.nextDealerIndex)
+                initialDraft: initialDraft
             ) { draft in
                 if editingLastRound {
                     store.replaceLastRound(with: draft)
@@ -439,6 +442,15 @@ private struct ScorekeeperLiveView: View {
             }
             .presentationDetents([.large])
             .presentationBackground(Comic.bg)
+            } else {
+                // The round being edited disappeared underneath us. Close instead of trapping.
+                Color.clear
+                    .presentationBackground(Comic.bg)
+                    .onAppear {
+                        editingLastRound = false
+                        showingRoundEntry = false
+                    }
+            }
         }
         .sheet(isPresented: $showingPlayerNames) {
             ScorekeeperPlayerNamesView(playerNames: game.playerNames) { names in

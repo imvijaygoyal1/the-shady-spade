@@ -193,3 +193,76 @@ final class ScorekeeperTests: XCTestCase {
         XCTAssertEqual(reloadedStore.activeGame?.runningScores, [0, 135, 67, 67, 0, 0])
     }
 }
+
+// MARK: - SPADE-01 — the round-entry sheet must not trap when rounds empty underneath it
+//
+// The crash these guard: the "Edit Last Round" tap site checks `!game.rounds.isEmpty`, but a
+// SwiftUI sheet body is re-evaluated on every observed-store change and `editingLastRound` is
+// `@State` that survives. Since v2.0 the Watch can send `.undoLastRound`, which reaches
+// `store.deleteLastRound()` — so `rounds` can empty while the sheet is open.
+//
+// These test `ScorekeeperRoundDraft.forRoundEntry`, the pure decision the sheet now delegates to.
+// Written to fail against the previous inline `game.rounds.last!`.
+final class ScorekeeperRoundEntryDraftTests: XCTestCase {
+
+    private func gameWithOneRound() -> ScorekeeperGameState {
+        var game = ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"])
+        var round = ScorekeeperRoundDraft(nextDealerIndex: 0)
+        round.bidderIndex = 0
+        round.partner1Index = 1
+        round.partner2Index = 2
+        round.bidAmount = 150
+        game.appendRound(round)
+        return game
+    }
+
+    /// The defect, directly: editing is requested but there is nothing left to edit.
+    func test_editingWithNoRounds_returnsNilRatherThanTrapping() {
+        let empty = ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"])
+        XCTAssertTrue(empty.rounds.isEmpty)
+        XCTAssertNil(ScorekeeperRoundDraft.forRoundEntry(editingLastRound: true, game: empty))
+    }
+
+    /// The exact two-device sequence, expressed on the model: one round, edit begins, round removed.
+    func test_watchUndoWhileEditing_leavesNoDraftInsteadOfCrashing() {
+        var game = gameWithOneRound()
+        XCTAssertNotNil(ScorekeeperRoundDraft.forRoundEntry(editingLastRound: true, game: game))
+
+        game.deleteLastRound()   // what ScorekeeperWatchBridge does on .undoLastRound
+
+        XCTAssertTrue(game.rounds.isEmpty)
+        XCTAssertNil(ScorekeeperRoundDraft.forRoundEntry(editingLastRound: true, game: game))
+    }
+
+    /// Editing must still return the last round's values — the fix must not break the feature.
+    func test_editingWithRounds_returnsDraftMatchingThatRound() throws {
+        let game = gameWithOneRound()
+        let last = try XCTUnwrap(game.rounds.last)
+        let draft = try XCTUnwrap(
+            ScorekeeperRoundDraft.forRoundEntry(editingLastRound: true, game: game)
+        )
+
+        XCTAssertEqual(draft.bidderIndex, last.bidderIndex)
+        XCTAssertEqual(draft.bidAmount, last.bidAmount)
+        XCTAssertEqual(draft.partner1Index, last.partner1Index)
+        XCTAssertEqual(draft.partner2Index, last.partner2Index)
+    }
+
+    /// Adding a round never consults `rounds.last`, so it must work on an empty game.
+    func test_addingRoundOnEmptyGame_returnsDraftSeededFromNextDealer() {
+        let empty = ScorekeeperGameState(playerNames: ["A", "B", "C", "D", "E", "F"])
+        let draft = ScorekeeperRoundDraft.forRoundEntry(editingLastRound: false, game: empty)
+
+        XCTAssertNotNil(draft)
+        XCTAssertEqual(draft?.dealerIndex, empty.nextDealerIndex)
+    }
+
+    /// Adding after existing rounds must seed from the next dealer, not from the last round.
+    func test_addingRoundAfterRounds_seedsFromNextDealerNotLastRound() {
+        let game = gameWithOneRound()
+        let draft = ScorekeeperRoundDraft.forRoundEntry(editingLastRound: false, game: game)
+
+        XCTAssertNotNil(draft)
+        XCTAssertEqual(draft?.dealerIndex, game.nextDealerIndex)
+    }
+}

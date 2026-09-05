@@ -1,6 +1,9 @@
 import SwiftUI
+import OSLog
 import CoreImage.CIFilterBuiltins
 import FirebaseAuth
+
+private let osvLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "OnlineSession")
 
 // MARK: - Online Session View
 
@@ -407,7 +410,7 @@ private struct JoinByCodeView: View {
                 joinError = "Room is full."
             } catch {
                 joinError = "Connection error. Check your internet and try again."
-                print("Join error: \(error)")
+                osvLog.error("Join failed: \(error.localizedDescription, privacy: .public)")
             }
             isJoining = false
         }

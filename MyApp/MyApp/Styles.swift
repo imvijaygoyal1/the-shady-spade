@@ -1163,53 +1163,6 @@ extension View {
 
 // MARK: - Bid Progress Banner
 
-struct BidProgressBanner: View {
-    let bidderName: String
-    let offenseCaught: Int
-    let bid: Int
-
-    private var progress: Double { bid > 0 ? min(1.0, Double(offenseCaught) / Double(bid)) : 0 }
-    private var bidMade: Bool { offenseCaught >= bid }
-    private var isSetConfirmed: Bool { offenseCaught < bid }
-    private var barColor: Color {
-        bidMade ? ThemeManager.shared.colours.scoreCircleProgress : .defenseRose
-    }
-
-    var body: some View {
-        VStack(spacing: 4) {
-            HStack(alignment: .lastTextBaseline, spacing: 4) {
-                Text("\(offenseCaught)")
-                    .font(.system(size: 16, weight: .black, design: .rounded).monospacedDigit())
-                    .foregroundStyle(ThemeManager.shared.colours.scoreCircleText)
-                    .contentTransition(.numericText())
-                Text("/ \(bid)")
-                    .font(.system(size: 12, weight: .heavy, design: .rounded).monospacedDigit())
-                    .foregroundStyle(ThemeManager.shared.colours.textTertiary)
-                Spacer()
-                if bidMade {
-                    Text("✓ Made!")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(ThemeManager.shared.colours.scoreCircleProgress)
-                }
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(ThemeManager.shared.colours.scoreCircleTrack)
-                        .frame(height: 10)
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(barColor)
-                        .frame(width: max(8, geo.size.width * CGFloat(progress)), height: 10)
-                        .animation(.easeInOut(duration: 0.5), value: progress)
-                }
-            }
-            .frame(height: 10)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-    }
-}
-
 // MARK: - Section Header
 
 struct SectionHeader: View {
@@ -1257,25 +1210,6 @@ struct TrumpBadge: View {
 }
 
 // MARK: - Trump And Called Row
-
-struct TrumpAndCalledRow: View {
-    let trumpSuit: TrumpSuit
-    let card1: String
-    let card2: String
-
-    var body: some View {
-        GeometryReader { geo in
-            let badgeW = geo.size.width / 2 - 6
-            HStack(spacing: 12) {
-                TrumpBadge(suit: trumpSuit, width: badgeW)
-                CalledCardsBadge(card1: card1, card2: card2, width: badgeW)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .frame(height: 52)
-        .padding(.horizontal, 16)
-    }
-}
 
 // MARK: - Called Cards Badge
 

@@ -1,8 +1,11 @@
 import SwiftUI
+import OSLog
 import SwiftData
 import FirebaseCore
 import FirebaseAuth
 import UIKit
+
+private let appLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "App")
 
 @Observable final class DeepLinkManager {
     static let shared = DeepLinkManager()
@@ -59,7 +62,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         guard Auth.auth().currentUser == nil else { return }
         Auth.auth().signInAnonymously { _, error in
             if let error {
-                print("Anonymous auth error: \(error)")
+                appLog.error("Anonymous auth failed: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

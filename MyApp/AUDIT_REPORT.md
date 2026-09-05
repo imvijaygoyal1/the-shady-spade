@@ -939,12 +939,12 @@ Read-only pass over 73 Swift files / 37,950 lines. Nothing changed; this is the 
 
 | ID | Severity | File | Issue | Status |
 |---|---|---|---|---|
-| SPADE-01 | **CRITICAL** | `ScorekeeperView.swift:428` | Force-unwrap crash reachable from a normal two-device action, **new in v2.0** | ⬜ Open |
+| SPADE-01 | **CRITICAL** | `ScorekeeperView.swift:428` | Force-unwrap crash reachable from a normal two-device action, **new in v2.0** | ✅ Fixed |
 | SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | ⬜ Open |
 | SPADE-03 | High | `BluetoothGameViewModel.swift:114-115` | `MCPeerID!` / `MCSession!` implicitly unwrapped, and `session` is set to `nil` on teardown | ⬜ Open |
-| SPADE-04 | Medium | 6 files | 9 types declared and never referenced | ⬜ Open |
-| SPADE-05 | Medium | repo root | 955 lines of stray test files, tracked in git, in no target | ⬜ Open |
-| SPADE-06 | Medium | 5 files | 7 `print()` calls in production paths | ⬜ Open |
+| SPADE-04 | Medium | 6 files | 9 types declared and never referenced | ✅ Fixed |
+| SPADE-05 | Medium | repo root | 955 lines of stray test files, tracked in git, in no target | ✅ Fixed |
+| SPADE-06 | Medium | 5 files | 7 `print()` calls in production paths | ✅ Fixed |
 | SPADE-07 | Medium | — | 7,320 lines across 4 files with zero test references | ⬜ Open |
 | SPADE-08 | Low | 12 files | 27 `DispatchQueue.main.asyncAfter` timing dependencies | ⬜ Open |
 
@@ -1008,3 +1008,33 @@ no target and have never run. They read as coverage that does not exist.
 and 50 `[weak self]` captures. The remaining force unwraps are `URL(string:)!` on hardcoded literals
 plus one short-circuit-guarded `lastSeen!` — all sound. This is a disciplined codebase; the findings
 above are structural, not sloppiness.
+
+### SPADE-01/04/05/06 — fixed 2026-09-04
+
+| | |
+|---|---|
+| **SPADE-01 ✅** | The inline `game.rounds.last!` is replaced by `ScorekeeperRoundDraft.forRoundEntry(editingLastRound:game:)`, a pure function on the model returning `ScorekeeperRoundDraft?`. The sheet `if let`s on it and **closes** rather than trapping when the round disappears. A pure function rather than an inline `if let` for two reasons: the crash becomes *unrepresentable*, and the decision moves somewhere a test reaches without driving SwiftUI. `rounds.last!` now appears **0** times in `ScorekeeperView.swift`. |
+| **SPADE-04 ✅** | All 9 dead types removed. |
+| **SPADE-05 ✅** | `tests.swift`, `tests_playing_phase_fixes.swift`, `tests_remaining_fixes.swift` deleted (955 lines, tracked in git, in no target). |
+| **SPADE-06 ✅** | All 7 `print()` converted to `Logger` in the existing file-local house style (`osvLog`, `appLog`, `cgvLog`, `osvmLog`). **0** `print(` remain in production. |
+| **SPADE-02/03/07/08** | ⬜ Still open — see the reasoning below. |
+
+**Verification.** Unit **171 passed, 0 failed, 0 skipped** (baseline 166 + 5 new), new suite
+`ScorekeeperRoundEntryDraftTests` confirmed **by name** in the result bundle.
+
+**Mutation-tested, and the result is exact.** Restoring the force unwrap fails **exactly 2** of the
+5 new tests — `test_editingWithNoRounds_returnsNilRatherThanTrapping` and
+`test_watchUndoWhileEditing_leavesNoDraftInsteadOfCrashing`, the two that encode the defect — while
+the three independent of it (`editingWithRounds`, `addingRoundOnEmptyGame`,
+`addingRoundAfterRounds`) correctly still pass. Restored: 171/171.
+
+⚠️ **The two-device race itself is NOT tested.** `test_watchUndoWhileEditing…` walks the sequence on
+the *model* (`deleteLastRound()` is exactly what `ScorekeeperWatchBridge:59` calls) but nothing
+drives a real Watch. The fix makes the crash structurally impossible, which is stronger than a test
+— but the end-to-end path still wants the paired-device pass v2.0 needs anyway.
+
+**Why SPADE-02 was deliberately not attempted.** The three game views carry **0** test references
+between them (`ComputerGameView` 3,164 lines, `OnlineGameView` 2,557, `BluetoothGameView` 2,321),
+and all 14 duplicated components are referenced by **0** test files. Consolidating 8,042 lines of
+untested SwiftUI is how regressions ship. It should follow v2.0, one family at a time, behind
+characterization tests.

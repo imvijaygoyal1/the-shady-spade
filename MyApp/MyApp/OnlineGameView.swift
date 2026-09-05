@@ -1405,37 +1405,6 @@ private struct OnlinePlayingView: View {
 
 // MARK: - Offense Team Strip (online)
 
-private struct OnlineOffenseTeamStrip: View {
-    var game: OnlineGameViewModel
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Text("Bidding Team:")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            OnlineOffenseChip(
-                name: game.playerName(game.highBidderIndex),
-                isBidder: true
-            )
-
-            let p1Name: String? = game.revealedPartner1Index >= 0
-                ? game.playerName(game.revealedPartner1Index)
-                : nil
-            let p2Name: String? = game.revealedPartner2Index >= 0
-                ? game.playerName(game.revealedPartner2Index)
-                : nil
-
-            OnlineOffenseChip(name: p1Name)
-            OnlineOffenseChip(name: p2Name)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index)
-    }
-}
-
 private struct OnlineOffenseChip: View {
     let name: String?
     var isBidder: Bool = false
@@ -2045,22 +2014,6 @@ private struct OnlineRoundCompleteView: View {
     }
 }
 
-private struct OnlineScorePill: View {
-    let label: String
-    let points: Int
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(label).font(.caption.uppercaseSmallCaps()).foregroundStyle(color)
-            Text("\(points)").font(.system(size: 38, weight: .black, design: .rounded))
-                .foregroundStyle(Comic.textPrimary).contentTransition(.numericText())
-            Text("pts").font(.caption2).foregroundStyle(Comic.textSecondary)
-        }
-        .frame(maxWidth: .infinity).padding(.vertical, 18).comicContainer(cornerRadius: 16)
-    }
-}
-
 private struct OnlineAwardPill: View {
     let label: String
     let points: Int
@@ -2388,23 +2341,6 @@ struct UITestOnlineGameplayCatalogView: View {
 }
 
 // MARK: - Waiting Overlay
-
-private struct WaitingOverlay: View {
-    let name: String
-
-    var body: some View {
-        ZStack {
-            Comic.black.opacity(0.55).ignoresSafeArea()
-            VStack(spacing: 16) {
-                ProgressView().scaleEffect(1.4).tint(Comic.yellow)
-                Text("Waiting for \(name)…")
-                    .font(.subheadline.bold()).foregroundStyle(Comic.textPrimary)
-                    .padding(.horizontal, 20).padding(.vertical, 12)
-                    .comicContainer(cornerRadius: 24)
-            }
-        }
-    }
-}
 
 // MARK: - Partner Reveal Banner
 

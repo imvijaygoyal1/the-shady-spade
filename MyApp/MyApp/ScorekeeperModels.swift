@@ -157,6 +157,26 @@ struct ScorekeeperRoundDraft: Equatable {
         self.bidMade = true
     }
 
+    /// Chooses the draft the round-entry sheet should open with.
+    ///
+    /// SPADE-01: this used to be `ScorekeeperRoundDraft(round: game.rounds.last!)` inline in the
+    /// sheet body. The tap site is guarded (`guard !game.rounds.isEmpty`), but a SwiftUI sheet body
+    /// is **re-evaluated whenever the observed store changes**, and `editingLastRound` is `@State`
+    /// that survives that re-evaluation. Since v2.0 the Watch can send `.undoLastRound`, which
+    /// reaches `store.deleteLastRound()` — so `rounds` can empty while the sheet is open and the
+    /// force unwrap trapped.
+    ///
+    /// Returning `nil` makes that unrepresentable rather than merely unlikely, and moves the
+    /// decision somewhere a test can reach without driving SwiftUI.
+    static func forRoundEntry(editingLastRound: Bool,
+                              game: ScorekeeperGameState) -> ScorekeeperRoundDraft? {
+        guard editingLastRound else {
+            return ScorekeeperRoundDraft(nextDealerIndex: game.nextDealerIndex)
+        }
+        guard let last = game.rounds.last else { return nil }
+        return ScorekeeperRoundDraft(round: last)
+    }
+
     init(round: ScorekeeperRoundEntry) {
         self.dealerIndex = round.dealerIndex
         self.bidderIndex = round.bidderIndex

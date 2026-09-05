@@ -1,10 +1,5 @@
 import Foundation
 
-enum ScorekeeperWatchMessageKind: String, Codable {
-    case snapshot
-    case action
-}
-
 enum ScorekeeperWatchActionType: String, Codable {
     case requestSnapshot
     case addRound

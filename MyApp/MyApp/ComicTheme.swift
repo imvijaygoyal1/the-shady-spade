@@ -1,15 +1,6 @@
 import SwiftUI
 
 // MARK: - Comic Fonts
-enum ComicFont {
-    static func title(_ size: CGFloat = 32)    -> Font { .system(size: size, weight: .black,  design: .rounded) }
-    static func heading(_ size: CGFloat = 24)  -> Font { .system(size: size, weight: .black,  design: .rounded) }
-    static func button(_ size: CGFloat = 18)   -> Font { .system(size: size, weight: .heavy,  design: .rounded) }
-    static func body(_ size: CGFloat = 16)     -> Font { .system(size: size, weight: .bold,   design: .rounded) }
-    static func caption(_ size: CGFloat = 13)  -> Font { .system(size: size, weight: .heavy,  design: .rounded) }
-    static func badge(_ size: CGFloat = 11)    -> Font { .system(size: size, weight: .heavy,  design: .rounded) }
-    static func cardRank(_ size: CGFloat = 22) -> Font { .system(size: size, weight: .black,  design: .rounded) }
-}
 
 // MARK: - Comic Book Theme Constants
 

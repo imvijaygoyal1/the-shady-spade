@@ -1,6 +1,9 @@
 import SwiftUI
+import OSLog
 import SwiftData
 import StoreKit
+
+private let cgvLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category: "ComputerGame")
 
 // MARK: - Root
 
@@ -342,9 +345,9 @@ struct ComputerGameView: View {
     private func saveGameHistory(finalScores: [Int], rounds: [HistoryRound]? = nil, mode: String = "Solo") {
         guard !guidedFirstGame else { return }
         let roundsToSave = rounds ?? savedHistoryRounds
-        print("ComputerGameView.saveGameHistory(local): mode=\(mode) rounds=\(roundsToSave.count) savedRounds=\(savedHistoryRounds.count)")
+        cgvLog.debug("saveGameHistory(local): mode=\(mode, privacy: .public) rounds=\(roundsToSave.count) savedRounds=\(savedHistoryRounds.count)")
         guard !roundsToSave.isEmpty else {
-            print("ComputerGameView.saveGameHistory: guard failed — no rounds")
+            cgvLog.debug("saveGameHistory: guard failed — no rounds")
             return
         }
         let names = (0..<6).map { game.playerName($0) }
@@ -1357,32 +1360,6 @@ private struct OffenseChip: View {
         .overlay(Capsule().strokeBorder(
             revealed ? Color.masterGold.opacity(0.5) : Color.adaptiveDivider,
             lineWidth: 1))
-        .transition(.scale.combined(with: .opacity))
-    }
-}
-
-private struct DefenseChip: View {
-    let name: String
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ZStack {
-                Circle()
-                    .fill(Color.defenseRose.opacity(0.20))
-                    .frame(width: 28, height: 28)
-                Text(String(name.prefix(1)).uppercased())
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.defenseRose)
-            }
-            Text(name)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.adaptivePrimary)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(Color.defenseRose.opacity(0.10))
-        .clipShape(Capsule())
-        .overlay(Capsule().strokeBorder(Color.defenseRose.opacity(0.55), lineWidth: 1))
         .transition(.scale.combined(with: .opacity))
     }
 }
@@ -2448,30 +2425,6 @@ private struct RoundCompleteView: View {
                 .background(Comic.bg)
             }
         }
-    }
-}
-
-private struct ScorePill: View {
-    let label: String
-    let points: Int
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(label)
-                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                .foregroundStyle(color)
-            Text("\(points)")
-                .font(.system(size: 38, weight: .black, design: .rounded))
-                .foregroundStyle(.adaptivePrimary)
-                .contentTransition(.numericText())
-            Text("pts")
-                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
-        .glassmorphic(cornerRadius: 16)
     }
 }
 
