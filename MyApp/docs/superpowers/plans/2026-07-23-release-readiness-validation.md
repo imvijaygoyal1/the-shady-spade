@@ -81,8 +81,20 @@ Validate the current The Shady Spade state after live scorekeeper polish across 
 
 ## Remaining Manual Release Checks
 
-- Physical iPhone Camera scan opens the installed app for generated join and scorekeeper QR links.
-- Messages/SMS tap opens the installed app for join and scorekeeper links.
+### ✅ Universal links — PASSED on device 2026-09-04
+Verified by the owner on iPhone 16 Pro against **v2.0 (12)**. First time these have ever been
+exercised on hardware; every prior run was simulator-only, and the note below explains why those
+proved nothing.
+
+- ✅ Physical iPhone Camera scan opens the installed app for generated **join** QR links.
+- ✅ Physical iPhone Camera scan opens the installed app for generated **scorekeeper** QR links.
+- ✅ Messages/SMS tap opens the installed app for **join** links.
+- ✅ Messages/SMS tap opens the installed app for **scorekeeper** links.
+
+This clears the AASA file, the `applinks` entitlement and Apple's CDN as an end-to-end path — not
+just as individually-verified pieces.
+
+### ⬜ Still outstanding
 - Real paired iPhone and Apple Watch validation:
   - Start Real-Life Scorekeeper on iPhone.
   - Confirm Watch receives active scorecard.
