@@ -932,3 +932,79 @@ non-host clients to miss both the `.gameOver` state and the `hostEndedGame` mess
 | v1.8 App Store review | — | Submitted 2026-04-28; verify current status in App Store Connect. |
 | v1.9 submission | — | All v4 + v5 + BT-GAP findings complete. Confirm with user before incrementing version. |
 
+
+## Senior code audit — 2026-09-04 (SPADE-01…08)
+
+Read-only pass over 73 Swift files / 37,950 lines. Nothing changed; this is the finding list.
+
+| ID | Severity | File | Issue | Status |
+|---|---|---|---|---|
+| SPADE-01 | **CRITICAL** | `ScorekeeperView.swift:428` | Force-unwrap crash reachable from a normal two-device action, **new in v2.0** | ⬜ Open |
+| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | ⬜ Open |
+| SPADE-03 | High | `BluetoothGameViewModel.swift:114-115` | `MCPeerID!` / `MCSession!` implicitly unwrapped, and `session` is set to `nil` on teardown | ⬜ Open |
+| SPADE-04 | Medium | 6 files | 9 types declared and never referenced | ⬜ Open |
+| SPADE-05 | Medium | repo root | 955 lines of stray test files, tracked in git, in no target | ⬜ Open |
+| SPADE-06 | Medium | 5 files | 7 `print()` calls in production paths | ⬜ Open |
+| SPADE-07 | Medium | — | 7,320 lines across 4 files with zero test references | ⬜ Open |
+| SPADE-08 | Low | 12 files | 27 `DispatchQueue.main.asyncAfter` timing dependencies | ⬜ Open |
+
+### SPADE-01 — the Watch can crash the phone mid-edit
+```swift
+// ScorekeeperView.swift:428, inside ScorekeeperLiveView's round-entry sheet
+initialDraft: editingLastRound
+    ? ScorekeeperRoundDraft(round: game.rounds.last!)   // ← crashes on empty
+```
+The tap site *is* guarded — `guard !game.rounds.isEmpty else { return }` at line 760 before setting
+`editingLastRound = true`. **That guard does not protect the sheet body**, because the body is
+re-evaluated whenever the store changes, and `editingLastRound` is `@State` that survives.
+
+The full chain, every link verified:
+1. `ScorekeeperView:38` — `else if let game = store.activeGame`, so `game` is derived from the store.
+2. `ScorekeeperStore` is `@Observable` (`ScorekeeperModels.swift:215`).
+3. Watch → `WatchScorekeeperViewModel.undoLastRound()` → `.undoLastRound` message.
+4. `ScorekeeperWatchBridge.swift:59` → `store.deleteLastRound()` → `rounds.removeLast()`.
+5. Store mutates → parent re-renders → new `game` with **empty** `rounds` flows into the view →
+   sheet body re-evaluates → `rounds.last!` on an empty array → **crash**.
+
+Reproduction: start a scorekeeper game, add exactly one round, tap **Edit Last Round** on the
+iPhone, then tap **Undo Last Round** on the Watch while the sheet is open.
+
+This is **not reachable in the live v1.10 build** — the Watch companion is new and unreleased — so
+v2.0 would ship it. Fix: replace the force unwrap with `if let last = game.rounds.last`, and
+dismiss the sheet when `rounds` becomes empty.
+
+### SPADE-02 — the same component, written three times
+Fourteen families are duplicated across `ComputerGameView` (3,164), `OnlineGameView` (2,557) and
+`BluetoothGameView` (2,321) — **8,042 lines, 52 structs**:
+
+`AwardPill` · `BiddingView` · `CallingView` · `GameOverView` · `LookingAtCardsView` · `OffenseChip` ·
+`OffenseTeamStrip` · `PartnerRevealBanner` · `PlayingView` · `RoundCompleteView` ·
+`RoundResultBanner` · `ScorePill` · `TrickHistoryRow` · `TrickHistoryView`
+
+Each exists as bare / `Online`-prefixed / `BT`-prefixed variants. This is the same shape that
+produced the *Card View Architecture* and *colour system* audits: a rendering rule fixed in one
+copy and missed in the other two. **SPADE-04 is direct evidence it has already happened** — four of
+the nine dead types are one arm of a duplicated family (`ScorePill`, `OnlineScorePill`,
+`OffenseTeamStrip`→`OnlineOffenseTeamStrip`), i.e. a variant was abandoned rather than deleted.
+
+### SPADE-04 — dead types
+`DefenseChip`, `ScorePill` (`ComputerGameView`); `OnlineOffenseTeamStrip`, `OnlineScorePill`,
+`WaitingOverlay` (`OnlineGameView`); `BidProgressBanner`, `TrumpAndCalledRow` (`Styles`);
+`ComicFont` (`ComicTheme`); `ScorekeeperWatchMessageKind` (`ScorekeeperWatchMessages`).
+Each is declared once and referenced nowhere.
+
+### SPADE-05 — stray test files
+`tests.swift` (314), `tests_playing_phase_fixes.swift` (302), `tests_remaining_fixes.swift` (339) sit
+at the **repo root**, are tracked in git, and appear in `project.pbxproj` **0 times** — they are in
+no target and have never run. They read as coverage that does not exist.
+
+### SPADE-07 — where the tests are not
+166 tests concentrate on AI, leaderboard, scorekeeper service and mappers. Zero test references to:
+`Styles` (2,825), `ScorekeeperView` (2,305), `ModeSelectionView` (1,399), `SplashView` (791) —
+**7,320 lines**. SPADE-01 lives in one of them.
+
+### Clean, and worth recording so the next audit skips it
+**0** `try!`, **0** `as!`, **0** `fatalError(`, **0** `TODO`/`FIXME`/`HACK` in the entire codebase,
+and 50 `[weak self]` captures. The remaining force unwraps are `URL(string:)!` on hardcoded literals
+plus one short-circuit-guarded `lastSeen!` — all sound. This is a disciplined codebase; the findings
+above are structural, not sloppiness.
