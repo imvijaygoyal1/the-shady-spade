@@ -64,7 +64,7 @@
 
 ## v2.0 Changelog
 > Changes made after the live v1.10 build. Add entries here as changes are implemented.
-> **Submission status:** v2.0 (build 11) in release prep, not yet submitted.
+> **Submission status:** v2.0 (**build 12**) in release prep, not yet submitted. Build 11 was the 2026-08-12 bump; build 12 carries the SPADE-01/04/05/06 fixes. Both the iPhone app and the embedded Watch app were verified as `2.0 (12)` **against the built artifacts**, not build settings.
 >
 > **Release-boundary note (2026-08-12).** The exact v1.10 boundary is **not determinable from this repo** — there are no tags, version bumps were swept into unrelated commits (1.9 -> 1.10 landed inside "Add LeaderboardConsentManager"), and build `8` never appears in git. Reconstruction: build `7` was submitted 2026-06-07 and **rejected** on 5.1.2 (leaderboard consent); build `8` was the mid-June resubmission that went live; builds `9` and `10` were prepared but never submitted. Everything from 2026-07-18 onward is therefore certainly unreleased. **Tag each submission from now on** so the next release does not need this reconstruction.
 
