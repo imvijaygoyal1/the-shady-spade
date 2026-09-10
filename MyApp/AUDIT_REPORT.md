@@ -1038,3 +1038,36 @@ between them (`ComputerGameView` 3,164 lines, `OnlineGameView` 2,557, `Bluetooth
 and all 14 duplicated components are referenced by **0** test files. Consolidating 8,042 lines of
 untested SwiftUI is how regressions ship. It should follow v2.0, one family at a time, behind
 characterization tests.
+
+---
+
+## SPADE-09 — the Real-Life Scorekeeper cannot record the called cards ⚠️ open
+
+Found by the owner on 2026-09-10 while starting the Group B device pass, on the Add Round screen.
+
+**What Add Round records:** dealer, bidder, bid amount, trump suit, `partner1Index`,
+`partner2Index`, and whether the bid was made.
+
+**What it does not:** the two cards the bid winner called. Every digital mode models them —
+`calledCard1` / `calledCard2` in `BluetoothGameViewModel` (26 refs in `ComputerGameViewModel`, 37 in
+`OnlineGameViewModel`), and `AIEngine` reasons explicitly about *"hidden partner to either play the
+called card (revealing themselves) or follow with a non-called card"*. The scorekeeper is the only
+mode that drops them: it jumps to who the partners **were**, which is the result of the call rather
+than the call itself.
+
+**Not a one-screen change.** `ScorekeeperRoundEntry` is `Codable` and travels four ways:
+
+| surface | file | risk from a new field |
+|---|---|---|
+| local persistence | `ScorekeeperSessionService` | existing saved games must still decode |
+| Watch | `ScorekeeperWatchMessageCodec` / `ScorekeeperWatchBridge` | phone and Watch apps update **independently**; both directions of version skew must work |
+| live shared sessions | Firestore `scorekeeperSessions` | in-flight sessions written by a mixed set of clients |
+| published scorecards | Firestore `publishedScorecards` | **universal links already public**; an older client must still open a newer document |
+
+Make the field **optional with no backfill**, the way `xBill`'s `expenses.created_by` was handled —
+a non-optional would fail to decode every existing round. Partners stay hand-picked: who holds a
+called card is not known until it is played, so the cards are recorded alongside the partners, not
+used to derive them. Two cards, so two pickers.
+
+**Sequenced after v2.0 deliberately.** v2.0 (12) has been unsubmitted since August and is one device
+test group away. A four-surface schema change in front of a submission is how a release slips.
