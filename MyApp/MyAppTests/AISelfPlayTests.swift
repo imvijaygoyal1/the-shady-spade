@@ -192,8 +192,18 @@ final class AIPartnerRevealTimingTests: XCTestCase {
         var exposedHistogram = [Int: Int]()
         var neverExposed = 0
 
+        var forcedCount = 0, revealCount = 0, forcedEarly = 0, earlyCount = 0
         for i in 0..<hands {
             let r = AISelfPlay.playHand(seed: UInt64(5000 + i))
+            for (t, forced) in zip(r.partnerRevealTricks, r.partnerRevealForced) {
+                guard let t, let forced else { continue }
+                revealCount += 1
+                if forced { forcedCount += 1 }
+                if t == 1 {
+                    earlyCount += 1
+                    if forced { forcedEarly += 1 }
+                }
+            }
             let tricks = r.partnerRevealTricks.compactMap { $0 }
             if let first = tricks.min() { firstRevealHistogram[first, default: 0] += 1 }
             if let exposed = r.defenceExposedOnTrick {
@@ -215,6 +225,9 @@ final class AIPartnerRevealTimingTests: XCTestCase {
         }
 
         print("""
+
+        forced (no legal alternative): \(forcedCount) of \(revealCount) reveals  \(String(format: "%.1f%%", Double(forcedCount) / Double(max(1, revealCount)) * 100))
+        forced among TRICK-1 reveals:  \(forcedEarly) of \(earlyCount)  \(String(format: "%.1f%%", Double(forcedEarly) / Double(max(1, earlyCount)) * 100))
 
         ── WHEN PARTNERS REVEAL (\(hands) hands, 8 tricks each) ───────────
         \(render(firstRevealHistogram, label: "FIRST partner revealed on:"))
@@ -296,5 +309,31 @@ final class AvatarRoleRevealTests: XCTestCase {
             revealedPartner1: 2, revealedPartner2: 2)
         XCTAssertEqual(bothPlayed, .defense,
                        "offense is the bidder plus seat 2 only — everyone else is genuinely defense")
+    }
+}
+
+// MARK: - AI-08 — what concealment actually costs
+
+/// Withholding the called card trades card strength for hidden information. A trade should be
+/// measured, not asserted — so this runs both ways over **identical deals** and prints the ledger.
+final class AIConcealmentCostTests: XCTestCase {
+
+    func testReportConcealmentTradeoff() {
+        let hands = 400
+        let on  = AISelfPlay.run(hands: hands, options: .init(concealsCalledCards: true))
+        let off = AISelfPlay.run(hands: hands, options: .init(concealsCalledCards: false))
+
+        print("""
+
+        ── AI-08: WHAT CONCEALMENT COSTS (\(hands) identical deals) ────────
+                                 concealed      off      delta
+        bid made            \(String(format: "%11.1f%% %8.1f%% %9.1f", on.bidMadeRate * 100, off.bidMadeRate * 100, (on.bidMadeRate - off.bidMadeRate) * 100))
+        offense pts/hand    \(String(format: "%11.1f %9.1f %9.1f", on.avgOffensePoints, off.avgOffensePoints, on.avgOffensePoints - off.avgOffensePoints))
+        avoidable misfeeds  \(String(format: "%11.1f %9.1f %9.1f", on.avgAvoidableMisfeedsPerHand, off.avgAvoidableMisfeedsPerHand, on.avgAvoidableMisfeedsPerHand - off.avgAvoidableMisfeedsPerHand))
+        ───────────────────────────────────────────────────────────────────
+
+        """)
+        XCTAssertEqual(on.illegalPlays, 0)
+        XCTAssertEqual(off.illegalPlays, 0)
     }
 }

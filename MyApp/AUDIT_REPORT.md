@@ -1318,7 +1318,7 @@ play, which is what it is for. AI-04 is closed with data rather than fixed.
 
 ---
 
-## AI-08 — the defence badge is correct; the bots reveal themselves far too early ⚠️ open
+## AI-08 — the defence badge is correct; the bots reveal themselves far too early ✅ fixed 2026-09-12
 
 Reported: *"In solo mode, when a hand is won by a player then the icon says that the player is in
 defense, and it happened before the bidding team is fully revealed."*
@@ -1364,3 +1364,54 @@ intent changes how every bot plays, and it should be measured before and after w
 (`AIPartnerRevealTimingTests` prints the distribution above), not tuned by feel.
 
 **192/192.**
+
+
+### AI-08 — fixed 2026-09-12, after a wrong first diagnosis
+
+**The first diagnosis was wrong, and the measurement is what proved it.** I blamed
+`partnerRevealIntent`, and specifically `urgency.offense` — which *is* broken as an early-game
+signal: it is `offenseShortfall * 10 > remainingPoints * pressure`, and offense always starts on
+zero points needing the whole bid, so at trick 1 it reduces to `bid > 150` for most personalities
+and `bid > 125` for `riskTaker`, which every legal bid satisfies. Gating it moved trick-1 reveals
+from **48.0% to 47.0%**. One point. That is what showed the cause was somewhere else.
+
+**The real cause.** Called cards are deliberately chosen to be high value — `computeCalling` prefers
+aces and trumps. The *ordinary* card-selection path had no idea those cards were also the team's
+identity, so "play your best card" reached for precisely the card that gives the team away. Only
+**16.2%** of reveals were forced (no legal alternative): four in five were a choice nothing was
+weighing.
+
+**The fix.** A hidden partner now prefers not to spend its called card in the opening three tricks —
+applied to leading, following, the endgame calculation and discards. It is a **preference, never a
+legality change**: every use falls back to the full set when hiding would leave no legal card.
+
+| | before | after |
+|---|---|---|
+| first partner reveals on **trick 1** | 48.0% | **19.5%** |
+| …of which forced | 19.0% | **48.7%** |
+| defence exposed on trick 1 | 3.0% | **0%** |
+| defence exposed **by trick 3** | 48.5% | **19.0%** |
+| all reveals that were forced | 16.2% | **24.8%** |
+
+The remaining early reveals are now roughly half unavoidable — a partner holding the called card as
+its only card of the led suit has no choice, and no heuristic can change that.
+
+### What it costs, measured over 400 identical deals
+
+| | concealed | off | delta |
+|---|---|---|---|
+| bid made | 31.8% | 33.8% | **−2.0 pp** |
+| offense points / hand | 142.7 | 146.3 | **−3.6** |
+| avoidable misfeeds / hand | 32.2 | 31.1 | +1.1 |
+
+Withholding the best card costs tricks — that is the trade, and it is real if small. ⚠️ The
+bid-made delta is **within binomial noise even at n=400** (SE ≈ 2.3 pp), so treat −2.0 as
+directional, not established. The offense-points figure is a mean and firmer.
+
+`computeCard(concealsCalledCards:)` is a **parameter**, defaulted on, so the trade stays A/B-able
+over identical deals rather than being asserted once and forgotten
+(`AIConcealmentCostTests` prints the ledger above).
+
+**192/193.** `testJoinGameNamePromptUsesJoinActionLabel` failed in the full run and **passes in
+isolation**; the diff touches `AIEngine.swift` and two test files only, with no UI code, which is
+consistent with this project's documented UI-test instability under repeated launches.

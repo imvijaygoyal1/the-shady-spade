@@ -74,6 +74,9 @@ enum AISelfPlay {
         /// whole table. `AIEngine` has deliberate reveal logic (`hiddenPartnerRevealCard`,
         /// `partnerRevealIntent`), so this measures whether that logic is firing too eagerly.
         let partnerRevealTricks: [Int?]
+        /// Whether each called card was played with **no legal alternative** — following suit
+        /// holding only that card. A forced reveal is not a decision the AI made.
+        let partnerRevealForced: [Bool?]
         /// The trick on which the **last** partner revealed — the moment the defence is exposed.
         var defenceExposedOnTrick: Int? {
             let known = partnerRevealTricks.compactMap { $0 }
@@ -93,6 +96,9 @@ enum AISelfPlay {
         /// AI-04: personality is normally `styles[seat % 5]`. Set this to give **every** seat the
         /// same style, which is how one personality's cost is isolated from the table it sits at.
         var personalityOverride: AIEngine.BotPersonality?
+
+        /// AI-08: whether a hidden partner withholds its called card in the opening tricks.
+        var concealsCalledCards = true
     }
 
     /// Plays one complete hand and reports what happened.
@@ -169,6 +175,7 @@ enum AISelfPlay {
         var fedTeammates = Array(repeating: 0, count: 6)
         var avoidable = Array(repeating: 0, count: 6)
         var revealTricks: [String: Int] = [:]
+        var revealForced: [String: Bool] = [:]
         var hadZeroPointAlternative = Array(repeating: false, count: 6)
         var illegal = 0
         var leader = highBidder
@@ -194,7 +201,8 @@ enum AISelfPlay {
                     highBid: highBid,
                     trickNumber: trickNumber,
                     personality: options.personalityOverride ?? .forSeat(s),
-                    bidHistory: bidHistory)
+                    bidHistory: bidHistory,
+                    concealsCalledCards: options.concealsCalledCards)
 
                 let card: Card
                 if let chosenID, let picked = legal.first(where: { $0.id == chosenID }) {
@@ -213,6 +221,8 @@ enum AISelfPlay {
                 if calledIds.contains(card.id) && s != highBidder {
                     revealed.insert(s)
                     revealTricks[card.id] = trickNumber + 1   // 1-based, as a player would count
+                    // Was this a choice at all? `legal` was computed before the card left the hand.
+                    revealForced[card.id] = legal.count == 1
                 }
             }
 
@@ -243,6 +253,7 @@ enum AISelfPlay {
             pointsFedToOpponents: fedOpponents, pointsFedToTeammates: fedTeammates,
             avoidableMisfeeds: avoidable, pointsWon: wonPoints,
             partnerRevealTricks: [revealTricks[call.c1], revealTricks[call.c2]],
+            partnerRevealForced: [revealForced[call.c1], revealForced[call.c2]],
             illegalPlays: illegal)
     }
 
