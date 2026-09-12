@@ -404,6 +404,7 @@ private struct ScorekeeperLiveView: View {
     @State private var showingPublishedScorecardShare = false
     @State private var showingPublishedScorecardFailure = false
     @State private var liveCodeCopied = false
+    @State private var liveCodeCopiedResetTask: Task<Void, Never>?
     @State private var openedRoundEntryForUITests = false
 
     var body: some View {
@@ -700,8 +701,13 @@ Code: \(code)
                             UIPasteboard.general.string = code
                             HapticManager.success()
                             liveCodeCopied = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                liveCodeCopied = false
+                            liveCodeCopiedResetTask?.cancel()
+                            liveCodeCopiedResetTask = Task { @MainActor in
+                                do {
+                                    try await Task.sleep(for: .seconds(2))
+                                    guard !Task.isCancelled else { return }
+                                    liveCodeCopied = false
+                                } catch { }
                             }
                         } label: {
                             Label(liveCodeCopied ? "Copied" : "Copy", systemImage: liveCodeCopied ? "checkmark" : "doc.on.doc")

@@ -222,6 +222,7 @@ private struct JoinByCodeView: View {
     @State private var joinError: String? = nil
     @State private var showScanner = false
     @State private var scanError: String? = nil
+    @State private var scanErrorResetTask: Task<Void, Never>?
     @FocusState private var fieldFocused: Bool
 
     var body: some View {
@@ -345,7 +346,14 @@ private struct JoinByCodeView: View {
                     guard isValid else {
                         // Issue #5 fix: reject scan → QRScannerView auto-restarts camera
                         scanError = "Couldn't read a valid room code. Try again."
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { scanError = nil }
+                        scanErrorResetTask?.cancel()
+                        scanErrorResetTask = Task { @MainActor in
+                            do {
+                                try await Task.sleep(for: .seconds(2))
+                                guard !Task.isCancelled else { return }
+                                scanError = nil
+                            } catch { }
+                        }
                         return false
                     }
                     scanError = nil
@@ -430,6 +438,7 @@ private struct SessionLobbyView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @State private var codeCopied = false
+    @State private var codeCopiedResetTask: Task<Void, Never>?
     @State private var showQRCode = false
     @State private var newlyJoinedSlots: Set<Int> = []
     @State private var wasRemoved = false
@@ -563,9 +572,13 @@ private struct SessionLobbyView: View {
                                     sessionVM.sessionCode
                                 HapticManager.success()
                                 codeCopied = true
-                                DispatchQueue.main.asyncAfter(
-                                    deadline: .now() + 2) {
-                                    codeCopied = false
+                                codeCopiedResetTask?.cancel()
+                                codeCopiedResetTask = Task { @MainActor in
+                                    do {
+                                        try await Task.sleep(for: .seconds(2))
+                                        guard !Task.isCancelled else { return }
+                                        codeCopied = false
+                                    } catch { }
                                 }
                             } label: {
                                 HStack(spacing: 6) {
