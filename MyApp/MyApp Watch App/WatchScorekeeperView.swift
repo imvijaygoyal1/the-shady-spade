@@ -110,13 +110,10 @@ private struct WatchRoundEntryView: View {
         NavigationStack {
             List {
                 Section {
-                    calledCardButton("Called Card 1", slot: 1)
-                    calledCardButton("Called Card 2", slot: 2)
-                    Text("Tap either row to choose the called card.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Text("Called Cards")
+                    HStack(spacing: 10) {
+                        calledCardButton("Called Card 1", slot: 1)
+                        calledCardButton("Called Card 2", slot: 2)
+                    }
                 }
 
                 Section("Players") {
@@ -180,14 +177,15 @@ private struct WatchRoundEntryView: View {
             calledCardSlot = slot
             showingCalledCardPicker = true
         } label: {
-            HStack {
-                Text(title)
-                Spacer()
-                WatchCalledCardBadge(cardID: slot == 1 ? viewModel.draft.calledCard1 : viewModel.draft.calledCard2)
-                Image(systemName: "chevron.right")
+            VStack(spacing: 3) {
+                Text(slot == 1 ? "Card 1" : "Card 2")
                     .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+                WatchCalledCardBadge(cardID: slot == 1 ? viewModel.draft.calledCard1 : viewModel.draft.calledCard2)
             }
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 
     private func calledCardBinding(for number: Int) -> Binding<String> {
