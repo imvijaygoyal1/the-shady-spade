@@ -76,6 +76,11 @@
   `ScorekeeperView.swift`, `ScorekeeperWatchMessages.swift`, `ScorekeeperWatchBridge.swift`,
   `ScorekeeperSessionService.swift`, Watch scorekeeper files, privacy files)
 
+- [2026-09-12] Improve SPADE-09 called-card selection UI — replaced the 48-item plain dropdowns on
+  iPhone and Watch with compact selected-card controls and color-coded card grids in a sheet. Red
+  suits render red, black suits render black, and “Not recorded” remains available. (`ScorekeeperView.swift`,
+  Watch scorekeeper view)
+
 - [2026-09-12] Harden AI-08 self-play regression coverage — Extended `AISelfPlay.Summary` with
   trick-1 reveal, defense-exposed-by-trick-3, and forced-reveal rates; added a deterministic A/B
   test over the same 200 seeded hands that fails if concealment no longer reduces early exposure by

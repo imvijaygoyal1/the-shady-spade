@@ -103,6 +103,8 @@ struct WatchScorekeeperView: View {
 private struct WatchRoundEntryView: View {
     @Bindable var viewModel: WatchScorekeeperViewModel
     let onDone: () -> Void
+    @State private var calledCardSlot = 1
+    @State private var showingCalledCardPicker = false
 
     var body: some View {
         NavigationStack {
@@ -135,18 +137,8 @@ private struct WatchRoundEntryView: View {
                             Text(suit.name).tag(suit.raw)
                         }
                     }
-                    Picker("Called Card 1", selection: calledCardBinding(for: 1)) {
-                        Text("Not recorded").tag("")
-                        ForEach(WatchScorekeeperViewModel.calledCards, id: \.self) { card in
-                            Text(card).tag(card)
-                        }
-                    }
-                    Picker("Called Card 2", selection: calledCardBinding(for: 2)) {
-                        Text("Not recorded").tag("")
-                        ForEach(WatchScorekeeperViewModel.calledCards, id: \.self) { card in
-                            Text(card).tag(card)
-                        }
-                    }
+                    calledCardButton("Called Card 1", slot: 1)
+                    calledCardButton("Called Card 2", slot: 2)
                     Toggle("Bid Made", isOn: $viewModel.draft.bidMade)
                 }
 
@@ -165,6 +157,28 @@ private struct WatchRoundEntryView: View {
                 }
             }
             .navigationTitle("Add Round")
+            .sheet(isPresented: $showingCalledCardPicker) {
+                WatchCalledCardSelectionSheet(
+                    title: "Called Card \(calledCardSlot)",
+                    selection: calledCardBinding(for: calledCardSlot),
+                    cards: WatchScorekeeperViewModel.calledCards
+                )
+            }
+        }
+    }
+
+    private func calledCardButton(_ title: String, slot: Int) -> some View {
+        Button {
+            calledCardSlot = slot
+            showingCalledCardPicker = true
+        } label: {
+            HStack {
+                Text(title)
+                Spacer()
+                WatchCalledCardBadge(cardID: slot == 1 ? viewModel.draft.calledCard1 : viewModel.draft.calledCard2)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.bold())
+            }
         }
     }
 
@@ -178,6 +192,70 @@ private struct WatchRoundEntryView: View {
                 else { viewModel.draft.calledCard2 = value.isEmpty ? nil : value }
             }
         )
+    }
+}
+
+private struct WatchCalledCardSelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    @Binding var selection: String
+    let cards: [String]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 7) {
+                    Button("None") {
+                        selection = ""
+                        dismiss()
+                    }
+                    .font(.caption2.bold())
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+
+                    ForEach(cards, id: \.self) { card in
+                        Button {
+                            selection = card
+                            dismiss()
+                        } label: {
+                            WatchCalledCardBadge(cardID: card, isSelected: selection == card)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct WatchCalledCardBadge: View {
+    let cardID: String?
+    var isSelected = false
+
+    private var suit: String? { cardID.map { String($0.suffix(1)) } }
+    private var rank: String { cardID.map { String($0.dropLast()) } ?? "—" }
+    private var color: Color {
+        suit == "♥" || suit == "♦" ? .red : .primary
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(rank).font(.caption.bold())
+            if let suit { Text(suit).font(.body.bold()) }
+        }
+        .foregroundStyle(suit == nil ? .secondary : color)
+        .frame(maxWidth: .infinity)
+        .frame(height: 38)
+        .background(.white, in: RoundedRectangle(cornerRadius: 7))
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(isSelected ? .yellow : color.opacity(0.35), lineWidth: isSelected ? 2 : 1))
     }
 }
 

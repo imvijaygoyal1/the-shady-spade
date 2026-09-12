@@ -1876,6 +1876,8 @@ private struct ScorekeeperRoundEntryView: View {
     let playerNames: [String]
     @State private var draft: ScorekeeperRoundDraft
     let onSave: (ScorekeeperRoundDraft) -> Void
+    @State private var calledCardSlot = 1
+    @State private var showingCalledCardPicker = false
 
     init(
         title: String,
@@ -1935,6 +1937,14 @@ private struct ScorekeeperRoundEntryView: View {
                 dealerAdjustmentSheet
                     .presentationDetents([.medium])
                     .presentationBackground(Comic.bg)
+            }
+            .sheet(isPresented: $showingCalledCardPicker) {
+                CalledCardSelectionSheet(
+                    title: "Called Card \(calledCardSlot)",
+                    selection: calledCardOptionalBinding(for: calledCardSlot)
+                )
+                .presentationDetents([.medium, .large])
+                .presentationBackground(Comic.bg)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -2077,21 +2087,46 @@ private struct ScorekeeperRoundEntryView: View {
         )
     }
 
+    private func calledCardOptionalBinding(for number: Int) -> Binding<String?> {
+        Binding(
+            get: {
+                number == 1 ? draft.calledCard1 : draft.calledCard2
+            },
+            set: { value in
+                if number == 1 { draft.calledCard1 = value }
+                else { draft.calledCard2 = value }
+            }
+        )
+    }
+
     private func calledCardPicker(_ title: String, selection: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let slot = title.hasSuffix("1") ? 1 : 2
+        return VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.system(size: 12, weight: .black, design: .rounded))
                 .foregroundStyle(Comic.yellow)
-            Picker(title, selection: selection) {
-                Text("Not recorded").tag("")
-                ForEach(AIEngine.fullDeck, id: \.id) { card in
-                    Text(card.id).tag(card.id)
+            Button {
+                calledCardSlot = slot
+                showingCalledCardPicker = true
+            } label: {
+                HStack(spacing: 8) {
+                    CalledCardBadge(cardID: selection.wrappedValue.isEmpty ? nil : selection.wrappedValue)
+                    Text(selection.wrappedValue.isEmpty ? "Not recorded" : selection.wrappedValue)
+                        .font(.system(size: 15, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 12, weight: .black))
+                        .foregroundStyle(Comic.yellow)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 11)
+                .background(Comic.containerBG.opacity(0.72), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            .pickerStyle(.menu)
-            .tint(.masterGold)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
             .accessibilityIdentifier("scorekeeper.round.\(identifierPart(title))")
+            .accessibilityValue(selection.wrappedValue.isEmpty ? "Not recorded" : selection.wrappedValue)
         }
         .padding(12)
         .background(Comic.containerBG.opacity(0.58), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -2302,6 +2337,93 @@ private struct ScorekeeperRoundEntryView: View {
         if score > 0 { return .offenseBlue }
         if score < 0 { return .defenseRose }
         return Comic.textSecondary
+    }
+}
+
+private struct CalledCardSelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    @Binding var selection: String?
+
+    private let cards = AIEngine.fullDeck.map(\.id)
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 10) {
+                    Button("Not recorded") {
+                        selection = nil
+                        dismiss()
+                    }
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(Comic.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(Comic.containerBG.opacity(0.72), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Comic.yellow.opacity(0.3), lineWidth: 1))
+
+                    ForEach(cards, id: \.self) { cardID in
+                        Button {
+                            selection = cardID
+                            dismiss()
+                        } label: {
+                            CalledCardBadge(cardID: cardID, isSelected: selection == cardID)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(16)
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(Comic.yellow)
+                }
+            }
+        }
+    }
+}
+
+private struct CalledCardBadge: View {
+    let cardID: String?
+    var isSelected = false
+
+    private var suit: String? {
+        guard let cardID else { return nil }
+        return String(cardID.suffix(1))
+    }
+
+    private var rank: String {
+        guard let cardID else { return "—" }
+        return String(cardID.dropLast())
+    }
+
+    private var suitColor: Color {
+        suit == "♥" || suit == "♦"
+            ? Color(red: 0.82, green: 0.03, blue: 0.08)
+            : Color(red: 0.04, green: 0.04, blue: 0.05)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(rank)
+                .font(.system(size: 16, weight: .black, design: .rounded))
+            if let suit {
+                Text(suit)
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+            }
+        }
+        .foregroundStyle(suit == nil ? Comic.textSecondary : suitColor)
+        .frame(maxWidth: .infinity)
+        .frame(height: 52)
+        .background(Color.white.opacity(0.94), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(isSelected ? Comic.yellow : suitColor.opacity(0.28), lineWidth: isSelected ? 3 : 1.2)
+        )
+        .shadow(color: Comic.black.opacity(0.18), radius: 0, x: 2, y: 2)
     }
 }
 
