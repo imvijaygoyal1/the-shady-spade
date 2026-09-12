@@ -50,6 +50,35 @@ final class ScorekeeperTests: XCTestCase {
         XCTAssertEqual(draft.bidStarterIndex, 0)
         XCTAssertEqual(draft.bidderIndex, 0)
         XCTAssertEqual(draft.bidAmount, 130)
+        XCTAssertNil(draft.calledCard1)
+        XCTAssertNil(draft.calledCard2)
+    }
+
+    func test_roundDraftStoresCalledCardsAndRejectsDuplicates() {
+        var draft = ScorekeeperRoundDraft(nextDealerIndex: 0)
+        draft.calledCard1 = "A♠"
+        draft.calledCard2 = "K♥"
+        let entry = ScorekeeperRoundEntry(draft: draft, roundNumber: 1)
+
+        XCTAssertEqual(entry.calledCard1, "A♠")
+        XCTAssertEqual(entry.calledCard2, "K♥")
+
+        draft.calledCard2 = "A♠"
+        XCTAssertEqual(draft.validationMessage, "Called cards must be different.")
+    }
+
+    func test_oldRoundJSONDecodesWithoutCalledCards() throws {
+        let json = """
+        {"id":"00000000-0000-0000-0000-000000000001","roundNumber":1,
+         "dealerIndex":0,"bidderIndex":1,"bidAmount":130,"trumpSuit":"♠",
+         "partner1Index":2,"partner2Index":3,"offensePointsCaught":130,
+         "createdAt":0}
+        """
+        let round = try JSONDecoder().decode(
+            ScorekeeperRoundEntry.self, from: Data(json.utf8))
+
+        XCTAssertNil(round.calledCard1)
+        XCTAssertNil(round.calledCard2)
     }
 
     func test_roundDraftValidation_rejectsInvalidPlayersAndBidBounds() {

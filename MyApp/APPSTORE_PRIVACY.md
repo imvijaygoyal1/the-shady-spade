@@ -66,9 +66,9 @@ Expected:
 | Online session code | Online mode | Temporary | Yes, for game session sync | Firebase | User starts or joins Online mode | Sections 2, 3, 8 |
 | Online game actions | Online mode gameplay | Temporary | Yes, for game session sync | Firebase | User starts or joins Online mode | Sections 3, 8 |
 | Live scorekeeper session code | Real-Life Scorekeeper live sharing | Temporary | Yes, for read-only live scorecard viewing | Firebase | User taps Share Live View and confirms | Sections 2, 3, 7, 8 |
-| Live scorekeeper player names, scores, and round history | Real-Life Scorekeeper live sharing | Yes, active scorecard and local history | Yes, temporarily while live sharing is enabled | Firebase | User taps Share Live View and confirms | Sections 2, 3, 7, 8 |
+| Live scorekeeper player names, scores, called cards, and round history | Real-Life Scorekeeper live sharing | Yes, active scorecard and local history | Yes, temporarily while live sharing is enabled | Firebase | User taps Share Live View and confirms | Sections 2, 3, 7, 8 |
 | Published final scorekeeper scorecard code | Real-Life Scorekeeper final sharing | Local history remains on device; final code shown after publish | Yes, for read-only final scorecard viewing | Firebase | User taps Save & Share Final Scorecard | Sections 2, 3, 7, 8 |
-| Published final scorekeeper player names, scores, winner, dates, and round history | Real-Life Scorekeeper final sharing | Yes, saved local history on host device | Yes, as a final read-only shared scorecard | Firebase | User taps Save & Share Final Scorecard | Sections 2, 3, 7, 8 |
+| Published final scorekeeper player names, scores, called cards, winner, dates, and round history | Real-Life Scorekeeper final sharing | Yes, saved local history on host device | Yes, as a final read-only shared scorecard | Firebase | User taps Save & Share Final Scorecard | Sections 2, 3, 7, 8 |
 | Anonymous auth token | Firebase anonymous auth | Yes | Yes, authentication metadata | Firebase | App functionality, no account data | Sections 2, 7 |
 | Camera QR scan | User taps Scan QR Code | No | No | Apple AVFoundation | iOS camera permission | Section 2 |
 | Local network TV dashboard data | Bluetooth host opt-in | Temporary | Local network only | None | User starts dashboard | Sections 2, 4, 8 |

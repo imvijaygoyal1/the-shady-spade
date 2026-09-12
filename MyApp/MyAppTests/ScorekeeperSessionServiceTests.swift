@@ -14,6 +14,8 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
             trumpSuit: .spades,
             partner1Index: 2,
             partner2Index: 3,
+            calledCard1: "A♠",
+            calledCard2: "K♥",
             offensePointsCaught: 135,
             createdAt: createdAt
         )
@@ -32,12 +34,28 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
 
         XCTAssertEqual(document.playerNames, ["Amit", "Shikha", "Manish", "Vijay", "Sweta", "Megha"])
         XCTAssertEqual(document.rounds.count, 1)
+        XCTAssertEqual(document.rounds[0].calledCard1, "A♠")
+        XCTAssertEqual(document.rounds[0].calledCard2, "K♥")
         XCTAssertEqual(document.runningScores, [0, 135, 67, 67, 0, 0])
         XCTAssertEqual(document.winnerIndex, 1)
 
         let parsed = ScorekeeperLiveSessionDocument(sessionCode: "ABC123", data: document.firestoreData)
 
         XCTAssertEqual(parsed, document)
+    }
+
+    func test_liveRoundDTO_readsLegacyFirestoreRoundWithoutCalledCards() {
+        let data: [String: Any] = [
+            "roundNumber": 1, "dealerIndex": 0, "bidderIndex": 1,
+            "bidAmount": 130, "trumpSuit": "♠", "partner1Index": 2,
+            "partner2Index": 3, "offensePointsCaught": 130
+        ]
+
+        let round = ScorekeeperLiveRoundDTO(data)
+
+        XCTAssertNotNil(round)
+        XCTAssertNil(round?.calledCard1)
+        XCTAssertNil(round?.calledCard2)
     }
 
     func test_findUniqueSessionCode_skipsCollisions() async throws {
@@ -160,6 +178,8 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
             trumpSuit: .spades,
             partner1Index: 2,
             partner2Index: 3,
+            calledCard1: "Q♦",
+            calledCard2: "J♣",
             offensePointsCaught: 150,
             createdAt: startedAt.addingTimeInterval(60)
         )
@@ -182,6 +202,8 @@ final class ScorekeeperSessionServiceTests: XCTestCase {
         XCTAssertEqual(document.scorecardCode, "FINAL1")
         XCTAssertEqual(document.sourceLiveSessionCode, "LIVE01")
         XCTAssertEqual(document.rounds.count, 1)
+        XCTAssertEqual(document.rounds[0].calledCard1, "Q♦")
+        XCTAssertEqual(document.rounds[0].calledCard2, "J♣")
         XCTAssertEqual(document.runningScores, [0, 150, 75, 75, 0, 0])
         XCTAssertEqual(document.shareURL.absoluteString, "https://shadyspade.vijaygoyal.org/scorecard/FINAL1")
 

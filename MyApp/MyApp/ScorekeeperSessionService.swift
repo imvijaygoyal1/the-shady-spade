@@ -10,6 +10,8 @@ struct ScorekeeperLiveRoundDTO: Equatable {
     var trumpSuit: TrumpSuit
     var partner1Index: Int
     var partner2Index: Int
+    var calledCard1: String?
+    var calledCard2: String?
     var offensePointsCaught: Int
     var createdAt: Date
 
@@ -21,6 +23,8 @@ struct ScorekeeperLiveRoundDTO: Equatable {
         trumpSuit = round.trumpSuit
         partner1Index = round.partner1Index
         partner2Index = round.partner2Index
+        calledCard1 = round.calledCard1
+        calledCard2 = round.calledCard2
         offensePointsCaught = round.offensePointsCaught
         createdAt = round.createdAt
     }
@@ -45,12 +49,14 @@ struct ScorekeeperLiveRoundDTO: Equatable {
         self.trumpSuit = trumpSuit
         self.partner1Index = partner1Index
         self.partner2Index = partner2Index
+        self.calledCard1 = data["calledCard1"] as? String
+        self.calledCard2 = data["calledCard2"] as? String
         self.offensePointsCaught = offensePointsCaught
         self.createdAt = Self.date(data["createdAt"]) ?? Date(timeIntervalSince1970: 0)
     }
 
     var firestoreData: [String: Any] {
-        [
+        var data: [String: Any] = [
             "roundNumber": roundNumber,
             "dealerIndex": dealerIndex,
             "bidderIndex": bidderIndex,
@@ -61,6 +67,9 @@ struct ScorekeeperLiveRoundDTO: Equatable {
             "offensePointsCaught": offensePointsCaught,
             "createdAt": Timestamp(date: createdAt)
         ]
+        if let calledCard1 { data["calledCard1"] = calledCard1 }
+        if let calledCard2 { data["calledCard2"] = calledCard2 }
+        return data
     }
 
     private static func int(_ value: Any?) -> Int? {

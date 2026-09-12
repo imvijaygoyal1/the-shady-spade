@@ -76,6 +76,9 @@ struct ScorekeeperRoundEntry: Codable, Identifiable, Equatable {
     var trumpSuit: TrumpSuit
     var partner1Index: Int
     var partner2Index: Int
+    /// Optional for rounds saved before SPADE-09.
+    var calledCard1: String?
+    var calledCard2: String?
     var offensePointsCaught: Int
     var createdAt: Date
 
@@ -88,6 +91,8 @@ struct ScorekeeperRoundEntry: Codable, Identifiable, Equatable {
         trumpSuit: TrumpSuit,
         partner1Index: Int,
         partner2Index: Int,
+        calledCard1: String? = nil,
+        calledCard2: String? = nil,
         offensePointsCaught: Int,
         createdAt: Date = Date()
     ) {
@@ -99,6 +104,8 @@ struct ScorekeeperRoundEntry: Codable, Identifiable, Equatable {
         self.trumpSuit = trumpSuit
         self.partner1Index = partner1Index
         self.partner2Index = partner2Index
+        self.calledCard1 = calledCard1
+        self.calledCard2 = calledCard2
         self.offensePointsCaught = offensePointsCaught
         self.createdAt = createdAt
     }
@@ -112,6 +119,8 @@ struct ScorekeeperRoundEntry: Codable, Identifiable, Equatable {
             trumpSuit: draft.trumpSuit,
             partner1Index: draft.partner1Index,
             partner2Index: draft.partner2Index,
+            calledCard1: draft.calledCard1,
+            calledCard2: draft.calledCard2,
             offensePointsCaught: draft.generatedOffensePointsCaught
         )
     }
@@ -145,6 +154,8 @@ struct ScorekeeperRoundDraft: Equatable {
     var trumpSuit: TrumpSuit
     var partner1Index: Int
     var partner2Index: Int
+    var calledCard1: String?
+    var calledCard2: String?
     var bidMade: Bool
 
     init(nextDealerIndex: Int = 0) {
@@ -154,6 +165,8 @@ struct ScorekeeperRoundDraft: Equatable {
         self.trumpSuit = .spades
         self.partner1Index = Self.nextIndex(after: bidderIndex)
         self.partner2Index = Self.nextIndex(after: partner1Index)
+        self.calledCard1 = nil
+        self.calledCard2 = nil
         self.bidMade = true
     }
 
@@ -184,6 +197,8 @@ struct ScorekeeperRoundDraft: Equatable {
         self.trumpSuit = round.trumpSuit
         self.partner1Index = round.partner1Index
         self.partner2Index = round.partner2Index
+        self.calledCard1 = round.calledCard1
+        self.calledCard2 = round.calledCard2
         self.bidMade = round.bidMade
     }
 
@@ -218,6 +233,10 @@ struct ScorekeeperRoundDraft: Equatable {
 
         guard partner1Index != partner2Index else {
             return "Partners must be two different players."
+        }
+
+        if let calledCard1, let calledCard2, calledCard1 == calledCard2 {
+            return "Called cards must be different."
         }
 
         return nil

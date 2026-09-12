@@ -16,7 +16,9 @@ enum ScorekeeperWatchActionHandler {
         let lastRound = game.rounds.last.map { round in
             let bidder = game.name(for: round.bidderIndex)
             let result = round.bidMade ? "made" : "set"
-            return "Round \(round.roundNumber): \(bidder) \(result) \(round.bidAmount) \(round.trumpSuit.displayName)"
+            let calledCards = [round.calledCard1, round.calledCard2].compactMap { $0 }
+            let calledSuffix = calledCards.isEmpty ? "" : " · Called \(calledCards.joined(separator: "/"))"
+            return "Round \(round.roundNumber): \(bidder) \(result) \(round.bidAmount) \(round.trumpSuit.displayName)\(calledSuffix)"
         }
 
         return ScorekeeperWatchSnapshot(
@@ -80,6 +82,8 @@ enum ScorekeeperWatchActionHandler {
             draft.trumpSuit = suit
             draft.partner1Index = payload.partner1Index
             draft.partner2Index = payload.partner2Index
+            draft.calledCard1 = payload.calledCard1
+            draft.calledCard2 = payload.calledCard2
             draft.bidMade = payload.bidMade
 
             if let validation = draft.validationMessage {

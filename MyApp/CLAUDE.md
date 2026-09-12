@@ -66,6 +66,16 @@
 > Changes made after the live v1.10 build. Add entries here as changes are implemented.
 > **Submission status:** v2.0 (**build 12**) in release prep, not yet submitted.
 
+- [2026-09-12] Fix SPADE-09 — Real-Life Scorekeeper now records optional called cards end to end.
+  Added two optional card IDs to `ScorekeeperRoundEntry` and `ScorekeeperRoundDraft`, with duplicate
+  validation and backward-compatible decoding for old local rounds and old Firestore documents. Added
+  iPhone and Watch pickers, Watch action transport, live-session DTO mapping, published-scorecard
+  mapping, and round-history display. Updated the App Store privacy map and hosted policy because
+  called cards can now be included in explicitly shared scorecards. Verification: focused scorekeeper,
+  session, and Watch suites passed with 49 tests, 0 failures. (`ScorekeeperModels.swift`,
+  `ScorekeeperView.swift`, `ScorekeeperWatchMessages.swift`, `ScorekeeperWatchBridge.swift`,
+  `ScorekeeperSessionService.swift`, Watch scorekeeper files, privacy files)
+
 - [2026-09-12] Harden AI-08 self-play regression coverage — Extended `AISelfPlay.Summary` with
   trick-1 reveal, defense-exposed-by-trick-3, and forced-reveal rates; added a deterministic A/B
   test over the same 200 seeded hands that fails if concealment no longer reduces early exposure by
@@ -327,7 +337,7 @@ partner revealed, 1.0 with both.
 exactly one test. 8 new tests, **179/179**. AI-04 and AI-05 remain open — see `AUDIT_REPORT.md`.
 
 
-## Open finding — SPADE-09: the scorekeeper cannot record the called cards (2026-09-10)
+## SPADE-09 — the scorekeeper now records called cards ✅ fixed 2026-09-12
 
 Found by the owner on the Add Round screen while starting the Group B device pass.
 
@@ -343,7 +353,10 @@ version skew must work), Firestore `scorekeeperSessions`, and Firestore `publish
 fails to decode every existing round. Partners stay hand-picked — who holds a called card is not
 known until it is played.
 
-**Deliberately sequenced after v2.0.** Full write-up in `AUDIT_REPORT.md` under SPADE-09.
+Implemented 2026-09-12. The phone and Watch pickers now record both optional called-card values,
+which flow through local history, Watch messages, live Firestore sessions, and published scorecards.
+Legacy local rounds and Firestore documents decode with nil values, duplicate cards are rejected,
+and phone/Watch history displays the recorded cards. Focused verification: 49/49 tests passed.
 
 
 ## Implemented Feature: App-Wide Theme System
@@ -415,7 +428,7 @@ Fixed routes:
 
 ## Current Handoff Snapshot — 2026-09-12
 
-**Repo clean and pushed. HEAD `ac2906d`. Version v2.0 (build 12), unsubmitted, tagged
+**Repo clean. HEAD is the SPADE-09 fix commit. Version v2.0 (build 12), unsubmitted, tagged
 `v2.0-build12-prep`. Suite 192/193** — the one failure,
 `testJoinGameNamePromptUsesJoinActionLabel`, passes in isolation against a diff touching no UI
 code, which matches this project's known UI-test instability.
@@ -442,11 +455,6 @@ so a crash shows as the process terminating rather than as an impression.
 **When submitting:** replace `v2.0-build12-prep` with a plain `v2.0-build12` on the submitted commit.
 
 ### Open findings, in the order they are worth picking up
-- **SPADE-09** — the Real-Life Scorekeeper cannot record the two **called cards**. Deliberately
-  sequenced after v2.0: `ScorekeeperRoundEntry` is `Codable` and travels four ways (local
-  persistence, the Watch message codec where phone and Watch update independently, Firestore
-  `scorekeeperSessions`, and `publishedScorecards` whose universal links are already public). Add
-  the field **optional with no backfill**; partners stay hand-picked.
 - **AI-05** — a bot bidder is handed `actualPartnerIndices` while a human bidder sees only revealed
   partners. **Measured: the asymmetry is worth nothing** (bid made 35.8% with vs 36.7% without,
   offense points identical). A product decision, no longer a difficulty trade-off.

@@ -304,7 +304,7 @@
       <span class="spade-icon">♠</span>
       <h1>Privacy Policy</h1>
       <p class="subtitle">The Shady Spade — Card Game App</p>
-      <span class="last-updated">Last Updated: July 25, 2026</span>
+      <span class="last-updated">Last Updated: September 12, 2026</span>
     </header>
 
     <!-- Quick Summary -->
@@ -358,8 +358,8 @@
           <li><strong>Live Scorekeeper Session Code:</strong> If you choose Share Live View in Real-Life Scorekeeper mode, the app creates a temporary 6-character code so other players can watch a read-only scorecard.</li>
           <li><strong>Game History:</strong> Game score history for the last 10 games is stored locally on your device. This data never leaves your device and is deleted when you uninstall the app.</li>
           <li><strong>Global Leaderboard:</strong> If you allow score uploads, completed-round leaderboard data is stored on Firebase Firestore servers to power the global leaderboard. This may include your chosen avatar name, avatar selection, game mode, wins, games played, bid history, scores, and gameplay results (bids made or set, points scored). This data is associated with your avatar name only — not your real name or any personal identifier.</li>
-          <li><strong>Live Scorekeeper Data:</strong> If you choose Share Live View in Real-Life Scorekeeper mode, player names, running scores, and round history are temporarily synced through Firebase Firestore so viewers with the code or QR link can watch the scorecard. Viewers cannot edit the scorecard.</li>
-          <li><strong>Published Final Scorecards:</strong> If you choose Save &amp; Share Final Scorecard after a Real-Life Scorekeeper game, the final player names, scores, round history, winner, and game dates are uploaded to Firebase Firestore so anyone with the final scorecard link can view a read-only copy later.</li>
+          <li><strong>Live Scorekeeper Data:</strong> If you choose Share Live View in Real-Life Scorekeeper mode, player names, running scores, called cards, and round history are temporarily synced through Firebase Firestore so viewers with the code or QR link can watch the scorecard. Viewers cannot edit the scorecard.</li>
+          <li><strong>Published Final Scorecards:</strong> If you choose Save &amp; Share Final Scorecard after a Real-Life Scorekeeper game, the final player names, scores, called cards, round history, winner, and game dates are uploaded to Firebase Firestore so anyone with the final scorecard link can view a read-only copy later.</li>
           <li><strong>Anonymous Device Token:</strong> The app uses Firebase Anonymous Authentication to secure leaderboard writes. A silent anonymous token is created on your device on first launch — no email, phone number, or personal information is required or collected.</li>
           <li><strong>App Preferences:</strong> Settings such as theme selection, display mode (Dark, Light, or System), player names, and avatars are stored locally using Apple's UserDefaults/AppStorage on your device only.</li>
           <li><strong>Camera Access (QR Scanning):</strong> The app requests camera permission when you use the QR code scanner to join an online game. The camera feed is processed entirely on-device by Apple's AVFoundation framework to read the QR code. No camera images or video are stored, transmitted, or shared. Camera access is only requested when you tap "Scan QR Code" and can be revoked at any time in iOS Settings.</li>
@@ -382,8 +382,8 @@
         <p>The Shady Spade uses <strong>Google Firebase</strong> for real-time online game sessions, optional live scorekeeper viewing, optional published final scorecards, and the global leaderboard.</p>
         <ul>
           <li>Firebase is used to synchronise game state (cards played, scores, turn order) between players in the same <strong>Online Mode</strong> session.</li>
-          <li>Firebase is used to sync player names, scores, and round history for a <strong>Real-Life Scorekeeper</strong> scorecard only after you choose Share Live View and confirm the live sharing prompt.</li>
-          <li>Firebase is used to store a final read-only Real-Life Scorekeeper scorecard only if you choose Save &amp; Share Final Scorecard. Anyone with the final scorecard link can view that scorecard.</li>
+          <li>Firebase is used to sync player names, scores, called cards, and round history for a <strong>Real-Life Scorekeeper</strong> scorecard only after you choose Share Live View and confirm the live sharing prompt.</li>
+          <li>Firebase is used to store a final read-only Real-Life Scorekeeper scorecard, including player names, scores, called cards, and round history, only if you choose Save &amp; Share Final Scorecard. Anyone with the final scorecard link can view that scorecard.</li>
           <li>Only your chosen <strong>avatar name</strong> and <strong>game actions</strong> are transmitted — never personal information.</li>
           <li>Temporary online game session data is deleted from Firebase servers when the game session ends. Temporary live scorekeeper session data expires automatically within 24 hours or when the host finishes, resets, or closes live sharing.</li>
           <li>Firebase may collect anonymous technical data such as crash reports and performance metrics as described in <a href="https://firebase.google.com/support/privacy" style="color: var(--gold);">Google's Privacy Policy</a>.</li>
@@ -480,7 +480,7 @@
           <li><strong>Online Mode:</strong> Play with real players (and optionally AI-filled seats) over the internet using a session code. Firebase syncs game state using only avatar names and game actions. Leaderboard stats are recorded at game end only if you allow score uploads. You can start an Online session directly from the "New Game" screen by choosing 2 or more players.</li>
           <li><strong>Bluetooth Mode:</strong> Play with nearby players over a local Bluetooth/Wi-Fi connection using Apple's Multipeer Connectivity framework. No internet connection is required and no game data is sent to external servers during play. Leaderboard stats are recorded to Firebase at game end only if you allow score uploads. Optionally, the host device can share a live game-state dashboard on the local Wi-Fi network for display on a TV — see "Local Network Access" in Section 2.</li>
           <li><strong>Pass &amp; Play (Hot Seat):</strong> Multiple humans share one device, passing it between turns. No game sync data leaves your device. Leaderboard stats are recorded at game end only if you allow score uploads.</li>
-          <li><strong>Real-Life Scorekeeper:</strong> Track a physical-card game on one device. Scorecards are local by default. If you choose Share Live View, the app temporarily syncs player names, running scores, and round history to Firebase so people with the code or QR link can watch a read-only scorecard. If you choose Save &amp; Share Final Scorecard, the app uploads a final read-only scorecard that anyone with the link can view later.</li>
+          <li><strong>Real-Life Scorekeeper:</strong> Track a physical-card game on one device. Scorecards are local by default. If you choose Share Live View, the app temporarily syncs player names, running scores, called cards, and round history to Firebase so people with the code or QR link can watch a read-only scorecard. If you choose Save &amp; Share Final Scorecard, the app uploads a final read-only scorecard containing that information that anyone with the link can view later.</li>
         </ul>
       </div>
     </section>
@@ -531,7 +531,7 @@
     <footer>
       <p class="gold">♠ The Shady Spade</p>
       <p>© 2026 The Shady Spade. All rights reserved.</p>
-      <p style="margin-top: 8px;">Effective Date: March 22, 2026 · Last Revised: June 22, 2026</p>
+      <p style="margin-top: 8px;">Effective Date: March 22, 2026 · Last Revised: September 12, 2026</p>
     </footer>
 
   </div>

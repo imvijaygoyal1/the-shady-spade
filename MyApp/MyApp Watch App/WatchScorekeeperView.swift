@@ -135,6 +135,18 @@ private struct WatchRoundEntryView: View {
                             Text(suit.name).tag(suit.raw)
                         }
                     }
+                    Picker("Called Card 1", selection: calledCardBinding(for: 1)) {
+                        Text("Not recorded").tag("")
+                        ForEach(WatchScorekeeperViewModel.calledCards, id: \.self) { card in
+                            Text(card).tag(card)
+                        }
+                    }
+                    Picker("Called Card 2", selection: calledCardBinding(for: 2)) {
+                        Text("Not recorded").tag("")
+                        ForEach(WatchScorekeeperViewModel.calledCards, id: \.self) { card in
+                            Text(card).tag(card)
+                        }
+                    }
                     Toggle("Bid Made", isOn: $viewModel.draft.bidMade)
                 }
 
@@ -154,6 +166,18 @@ private struct WatchRoundEntryView: View {
             }
             .navigationTitle("Add Round")
         }
+    }
+
+    private func calledCardBinding(for number: Int) -> Binding<String> {
+        Binding(
+            get: {
+                number == 1 ? (viewModel.draft.calledCard1 ?? "") : (viewModel.draft.calledCard2 ?? "")
+            },
+            set: { value in
+                if number == 1 { viewModel.draft.calledCard1 = value.isEmpty ? nil : value }
+                else { viewModel.draft.calledCard2 = value.isEmpty ? nil : value }
+            }
+        )
     }
 }
 

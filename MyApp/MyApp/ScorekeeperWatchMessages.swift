@@ -33,6 +33,8 @@ struct ScorekeeperWatchRoundDraftPayload: Codable, Equatable {
     var trumpSuitRaw: String
     var partner1Index: Int
     var partner2Index: Int
+    var calledCard1: String? = nil
+    var calledCard2: String? = nil
     var bidMade: Bool
 }
 

@@ -1041,9 +1041,16 @@ characterization tests.
 
 ---
 
-## SPADE-09 — the Real-Life Scorekeeper cannot record the called cards ⚠️ open
+## SPADE-09 — the Real-Life Scorekeeper cannot record the called cards ✅ fixed 2026-09-12
 
 Found by the owner on 2026-09-10 while starting the Group B device pass, on the Add Round screen.
+
+Implemented 2026-09-12. The phone and Watch Add Round screens now record two optional called-card
+values. The values flow through local Codable history, Watch messages, live Firestore sessions, and
+published scorecards. Legacy local rounds and Firestore documents decode with both values as nil;
+there is no backfill, and partners remain hand-picked. Duplicate called cards are rejected. The
+Watch round summary and phone history also display the recorded cards. Focused verification passed:
+49 tests, 0 failures.
 
 **What Add Round records:** dealer, bidder, bid amount, trump suit, `partner1Index`,
 `partner2Index`, and whether the bid was made.
@@ -1069,8 +1076,8 @@ a non-optional would fail to decode every existing round. Partners stay hand-pic
 called card is not known until it is played, so the cards are recorded alongside the partners, not
 used to derive them. Two cards, so two pickers.
 
-**Sequenced after v2.0 deliberately.** v2.0 (12) has been unsubmitted since August and is one device
-test group away. A four-surface schema change in front of a submission is how a release slips.
+The fix is ready for the v2.0 device pass. The four-surface schema change is backward-compatible and
+does not require a data migration.
 
 ---
 

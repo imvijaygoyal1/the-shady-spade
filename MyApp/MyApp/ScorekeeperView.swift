@@ -1795,6 +1795,12 @@ private struct ScorekeeperRoundRow: View {
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(Comic.textSecondary)
 
+            if round.calledCard1 != nil || round.calledCard2 != nil {
+                Text("Called cards: \([round.calledCard1, round.calledCard2].compactMap { $0 }.joined(separator: " · "))")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Comic.textSecondary)
+            }
+
             VStack(spacing: 8) {
                 teamScoreGroup(
                     title: "Offense",
@@ -1991,6 +1997,10 @@ private struct ScorekeeperRoundEntryView: View {
                 partnerPicker("Partner 1", selection: $draft.partner1Index, excluding: draft.partner2Index)
                 partnerPicker("Partner 2", selection: $draft.partner2Index, excluding: draft.partner1Index)
             }
+            HStack(spacing: 10) {
+                calledCardPicker("Called Card 1", selection: calledCardBinding(for: 1))
+                calledCardPicker("Called Card 2", selection: calledCardBinding(for: 2))
+            }
             bidSection
         }
         .padding(14)
@@ -2053,6 +2063,38 @@ private struct ScorekeeperRoundEntryView: View {
 
     private func partnerCandidateIndices(excluding excludedPartnerIndex: Int) -> [Int] {
         (0..<6).filter { $0 != draft.bidderIndex && $0 != excludedPartnerIndex }
+    }
+
+    private func calledCardBinding(for number: Int) -> Binding<String> {
+        Binding(
+            get: {
+                number == 1 ? (draft.calledCard1 ?? "") : (draft.calledCard2 ?? "")
+            },
+            set: { value in
+                if number == 1 { draft.calledCard1 = value.isEmpty ? nil : value }
+                else { draft.calledCard2 = value.isEmpty ? nil : value }
+            }
+        )
+    }
+
+    private func calledCardPicker(_ title: String, selection: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 12, weight: .black, design: .rounded))
+                .foregroundStyle(Comic.yellow)
+            Picker(title, selection: selection) {
+                Text("Not recorded").tag("")
+                ForEach(AIEngine.fullDeck, id: \.id) { card in
+                    Text(card.id).tag(card.id)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(.masterGold)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("scorekeeper.round.\(identifierPart(title))")
+        }
+        .padding(12)
+        .background(Comic.containerBG.opacity(0.58), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func identifierPart(_ title: String) -> String {

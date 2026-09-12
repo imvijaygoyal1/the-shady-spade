@@ -46,6 +46,8 @@ final class ScorekeeperWatchBridgeTests: XCTestCase {
                 trumpSuitRaw: TrumpSuit.spades.rawValue,
                 partner1Index: 2,
                 partner2Index: 3,
+                calledCard1: "A♠",
+                calledCard2: "K♥",
                 bidMade: true
             )
         )
@@ -54,6 +56,8 @@ final class ScorekeeperWatchBridgeTests: XCTestCase {
 
         XCTAssertTrue(result.accepted)
         XCTAssertEqual(store.activeGame?.rounds.count, 1)
+        XCTAssertEqual(store.activeGame?.rounds[0].calledCard1, "A♠")
+        XCTAssertEqual(store.activeGame?.rounds[0].calledCard2, "K♥")
         XCTAssertEqual(store.activeGame?.runningScores, [0, 130, 65, 65, 0, 0])
     }
 

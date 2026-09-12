@@ -14,6 +14,8 @@ import WatchConnectivity
         TrumpChoice(raw: "♦", name: "Diamonds"),
         TrumpChoice(raw: "♣", name: "Clubs")
     ]
+    static let calledCards = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3"]
+        .flatMap { rank in ["♠", "♥", "♦", "♣"].map { rank + $0 } }
 
     var snapshot = ScorekeeperWatchSnapshot.inactive
     var connectionStatus = "Waiting for iPhone"
@@ -25,6 +27,8 @@ import WatchConnectivity
         trumpSuitRaw: "♠",
         partner1Index: 2,
         partner2Index: 3,
+        calledCard1: "A♠",
+        calledCard2: "K♥",
         bidMade: true
     )
 
@@ -76,6 +80,8 @@ import WatchConnectivity
             trumpSuitRaw: "♠",
             partner1Index: firstAvailable(excluding: [bidder]),
             partner2Index: firstAvailable(excluding: [bidder, firstAvailable(excluding: [bidder])]),
+            calledCard1: "A♠",
+            calledCard2: "K♥",
             bidMade: true
         )
     }
