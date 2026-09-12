@@ -472,6 +472,11 @@ so a crash shows as the process terminating rather than as an impression.
   setup/teardown, and cleanup-before-setup has regression coverage.
 - Added `scripts/run_regression.sh` to run all unit/integration tests and all UI regression tests
   with coverage artifacts in one command.
+- SPADE-02 progress: Solo, Online, and Bluetooth now share `GameAwardPill`; Solo and Online also
+  share `GameOffenseChip`. Gameplay catalog tests cover all five phases in all three modes.
+- SPADE-08 progress: bid submission, turn haptics, and card-float activation use cancellable Tasks;
+  timed animation sequences remain intentionally scheduled because their visual choreography is
+  the behavior under test.
 
 ### AI state, September 2026
 `AIEngine` gained a **self-play harness** (`MyAppTests/AISelfPlay.swift`) — headless hands over

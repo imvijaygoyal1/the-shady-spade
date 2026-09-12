@@ -1405,43 +1405,6 @@ private struct OnlinePlayingView: View {
 
 // MARK: - Offense Team Strip (online)
 
-private struct OnlineOffenseChip: View {
-    let name: String?
-    var isBidder: Bool = false
-
-    private var revealed: Bool { name != nil }
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ZStack {
-                Circle()
-                    .fill(revealed ? Color.masterGold.opacity(0.22) : Color.adaptiveDivider)
-                    .frame(width: 28, height: 28)
-                Text(revealed ? String((name ?? "").prefix(1)).uppercased() : "?")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(revealed ? .masterGold : .secondary)
-            }
-            Text(name ?? "Partner?")
-                .font(.system(size: 15, weight: revealed ? .semibold : .regular))
-                .foregroundStyle(revealed ? .adaptivePrimary : .secondary)
-                .lineLimit(1)
-            if isBidder {
-                Image(systemName: "crown.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.masterGold)
-            }
-        }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
-        .background(revealed ? Color.masterGold.opacity(0.08) : Color.adaptiveDivider)
-        .clipShape(Capsule())
-        .overlay(Capsule().strokeBorder(
-            revealed ? Color.masterGold.opacity(0.3) : Color.adaptiveDivider,
-            lineWidth: 0.8))
-        .transition(.scale.combined(with: .opacity))
-    }
-}
-
 // MARK: - Round Result Banner
 
 private struct OnlineRoundResultBanner: View {
@@ -1695,13 +1658,13 @@ private struct OnlineRoundCompleteView: View {
 
                     // Award breakdown
                     HStack(spacing: 8) {
-                        OnlineAwardPill(label: "Bidder",
+                        GameAwardPill(label: "Bidder",
                                         points: scoring.bidderScore,
                                         color: isSet ? .defenseRose : .masterGold)
-                        OnlineAwardPill(label: "Each Partner",
+                        GameAwardPill(label: "Each Partner",
                                         points: scoring.eachPartnerScore,
                                         color: isSet ? .defenseRose : .offenseBlue)
-                        OnlineAwardPill(label: "Defense",
+                        GameAwardPill(label: "Defense",
                                         points: 0,
                                         color: .secondary)
                     }
@@ -1858,13 +1821,13 @@ private struct OnlineRoundCompleteView: View {
                         .padding(.top, 8)
 
                     HStack(spacing: 8) {
-                        OnlineAwardPill(label: "Bidder",
+                        GameAwardPill(label: "Bidder",
                                         points: scoring.bidderScore,
                                         color: isSet ? .defenseRose : .masterGold)
-                        OnlineAwardPill(label: "Each Partner",
+                        GameAwardPill(label: "Each Partner",
                                         points: scoring.eachPartnerScore,
                                         color: isSet ? .defenseRose : .offenseBlue)
-                        OnlineAwardPill(label: "Defense",
+                        GameAwardPill(label: "Defense",
                                         points: 0,
                                         color: .secondary)
                     }
@@ -2011,26 +1974,6 @@ private struct OnlineRoundCompleteView: View {
                 .background(Comic.bg)
             }
         }
-    }
-}
-
-private struct OnlineAwardPill: View {
-    let label: String
-    let points: Int
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(label)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(color)
-                .lineLimit(1).minimumScaleFactor(0.7)
-            Text(points >= 0 ? "+\(points)" : "\(points)")
-                .font(.system(size: 22, weight: .black, design: .rounded))
-                .foregroundStyle(points > 0 ? Comic.yellow : (points == 0 ? Color.secondary : Color.defenseRose))
-            Text("pts").font(.system(size: 9)).foregroundStyle(Comic.textSecondary)
-        }
-        .frame(maxWidth: .infinity).padding(.vertical, 12).comicContainer(cornerRadius: 12)
     }
 }
 

@@ -2196,6 +2196,7 @@ struct BiddingTwoColumnLayout: View {
 
     @State private var isSubmittingBid = false
     @State private var bidPulse = false
+    @State private var bidResetTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geo in
@@ -2438,9 +2439,7 @@ struct BiddingTwoColumnLayout: View {
                         isSubmittingBid = true
                         bidPulse = false
                         onBid(Int(humanBidAmount))
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                            isSubmittingBid = false
-                        }
+                        scheduleBidReset()
                     } label: {
                         ZStack {
                             // Pulsing green layer scoped to this leaf — never reaches the Button's gesture recognizer
@@ -2476,9 +2475,7 @@ struct BiddingTwoColumnLayout: View {
                             HapticManager.impact(.light)
                             isSubmittingBid = true
                             onPass()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                                isSubmittingBid = false
-                            }
+                            scheduleBidReset()
                         } label: {
                             Text("Pass")
                                 .font(.system(size: 14, weight: .heavy, design: .rounded))
@@ -2526,6 +2523,20 @@ struct BiddingTwoColumnLayout: View {
                         .strokeBorder(TurnUI.waitingColor.opacity(0.35), lineWidth: 1)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+        .onDisappear { bidResetTask?.cancel() }
+    }
+
+    private func scheduleBidReset() {
+        bidResetTask?.cancel()
+        bidResetTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                isSubmittingBid = false
+            } catch {
+                // The bidding view disappearing cancels this state reset.
             }
         }
     }
@@ -2755,5 +2766,72 @@ struct GameAdaptiveLayout<Portrait: View, Landscape: View>: View {
             }
         }
         .ignoresSafeArea()
+    }
+}
+// MARK: - Shared game summary components
+
+/// Shared score award display used by Solo, Online, and Bluetooth round summaries.
+struct GameAwardPill: View {
+    let label: String
+    let points: Int
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(points >= 0 ? "+\(points)" : "\(points)")
+                .font(.system(size: 22, weight: .black, design: .rounded))
+                .foregroundStyle(points > 0 ? Comic.yellow : (points == 0 ? Color.secondary : Color.defenseRose))
+            Text("pts")
+                .font(.system(size: 9))
+                .foregroundStyle(Comic.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .comicContainer(cornerRadius: 12)
+    }
+}
+
+/// Shared bidder/partner chip used by the Solo and Online game screens.
+struct GameOffenseChip: View {
+    let name: String?
+    var isBidder = false
+    var compact = false
+
+    private var revealed: Bool { name != nil }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(revealed ? Color.masterGold.opacity(0.22) : Color.adaptiveDivider)
+                    .frame(width: 28, height: 28)
+                Text(revealed ? String((name ?? "").prefix(1)).uppercased() : "?")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(revealed ? .masterGold : .secondary)
+            }
+            Text(name ?? "Partner?")
+                .font(.system(size: 15, weight: revealed ? .semibold : .regular))
+                .foregroundStyle(revealed ? .adaptivePrimary : .secondary)
+                .lineLimit(1)
+            if isBidder {
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.masterGold)
+            }
+        }
+        .padding(.horizontal, compact ? 7 : 10)
+        .padding(.vertical, compact ? 4 : 6)
+        .background(revealed ? Color.masterGold.opacity(compact ? 0.08 : 0.10) : Color.adaptiveDivider)
+        .clipShape(Capsule())
+        .overlay(Capsule().strokeBorder(
+            revealed ? Color.masterGold.opacity(compact ? 0.3 : 0.5) : Color.adaptiveDivider,
+            lineWidth: compact ? 0.8 : 1
+        ))
+        .transition(.scale.combined(with: .opacity))
     }
 }

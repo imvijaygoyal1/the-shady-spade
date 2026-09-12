@@ -1309,7 +1309,7 @@ private struct OffenseTeamStrip: View {
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            OffenseChip(
+            GameOffenseChip(
                 name: game.playerName(game.highBidderIndex),
                 isBidder: true
             )
@@ -1317,50 +1317,13 @@ private struct OffenseTeamStrip: View {
             let p1Name: String? = game.revealedPartner1Index.map { game.playerName($0) }
             let p2Name: String? = game.revealedPartner2Index.map { game.playerName($0) }
 
-            OffenseChip(name: p1Name)
-            OffenseChip(name: p2Name)
+            GameOffenseChip(name: p1Name)
+            GameOffenseChip(name: p2Name)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner1Index != nil)
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: game.revealedPartner2Index != nil)
-    }
-}
-
-private struct OffenseChip: View {
-    let name: String?          // nil = not yet revealed
-    var isBidder: Bool = false
-
-    private var revealed: Bool { name != nil }
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ZStack {
-                Circle()
-                    .fill(revealed ? Color.masterGold.opacity(0.22) : Color.adaptiveDivider)
-                    .frame(width: 28, height: 28)
-                Text(revealed ? String((name ?? "").prefix(1)).uppercased() : "?")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(revealed ? .masterGold : .secondary)
-            }
-            Text(name ?? "Partner?")
-                .font(.system(size: 15, weight: revealed ? .semibold : .regular))
-                .foregroundStyle(revealed ? .adaptivePrimary : .secondary)
-                .lineLimit(1)
-            if isBidder {
-                Image(systemName: "crown.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.masterGold)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(revealed ? Color.masterGold.opacity(0.10) : Color.adaptiveDivider)
-        .clipShape(Capsule())
-        .overlay(Capsule().strokeBorder(
-            revealed ? Color.masterGold.opacity(0.5) : Color.adaptiveDivider,
-            lineWidth: 1))
-        .transition(.scale.combined(with: .opacity))
     }
 }
 
@@ -2131,13 +2094,13 @@ private struct RoundCompleteView: View {
 
                     // Award breakdown
                     HStack(spacing: 8) {
-                        AwardPill(label: "Bidder",
+                        GameAwardPill(label: "Bidder",
                                   points: isSet ? -game.highBid : game.highBid,
                                   color: isSet ? .defenseRose : .masterGold)
-                        AwardPill(label: "Each Partner",
+                        GameAwardPill(label: "Each Partner",
                                   points: isSet ? -((game.highBid + 1) / 2) : game.highBid / 2,
                                   color: isSet ? .defenseRose : .offenseBlue)
-                        AwardPill(label: "Defense",
+                        GameAwardPill(label: "Defense",
                                   points: 0,
                                   color: .secondary)
                     }
@@ -2284,13 +2247,13 @@ private struct RoundCompleteView: View {
                     }
 
                     HStack(spacing: 8) {
-                        AwardPill(label: "Bidder",
+                        GameAwardPill(label: "Bidder",
                                   points: isSet ? -game.highBid : game.highBid,
                                   color: isSet ? .defenseRose : .masterGold)
-                        AwardPill(label: "Each Partner",
+                        GameAwardPill(label: "Each Partner",
                                   points: isSet ? -((game.highBid + 1) / 2) : game.highBid / 2,
                                   color: isSet ? .defenseRose : .offenseBlue)
-                        AwardPill(label: "Defense",
+                        GameAwardPill(label: "Defense",
                                   points: 0,
                                   color: .secondary)
                     }
@@ -2429,30 +2392,6 @@ private struct RoundCompleteView: View {
 }
 
 // MARK: - Award Pill (compact, for role-based score awards)
-
-private struct AwardPill: View {
-    let label: String
-    let points: Int
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(label)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(color)
-                .lineLimit(1).minimumScaleFactor(0.7)
-            Text(points >= 0 ? "+\(points)" : "\(points)")
-                .font(.system(size: 22, weight: .black, design: .rounded))
-                .foregroundStyle(points > 0 ? Color.masterGold : (points == 0 ? Color.secondary : Color.defenseRose))
-            Text("pts")
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .glassmorphic(cornerRadius: 12)
-    }
-}
 
 // MARK: - Partner Reveal Banner
 

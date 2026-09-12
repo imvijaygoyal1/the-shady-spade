@@ -267,6 +267,19 @@ final class GameplayScreenCatalogUITests: XCTestCase {
         assertVisible(app.staticTexts["Round 1"], name: "\(modeName) Round number")
         assertVisible(app.staticTexts[firstPlayerName].firstMatch, name: "\(modeName) first player")
         keepScreenshot(named: "screen-catalog-gameplay-\(modeName)-bidding", app: app)
+
+        // Characterize every shared game phase. These checks make the catalog a regression
+        // harness for the three mode-specific view trees before and after component extraction.
+        for phase in ["Calling", "Playing", "Round", "Final"] {
+            let phaseButton = app.buttons["uitest.phase.\(phase)"]
+            assertVisible(phaseButton, name: "\(modeName) \(phase) phase tab")
+            phaseButton.tap()
+            assertVisible(
+                phaseContent(modeName: modeName, phase: phase.lowercased()),
+                name: "\(modeName) \(phase) phase content"
+            )
+            keepScreenshot(named: "screen-catalog-gameplay-\(modeName)-\(phase.lowercased())", app: app)
+        }
     }
 
     private func phaseContent(modeName: String, phase: String) -> XCUIElement {

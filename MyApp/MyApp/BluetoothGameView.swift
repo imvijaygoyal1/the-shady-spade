@@ -1583,9 +1583,9 @@ struct BTRoundCompleteView: View {
                         .padding(.horizontal, 20)
 
                     HStack(spacing: 8) {
-                        BTAwardPill(label: "Bidder", points: scoring.bidderScore, color: isSet ? .defenseRose : .masterGold)
-                        BTAwardPill(label: "Each Partner", points: scoring.eachPartnerScore, color: isSet ? .defenseRose : .offenseBlue)
-                        BTAwardPill(label: "Defense", points: 0, color: .secondary)
+                        GameAwardPill(label: "Bidder", points: scoring.bidderScore, color: isSet ? .defenseRose : .masterGold)
+                        GameAwardPill(label: "Each Partner", points: scoring.eachPartnerScore, color: isSet ? .defenseRose : .offenseBlue)
+                        GameAwardPill(label: "Defense", points: 0, color: .secondary)
                     }
                     .padding(.horizontal, 20)
 
@@ -1729,9 +1729,9 @@ struct BTRoundCompleteView: View {
                         .padding(.top, 8)
 
                     HStack(spacing: 8) {
-                        BTAwardPill(label: "Bidder", points: scoring.bidderScore, color: isSet ? .defenseRose : .masterGold)
-                        BTAwardPill(label: "Each Partner", points: scoring.eachPartnerScore, color: isSet ? .defenseRose : .offenseBlue)
-                        BTAwardPill(label: "Defense", points: 0, color: .secondary)
+                        GameAwardPill(label: "Bidder", points: scoring.bidderScore, color: isSet ? .defenseRose : .masterGold)
+                        GameAwardPill(label: "Each Partner", points: scoring.eachPartnerScore, color: isSet ? .defenseRose : .offenseBlue)
+                        GameAwardPill(label: "Defense", points: 0, color: .secondary)
                     }
                     .padding(.horizontal, 14)
                     .padding(.top, 12)
@@ -1873,26 +1873,6 @@ struct BTRoundCompleteView: View {
                 .background(Comic.bg)
             }
         }
-    }
-}
-
-private struct BTAwardPill: View {
-    let label: String
-    let points: Int
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(label)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(color)
-                .lineLimit(1).minimumScaleFactor(0.7)
-            Text(points >= 0 ? "+\(points)" : "\(points)")
-                .font(.system(size: 22, weight: .black, design: .rounded))
-                .foregroundStyle(points > 0 ? Comic.yellow : (points == 0 ? Color.secondary : Color.defenseRose))
-            Text("pts").font(.system(size: 9)).foregroundStyle(Comic.textSecondary)
-        }
-        .frame(maxWidth: .infinity).padding(.vertical, 12).comicContainer(cornerRadius: 12)
     }
 }
 
