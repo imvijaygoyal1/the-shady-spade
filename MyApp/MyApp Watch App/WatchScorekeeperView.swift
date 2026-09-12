@@ -137,9 +137,12 @@ private struct WatchRoundEntryView: View {
                             Text(suit.name).tag(suit.raw)
                         }
                     }
+                    Toggle("Bid Made", isOn: $viewModel.draft.bidMade)
+                }
+
+                Section("Called Cards") {
                     calledCardButton("Called Card 1", slot: 1)
                     calledCardButton("Called Card 2", slot: 2)
-                    Toggle("Bid Made", isOn: $viewModel.draft.bidMade)
                 }
 
                 Section {
