@@ -66,6 +66,9 @@
 > Changes made after the live v1.10 build. Add entries here as changes are implemented.
 > **Submission status:** v2.0 (**build 12**) in release prep, not yet submitted.
 
+> Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
+> replaces the previously installed build-12 companion.
+
 - [2026-09-12] Fix SPADE-09 — Real-Life Scorekeeper now records optional called cards end to end.
   Added two optional card IDs to `ScorekeeperRoundEntry` and `ScorekeeperRoundDraft`, with duplicate
   validation and backward-compatible decoding for old local rounds and old Firestore documents. Added
