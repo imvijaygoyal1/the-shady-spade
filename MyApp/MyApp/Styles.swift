@@ -2891,3 +2891,44 @@ struct GameTrickHistoryRow: View {
         .comicContainer(cornerRadius: 16)
     }
 }
+
+struct GameTrickHistoryView: View {
+    let completedTricks: [[(playerIndex: Int, card: Card)]]
+    let trickWinners: [Int]
+    let playerName: (Int) -> String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.darkBG.ignoresSafeArea()
+                if completedTricks.isEmpty {
+                    Text("No hands completed yet")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(completedTricks.indices.reversed(), id: \.self) { idx in
+                                GameTrickHistoryRow(
+                                    trickNumber: idx + 1,
+                                    plays: completedTricks[idx],
+                                    winnerIndex: trickWinners[idx],
+                                    playerName: playerName
+                                )
+                            }
+                        }
+                        .padding()
+                    }
+                }
+            }
+            .navigationTitle("Current Game Play History")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(.masterGold)
+                }
+            }
+        }
+    }
+}

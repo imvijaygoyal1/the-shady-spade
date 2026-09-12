@@ -2421,96 +2421,9 @@ private struct PartnerRevealBanner: View {
 
 private struct TrickHistoryView: View {
     var game: ComputerGameViewModel
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.darkBG.ignoresSafeArea()
-
-                if game.completedTricks.isEmpty {
-                    Text("No hands completed yet")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ScrollView {
-                        VStack(spacing: 12) {
-                            ForEach(game.completedTricks.indices.reversed(), id: \.self) { idx in
-                                GameTrickHistoryRow(
-                                    trickNumber: idx + 1,
-                                    plays: game.completedTricks[idx],
-                                    winnerIndex: game.trickWinners[idx],
-                                    playerName: game.playerName
-                                )
-                            }
-                        }
-                        .padding()
-                    }
-                }
-            }
-            .navigationTitle("Current Game Play History")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(.masterGold)
-                }
-            }
-        }
-    }
-}
-
-private struct TrickHistoryRow: View {
-    let trickNumber: Int
-    let plays: [(playerIndex: Int, card: Card)]
-    let winnerIndex: Int
-    var game: ComputerGameViewModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Hand \(trickNumber)")
-                    .font(.system(size: 15, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.adaptivePrimary)
-                Spacer()
-                HStack(spacing: 4) {
-                    Image(systemName: "trophy.fill")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.masterGold)
-                    Text(game.playerName(winnerIndex))
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.masterGold)
-                }
-            }
-
-            GeometryReader { geo in
-                let gap: CGFloat = 5
-                let cardW = (geo.size.width - gap * CGFloat(plays.count - 1)) / CGFloat(plays.count)
-                let cardH = cardW * (78.0 / 56.0)
-                HStack(spacing: gap) {
-                    ForEach(Array(plays.enumerated()), id: \.offset) { _, play in
-                        VStack(spacing: 3) {
-                            PlayingCardView(card: play.card, width: cardW)
-                                .overlay {
-                                    if play.playerIndex == winnerIndex {
-                                        RoundedRectangle(cornerRadius: cardW * 0.18, style: .continuous)
-                                            .strokeBorder(Color.masterGold, lineWidth: 2)
-                                    }
-                                }
-                            Text(String(game.playerName(play.playerIndex).prefix(9)))
-                                .font(.system(size: 8, weight: .bold, design: .rounded))
-                                .foregroundStyle(play.playerIndex == winnerIndex ? .masterGold : .secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                                .frame(width: cardW)
-                        }
-                    }
-                }
-                .frame(width: geo.size.width, height: cardH + 16)
-            }
-            .frame(height: 90)
-        }
-        .padding(14)
-        .glassmorphic(cornerRadius: 16)
+        GameTrickHistoryView(completedTricks: game.completedTricks, trickWinners: game.trickWinners, playerName: game.playerName)
     }
 }
 
