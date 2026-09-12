@@ -941,7 +941,7 @@ Read-only pass over 73 Swift files / 37,950 lines. Nothing changed; this is the 
 |---|---|---|---|---|
 | SPADE-01 | **CRITICAL** | `ScorekeeperView.swift:428` | Force-unwrap crash reachable from a normal two-device action, **new in v2.0** | ✅ Fixed |
 | SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | ⬜ Open |
-| SPADE-03 | High | `BluetoothGameViewModel.swift:114-115` | `MCPeerID!` / `MCSession!` implicitly unwrapped, and `session` is set to `nil` on teardown | ⬜ Open |
+| SPADE-03 | High | `BluetoothGameViewModel.swift:114-115` | `MCPeerID!` / `MCSession!` implicitly unwrapped, and `session` is set to `nil` on teardown | ✅ Fixed 2026-09-12 |
 | SPADE-04 | Medium | 6 files | 9 types declared and never referenced | ✅ Fixed |
 | SPADE-05 | Medium | repo root | 955 lines of stray test files, tracked in git, in no target | ✅ Fixed |
 | SPADE-06 | Medium | 5 files | 7 `print()` calls in production paths | ✅ Fixed |
@@ -1017,7 +1017,7 @@ above are structural, not sloppiness.
 | **SPADE-04 ✅** | All 9 dead types removed. |
 | **SPADE-05 ✅** | `tests.swift`, `tests_playing_phase_fixes.swift`, `tests_remaining_fixes.swift` deleted (955 lines, tracked in git, in no target). |
 | **SPADE-06 ✅** | All 7 `print()` converted to `Logger` in the existing file-local house style (`osvLog`, `appLog`, `cgvLog`, `osvmLog`). **0** `print(` remain in production. |
-| **SPADE-02/03/07/08** | ⬜ Still open — see the reasoning below. |
+| **SPADE-02/07/08** | ⬜ Still open — see the reasoning below. |
 
 **Verification.** Unit **171 passed, 0 failed, 0 skipped** (baseline 166 + 5 new), new suite
 `ScorekeeperRoundEntryDraftTests` confirmed **by name** in the result bundle.

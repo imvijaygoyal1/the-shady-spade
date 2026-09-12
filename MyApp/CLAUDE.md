@@ -466,8 +466,10 @@ so a crash shows as the process terminating rather than as an impression.
 - **AI-05** — a bot bidder is handed `actualPartnerIndices` while a human bidder sees only revealed
   partners. **Measured: the asymmetry is worth nothing** (bid made 35.8% with vs 36.7% without,
   offense points identical). A product decision, no longer a difficulty trade-off.
-- **SPADE-02/03/07/08** — component duplication, Bluetooth force-unwraps, uncovered lines,
-  `asyncAfter` usage. All after v2.0.
+- **SPADE-02/07/08** — component duplication, uncovered lines, and `asyncAfter` usage. All after
+  v2.0.
+- **SPADE-03** — fixed 2026-09-12: Bluetooth `MCPeerID` and `MCSession` are optional throughout
+  setup/teardown, and cleanup-before-setup has regression coverage.
 
 ### AI state, September 2026
 `AIEngine` gained a **self-play harness** (`MyAppTests/AISelfPlay.swift`) — headless hands over
