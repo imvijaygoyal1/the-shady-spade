@@ -475,8 +475,8 @@ so a crash shows as the process terminating rather than as an impression.
 - SPADE-02 progress: Solo, Online, and Bluetooth now share `GameAwardPill`; Solo and Online also
   share `GameOffenseChip`. Gameplay catalog tests cover all five phases in all three modes.
 - SPADE-08 progress: bid submission, turn haptics, and card-float activation use cancellable Tasks;
-  timed animation sequences remain intentionally scheduled because their visual choreography is
-  the behavior under test.
+  QR retry now uses a cancellable Task as well; timed animation sequences remain intentionally
+  scheduled because their visual choreography is the behavior under test.
 
 ### AI state, September 2026
 `AIEngine` gained a **self-play harness** (`MyAppTests/AISelfPlay.swift`) — headless hands over

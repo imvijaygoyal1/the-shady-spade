@@ -25,6 +25,9 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     private let session = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var isConfigured = false   // Issue #2 fix: track whether session was fully set up
+    private var restartTask: Task<Void, Never>?
+
+    deinit { restartTask?.cancel() }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -46,6 +49,8 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        restartTask?.cancel()
+        restartTask = nil
         // Issue #3 fix: stop on background thread (synchronous on main blocks UI).
         if session.isRunning {
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -168,8 +173,15 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
         // session after a short delay so the user can try again without closing the sheet.
         let accepted = onScan?(value) ?? true
         if !accepted {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-                self?.restartScanning()
+            restartTask?.cancel()
+            restartTask = Task { @MainActor [weak self] in
+                do {
+                    try await Task.sleep(for: .milliseconds(400))
+                    guard !Task.isCancelled else { return }
+                    self?.restartScanning()
+                } catch {
+                    // Scanner dismissal or a newer scan cancels the restart.
+                }
             }
         }
     }
