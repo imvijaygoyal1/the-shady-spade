@@ -109,6 +109,16 @@ private struct WatchRoundEntryView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    calledCardButton("Called Card 1", slot: 1)
+                    calledCardButton("Called Card 2", slot: 2)
+                    Text("Tap either row to choose the called card.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Called Cards")
+                }
+
                 Section("Players") {
                     Picker("Bidder", selection: $viewModel.draft.bidderIndex) {
                         ForEach(viewModel.eligibleBidderIndices, id: \.self) { index in
@@ -138,11 +148,6 @@ private struct WatchRoundEntryView: View {
                         }
                     }
                     Toggle("Bid Made", isOn: $viewModel.draft.bidMade)
-                }
-
-                Section("Called Cards") {
-                    calledCardButton("Called Card 1", slot: 1)
-                    calledCardButton("Called Card 2", slot: 2)
                 }
 
                 Section {

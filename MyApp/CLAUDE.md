@@ -1200,3 +1200,8 @@ Online/BT define their own local equivalents for those four.
 - Added `docs/integration-tests/watch-scorekeeper.md` with simulator smoke notes and the required physical-device checklist.
 - Added the Watch target explicitly to the shared `MyApp` scheme Build Action so Xcode device runs/archives build the companion target, not just the iPhone app target.
 - Simulator status: useful for build/launch smoke only. Final WatchConnectivity signoff requires a real paired iPhone and Apple Watch.
+
+### 2026-09-12 Watch Called Cards Visibility
+- Moved the Watch score-entry `Called Cards` section to the top of `Add Round`, ahead of Players and Bid.
+- Added explicit tap guidance so both called-card rows are visible immediately when entering a round.
+- Bumped the iPhone and Watch companion build number to 14 to force companion refresh during device installation.
