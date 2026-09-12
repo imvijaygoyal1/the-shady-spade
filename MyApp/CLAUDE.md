@@ -1204,5 +1204,5 @@ Online/BT define their own local equivalents for those four.
 ### 2026-09-12 Watch Called Cards Visibility
 - Moved the Watch score-entry `Called Cards` section to the top of `Add Round`, ahead of Players and Bid.
 - Added explicit tap guidance so both called-card rows are visible immediately when entering a round.
-- Bumped the iPhone and Watch companion build number to 14 to force companion refresh during device installation.
+- Bumped the iPhone and Watch companion build number to 15 to force companion refresh during device installation.
 - Updated the Watch layout to match the iPhone: two compact colored card buttons showing rank and suit, without a separate called-card header.
