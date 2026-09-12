@@ -1368,6 +1368,12 @@ intent changes how every bot plays, and it should be measured before and after w
 
 ### AI-08 — fixed 2026-09-12, after a wrong first diagnosis
 
+Regression coverage was hardened after the fix: `AISelfPlay.run` now exposes the key timing rates,
+and a deterministic 200-hand A/B test compares concealment on/off over identical deals. It asserts
+zero illegal plays and requires concealment to improve both trick-1 reveal rate and defense
+exposure by trick 3 by more than 10 percentage points. The test is intentionally effect-size based,
+not an exact-count snapshot.
+
 **The first diagnosis was wrong, and the measurement is what proved it.** I blamed
 `partnerRevealIntent`, and specifically `urgency.offense` — which *is* broken as an early-game
 signal: it is `offenseShortfall * 10 > remainingPoints * pressure`, and offense always starts on

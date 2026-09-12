@@ -249,6 +249,53 @@ final class AIPartnerRevealTimingTests: XCTestCase {
             }
         }
     }
+
+    /// AI-08 regression gate. Both configurations play the exact same seeded deals; only the
+    /// concealment preference changes. This fails if a card-selection branch bypasses concealment.
+    func testConcealmentReducesEarlyExposureOnIdenticalDeals() {
+        let hands = 200
+        let concealed = AISelfPlay.run(
+            hands: hands, firstSeed: 5000, options: .init(concealsCalledCards: true))
+        let unconcealed = AISelfPlay.run(
+            hands: hands, firstSeed: 5000, options: .init(concealsCalledCards: false))
+
+        XCTAssertEqual(concealed.hands, unconcealed.hands)
+        XCTAssertEqual(concealed.illegalPlays, 0)
+        XCTAssertEqual(unconcealed.illegalPlays, 0)
+        XCTAssertGreaterThan(
+            unconcealed.firstPartnerRevealOnTrick1Rate - concealed.firstPartnerRevealOnTrick1Rate,
+            0.10,
+            "concealment must reduce trick-1 partner reveals by at least 10 percentage points")
+        XCTAssertGreaterThan(
+            unconcealed.defenseExposedByTrick3Rate - concealed.defenseExposedByTrick3Rate,
+            0.10,
+            "concealment must delay defense exposure by trick 3")
+
+        let trickOne = String(format: "%11.1f%% %8.1f%% %9.1f",
+                              concealed.firstPartnerRevealOnTrick1Rate * 100,
+                              unconcealed.firstPartnerRevealOnTrick1Rate * 100,
+                              (concealed.firstPartnerRevealOnTrick1Rate - unconcealed.firstPartnerRevealOnTrick1Rate) * 100)
+        let trickThree = String(format: "%11.1f%% %8.1f%% %9.1f",
+                                concealed.defenseExposedByTrick3Rate * 100,
+                                unconcealed.defenseExposedByTrick3Rate * 100,
+                                (concealed.defenseExposedByTrick3Rate - unconcealed.defenseExposedByTrick3Rate) * 100)
+        let forced = String(format: "%11.1f%% %8.1f%% %9.1f",
+                            concealed.forcedRevealRate * 100,
+                            unconcealed.forcedRevealRate * 100,
+                            (concealed.forcedRevealRate - unconcealed.forcedRevealRate) * 100)
+
+        print("""
+
+        ── AI-08 REGRESSION A/B (\(hands) identical deals) ────────────────
+                                      concealed      off      delta
+        partner reveal on trick 1  \(trickOne)
+        defense exposed by trick 3 \(trickThree)
+        forced reveal share        \(forced)
+        illegal plays              \(concealed.illegalPlays)            \(unconcealed.illegalPlays)
+        ───────────────────────────────────────────────────────────────────
+
+        """)
+    }
 }
 
 // MARK: - Can a defender be labelled before the offense is fully revealed?

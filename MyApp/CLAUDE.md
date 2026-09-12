@@ -65,6 +65,14 @@
 ## v2.0 Changelog
 > Changes made after the live v1.10 build. Add entries here as changes are implemented.
 > **Submission status:** v2.0 (**build 12**) in release prep, not yet submitted.
+
+- [2026-09-12] Harden AI-08 self-play regression coverage — Extended `AISelfPlay.Summary` with
+  trick-1 reveal, defense-exposed-by-trick-3, and forced-reveal rates; added a deterministic A/B
+  test over the same 200 seeded hands that fails if concealment no longer reduces early exposure by
+  at least 10 percentage points or if either configuration plays an illegal card. The harness now
+  protects the measured product behavior instead of only printing a report. Verification: focused
+  partner-reveal, concealment-cost, and avatar-role tests passed. (`MyAppTests/AISelfPlay.swift`,
+  `MyAppTests/AISelfPlayTests.swift`)
 > **Device pass, Group A — ✅ PASSED 2026-09-04** on iPhone 16 Pro against 2.0 (12): Camera scan and
 > Messages tap both open the installed app for **join** and **scorekeeper** links, all four cases.
 > First hardware verification of universal links in this project's history. **Still outstanding: the

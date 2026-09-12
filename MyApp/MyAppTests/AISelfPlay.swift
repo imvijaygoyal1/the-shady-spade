@@ -295,6 +295,9 @@ extension AISelfPlay {
         let avoidableMisfeedsBySeat: [Double]
         let pointsWonBySeat: [Double]
         let illegalPlays: Int
+        let firstPartnerRevealOnTrick1Rate: Double
+        let defenseExposedByTrick3Rate: Double
+        let forcedRevealRate: Double
         /// Fed-to-opponents as a share of all point cards deliberately released into a trick
         /// somebody else won. The cleanest read on "does this bot know whose trick it is".
         var misfeedShare: Double {
@@ -307,6 +310,10 @@ extension AISelfPlay {
         var made = 0, offensePts = 0, fedOpp = 0, fedMate = 0, avoidable = 0, illegal = 0
         var avoidableSeat = Array(repeating: 0, count: 6)
         var wonSeat = Array(repeating: 0, count: 6)
+        var firstRevealOnTrick1 = 0
+        var defenseExposedByTrick3 = 0
+        var revealCount = 0
+        var forcedRevealCount = 0
         for i in 0..<hands {
             let r = playHand(seed: firstSeed &+ UInt64(i), options: options)
             for s in 0..<6 {
@@ -319,6 +326,13 @@ extension AISelfPlay {
             fedMate += r.pointsFedToTeammates.reduce(0, +)
             avoidable += r.avoidableMisfeeds.reduce(0, +)
             illegal += r.illegalPlays
+            if r.partnerRevealTricks.compactMap({ $0 }).min() == 1 { firstRevealOnTrick1 += 1 }
+            if let exposed = r.defenceExposedOnTrick, exposed <= 3 { defenseExposedByTrick3 += 1 }
+            for forced in r.partnerRevealForced {
+                guard let forced else { continue }
+                revealCount += 1
+                if forced { forcedRevealCount += 1 }
+            }
         }
         let n = Double(hands)
         return Summary(
@@ -330,6 +344,9 @@ extension AISelfPlay {
             avgAvoidableMisfeedsPerHand: Double(avoidable) / n,
             avoidableMisfeedsBySeat: avoidableSeat.map { Double($0) / n },
             pointsWonBySeat: wonSeat.map { Double($0) / n },
-            illegalPlays: illegal)
+            illegalPlays: illegal,
+            firstPartnerRevealOnTrick1Rate: Double(firstRevealOnTrick1) / n,
+            defenseExposedByTrick3Rate: Double(defenseExposedByTrick3) / n,
+            forcedRevealRate: Double(forcedRevealCount) / Double(max(1, revealCount)))
     }
 }
