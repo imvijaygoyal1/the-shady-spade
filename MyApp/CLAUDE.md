@@ -219,6 +219,35 @@
 
 
 
+
+## Recent Fix Log — 2026-09-12 (later) — AI-07: a self-play harness, so bots are measured not played
+
+`AIEngine` is 31 static functions importing only Foundation, so a full hand deals, bids, calls,
+plays and scores headlessly. Seeded SplitMix64 deals mean two configurations are compared over **the
+same hands**.
+
+**Baseline, 120 hands:** bid made 35.8% · offense 146.5 of 250 · **avoidable misfeeds 26.3/hand** ·
+illegal plays **0**.
+
+⚠️ **The metric had to be fixed before it meant anything.** The first version counted every point
+card played into a trick the other side won and reported a **48.5% misfeed share** — but following
+suit holding nothing but point cards is not a misplay. Splitting forced from free: of 88.6 points
+per hand reaching the opposition, only **26.3 were avoidable**. **~70% are forced.** The 26.3 is the
+number to improve.
+
+⚠️ **The harness caught a wrong assumption immediately.** A test asserting teams are always 3 v 3
+failed on the first seed: if one player holds *both* called cards, offense is the bidder plus one
+partner — 2 v 4. `sameSideConfidence` assumes three offense seats, so with two it is more cautious
+than needed (the safe direction).
+
+**AI-05 now has a number.** Same deals with and without the bot bidder's free partner knowledge:
+bid made 35.8% vs **36.7%**, offense points **146.5 vs 146.5**. The asymmetry is worth *nothing*
+measurable — removing it would not weaken the bots. Still the owner's decision, but it no longer
+trades against difficulty.
+
+184/184. Detail in `AUDIT_REPORT.md` under AI-07.
+
+
 ## Recent Fix Log — 2026-09-12 — AI-01/02/03: the bots stop feeding points to strangers
 
 Reported as *"their play is random and does not know when to throw points vs not."* The points rule

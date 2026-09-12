@@ -1190,3 +1190,71 @@ reads is the very defect being fixed. **179/179** (was 171).
 **Still open: AI-04** (seat-assigned personality spread, now less harmful since none of them can
 feed on a coin flip) and **AI-05** (a bot bidder knows its partners; a human bidder does not —
 a product decision).
+
+---
+
+## AI-07 — a self-play harness, so bots can be measured instead of played ✅ 2026-09-12
+
+Built because the owner said, reasonably, *"I don't want to play to test AI bots."* Without
+measurement every further AI change is guesswork — and tuning five personality tolerances by
+intuition is how play came to look arbitrary in the first place.
+
+`AIEngine` is 31 static functions importing only Foundation, so a full hand deals, bids, calls,
+plays and scores with no view model, no UI and no simulator. Deals come from a seeded SplitMix64 so
+two configurations can be compared over **the same deals** — the receipt benchmark's lesson about a
+moving baseline, applied before it could cost anything.
+
+### Baseline, 120 hands
+
+| | |
+|---|---|
+| bid made | 35.8% |
+| offense points / hand | 146.5 of 250 |
+| to opponents *incl. forced* | 88.6 per hand |
+| to teammates | 94.1 per hand |
+| **avoidable misfeeds** | **26.3 per hand** |
+| illegal plays | **0** |
+
+### The metric had to be fixed before it meant anything
+
+The first version counted every point card played into a trick the other side won, and reported a
+**48.5% "misfeed share"** — which reads as *half of all feeds go to the enemy*. That is wrong.
+Following suit holding nothing but point cards is not a misplay; the bot had no choice.
+
+Splitting forced from free changes the picture completely: of 88.6 points per hand reaching the
+opposition, only **26.3 were avoidable** — i.e. a zero-point legal alternative was in hand. **About
+70% of point cards reaching opponents are forced.** The remaining 26.3 (~10.5% of the 250 in the
+deck) is the number worth improving, and the one to compare future changes against.
+
+### The harness immediately caught a wrong assumption of mine
+
+`testEveryPointIsAccountedForInEveryHand` asserted teams are always 3 v 3 and **failed on the first
+seed**. The bidder calls two cards; if one player holds both, offense is the bidder plus a *single*
+partner — 2 v 4. The code was right and the assertion was wrong.
+
+It matters beyond the test: `sameSideConfidence` assumes three offense seats. With only two it is
+*more* cautious than necessary — the safe direction, but worth knowing.
+
+### AI-05 answered with a number rather than an opinion ⬜ decision still open
+
+Same 120 deals, run with and without handing the bot bidder its partners:
+
+| | with the knowledge | without |
+|---|---|---|
+| bid made | 35.8% | **36.7%** |
+| offense points / hand | 146.5 | **146.5** |
+
+**The information asymmetry is worth nothing measurable.** Offense points are identical, and the
+bid-made difference is within noise at n=120 — and points the *wrong* way. So removing it would not
+weaken the bots, and keeping it is not helping them. That turns a fairness argument into a cheap
+decision either way; it is still the owner's call, but it no longer trades off against difficulty.
+
+### What this enables
+
+Every remaining AI question stops being an opinion: whether the confidence gate helped, whether
+`riskTaker` is actually worse than `conservative` (AI-04), and whether any future heuristic earns
+its place. **184/184.**
+
+**Honest limit:** self-play measures bots against bots. It reliably detects outright errors and
+ranks configurations; it says nothing about whether the bots are *fun*. That still needs a human —
+just not for every change.
