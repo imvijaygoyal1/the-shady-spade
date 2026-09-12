@@ -64,6 +64,26 @@ enum AIEngine {
             }
         }
 
+        /// How sure a bot must be that the winner is on its side before it will throw points.
+        ///
+        /// AI-02/AI-03. Feeding a 10-point card to someone who turns out to be an opponent costs
+        /// 10+; withholding from a genuine teammate costs a few. The bots used to feed on mere
+        /// *absence from the suspected-offense set*, which for a defender is true of every player
+        /// except the bidder — including the bidder's two hidden partners. Roughly half of those
+        /// feeds went to the opposition, which is what reads as random play.
+        ///
+        /// The spread keeps the personalities distinct without letting any of them feed on a coin
+        /// flip: even `riskTaker` needs better than even odds.
+        var feedConfidenceThreshold: Double {
+            switch self {
+            case .conservative:     return 0.90
+            case .aggressive:       return 0.70
+            case .pointFeeder:      return 0.65
+            case .trumpController:  return 0.75
+            case .riskTaker:        return 0.60
+            }
+        }
+
         var unsafeFeedTolerance: Int {
             switch self {
             case .conservative:     return 0
@@ -457,6 +477,55 @@ enum AIEngine {
         return (trump: trump, c1: c1, c2: c2)
     }
 
+    // MARK: - Side Confidence
+
+    /// How confident the bot at `seat` is that `player` is on **its own side**, 0…1.
+    ///
+    /// AI-01/AI-02. `inferTeamRead` already scores how offense-like each player's behaviour has
+    /// been, and that score was computed on every card play and **thrown away** — only a binary
+    /// `score >= 4` set was consulted. So a player at 3 and a player at 0 were treated identically,
+    /// and a defender treated *every* unsuspected player as a teammate. With 3 v 3 teams and two of
+    /// the bidder's partners still hidden, that is a coin flip dressed up as knowledge.
+    ///
+    /// The model is deliberately plain, because a wrong number here is worse than a simple one:
+    ///
+    /// - your own seat, and anyone whose side is **known** (the bidder, a revealed partner, or
+    ///   yourself once you hold a called card) → certainty, 1 or 0
+    /// - a player suspicion has caught → treated as offense at `suspectedConfidence`, not as fact,
+    ///   because the threshold is evidential rather than proof
+    /// - everyone else → the honest base rate: how many offense seats remain unaccounted for,
+    ///   divided by how many candidates could still hold them
+    ///
+    /// At trick 1 a defender gets 2 unknown offense seats among 4 candidates, so an unknown winner
+    /// is a teammate with probability 0.5 — and **no personality's threshold accepts 0.5**. As
+    /// called cards appear the denominator shrinks and confidence climbs on its own.
+    static func sameSideConfidence(
+        player: Int,
+        seat: Int,
+        isKnownOffense: Bool,
+        knownOffense: Set<Int>,
+        suspectedOffense: Set<Int>,
+        offenseSeatCount: Int = 3,
+        playerCount: Int = 6,
+        suspectedConfidence: Double = 0.8
+    ) -> Double {
+        if player == seat { return 1.0 }
+        if knownOffense.contains(player) { return isKnownOffense ? 1.0 : 0.0 }
+        if suspectedOffense.contains(player) {
+            let offenseLikelihood = suspectedConfidence
+            return isKnownOffense ? offenseLikelihood : 1.0 - offenseLikelihood
+        }
+
+        // Unaccounted-for offense seats, spread over the players who could still be holding them.
+        let accountedOffense = knownOffense.union(suspectedOffense)
+        let remainingOffense = max(0, offenseSeatCount - accountedOffense.count)
+        let candidates = (0..<playerCount).filter { $0 != seat && !accountedOffense.contains($0) }
+        guard !candidates.isEmpty else { return isKnownOffense ? 0.0 : 1.0 }
+
+        let offenseLikelihood = min(1.0, Double(remainingOffense) / Double(candidates.count))
+        return isKnownOffense ? offenseLikelihood : 1.0 - offenseLikelihood
+    }
+
     // MARK: - Partner Visibility
 
     static func revealedPartnerIndices(
@@ -627,11 +696,26 @@ enum AIEngine {
         // Dynamic personality: urgency raises feed tolerance by 1 so bots take
         // more risks when behind, mirroring how a human adapts under pressure.
         let adaptedFeedTolerance = style.unsafeFeedTolerance + (urgency.eitherSide ? 1 : 0)
-        let canFeedPoints = (!isKnownOffense && urgency.bidderCloseToWin)
-            ? false
-            : (futureThreats <= adaptedFeedTolerance
-               || (isKnownOffense && urgency.offense)
-               || (!isKnownOffense && urgency.defense))
+        // AI-01/02/03: how sure are we that the player currently winning is on our side? This used
+        // to be the bare `teammateWinning` boolean, which for a defender was true of everyone
+        // except the bidder — the bidder's two hidden partners included.
+        let winnerSideConfidence = sameSideConfidence(
+            player: winner.playerIndex,
+            seat: seat,
+            isKnownOffense: isKnownOffense,
+            knownOffense: knownOffense,
+            suspectedOffense: teamRead.suspectedOffense
+        )
+        let confidentInWinner = winnerSideConfidence >= style.feedConfidenceThreshold
+
+        // Every previous condition still applies; confidence is an additional requirement, never a
+        // licence. Withholding when unsure costs a few points; feeding the opposition costs 10+.
+        let canFeedPoints = confidentInWinner
+            && ((!isKnownOffense && urgency.bidderCloseToWin)
+                ? false
+                : (futureThreats <= adaptedFeedTolerance
+                   || (isKnownOffense && urgency.offense)
+                   || (!isKnownOffense && urgency.defense)))
 
         if let revealCard = hiddenPartnerRevealCard(
             seat: seat,

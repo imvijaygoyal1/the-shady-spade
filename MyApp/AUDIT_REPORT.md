@@ -1071,3 +1071,122 @@ used to derive them. Two cards, so two pickers.
 
 **Sequenced after v2.0 deliberately.** v2.0 (12) has been unsubmitted since August and is one device
 test group away. A four-surface schema change in front of a submission is how a release slips.
+
+---
+
+## AI-01…06 — why the bots look random about points (analysis 2026-09-12; AI-01/02/03 ✅ fixed)
+
+Prompted by the owner: *"their play is random and does not know when to throw points vs not."*
+`AIEngine.swift`, 1,434 lines.
+
+**They are not random.** There is a real engine: opponent team inference from behaviour, a hidden-
+partner reveal intent, per-player card probability distributions, void tracking, an exact endgame
+calculation, and signal-aware discards. The points decision itself is written correctly:
+
+```swift
+if teammateWinning {
+    return (canFeedPoints ? highestValueCard(sameSuit, …)   // throw points
+                          : lowestValueCard(sameSuit)).id   // withhold
+}
+```
+
+The problem is not that rule. It is what feeds it.
+
+### AI-01 — a defender treats every unknown player as a teammate ⚠️ the main finding
+
+```swift
+let teammateWinning = strategicOffense.contains(winner.playerIndex) == isKnownOffense
+```
+
+`strategicOffense` starts as `{highBidder}` plus anyone suspicion has caught. For a **defender**
+(`isKnownOffense == false`), `teammateWinning` is therefore true for *everyone except the bidder*.
+
+But the teams are 3 v 3, and two of the four other non-bidders **are the bidder's hidden partners**.
+So until suspicion catches them, roughly **half of every "my teammate is winning, throw points"
+decision hands points to the opposition.** That is exactly the behaviour described, and it is
+structural rather than a coding error.
+
+### AI-02 — the confidence the engine computes is thrown away
+
+`inferTeamRead` returns `TeamRead(suspectedOffense:suspicionScores:)`. **`suspicionScores` is never
+read** — only the binary set, cut at `score >= 4`. A player at 3 and a player at 0 are treated
+identically, and a player at 4 is treated as certain. The data needed to say *"I am not sure enough
+to feed this"* is computed on every call and discarded at the boundary.
+
+### AI-03 — the default when unknown points the wrong way
+
+Feeding a 10-point card to a player who turns out to be an opponent costs 10+ points. Withholding
+from a genuine teammate costs a few. The current default on uncertainty is **feed**, which is the
+expensive direction to be wrong in.
+
+### AI-04 — personality spread is wide and assigned by seat
+
+`BotPersonality.forSeat` is `styles[seat % 5]`, and `unsafeFeedTolerance` runs **0, 1, 2, 1, 3**
+across conservative / aggressive / pointFeeder / trumpController / riskTaker. `canFeedPoints`
+compares it against `futureThreats`, so in an identical position seat 0 withholds and seat 4 feeds
+into three live threats. Deliberate variety — but to a human it is indistinguishable from
+arbitrariness, and it compounds AI-01.
+
+### AI-05 — a bot that wins the bid knows its partners; a human bidder does not ⚠️ fairness
+
+```swift
+if seat == highBidderIndex {
+    known.formUnion(actualPartnerIndices)   // ground truth, not the revealed set
+    return known
+}
+```
+
+`actualPartnerIndices` and `revealedPartnerIndices` are separate parameters, so this is the answer,
+not an inference. Meanwhile `ComputerGameView` shows the human only `revealedPartner1Index` /
+`revealedPartner2Index`, which stay nil until a called card appears. **A bot bidder plays from trick
+1 with information the human bidder is not given.** Whether that is intended is a product call; it
+is currently undocumented.
+
+### AI-06 — checked and cleared: the bid-strength prior
+
+`inferTeamRead` adds `strength / 2` to suspicion, which looked like it could swamp a threshold of 4
+if `strength` were a raw bid (130–250). **It is not.** The call site normalises:
+`min(5, max(0, (amount - 130) / 24))` → 0–5, so the prior contributes at most **+2**. The comment
+calling it "a small nudge" is accurate. Recorded because the function name
+(`latestBidPerPlayer`, which does return raw amounts) invites exactly that wrong conclusion.
+
+### Where to start
+
+AI-02 and AI-03 together are one change and address AI-01 directly: keep the score, and require
+*confidence* before feeding rather than mere absence from a set. Nothing else needs rewriting — the
+decision rule is already right.
+
+
+### AI-01/02/03 — fixed 2026-09-12
+
+`suspicionScores` is no longer discarded. A new pure `AIEngine.sameSideConfidence(...)` answers
+*how sure am I that the player now winning is on my side*, 0…1:
+
+- your own seat, and anyone whose side is **known** (bidder, revealed partner, or yourself once you
+  hold a called card) → certainty
+- a player suspicion has caught → offense at **0.8**, evidence rather than proof
+- everyone else → the honest base rate: unaccounted-for offense seats ÷ candidates who could hold
+  them
+
+Each personality now carries a `feedConfidenceThreshold` — 0.90 / 0.70 / 0.65 / 0.75 / 0.60 — and
+`canFeedPoints` requires it **on top of** every condition that was already there. Confidence is an
+extra requirement, never a licence.
+
+**At trick 1 a defender gets exactly 0.5** for an unknown winner: 2 unaccounted offense seats among
+4 candidates. No personality's threshold accepts 0.5, so the points stay in hand. As called cards
+appear the denominator shrinks — one partner revealed gives 0.67, both gives 1.0 — and the bots
+start supporting each other without being told to.
+
+**Mutation-proven.** Replacing the gate with `true` (the old behaviour) makes
+`testDefenderDoesNotThrowPointsToAStranger` fail with the reported symptom —
+`("10♥") is not equal to ("3♥")`, the bot handing a point card to a player it knows nothing about.
+Exactly one test fails, so it is specific to the defect rather than over-broad.
+
+8 new tests: the base rates, that **no** personality can feed on a coin flip, that confidence rises
+as partners are revealed, that known sides are certainties, that suspicion is evidence not proof —
+and two behavioural tests through `computeCard` itself, because a correct probability that nothing
+reads is the very defect being fixed. **179/179** (was 171).
+
+**Still open: AI-04** (seat-assigned personality spread, now less harmful since none of them can
+feed on a coin flip) and **AI-05** (a bot bidder knows its partners; a human bidder does not —
+a product decision).

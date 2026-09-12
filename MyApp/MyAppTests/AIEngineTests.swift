@@ -709,3 +709,162 @@ final class AIEngineTests: XCTestCase {
             "Bidder should lead toward partner(seat=2)'s known club strength; got \(result ?? "nil")")
     }
 }
+
+// MARK: - AI-01/02/03 — side confidence gates the decision to throw points
+
+/// The bots' points rule was always written correctly:
+/// `teammateWinning ? (canFeedPoints ? highestValueCard : lowestValueCard) : …`
+///
+/// What was wrong was the input. `teammateWinning` came from *absence from the suspected-offense
+/// set*, which for a defender is true of every player except the bidder — including the bidder's
+/// two hidden partners. With 3 v 3 teams that made roughly half of all "throw points to my
+/// teammate" decisions feed the opposition, which is what reads as random play.
+///
+/// These pin the base rates, because the whole fix rests on them being honest numbers rather than
+/// a comfortable guess.
+extension AIEngineTests {
+
+    /// The coin flip at the heart of the bug. A defender at trick 1 knows only the bidder; two of
+    /// the four remaining candidates are the bidder's hidden partners.
+    func testUnknownPlayerIsACoinFlipForADefenderAtTrickOne() {
+        let confidence = AIEngine.sameSideConfidence(
+            player: 3, seat: 1, isKnownOffense: false,
+            knownOffense: [0], suspectedOffense: [])
+        XCTAssertEqual(confidence, 0.5, accuracy: 0.001,
+                       "2 unknown offense seats among 4 candidates is exactly even odds")
+    }
+
+    /// …and no personality may feed on those odds. This is the assertion that actually fixes the
+    /// reported behaviour; the confidence number alone would be inert.
+    func testNoPersonalityFeedsOnACoinFlip() {
+        for style in [AIEngine.BotPersonality.conservative, .aggressive, .pointFeeder,
+                      .trumpController, .riskTaker] {
+            XCTAssertGreaterThan(style.feedConfidenceThreshold, 0.5,
+                                 "\(style) would throw points to a player it knows nothing about")
+        }
+    }
+
+    /// Confidence climbs on its own as called cards appear — the denominator shrinks. One partner
+    /// revealed leaves 1 unknown offense seat among 3 candidates.
+    func testConfidenceRisesAsPartnersAreRevealed() {
+        let oneRevealed = AIEngine.sameSideConfidence(
+            player: 4, seat: 1, isKnownOffense: false,
+            knownOffense: [0, 3], suspectedOffense: [])
+        XCTAssertEqual(oneRevealed, 2.0 / 3.0, accuracy: 0.001)
+
+        let bothRevealed = AIEngine.sameSideConfidence(
+            player: 4, seat: 1, isKnownOffense: false,
+            knownOffense: [0, 3, 5], suspectedOffense: [])
+        XCTAssertEqual(bothRevealed, 1.0, accuracy: 0.001,
+                       "with all three offense seats accounted for, anyone else is certainly a teammate")
+    }
+
+    /// A known member of the other side is certainty, not a probability.
+    func testKnownOffenseIsCertaintyBothWays() {
+        XCTAssertEqual(AIEngine.sameSideConfidence(
+            player: 0, seat: 1, isKnownOffense: false,
+            knownOffense: [0], suspectedOffense: []), 0.0)
+        XCTAssertEqual(AIEngine.sameSideConfidence(
+            player: 0, seat: 2, isKnownOffense: true,
+            knownOffense: [0, 2], suspectedOffense: []), 1.0)
+    }
+
+    /// Suspicion is evidence, not proof. A caught player is treated as offense at 0.8, so a
+    /// defender's confidence in them is 0.2 — low enough to withhold, without pretending certainty.
+    func testSuspicionIsTreatedAsEvidenceNotProof() {
+        let defenderView = AIEngine.sameSideConfidence(
+            player: 4, seat: 1, isKnownOffense: false,
+            knownOffense: [0], suspectedOffense: [4])
+        XCTAssertEqual(defenderView, 0.2, accuracy: 0.001)
+        XCTAssertLessThan(defenderView, AIEngine.BotPersonality.riskTaker.feedConfidenceThreshold)
+
+        let bidderView = AIEngine.sameSideConfidence(
+            player: 4, seat: 0, isKnownOffense: true,
+            knownOffense: [0], suspectedOffense: [4])
+        XCTAssertEqual(bidderView, 0.8, accuracy: 0.001,
+                       "the same read, from the other side of the table")
+    }
+
+    /// A bot never doubts itself, whichever side it is on.
+    func testOwnSeatIsAlwaysCertain() {
+        XCTAssertEqual(AIEngine.sameSideConfidence(
+            player: 2, seat: 2, isKnownOffense: false,
+            knownOffense: [0], suspectedOffense: []), 1.0)
+    }
+}
+
+
+// MARK: - AI-01 — the behaviour, not just the model
+
+/// The tests above pin the confidence numbers. This one pins what the bot actually *plays*, which
+/// is the thing that was wrong. Without it the fix could be inert: a correct probability computed
+/// and then ignored, which is precisely the defect it replaces (`suspicionScores` was computed on
+/// every card play and never read).
+extension AIEngineTests {
+
+    /// A defender, third to a trick, holding a high point card and a worthless one in the led suit.
+    /// The player currently winning is a stranger: not the bidder, not revealed, no behaviour to go
+    /// on — and with 3 v 3 teams, as likely an enemy partner as a friend.
+    ///
+    /// The old rule read "not in the suspected-offense set" as "my teammate" and threw the points.
+    func testDefenderDoesNotThrowPointsToAStranger() {
+        let ten = Card(rank: "10", suit: "♥")     // the point card
+        let three = Card(rank: "3", suit: "♥")    // the worthless one
+        XCTAssertGreaterThan(ten.pointValue, 0, "fixture assumption: the 10 carries points")
+        XCTAssertEqual(three.pointValue, 0, "fixture assumption: the 3 does not")
+
+        // Seat 2 is a defender. Seat 0 bid; seat 4 — a stranger — is winning with the ♥K.
+        let trick: [(playerIndex: Int, card: Card)] = [
+            (3, Card(rank: "4", suit: "♥")),
+            (4, Card(rank: "K", suit: "♥"))
+        ]
+        let played = AIEngine.computeCard(
+            seat: 2,
+            hand: [ten, three],
+            actualPartnerIndices: [],
+            revealedPartnerIndices: [],
+            calledCardIds: [],
+            highBidderIndex: 0,
+            trumpSuit: .spades,
+            currentTrick: trick,
+            completedTricks: [],
+            wonPointsPerPlayer: [0, 0, 0, 0, 0, 0],
+            highBid: 150,
+            trickNumber: 0
+        )
+
+        XCTAssertEqual(played, three.id,
+                       "a stranger is a coin flip, so the points stay in hand")
+    }
+
+    /// The other direction, so the gate is not simply "never feed". Once every offense seat is
+    /// accounted for, an unaccounted player is certainly a teammate and the points should go in.
+    func testDefenderDoesThrowPointsOnceTheOffenseIsFullyKnown() {
+        let ten = Card(rank: "10", suit: "♥")
+        let three = Card(rank: "3", suit: "♥")
+
+        // Seat 2 defends. Offense is 0 (bidder) plus revealed partners 3 and 5 — all three seats
+        // accounted for. Seat 4 is therefore certainly a teammate, and is winning the trick.
+        let trick: [(playerIndex: Int, card: Card)] = [
+            (1, Card(rank: "4", suit: "♥")),
+            (4, Card(rank: "K", suit: "♥"))
+        ]
+        let played = AIEngine.computeCard(
+            seat: 2,
+            hand: [ten, three],
+            actualPartnerIndices: [3, 5],
+            revealedPartnerIndices: [3, 5],
+            calledCardIds: [],
+            highBidderIndex: 0,
+            trumpSuit: .spades,
+            currentTrick: trick,
+            completedTricks: [],
+            wonPointsPerPlayer: [0, 0, 0, 0, 0, 0],
+            highBid: 150,
+            trickNumber: 0
+        )
+
+        XCTAssertEqual(played, ten.id,
+                       "a certain teammate is winning and nobody is left to take it — feed the points")
+    }
+}

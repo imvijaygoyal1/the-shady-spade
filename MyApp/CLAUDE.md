@@ -218,6 +218,32 @@
 - [2026-06-06] Add 5 advanced AI improvements to AIEngine.swift — (1) **Safety plays when bid is secure:** `bidSecure: Bool` added to `Urgency` (fires when `offensePoints >= highBid`); risky trump leads (higherTrumpRemaining >= 2) get −12 penalty when bid is secure; `effectiveTrumpThreshold += 20` prevents burning trump on cheap tricks after bid made. Gated on `isKnownOffense` so defense unaffected. (2) **Finessing:** in `bestLeadCard` non-trump block, iterates offsets 1–3 after the bot's seat to find the nearest opponent, then uses `HandModel.threatProb` to apply −8 when they probably hold a beating card (p > 0.5) or +5 when they almost certainly don't (p < 0.15). Skipped when `handModel` is nil. (3) **Discard signaling:** new `discardPreference(_:hand:remainingCards:)` private helper; when teammate is winning and bot can't feed points, replaces `lowestValueCard` discard with smart suit abandonment — prefers unestablishable suits (+10), protects point cards (−20 guard). (4) **Endgame extension to 3 tricks:** `computeEndgameLead` guard relaxed from `hand.count <= 2` to `<= 3`; 3-card path projects remaining 2-card hand value to reward leads that set up future winners (`pointValue * 8 + 20` per projected win). Gate in `computeCard` updated from `tricksRemaining <= 2` to `<= 3`. (5) **Bidder-partner coordination post-reveal:** `bestLeadCard` gains `revealedPartnerIndices: Set<Int> = []`; for non-trump leads the bidder scores an above-baseline bonus (up to +16) when revealed partners hold more cards than random chance predicts in that suit — uses lead-boost signal from `HandModel.threatProb`, normalized by subtracting the uniform-distribution baseline so suits with no lead history get zero bonus. Reusable pattern: all improvements are isolated score adjustments inside `AIEngine`; no ViewModels or public signatures changed. Verification: 26/26 XCTests pass (21 pre-existing + 5 new); build succeeded; installed on simulator DA97985A; launched PID 59340. (`AIEngine.swift`, `AIEngineTests.swift`, `CLAUDE.md`)
 
 
+
+## Recent Fix Log — 2026-09-12 — AI-01/02/03: the bots stop feeding points to strangers
+
+Reported as *"their play is random and does not know when to throw points vs not."* The points rule
+was always right; its **input** was wrong.
+
+`teammateWinning` came from *absence from the suspected-offense set*, which for a defender is true
+of every player except the bidder — including the bidder's two hidden partners. With 3 v 3 teams,
+**about half of every "throw points to my teammate" decision fed the opposition.** Meanwhile
+`inferTeamRead` computed a `suspicionScores` dictionary on every card play that **nothing ever
+read**; only a binary `score >= 4` set was consulted, so a player at 3 and a player at 0 were
+identical.
+
+New pure `AIEngine.sameSideConfidence(...)` returns 0…1 — certainty for known sides, 0.8 for a
+suspicion hit (evidence, not proof), and otherwise the honest base rate of unaccounted offense seats
+over candidates. Each personality has a `feedConfidenceThreshold` (0.90/0.70/0.65/0.75/0.60), and
+`canFeedPoints` requires it **on top of** every existing condition.
+
+A defender at trick 1 gets exactly **0.5** for an unknown winner, and no personality accepts 0.5 —
+so the points stay in hand. Confidence then climbs by itself as called cards appear: 0.67 with one
+partner revealed, 1.0 with both.
+
+**Mutation-proven**: replacing the gate with `true` makes the bot hand over the 10♥ again, failing
+exactly one test. 8 new tests, **179/179**. AI-04 and AI-05 remain open — see `AUDIT_REPORT.md`.
+
+
 ## Open finding — SPADE-09: the scorekeeper cannot record the called cards (2026-09-10)
 
 Found by the owner on the Add Round screen while starting the Group B device pass.
