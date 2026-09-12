@@ -66,6 +66,19 @@ enum AISelfPlay {
         /// Trick points captured per seat — the other half of the ledger. A style that gives away
         /// less but also wins less is not obviously better.
         let pointsWon: [Int]
+        /// The trick (1-based) on which each called card was played, i.e. when that partner became
+        /// public. `nil` means the card was never played this hand.
+        ///
+        /// This is what decides when the **defence** becomes known: `resolveAvatarRole` only labels
+        /// anyone defence once **both** partners are revealed, so an early second reveal exposes the
+        /// whole table. `AIEngine` has deliberate reveal logic (`hiddenPartnerRevealCard`,
+        /// `partnerRevealIntent`), so this measures whether that logic is firing too eagerly.
+        let partnerRevealTricks: [Int?]
+        /// The trick on which the **last** partner revealed — the moment the defence is exposed.
+        var defenceExposedOnTrick: Int? {
+            let known = partnerRevealTricks.compactMap { $0 }
+            return known.count == partnerRevealTricks.count ? known.max() : nil
+        }
         /// A bot returning nil or an illegal card. Should always be zero; if it is not, every other
         /// number here is describing a different game from the one the app plays.
         let illegalPlays: Int
@@ -155,6 +168,7 @@ enum AISelfPlay {
         var fedOpponents = Array(repeating: 0, count: 6)
         var fedTeammates = Array(repeating: 0, count: 6)
         var avoidable = Array(repeating: 0, count: 6)
+        var revealTricks: [String: Int] = [:]
         var hadZeroPointAlternative = Array(repeating: false, count: 6)
         var illegal = 0
         var leader = highBidder
@@ -196,7 +210,10 @@ enum AISelfPlay {
 
                 hands[s].removeAll { $0.id == card.id }
                 trick.append((playerIndex: s, card: card))
-                if calledIds.contains(card.id) && s != highBidder { revealed.insert(s) }
+                if calledIds.contains(card.id) && s != highBidder {
+                    revealed.insert(s)
+                    revealTricks[card.id] = trickNumber + 1   // 1-based, as a player would count
+                }
             }
 
             let winner = AIEngine.trickWinnerIndex(trick: trick, trumpSuit: trump)
@@ -224,7 +241,9 @@ enum AISelfPlay {
             seed: seed, bidderIndex: highBidder, highBid: highBid,
             offenseSeats: offense, offensePoints: offensePoints,
             pointsFedToOpponents: fedOpponents, pointsFedToTeammates: fedTeammates,
-            avoidableMisfeeds: avoidable, pointsWon: wonPoints, illegalPlays: illegal)
+            avoidableMisfeeds: avoidable, pointsWon: wonPoints,
+            partnerRevealTricks: [revealTricks[call.c1], revealTricks[call.c2]],
+            illegalPlays: illegal)
     }
 
     /// What the engine is told about partner identities.

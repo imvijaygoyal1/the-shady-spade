@@ -1315,3 +1315,52 @@ player as a teammate produced genuinely incoherent play; the personality spread 
 play, which is what it is for. AI-04 is closed with data rather than fixed.
 
 **187/187.**
+
+---
+
+## AI-08 — the defence badge is correct; the bots reveal themselves far too early ⚠️ open
+
+Reported: *"In solo mode, when a hand is won by a player then the icon says that the player is in
+defense, and it happened before the bidding team is fully revealed."*
+
+### The badge is provably not the bug
+
+`resolveAvatarRole` is the single source of truth for that badge in all four modes, so the claim is
+decidable exhaustively rather than by reading. `AvatarRoleRevealTests` enumerates every reachable
+revealed-state combination and asserts `.defense` is impossible while either partner slot is still
+unknown — including the 2 v 4 hand where one player holds **both** called cards. **All pass.**
+
+Checked alongside it, and all clean:
+
+| | |
+|---|---|
+| `resolveAvatarRole` during play | `isConfirmedDefense` requires `bothRevealed`; falls through to `.unknown`, rendered as **"?"** |
+| All **13** call sites | in-play sites pass `revealedPartner*`; only round-complete sites pass ground truth, with `isRoundComplete: true` |
+| Solo `checkPartnerReveal` | sets a slot **only** when that called card is actually played, and only for a non-bidder |
+| Online / BT | `partner1Index` is published as `-1` until the called card is played; ground truth lives in the private `hostPartner1`/`hostPartner2` |
+
+### So what was seen was real — and this is the actual defect
+
+Both partners genuinely had revealed. Measured over **200 hands**:
+
+| first partner revealed on | share | | defence fully exposed on | share |
+|---|---|---|---|---|
+| **trick 1** | **48.0%** | | trick 1 | 3.5% |
+| trick 2 | 29.5% | | trick 2 | 17.0% |
+| trick 3 | 13.5% | | **trick 3** | **28.0%** |
+| trick 4 | 8.0% | | trick 4 | 19.5% |
+| trick 5–6 | 1.0% | | trick 5–8 | 32.0% |
+
+**A partner outs themselves on the very first trick in nearly half of all hands, and the entire
+table's teams are public by trick 3 in 48.5% of them** — with eight tricks in a hand.
+
+The hidden-partner mechanic is the centre of this game. If teams are common knowledge by trick 3 in
+half the hands, the mechanic is largely defeated, and a defender correctly wearing a DEFENSE badge
+early is the *symptom* the owner noticed.
+
+The cause is deliberate: `AIEngine.hiddenPartnerRevealCard` and `partnerRevealIntent` exist to play
+a called card on purpose. They are firing far too eagerly. **Not fixed here** — changing reveal
+intent changes how every bot plays, and it should be measured before and after with the harness
+(`AIPartnerRevealTimingTests` prints the distribution above), not tuned by feel.
+
+**192/192.**

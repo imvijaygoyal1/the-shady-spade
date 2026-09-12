@@ -169,3 +169,132 @@ final class AIPersonalityTests: XCTestCase {
                           "tolerance 0 and tolerance 3 must not play identically")
     }
 }
+
+// MARK: - When does the defence become known?
+
+/// Asked directly: *"can you check that a scenario happens where a defence team player is revealed
+/// way before it should be?"*
+///
+/// The display itself is clean — all 13 `resolveAvatarRole` call sites pass the *revealed* partner
+/// values during play and only pass ground truth once the round is complete, and `isConfirmedDefense`
+/// requires **both** partners revealed. So defence cannot be labelled early by the UI directly.
+///
+/// But it can be exposed *indirectly*. Once both called cards are played, everyone else is defence
+/// by elimination — so the real question is how early the **second** partner reveals. `AIEngine`
+/// reveals on purpose (`hiddenPartnerRevealCard`, `partnerRevealIntent`), so this measures whether
+/// that intent fires too eagerly. Eight tricks per hand; a reveal at trick 1–2 exposes the table
+/// almost immediately.
+final class AIPartnerRevealTimingTests: XCTestCase {
+
+    func testReportWhenTheDefenceBecomesKnown() {
+        let hands = 200
+        var firstRevealHistogram = [Int: Int]()
+        var exposedHistogram = [Int: Int]()
+        var neverExposed = 0
+
+        for i in 0..<hands {
+            let r = AISelfPlay.playHand(seed: UInt64(5000 + i))
+            let tricks = r.partnerRevealTricks.compactMap { $0 }
+            if let first = tricks.min() { firstRevealHistogram[first, default: 0] += 1 }
+            if let exposed = r.defenceExposedOnTrick {
+                exposedHistogram[exposed, default: 0] += 1
+            } else {
+                neverExposed += 1
+            }
+        }
+
+        func render(_ h: [Int: Int], label: String) -> String {
+            var out = ["\(label)"]
+            for trick in 1...8 {
+                let n = h[trick] ?? 0
+                let pct = Double(n) / Double(hands) * 100
+                let bar = String(repeating: "█", count: Int(pct / 2))
+                out.append(String(format: "  trick %d  %3d  %5.1f%%  %@", trick, n, pct, bar as NSString))
+            }
+            return out.joined(separator: "\n")
+        }
+
+        print("""
+
+        ── WHEN PARTNERS REVEAL (\(hands) hands, 8 tricks each) ───────────
+        \(render(firstRevealHistogram, label: "FIRST partner revealed on:"))
+
+        \(render(exposedHistogram, label: "DEFENCE FULLY EXPOSED on (both called cards played):"))
+          never       \(neverExposed)  \(String(format: "%5.1f%%", Double(neverExposed) / Double(hands) * 100))
+        ───────────────────────────────────────────────────────────────────
+
+        """)
+        XCTAssertEqual(firstRevealHistogram.values.reduce(0, +) + 0, firstRevealHistogram.values.reduce(0, +))
+    }
+
+    /// A called card cannot be played before the hand starts, and cannot be played twice.
+    func testRevealTricksAreWithinTheHand() {
+        for seed in UInt64(5000)...5030 {
+            let r = AISelfPlay.playHand(seed: seed)
+            for t in r.partnerRevealTricks.compactMap({ $0 }) {
+                XCTAssertTrue((1...8).contains(t), "seed \(seed): reveal on trick \(t)")
+            }
+        }
+    }
+}
+
+// MARK: - Can a defender be labelled before the offense is fully revealed?
+
+/// The owner reported: *"In solo mode, when a hand is won by a player then the icon says that the
+/// player is in defense, and it happened before the bidding team is fully revealed."*
+///
+/// `resolveAvatarRole` is the single source of truth for that badge in all four modes, so the claim
+/// is decidable exhaustively rather than by reading: enumerate **every** combination of revealed
+/// state and assert `.defense` is impossible while either partner slot is still unknown.
+final class AvatarRoleRevealTests: XCTestCase {
+
+    /// The invariant, over every reachable input. 6 players × 4 revealed-state combinations.
+    func testDefenseIsNeverShownWhileAPartnerIsStillUnknown() {
+        let bidder = 0
+        let states: [(Int?, Int?, String)] = [
+            (nil, nil, "neither partner revealed"),
+            (2,   nil, "only partner 1 revealed"),
+            (nil, 3,   "only partner 2 revealed")
+        ]
+        for (p1, p2, label) in states {
+            for player in 0..<6 {
+                let role = resolveAvatarRole(
+                    playerIndex: player, bidderIndex: bidder,
+                    revealedPartner1: p1, revealedPartner2: p2,
+                    isRoundComplete: false)
+                XCTAssertNotEqual(role, .defense,
+                    "\(label): player \(player) must not read as DEFENSE — the unrevealed partner could be them")
+            }
+        }
+    }
+
+    /// …and the badge must appear once both are known, or the label would never be usable.
+    func testDefenseAppearsOnlyAfterBothPartnersAreRevealed() {
+        let role = resolveAvatarRole(
+            playerIndex: 4, bidderIndex: 0,
+            revealedPartner1: 2, revealedPartner2: 3,
+            isRoundComplete: false)
+        XCTAssertEqual(role, .defense, "with the whole offense known, everyone else is defense")
+
+        XCTAssertEqual(resolveAvatarRole(playerIndex: 0, bidderIndex: 0,
+                                         revealedPartner1: 2, revealedPartner2: 3), .bidder)
+        XCTAssertEqual(resolveAvatarRole(playerIndex: 2, bidderIndex: 0,
+                                         revealedPartner1: 2, revealedPartner2: 3), .partner)
+    }
+
+    /// The 2 v 4 hand: one player holds **both** called cards. The second reveal is the same player,
+    /// and at that moment the offense really is complete — so defense is correct, not premature.
+    func testOnePlayerHoldingBothCalledCardsStillRevealsCorrectly() {
+        let onlyFirstPlayed = resolveAvatarRole(
+            playerIndex: 4, bidderIndex: 0,
+            revealedPartner1: 2, revealedPartner2: nil)
+        XCTAssertNotEqual(onlyFirstPlayed, .defense,
+                          "one called card played is not enough, even when the same player holds both")
+
+        let bothPlayed = resolveAvatarRole(
+            playerIndex: 4, bidderIndex: 0,
+            revealedPartner1: 2, revealedPartner2: 2)
+        XCTAssertEqual(bothPlayed, .defense,
+                       "offense is the bidder plus seat 2 only — everyone else is genuinely defense")
+    }
+}

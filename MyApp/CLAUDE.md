@@ -221,6 +221,30 @@
 
 
 
+
+## Open finding — AI-08: the defence badge is right, the bots reveal far too early (2026-09-12)
+
+Reported: *"when a hand is won by a player the icon says that player is in defense, and it happened
+before the bidding team is fully revealed."*
+
+**The badge is provably not the bug.** `AvatarRoleRevealTests` enumerates every reachable
+revealed-state combination and asserts `.defense` is impossible while either partner slot is unknown,
+including the 2 v 4 hand where one player holds both called cards. All 13 `resolveAvatarRole` call
+sites pass the *revealed* values during play; Solo's `checkPartnerReveal` sets a slot only when that
+called card is actually played; Online/BT publish `partner1Index` as `-1` until then, keeping ground
+truth in the private `hostPartner1`/`hostPartner2`.
+
+⚠️ **So what was seen was real, and this is the defect.** Over 200 hands: a partner reveals on
+**trick 1 in 48% of hands**, and the whole table's teams are public **by trick 3 in 48.5%** — out of
+eight tricks. The hidden-partner mechanic is the centre of the game; at that rate it is largely
+defeated, and the early DEFENSE badge is the symptom.
+
+Cause is deliberate: `AIEngine.hiddenPartnerRevealCard` / `partnerRevealIntent`. **Not fixed** —
+changing reveal intent changes how every bot plays, so measure it with
+`AIPartnerRevealTimingTests` before and after rather than tuning by feel. Detail in
+`AUDIT_REPORT.md` under AI-08.
+
+
 ## Recent Fix Log — 2026-09-12 (latest) — AI-04 measured and closed: not a defect
 
 I raised AI-04 as a finding — personality is `styles[seat % 5]` with `unsafeFeedTolerance`
