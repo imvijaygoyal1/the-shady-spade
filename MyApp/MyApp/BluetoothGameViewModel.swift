@@ -111,8 +111,8 @@ final class BluetoothGameViewModel: NSObject {
     var connectedPlayerSlots: [BTPlayerSlot] = (0..<6).map { BTPlayerSlot.empty(at: $0) }
 
     // MARK: MC infrastructure (private)
-    private var peerID: MCPeerID!
-    private var session: MCSession!
+    private var peerID: MCPeerID?
+    private var session: MCSession?
     private var advertiser: MCNearbyServiceAdvertiser?
     private var browser: MCNearbyServiceBrowser?
 
@@ -224,9 +224,11 @@ final class BluetoothGameViewModel: NSObject {
 
     func startHosting(playerName: String, avatar: String) {
         cleanup()
-        peerID = MCPeerID(displayName: playerName)
-        session = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .required)
-        session.delegate = self
+        let newPeerID = MCPeerID(displayName: playerName)
+        let newSession = MCSession(peer: newPeerID, securityIdentity: nil, encryptionPreference: .required)
+        newSession.delegate = self
+        peerID = newPeerID
+        session = newSession
 
         // Slot 0 = host
         myPlayerIndex = 0
@@ -242,7 +244,7 @@ final class BluetoothGameViewModel: NSObject {
         connectedPlayerSlots[0] = BTPlayerSlot(slotIndex: 0, name: playerName, avatar: avatar, joined: true)
 
         let info: [String: String] = ["hostName": playerName, "avatar": avatar, "slots": "1"]
-        advertiser = MCNearbyServiceAdvertiser(peer: peerID, discoveryInfo: info, serviceType: Self.serviceType)
+        advertiser = MCNearbyServiceAdvertiser(peer: newPeerID, discoveryInfo: info, serviceType: Self.serviceType)
         advertiser?.delegate = self
         advertiser?.startAdvertisingPeer()
         sessionState = .hosting
@@ -262,15 +264,17 @@ final class BluetoothGameViewModel: NSObject {
 
     func startBrowsing(playerName: String, avatar: String) {
         cleanup()
-        peerID = MCPeerID(displayName: playerName)
-        session = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .required)
-        session.delegate = self
+        let newPeerID = MCPeerID(displayName: playerName)
+        let newSession = MCSession(peer: newPeerID, securityIdentity: nil, encryptionPreference: .required)
+        newSession.delegate = self
+        peerID = newPeerID
+        session = newSession
 
         isHost = false
         playerNames[0] = playerName   // temp, will be updated by assignSlot
         playerAvatars[0] = avatar
 
-        browser = MCNearbyServiceBrowser(peer: peerID, serviceType: Self.serviceType)
+        browser = MCNearbyServiceBrowser(peer: newPeerID, serviceType: Self.serviceType)
         browser?.delegate = self
         browser?.startBrowsingForPeers()
         sessionState = .browsing
@@ -279,7 +283,7 @@ final class BluetoothGameViewModel: NSObject {
     func connectTo(peerID remotePeerID: MCPeerID) {
         // Guard: only send one invitation. Duplicate calls confuse MC and can
         // cause a silent disconnect, leaving the client stuck on "Waiting for host".
-        guard let browser, sessionState == .browsing else { return }
+        guard let browser, let session, sessionState == .browsing else { return }
         sessionState = .connecting
         let context = try? JSONSerialization.data(withJSONObject: [
             "name": playerNames[0],

@@ -3,6 +3,16 @@ import XCTest
 
 @MainActor
 final class MultiplayerViewModelRulesTests: XCTestCase {
+
+    func testBluetoothCleanupIsSafeBeforeSessionSetup() {
+        let viewModel = BluetoothGameViewModel()
+
+        viewModel.cleanup()
+        viewModel.cleanup()
+
+        XCTAssertEqual(viewModel.sessionState, .idle)
+        XCTAssertFalse(viewModel.isReconnecting)
+    }
     func test_onlineViewModelUsesSharedBidCardAndScoreRules() {
         let vm = OnlineGameViewModel(
             myPlayerIndex: 2,
