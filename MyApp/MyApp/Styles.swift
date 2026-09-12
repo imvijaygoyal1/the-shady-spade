@@ -2835,3 +2835,59 @@ struct GameOffenseChip: View {
         .transition(.scale.combined(with: .opacity))
     }
 }
+
+/// Shared trick-history row used by all gameplay modes.
+struct GameTrickHistoryRow: View {
+    let trickNumber: Int
+    let plays: [(playerIndex: Int, card: Card)]
+    let winnerIndex: Int
+    let playerName: (Int) -> String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Hand \(trickNumber)")
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.adaptivePrimary)
+                Spacer()
+                HStack(spacing: 4) {
+                    Image(systemName: "trophy.fill")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.masterGold)
+                    Text(playerName(winnerIndex))
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.masterGold)
+                }
+            }
+
+            GeometryReader { geo in
+                let gap: CGFloat = 5
+                let cardW = (geo.size.width - gap * CGFloat(max(plays.count - 1, 0))) / CGFloat(max(plays.count, 1))
+                let cardH = cardW * (78.0 / 56.0)
+                HStack(spacing: gap) {
+                    ForEach(Array(plays.enumerated()), id: \.offset) { _, play in
+                        VStack(spacing: 3) {
+                            PlayingCardView(card: play.card, width: cardW)
+                                .overlay {
+                                    if play.playerIndex == winnerIndex {
+                                        RoundedRectangle(cornerRadius: cardW * 0.18, style: .continuous)
+                                            .strokeBorder(Color.masterGold, lineWidth: 2)
+                                    }
+                                }
+                            Text(String(playerName(play.playerIndex).prefix(9)))
+                                .font(.system(size: 8, weight: .bold, design: .rounded))
+                                .foregroundStyle(play.playerIndex == winnerIndex ? .masterGold : .secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                                .frame(width: cardW)
+                        }
+                    }
+                }
+                .frame(width: geo.size.width, height: cardH + 18)
+            }
+            .frame(height: 100)
+        }
+        .padding(12)
+        .comicContainer(cornerRadius: 16)
+    }
+}

@@ -2213,11 +2213,11 @@ private struct BTTrickHistoryView: View {
                     ScrollView {
                         VStack(spacing: 12) {
                             ForEach(game.completedTricks.indices.reversed(), id: \.self) { idx in
-                                BTTrickHistoryRow(
+                                GameTrickHistoryRow(
                                     trickNumber: idx + 1,
                                     plays: game.completedTricks[idx],
                                     winnerIndex: game.trickWinners[idx],
-                                    game: game
+                                    playerName: game.playerName
                                 )
                             }
                         }

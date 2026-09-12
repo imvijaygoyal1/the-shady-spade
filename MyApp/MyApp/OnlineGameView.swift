@@ -2339,11 +2339,11 @@ private struct OnlineTrickHistoryView: View {
                     ScrollView {
                         VStack(spacing: 12) {
                             ForEach(game.completedTricks.indices.reversed(), id: \.self) { idx in
-                                OnlineTrickHistoryRow(
+                                GameTrickHistoryRow(
                                     trickNumber: idx + 1,
                                     plays: game.completedTricks[idx],
                                     winnerIndex: game.trickWinners[idx],
-                                    game: game
+                                    playerName: game.playerName
                                 )
                             }
                         }
