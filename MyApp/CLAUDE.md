@@ -405,7 +405,59 @@ Fixed routes:
 
 - [2026-06-03] Implement 5 AI bot improvements in AIEngine.swift — (1) **3♠-specific strategy:** `bestLeadCard` now applies a −28 penalty to leading the unprotected 3♠ when not trump (rank "3" loses to almost every card, making it an easy trump target for opponents). In the can't-follow path, `effectiveTrumpThreshold` is set to 0 when the 3♠ is in the current trick (always trump to contest it) and raised by +15 when the 3♠ is still unplayed and game is not urgent (save trump for a future capture). `bestLeadCard` also penalises non-ace trump leads by −8 when 3♠ is lurking and not in urgency. (2) **Defense calling-suit targeting:** `bestLeadCard` now scores a +12 × hiddenPartners bonus for defense bots (non-bidder, `!isKnownOffense`) leading a called suit when at least one partner is still unrevealed (+24 if both hidden, +12 if one hidden). This mirrors the bidder's existing called-suit probe logic but serves the opposite intent: flushing out the silent partner. (3) **Sacrifice play:** The `effectiveTrumpThreshold` raise (+15) when 3♠ is unplayed implements the primary sacrifice — don't burn trump on cheap tricks when a 30-point capture opportunity may come. The 3♠ lead penalty prevents sacrificing the 3♠ itself into a losing trick. (4) **Opponent bid amount inference:** `computeCard` now accepts `bidHistory: [(playerIndex: Int, amount: Int)]` (default `[]`) and pre-computes `playerBidStrengths: [Int: Int]` (0–5 scale, `(amount - 130) / 24`). This is passed to `inferTeamRead`, which adds a `strength / 2` prior to suspicion scores for non-bidder players who bid aggressively — they likely had strong hands and are more probable silent partners. `bestLeadCard` receives `playerBidStrengths` for future per-opponent weighting. (5) **Position-aware called card selection:** `computeCalling` now accepts `seat`, `dealerIndex`, and `bidHistory` (all default to `0`/`[]`). After building the void/short-suit ordered candidate list, a position-aware re-sort is applied: players sitting 3–5 seats after the bidder score higher position quality (they play later, seeing the bidder's card before responding). `candidatePositionScore` weights each candidate by the bid-strength × position quality of non-bidder players, so among equal-value cards, those likely held by well-positioned strong players are preferred as called partners. Reusable pattern: all new parameters have safe defaults so callers that don't pass them continue to work; `AIEngine` remains stateless and pure. Verification: `xcodebuild -project MyApp.xcodeproj -scheme MyApp -configuration Debug -destination "generic/platform=iOS Simulator" -disableAutomaticPackageResolution COMPILER_INDEX_STORE_ENABLE=NO build` passed; installed on simulator DA97985A-F7CC-44F6-8281-9DD24C22B978; launched PID 24772. (`AIEngine.swift`, `ComputerGameViewModel.swift`, `OnlineGameViewModel.swift`, `BluetoothGameViewModel.swift`, `CLAUDE.md`)
 
-## Current Handoff Snapshot — 2026-06-03
+## Current Handoff Snapshot — 2026-09-12
+
+**Repo clean and pushed. HEAD `ac2906d`. Version v2.0 (build 12), unsubmitted, tagged
+`v2.0-build12-prep`. Suite 192/193** — the one failure,
+`testJoinGameNamePromptUsesJoinActionLabel`, passes in isolation against a diff touching no UI
+code, which matches this project's known UI-test instability.
+
+### The only thing blocking v2.0: the Group B device pass
+Never run. **Both devices are currently available** — the Watch showed `available (paired)` on
+2026-09-12, where it was `unavailable` when this last stalled, which was the original blocker.
+
+- B1 Watch receives the active scorecard
+- B2 Add Round from Watch → iPhone updates untouched
+- B3 Undo from Watch → iPhone updates
+- B4 Undo with zero rounds → "No round to undo.", refused cleanly
+- **B5 ⭐ the SPADE-01 path**: one round → open **Edit Last Round** on iPhone → **Undo Last Round**
+  on Watch → the sheet must close itself, no crash
+
+Two things already established so B5 does not need re-deriving: the SPADE-01 fix lives **entirely
+in the iOS app** (`ScorekeeperModels.swift` `forRoundEntry` + `ScorekeeperView.swift`), and the
+iPhone is confirmed on 2.0 (12) from `devicectl device info apps`. The Watch's only job is to send
+the Undo. `devicectl` cannot query the Watch (`RemotePairingError 1007`) — that blocks tooling, not
+the test. Capture evidence with
+`xcrun devicectl device process launch --device <iphone-udid> --console --terminate-existing com.vijaygoyal.theshadyspade`
+so a crash shows as the process terminating rather than as an impression.
+
+**When submitting:** replace `v2.0-build12-prep` with a plain `v2.0-build12` on the submitted commit.
+
+### Open findings, in the order they are worth picking up
+- **SPADE-09** — the Real-Life Scorekeeper cannot record the two **called cards**. Deliberately
+  sequenced after v2.0: `ScorekeeperRoundEntry` is `Codable` and travels four ways (local
+  persistence, the Watch message codec where phone and Watch update independently, Firestore
+  `scorekeeperSessions`, and `publishedScorecards` whose universal links are already public). Add
+  the field **optional with no backfill**; partners stay hand-picked.
+- **AI-05** — a bot bidder is handed `actualPartnerIndices` while a human bidder sees only revealed
+  partners. **Measured: the asymmetry is worth nothing** (bid made 35.8% with vs 36.7% without,
+  offense points identical). A product decision, no longer a difficulty trade-off.
+- **SPADE-02/03/07/08** — component duplication, Bluetooth force-unwraps, uncovered lines,
+  `asyncAfter` usage. All after v2.0.
+
+### AI state, September 2026
+`AIEngine` gained a **self-play harness** (`MyAppTests/AISelfPlay.swift`) — headless hands over
+seeded deals, so bot changes are measured rather than played. Current baseline and the full
+reasoning are in `AUDIT_REPORT.md` under **AI-01…AI-08**. Closed this session: AI-01/02/03 (a
+defender treated every unknown player as a teammate, so half its point-feeds went to the
+opposition), AI-04 (measured and **closed as not a defect**), AI-06 (cleared on inspection), AI-07
+(the harness), AI-08 (hidden partners were spending their called card in the opening tricks).
+
+⚠️ **Two of this session's headline numbers were wrong on the first pass**, both for the same
+reason — counting card plays without separating *forced* from *chosen*. Assume any new AI metric
+needs that split before it means anything.
+
+## Superseded Handoff Snapshot — 2026-06-03
 
 - Latest pushed commit is `37acb01 Add factual post-round review`; the simulator build was installed and launched after that commit's code path with PID `18700`.
 - Current intentional v2.0 gameplay behavior: no score threshold ends the game; games end manually; leaderboard writes happen per completed round; mid-round end discards the in-progress round and does not leaderboard-save it; Online/Bluetooth saves are host-only, including replacement host responsibility after migration.
