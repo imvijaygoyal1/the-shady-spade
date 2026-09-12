@@ -2008,8 +2008,8 @@ private struct ScorekeeperRoundEntryView: View {
                 partnerPicker("Partner 2", selection: $draft.partner2Index, excluding: draft.partner1Index)
             }
             HStack(spacing: 10) {
-                calledCardPicker("Called Card 1", selection: calledCardBinding(for: 1))
-                calledCardPicker("Called Card 2", selection: calledCardBinding(for: 2))
+                calledCardPicker("Called Card 1", selection: calledCardOptionalBinding(for: 1))
+                calledCardPicker("Called Card 2", selection: calledCardOptionalBinding(for: 2))
             }
             bidSection
         }
@@ -2075,18 +2075,6 @@ private struct ScorekeeperRoundEntryView: View {
         (0..<6).filter { $0 != draft.bidderIndex && $0 != excludedPartnerIndex }
     }
 
-    private func calledCardBinding(for number: Int) -> Binding<String> {
-        Binding(
-            get: {
-                number == 1 ? (draft.calledCard1 ?? "") : (draft.calledCard2 ?? "")
-            },
-            set: { value in
-                if number == 1 { draft.calledCard1 = value.isEmpty ? nil : value }
-                else { draft.calledCard2 = value.isEmpty ? nil : value }
-            }
-        )
-    }
-
     private func calledCardOptionalBinding(for number: Int) -> Binding<String?> {
         Binding(
             get: {
@@ -2099,37 +2087,8 @@ private struct ScorekeeperRoundEntryView: View {
         )
     }
 
-    private func calledCardPicker(_ title: String, selection: Binding<String>) -> some View {
-        let slot = title.hasSuffix("1") ? 1 : 2
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(Comic.yellow)
-            Button {
-                calledCardSlot = slot
-                showingCalledCardPicker = true
-            } label: {
-                HStack(spacing: 8) {
-                    CalledCardBadge(cardID: selection.wrappedValue.isEmpty ? nil : selection.wrappedValue)
-                    Text(selection.wrappedValue.isEmpty ? "Not recorded" : selection.wrappedValue)
-                        .font(.system(size: 15, weight: .black, design: .rounded))
-                        .foregroundStyle(Comic.textPrimary)
-                    Spacer()
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 12, weight: .black))
-                        .foregroundStyle(Comic.yellow)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 11)
-                .background(Comic.containerBG.opacity(0.72), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("scorekeeper.round.\(identifierPart(title))")
-            .accessibilityValue(selection.wrappedValue.isEmpty ? "Not recorded" : selection.wrappedValue)
-        }
-        .padding(12)
-        .background(Comic.containerBG.opacity(0.58), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    private func calledCardPicker(_ title: String, selection: Binding<String?>) -> some View {
+        CalledCardInput(title: title, selection: selection)
     }
 
     private func identifierPart(_ title: String) -> String {
@@ -2337,6 +2296,78 @@ private struct ScorekeeperRoundEntryView: View {
         if score > 0 { return .offenseBlue }
         if score < 0 { return .defenseRose }
         return Comic.textSecondary
+    }
+}
+
+private struct CalledCardInput: View {
+    let title: String
+    @Binding var selection: String?
+
+    private var selectedRank: String { selection.map { String($0.dropLast()) } ?? "" }
+    private var selectedSuit: String { selection.map { String($0.suffix(1)) } ?? "" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 12, weight: .black, design: .rounded))
+                .foregroundStyle(Comic.yellow)
+
+            HStack(spacing: 8) {
+                Menu {
+                    ForEach(cardRanks, id: \.self) { rank in
+                        Button(rank) {
+                            selection = rank + (selectedSuit.isEmpty ? "♠" : selectedSuit)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(selectedRank.isEmpty ? "Rank" : selectedRank)
+                            .font(.system(size: 17, weight: .heavy, design: .rounded))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .heavy))
+                    }
+                    .foregroundStyle(Comic.textPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Comic.containerBG.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+                }
+
+                Spacer()
+
+                if let selection {
+                    CalledCardBadge(cardID: selection, isSelected: true)
+                        .frame(width: 42)
+                }
+            }
+
+            HStack(spacing: 6) {
+                ForEach(cardSuits, id: \.self) { suit in
+                    let isRed = suit == "♥" || suit == "♦"
+                    let selected = selectedSuit == suit
+                    Button {
+                        selection = (selectedRank.isEmpty ? "A" : selectedRank) + suit
+                    } label: {
+                        Text(suit)
+                            .font(.system(size: 27, weight: .black, design: .rounded))
+                            .foregroundStyle(isRed ? Color.defenseRose : Comic.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(selected ? Comic.yellow.opacity(0.3) : Comic.containerBG.opacity(0.7), in: RoundedRectangle(cornerRadius: 9))
+                            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(selected ? (isRed ? Color.defenseRose : Comic.textPrimary) : Color.clear, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Button("Clear called card") { selection = nil }
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(Comic.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(12)
+        .background(Comic.containerBG.opacity(0.58), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityIdentifier("scorekeeper.round.\(title.replacingOccurrences(of: " ", with: ""))")
+        .accessibilityValue(selection ?? "Not recorded")
     }
 }
 
