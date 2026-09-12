@@ -35,6 +35,7 @@ enum TurnNudgeEngine {
     private static let isEnabled = true
     private static var lastFireDate = Date.distantPast
     private static let minimumFireInterval: TimeInterval = 1.25
+    private static var delayedImpactTask: Task<Void, Never>?
 
     @MainActor
     static func fire(playSound: Bool = true) {
@@ -46,10 +47,17 @@ enum TurnNudgeEngine {
         // Beat 1 — soft
         HapticManager.impact(.soft)
 
-        // Beat 2 — medium, delayed
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + 0.14) {
-            HapticManager.impact(.medium)
+        // Beat 2 — medium, delayed. Keep the delay cancellable so a rapid turn change
+        // cannot leave a stale haptic queued after the originating UI is gone.
+        delayedImpactTask?.cancel()
+        delayedImpactTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .milliseconds(140))
+                guard !Task.isCancelled else { return }
+                HapticManager.impact(.medium)
+            } catch {
+                // Cancellation is expected when a newer turn notification supersedes this one.
+            }
         }
     }
 }

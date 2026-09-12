@@ -296,7 +296,19 @@ struct CardFloatModifier: ViewModifier {
             .onChange(of: isActive) { _, active in
                 floating = active
             }
-            .onAppear { if isActive { DispatchQueue.main.asyncAfter(deadline: .now() + delay) { floating = isActive } } }
+            .task(id: isActive) {
+                guard isActive else {
+                    floating = false
+                    return
+                }
+                do {
+                    try await Task.sleep(for: .seconds(delay))
+                    guard !Task.isCancelled else { return }
+                    floating = isActive
+                } catch {
+                    // View task cancellation is expected when the card leaves the hierarchy.
+                }
+            }
     }
 }
 
