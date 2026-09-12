@@ -220,6 +220,28 @@
 
 
 
+
+## Recent Fix Log — 2026-09-12 (latest) — AI-04 measured and closed: not a defect
+
+I raised AI-04 as a finding — personality is `styles[seat % 5]` with `unsafeFeedTolerance`
+**0,1,2,1,3**, so adjacent bots make opposite choices. **The harness says it is fine.**
+
+Per seat, mixed table, 120 hands — avoidable misfeeds vs points won: conservative **2.9 / 36.0**,
+aggressive 5.3 / 43.6, pointFeeder 4.7 / 38.2, trumpController 5.0 / 42.6, riskTaker **5.6 / 50.0**.
+That is a **risk/reward trade-off that pays** — riskTaker gives away 2.7 more and captures 14 more.
+
+Uniform tables (every seat one style), avoidable misfeeds per hand: conservative **23.2**,
+trumpController 28.9, riskTaker 32.1, aggressive 33.6, pointFeeder 36.3 — against the shipping
+**MIXED at 26.3**. The shipping spread gives away less than **four of five** uniform tables, and
+offense points are flat everywhere (140.3–148.4).
+
+Worth keeping: `unsafeFeedTolerance` is **not** the only driver — aggressive and trumpController
+share tolerance 1 but differ by 4.7 points of giveaway. And conservative holds **two** of six seats
+(`5 % 5 == 0`), which biases the mix toward caution; benign, since it is the cheapest style.
+
+**The arbitrariness reported was AI-01, not AI-04.** Closed with data rather than fixed. 187/187.
+
+
 ## Recent Fix Log — 2026-09-12 (later) — AI-07: a self-play harness, so bots are measured not played
 
 `AIEngine` is 31 static functions importing only Foundation, so a full hand deals, bids, calls,

@@ -1119,7 +1119,7 @@ Feeding a 10-point card to a player who turns out to be an opponent costs 10+ po
 from a genuine teammate costs a few. The current default on uncertainty is **feed**, which is the
 expensive direction to be wrong in.
 
-### AI-04 — personality spread is wide and assigned by seat
+### AI-04 — personality spread is wide and assigned by seat — **MEASURED 2026-09-12, NOT A DEFECT (see below)**
 
 `BotPersonality.forSeat` is `styles[seat % 5]`, and `unsafeFeedTolerance` runs **0, 1, 2, 1, 3**
 across conservative / aggressive / pointFeeder / trumpController / riskTaker. `canFeedPoints`
@@ -1258,3 +1258,60 @@ its place. **184/184.**
 **Honest limit:** self-play measures bots against bots. It reliably detects outright errors and
 ranks configurations; it says nothing about whether the bots are *fun*. That still needs a human —
 just not for every change.
+
+
+---
+
+## AI-04 — measured, and closed as not a defect ✅ 2026-09-12
+
+I raised AI-04 as a finding: personality is `styles[seat % 5]`, `unsafeFeedTolerance` runs
+**0, 1, 2, 1, 3**, and in an identical position seat 0 withholds where seat 4 feeds into three live
+threats. It looked arbitrary. **The measurement says it is fine, and I was wrong to imply otherwise.**
+
+### Per seat, in the real mixed table (120 hands)
+
+| seat | style | avoidable misfeeds / hand | points won / hand |
+|---|---|---|---|
+| 0 | conservative | **2.9** | 36.0 |
+| 1 | aggressive | 5.3 | 43.6 |
+| 2 | pointFeeder | 4.7 | 38.2 |
+| 3 | trumpController | 5.0 | 42.6 |
+| 4 | riskTaker | **5.6** | **50.0** |
+| 5 | conservative | 2.8 | 39.6 |
+
+This is not a spread of broken and working styles — it is a **risk/reward trade-off that pays**.
+`riskTaker` gives away the most (5.6) and captures the most by a wide margin (50.0);
+`conservative` gives away the least (2.9) and captures the least (36.0). Roughly **+14 points won
+for +2.7 given away** — a good trade, not a bug.
+
+### Uniform tables — every seat one style
+
+| style | feed tolerance | avoidable misfeeds / hand | offense points / hand |
+|---|---|---|---|
+| conservative | 0 | **23.2** | 146.3 |
+| aggressive | 1 | 33.6 | 145.4 |
+| pointFeeder | 2 | 36.3 | 147.2 |
+| trumpController | 1 | 28.9 | 140.3 |
+| riskTaker | 3 | 32.1 | **148.4** |
+| **MIXED (shipping)** | 0–3 | **26.3** | 146.5 |
+
+**The shipping mix gives away less than four of the five uniform tables.** Only an all-conservative
+table is tighter (23.2 vs 26.3), and it captures the fewest points. Offense points are essentially
+flat across every configuration (140.3–148.4), so personality barely moves whether a bid is made.
+
+### Two things worth keeping
+
+- **`unsafeFeedTolerance` is not the only driver.** `aggressive` and `trumpController` share
+  tolerance 1 yet differ by 4.7 points of giveaway (33.6 vs 28.9), and `trumpController` captures
+  the fewest offense points of any style (140.3). The other traits matter as much as the tolerance.
+- **Conservative occupies two of six seats** — `5 % 5 == 0`, so with five styles and six seats one
+  is always doubled. It happens to be the least costly style, so the bias is benign. Not worth
+  changing, but worth knowing before reading a single seat's number.
+
+### Conclusion
+
+**The arbitrariness the owner reported was AI-01, not AI-04.** A defender treating every unknown
+player as a teammate produced genuinely incoherent play; the personality spread produces *varied*
+play, which is what it is for. AI-04 is closed with data rather than fixed.
+
+**187/187.**

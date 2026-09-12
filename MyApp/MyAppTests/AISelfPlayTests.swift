@@ -92,3 +92,80 @@ final class AISelfPlayTests: XCTestCase {
         XCTAssertEqual(withKnowledge.hands, without.hands)
     }
 }
+
+// MARK: - AI-04 — is the seat-assigned personality spread costing anything?
+
+/// `BotPersonality.forSeat` is `styles[seat % 5]`, and `unsafeFeedTolerance` runs **0, 1, 2, 1, 3**
+/// across conservative / aggressive / pointFeeder / trumpController / riskTaker. In an identical
+/// position seat 0 withholds and seat 4 feeds into three live threats, which reads as arbitrary.
+///
+/// Two measurements, because either alone would mislead:
+///
+/// 1. **Per seat, in the real mixed table.** Personality is a pure function of seat and the deals
+///    are random, so seat-level results attribute directly to a style — no new configuration
+///    needed, and it measures each style *in the table it actually plays in*.
+/// 2. **Uniform tables.** One style on all six seats isolates its cost from who it sits beside.
+///    `bidMade` is meaningless here (both teams share the style); avoidable misfeeds are not.
+final class AIPersonalityTests: XCTestCase {
+
+    private let hands = 120
+
+    private static let seatStyles: [(Int, String)] = [
+        (0, "conservative"), (1, "aggressive"), (2, "pointFeeder"),
+        (3, "trumpController"), (4, "riskTaker"), (5, "conservative #2")
+    ]
+
+    /// Seats 0 and 5 are **both** conservative (`5 % 5 == 0`), so the table is not an even spread —
+    /// conservative gets two seats and riskTaker one. That is worth seeing before reading anything
+    /// into a single seat's number.
+    func testReportPerSeatPersonalityCost() {
+        let s = AISelfPlay.run(hands: hands)
+        var lines = ["", "── AI-04: PER-SEAT, IN THE REAL MIXED TABLE ───────────────────────",
+                     "seat  style             avoidable/hand   points won/hand"]
+        for (seat, name) in Self.seatStyles {
+            lines.append(String(format: "  %d   %-16@ %8.1f %16.1f",
+                                seat, name as NSString,
+                                s.avoidableMisfeedsBySeat[seat], s.pointsWonBySeat[seat]))
+        }
+        lines.append("───────────────────────────────────────────────────────────────────")
+        print(lines.joined(separator: "\n") + "\n")
+        XCTAssertEqual(s.avoidableMisfeedsBySeat.count, 6)
+    }
+
+    /// Every seat the same style. Compare avoidable misfeeds across runs to see what each style
+    /// gives away when it is not being carried — or dragged — by the seats beside it.
+    func testReportUniformPersonalityTables() {
+        let styles: [(AIEngine.BotPersonality, String)] = [
+            (.conservative, "conservative"), (.aggressive, "aggressive"),
+            (.pointFeeder, "pointFeeder"), (.trumpController, "trumpController"),
+            (.riskTaker, "riskTaker")
+        ]
+        var lines = ["", "── AI-04: UNIFORM TABLES (all six seats one style) ────────────────",
+                     "style              feedTol   avoidable/hand   offense pts/hand"]
+        for (style, name) in styles {
+            let s = AISelfPlay.run(hands: hands, options: .init(personalityOverride: style))
+            lines.append(String(format: "%-18@ %5d %14.1f %17.1f",
+                                name as NSString, style.unsafeFeedTolerance,
+                                s.avgAvoidableMisfeedsPerHand, s.avgOffensePoints))
+        }
+        let mixed = AISelfPlay.run(hands: hands)
+        lines.append(String(format: "%-18@ %5@ %14.1f %17.1f",
+                            "MIXED (shipping)" as NSString, "0-3" as NSString,
+                            mixed.avgAvoidableMisfeedsPerHand, mixed.avgOffensePoints))
+        lines.append("───────────────────────────────────────────────────────────────────")
+        print(lines.joined(separator: "\n") + "\n")
+        XCTAssertGreaterThan(mixed.hands, 0)
+    }
+
+    /// The spread is only defensible if the styles actually differ in play. If every uniform table
+    /// produced the same number, `unsafeFeedTolerance` would be decoration.
+    func testPersonalitiesActuallyDifferInPlay() {
+        let conservative = AISelfPlay.run(
+            hands: hands, options: .init(personalityOverride: .conservative))
+        let riskTaker = AISelfPlay.run(
+            hands: hands, options: .init(personalityOverride: .riskTaker))
+        XCTAssertNotEqual(conservative.avgAvoidableMisfeedsPerHand,
+                          riskTaker.avgAvoidableMisfeedsPerHand,
+                          "tolerance 0 and tolerance 3 must not play identically")
+    }
+}

@@ -63,6 +63,9 @@ enum AISelfPlay {
         /// The metric that actually means something: point cards given to the opposition **when a
         /// zero-point legal alternative was in hand**. A forced discard is not a misplay; this is.
         let avoidableMisfeeds: [Int]
+        /// Trick points captured per seat — the other half of the ledger. A style that gives away
+        /// less but also wins less is not obviously better.
+        let pointsWon: [Int]
         /// A bot returning nil or an illegal card. Should always be zero; if it is not, every other
         /// number here is describing a different game from the one the app plays.
         let illegalPlays: Int
@@ -73,6 +76,10 @@ enum AISelfPlay {
         /// bidder sees only revealed partners. Set false to take that knowledge away and measure
         /// what it is worth.
         var bidderKnowsPartners = true
+
+        /// AI-04: personality is normally `styles[seat % 5]`. Set this to give **every** seat the
+        /// same style, which is how one personality's cost is isolated from the table it sits at.
+        var personalityOverride: AIEngine.BotPersonality?
     }
 
     /// Plays one complete hand and reports what happened.
@@ -105,7 +112,7 @@ enum AISelfPlay {
                 let bid = AIEngine.computeBid(
                     seat: seat, hand: hands[seat], dealerIndex: dealer,
                     highBid: highBid, canPass: true,
-                    personality: AIEngine.BotPersonality.forSeat(seat),
+                    personality: options.personalityOverride ?? AIEngine.BotPersonality.forSeat(seat),
                     bidHistory: bidHistory)
                 if bid == 0 {
                     passed.insert(seat)
@@ -124,14 +131,15 @@ enum AISelfPlay {
             highBid = AIEngine.computeBid(
                 seat: dealer, hand: hands[dealer], dealerIndex: dealer,
                 highBid: 0, canPass: false,
-                personality: .forSeat(dealer), bidHistory: bidHistory)
+                personality: options.personalityOverride ?? .forSeat(dealer), bidHistory: bidHistory)
             bidHistory.append((playerIndex: dealer, amount: highBid))
         }
 
         // ── Calling ───────────────────────────────────────────────────────────
         let call = AIEngine.computeCalling(
             hand: hands[highBidder], seat: highBidder, dealerIndex: dealer,
-            bidHistory: bidHistory, personality: .forSeat(highBidder))
+            bidHistory: bidHistory,
+            personality: options.personalityOverride ?? .forSeat(highBidder))
         let trump = call.trump
         let calledIds: Set<String> = [call.c1, call.c2]
 
@@ -171,7 +179,7 @@ enum AISelfPlay {
                     wonPointsPerPlayer: wonPoints,
                     highBid: highBid,
                     trickNumber: trickNumber,
-                    personality: .forSeat(s),
+                    personality: options.personalityOverride ?? .forSeat(s),
                     bidHistory: bidHistory)
 
                 let card: Card
@@ -216,7 +224,7 @@ enum AISelfPlay {
             seed: seed, bidderIndex: highBidder, highBid: highBid,
             offenseSeats: offense, offensePoints: offensePoints,
             pointsFedToOpponents: fedOpponents, pointsFedToTeammates: fedTeammates,
-            avoidableMisfeeds: avoidable, illegalPlays: illegal)
+            avoidableMisfeeds: avoidable, pointsWon: wonPoints, illegalPlays: illegal)
     }
 
     /// What the engine is told about partner identities.
@@ -253,6 +261,9 @@ extension AISelfPlay {
         let avgFedToOpponentsPerHand: Double
         let avgFedToTeammatesPerHand: Double
         let avgAvoidableMisfeedsPerHand: Double
+        /// Per seat, so the seat-assigned personality can be attributed directly.
+        let avoidableMisfeedsBySeat: [Double]
+        let pointsWonBySeat: [Double]
         let illegalPlays: Int
         /// Fed-to-opponents as a share of all point cards deliberately released into a trick
         /// somebody else won. The cleanest read on "does this bot know whose trick it is".
@@ -264,8 +275,14 @@ extension AISelfPlay {
 
     static func run(hands: Int, firstSeed: UInt64 = 1, options: Options = Options()) -> Summary {
         var made = 0, offensePts = 0, fedOpp = 0, fedMate = 0, avoidable = 0, illegal = 0
+        var avoidableSeat = Array(repeating: 0, count: 6)
+        var wonSeat = Array(repeating: 0, count: 6)
         for i in 0..<hands {
             let r = playHand(seed: firstSeed &+ UInt64(i), options: options)
+            for s in 0..<6 {
+                avoidableSeat[s] += r.avoidableMisfeeds[s]
+                wonSeat[s] += r.pointsWon[s]
+            }
             if r.bidMade { made += 1 }
             offensePts += r.offensePoints
             fedOpp += r.pointsFedToOpponents.reduce(0, +)
@@ -281,6 +298,8 @@ extension AISelfPlay {
             avgFedToOpponentsPerHand: Double(fedOpp) / n,
             avgFedToTeammatesPerHand: Double(fedMate) / n,
             avgAvoidableMisfeedsPerHand: Double(avoidable) / n,
+            avoidableMisfeedsBySeat: avoidableSeat.map { Double($0) / n },
+            pointsWonBySeat: wonSeat.map { Double($0) / n },
             illegalPlays: illegal)
     }
 }
