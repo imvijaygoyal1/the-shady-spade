@@ -1206,3 +1206,7 @@ Online/BT define their own local equivalents for those four.
 - Added explicit tap guidance so both called-card rows are visible immediately when entering a round.
 - Bumped the iPhone and Watch companion build number to 15 to force companion refresh during device installation.
 - Updated the Watch layout to match the iPhone: two compact colored card buttons showing rank and suit, without a separate called-card header.
+
+### 2026-09-12 AI-05 Fair Information
+- Changed AI card play so a bot bidder knows only the bidder seat and publicly revealed partners, matching the information available to a human bidder.
+- Added regression coverage proving hidden partner identities are excluded from the bidder’s known offense set.

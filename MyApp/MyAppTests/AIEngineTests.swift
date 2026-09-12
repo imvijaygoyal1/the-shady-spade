@@ -79,6 +79,20 @@ final class AIEngineTests: XCTestCase {
 
     // MARK: - computeCard smoke tests
 
+    func test_bidderDoesNotKnowHiddenPartnerIdentities() {
+        let known = AIEngine.knownOffenseSet(
+            seat: 0,
+            hand: [Card(rank: "2", suit: "♣")],
+            highBidderIndex: 0,
+            actualPartnerIndices: [2, 4],
+            revealedPartnerIndices: [2],
+            calledCardIds: ["A♠", "K♥"]
+        )
+
+        XCTAssertEqual(known, [0, 2], "A bidder may know only themself and publicly revealed partners")
+        XCTAssertFalse(known.contains(4), "A hidden partner must not be exposed to the bidder")
+    }
+
     func test_computeCard_returnsCardFromHand() {
         let hand = [c("A", "♥"), c("K", "♠"), c("7", "♦")]
         let result = lead(hand: hand)

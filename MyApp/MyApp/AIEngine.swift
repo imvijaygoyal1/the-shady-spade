@@ -859,7 +859,11 @@ enum AIEngine {
         return lowestValueCard(trumpCards.isEmpty ? hand : trumpCards).id
     }
 
-    private static func knownOffenseSet(
+    /// Returns only information the seat is allowed to know at this point in the hand.
+    /// The bidder knows that they are on offense, but does not learn hidden partner identities
+    /// until a called card is publicly played. A non-bidder may know they are a partner when they
+    /// hold a called card; that is private hand information available to that player.
+    static func knownOffenseSet(
         seat: Int,
         hand: [Card],
         highBidderIndex: Int,
@@ -870,10 +874,7 @@ enum AIEngine {
         var known = Set([highBidderIndex])
         known.formUnion(revealedPartnerIndices.filter { $0 >= 0 && $0 < 6 })
 
-        if seat == highBidderIndex {
-            known.formUnion(actualPartnerIndices)
-            return known
-        }
+        if seat == highBidderIndex { return known }
 
         let handIds = Set(hand.map(\.id))
         let knowsSelfIsPartner = actualPartnerIndices.contains(seat)
