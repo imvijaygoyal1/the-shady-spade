@@ -16,6 +16,7 @@ struct CardDealAnimationView: View {
     @State private var dealtTo:        [Int]     = Array(repeating: 0, count: 6)
     @State private var humanReady                = false
     @State private var statusText                = "Shuffling…"
+    @State private var animationTask: Task<Void, Never>?
 
     struct FlyCard: Identifiable {
         let id = UUID()
@@ -97,6 +98,10 @@ struct CardDealAnimationView: View {
             }
         }
         .onAppear { runAnimation() }
+        .onDisappear {
+            animationTask?.cancel()
+            animationTask = nil
+        }
     }
 
     // MARK: - Felt rings
@@ -374,94 +379,65 @@ struct CardDealAnimationView: View {
     // MARK: - Animation sequence
 
     private func runAnimation() {
-        deckVisible = true
-        statusText  = "Shuffling…"
+        animationTask?.cancel()
+        animationTask = Task { @MainActor in
+            deckVisible = true
+            statusText = "Shuffling…"
 
-        // Shuffle — 2 cycles
-        for cycle in 0..<2 {
-            let base = Double(cycle) * 0.25 + 0.10
-            DispatchQueue.main.asyncAfter(
-                deadline: .now() + base) {
-                withAnimation(.spring(response: 0.16,
-                    dampingFraction: 0.55)) {
-                    for i in 0..<layerCount {
-                        let sign: CGFloat = i % 2 == 0
-                            ? -1 : 1
-                        layerOffsets[i] = sign
-                            * CGFloat.random(in: 14...24)
-                        layerRotations[i] = Double(sign)
-                            * Double.random(in: 4...9)
-                    }
-                }
-            }
-            DispatchQueue.main.asyncAfter(
-                deadline: .now() + base + 0.19) {
-                withAnimation(.spring(response: 0.22,
-                    dampingFraction: 0.70)) {
-                    for i in 0..<layerCount {
-                        layerOffsets[i]   = 0
-                        layerRotations[i] = 0
-                    }
-                }
-            }
-        }
-
-        // Deal — 48 cards round-robin
-        let dealStart:  Double = 0.60
-        let cardStride: Double = 0.035
-        var t: Double = 0
-
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + dealStart - 0.05) {
-            statusText = "Dealing…"
-        }
-
-        for _ in 0..<8 {
-            for player in 0..<6 {
-                let delay = dealStart + t
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + delay) {
-                    var card = FlyCard(playerIndex: player)
-                    withAnimation(nil) {
-                        flyingCards.append(card)
-                    }
-                    HapticManager.impact(.light)
-                    DispatchQueue.main.asyncAfter(
-                        deadline: .now() + 0.04) {
-                        if let idx = flyingCards.firstIndex(
-                            where: { $0.id == card.id }) {
-                            flyingCards[idx].arrived = true
-                        }
-                        card.arrived = true
-                    }
-                    DispatchQueue.main.asyncAfter(
-                        deadline: .now() + 0.28) {
-                        withAnimation(.spring(
-                            response: 0.22)) {
-                            dealtTo[player] += 1
-                        }
-                        flyingCards.removeAll {
-                            $0.id == card.id
+            do {
+                try await Task.sleep(for: .milliseconds(100))
+                for _ in 0..<2 {
+                    try Task.checkCancellation()
+                    withAnimation(.spring(response: 0.16, dampingFraction: 0.55)) {
+                        for i in 0..<layerCount {
+                            let sign: CGFloat = i % 2 == 0 ? -1 : 1
+                            layerOffsets[i] = sign * CGFloat.random(in: 14...24)
+                            layerRotations[i] = Double(sign) * Double.random(in: 4...9)
                         }
                     }
+                    try await Task.sleep(for: .milliseconds(190))
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.70)) {
+                        layerOffsets = Array(repeating: 0, count: layerCount)
+                        layerRotations = Array(repeating: 0, count: layerCount)
+                    }
+                    try await Task.sleep(for: .milliseconds(60))
                 }
-                t += cardStride
-            }
-        }
 
-        let allDealt = dealStart + t + 0.28
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + allDealt) {
-            withAnimation(.spring(response: 0.4,
-                dampingFraction: 0.7)) {
-                humanReady = true
-                statusText = "Cards dealt!"
+                statusText = "Dealing…"
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    for cardNumber in 0..<48 {
+                        group.addTask { @MainActor in
+                            try await Task.sleep(for: .milliseconds(600 + cardNumber * 35))
+                            try Task.checkCancellation()
+                            let player = cardNumber % 6
+                            let card = FlyCard(playerIndex: player)
+                            withAnimation(nil) { flyingCards.append(card) }
+                            HapticManager.impact(.light)
+                            try await Task.sleep(for: .milliseconds(40))
+                            try Task.checkCancellation()
+                            if let index = flyingCards.firstIndex(where: { $0.id == card.id }) {
+                                flyingCards[index].arrived = true
+                            }
+                            try await Task.sleep(for: .milliseconds(240))
+                            withAnimation(.spring(response: 0.22)) { dealtTo[player] += 1 }
+                            flyingCards.removeAll { $0.id == card.id }
+                        }
+                    }
+                    try await group.waitForAll()
+                }
+
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    humanReady = true
+                    statusText = "Cards dealt!"
+                }
+                HapticManager.success()
+                try await Task.sleep(for: .milliseconds(450))
+                onComplete()
+            } catch is CancellationError {
+                // The view left the screen; discard the pending timeline.
+            } catch {
+                // Task cancellation and timing failures are intentionally non-fatal.
             }
-            HapticManager.success()
-        }
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + allDealt + 0.45) {
-            onComplete()
         }
     }
 }

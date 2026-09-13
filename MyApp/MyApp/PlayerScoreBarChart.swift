@@ -102,6 +102,7 @@ struct PlayerBarRow: View {
     var animationDelay: Double = 0
 
     @State private var animateBar = false
+    @State private var barAnimationTask: Task<Void, Never>?
 
     private var accentColor: Color {
         themeManager.colours.accentColor
@@ -188,9 +189,20 @@ struct PlayerBarRow: View {
                 )
         )
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { animateBar = true }
+            barAnimationTask?.cancel()
+            barAnimationTask = Task { @MainActor in
+                do {
+                    try await Task.sleep(for: .milliseconds(50))
+                    guard !Task.isCancelled else { return }
+                    animateBar = true
+                } catch { }
+            }
         }
-        .onDisappear { animateBar = false }
+        .onDisappear {
+            barAnimationTask?.cancel()
+            barAnimationTask = nil
+            animateBar = false
+        }
     }
 }
 

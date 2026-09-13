@@ -2796,6 +2796,31 @@ struct GameAwardPill: View {
     }
 }
 
+/// Shared partner-reveal treatment used by solo, online, and Bluetooth games.
+struct GamePartnerRevealBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "person.2.fill")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.masterGold)
+            Text(message)
+                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                .foregroundStyle(.adaptivePrimary)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background {
+            Capsule()
+                .fill(Color.masterGold.opacity(0.22))
+                .overlay {
+                    Capsule().strokeBorder(Color.masterGold.opacity(0.55), lineWidth: 1.5)
+                }
+        }
+    }
+}
+
 /// Shared bidder/partner chip used by the Solo and Online game screens.
 struct GameOffenseChip: View {
     let name: String?

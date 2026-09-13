@@ -61,6 +61,7 @@ private struct SplashPage: View {
     @State private var buttonOp:    Double = 0
     // Particles
     @State private var floating:    Bool   = false
+    @State private var animationTask: Task<Void, Never>?
 
     // 18 floating background particles
     private let particles: [(suit: String, nx: CGFloat, ny: CGFloat,
@@ -256,6 +257,10 @@ private struct SplashPage: View {
             }
         }
         .onAppear { startAnimations() }
+        .onDisappear {
+            animationTask?.cancel()
+            animationTask = nil
+        }
     }
 
     // MARK: Rules card
@@ -306,11 +311,21 @@ private struct SplashPage: View {
         withAnimation(.spring(response: 0.65, dampingFraction: 0.52)) {
             spadeY = 0; spadeOpacity = 1
         }
-        // Spade pulse — scoped to the spade view via .animation(value: spadeScale)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { spadeScale = 1.055 }
-        // Aura fade-in then pulse — both scoped to the RadialGradient via .animation(value:)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { auraOpacity = 1 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.15) { auraPulsing = true }
+        // Delayed state changes are cancellable when onboarding leaves the hierarchy.
+        animationTask?.cancel()
+        animationTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled else { return }
+                auraOpacity = 1
+                try await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                spadeScale = 1.055
+                try await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                auraPulsing = true
+            } catch { }
+        }
         // Subtitle
         withAnimation(.easeOut(duration: 0.5).delay(0.55)) { subtitleOp = 1 }
         // Rules card slides up
@@ -441,6 +456,7 @@ private struct DeckAndDealPage: View {
     // Deal
     @State private var flyingCards: [FlyingCard] = []
     @State private var dealtCount: [Int] = Array(repeating: 0, count: 6)
+    @State private var animationTask: Task<Void, Never>?
 
     enum DeckPhase { case ready, shuffling, shuffled, dealing, dealt }
 
@@ -502,6 +518,10 @@ private struct DeckAndDealPage: View {
                 withAnimation(.spring(response: 0.7, dampingFraction: 0.6).delay(0.1)) {
                     deckVisible = true
                 }
+            }
+            .onDisappear {
+                animationTask?.cancel()
+                animationTask = nil
             }
         }
     }
@@ -677,89 +697,71 @@ private struct DeckAndDealPage: View {
     // MARK: - Shuffle sequence
 
     private func performShuffle() {
+        animationTask?.cancel()
         phase = .shuffling
         HapticManager.impact(.medium)
-
-        let shuffleCount = 4
-        for cycle in 0..<shuffleCount {
-            let base = Double(cycle) * 0.55
-
-            // Split: alternate layers go left / right
-            DispatchQueue.main.asyncAfter(deadline: .now() + base) {
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.65)) {
-                    for i in 0..<layerCount {
-                        let sign: CGFloat = i % 2 == 0 ? -1 : 1
-                        layerOffsets[i]   = sign * CGFloat.random(in: 28...44)
-                        layerRotations[i] = Double(sign) * Double.random(in: 5...12)
-                        layerZOrders[i]   = Double(i % 2)
+        animationTask = Task { @MainActor in
+            do {
+                for _ in 0..<4 {
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.65)) {
+                        for i in 0..<layerCount {
+                            let sign: CGFloat = i % 2 == 0 ? -1 : 1
+                            layerOffsets[i] = sign * CGFloat.random(in: 28...44)
+                            layerRotations[i] = Double(sign) * Double.random(in: 5...12)
+                            layerZOrders[i] = Double(i % 2)
+                        }
                     }
-                }
-                HapticManager.impact(.light)
-            }
-
-            // Merge
-            DispatchQueue.main.asyncAfter(deadline: .now() + base + 0.28) {
-                withAnimation(.spring(response: 0.30, dampingFraction: 0.70)) {
-                    for i in 0..<layerCount {
-                        layerOffsets[i]   = 0
-                        layerRotations[i] = 0
-                        layerZOrders[i]   = Double(i)
+                    HapticManager.impact(.light)
+                    try await Task.sleep(for: .milliseconds(280))
+                    withAnimation(.spring(response: 0.30, dampingFraction: 0.70)) {
+                        layerOffsets = Array(repeating: 0, count: layerCount)
+                        layerRotations = Array(repeating: 0, count: layerCount)
+                        layerZOrders = Array(0..<layerCount).map(Double.init)
                     }
+                    try await Task.sleep(for: .milliseconds(270))
                 }
-            }
-        }
-
-        // Settle
-        let total = Double(shuffleCount) * 0.55 + 0.35
-        DispatchQueue.main.asyncAfter(deadline: .now() + total) {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                phase = .shuffled
-            }
-            HapticManager.success()
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { phase = .shuffled }
+                HapticManager.success()
+            } catch is CancellationError {
+                // The page left the screen; discard the pending timeline.
+            } catch { }
         }
     }
 
     // MARK: - Deal sequence (48 cards, round-robin)
 
     private func performDeal(geo: GeometryProxy) {
+        animationTask?.cancel()
         phase = .dealing
         HapticManager.impact(.medium)
-
-        let cardsPerPlayer = 8
-        let stride = 0.065       // seconds between each card
-        var t = 0.0
-
-        for round in 0..<cardsPerPlayer {
-            for player in 0..<6 {
-                let delay = t
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    var card = FlyingCard(player: player)
-                    withAnimation(nil) { flyingCards.append(card) }
-                    HapticManager.impact(.light)
-
-                    // Mark arrived (triggers position animation)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        if let idx = flyingCards.firstIndex(where: { $0.id == card.id }) {
-                            withAnimation { flyingCards[idx].arrived = true }
+        animationTask = Task { @MainActor in
+            do {
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    for cardNumber in 0..<48 {
+                        group.addTask { @MainActor in
+                            try await Task.sleep(for: .milliseconds(cardNumber * 65))
+                            try Task.checkCancellation()
+                            let player = cardNumber % 6
+                            let card = FlyingCard(player: player)
+                            withAnimation(nil) { flyingCards.append(card) }
+                            HapticManager.impact(.light)
+                            try await Task.sleep(for: .milliseconds(50))
+                            try Task.checkCancellation()
+                            if let index = flyingCards.firstIndex(where: { $0.id == card.id }) {
+                                withAnimation { flyingCards[index].arrived = true }
+                            }
+                            try await Task.sleep(for: .milliseconds(280))
+                            withAnimation(.spring(response: 0.3)) { dealtCount[player] += 1 }
+                            flyingCards.removeAll { $0.id == card.id }
                         }
-                        card.arrived = true
                     }
-
-                    // Update count + remove
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.33) {
-                        withAnimation(.spring(response: 0.3)) { dealtCount[player] += 1 }
-                        flyingCards.removeAll { $0.id == card.id }
-                    }
+                    try await group.waitForAll()
                 }
-                t += stride
-                _ = round // suppress warning
-            }
-        }
-
-        // All done
-        DispatchQueue.main.asyncAfter(deadline: .now() + t + 0.5) {
-            withAnimation(.spring(response: 0.4)) { phase = .dealt }
-            HapticManager.success()
+                withAnimation(.spring(response: 0.4)) { phase = .dealt }
+                HapticManager.success()
+            } catch is CancellationError {
+                // The page left the screen; discard the pending timeline.
+            } catch { }
         }
     }
 }

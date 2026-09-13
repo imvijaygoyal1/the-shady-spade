@@ -1220,3 +1220,8 @@ Online/BT define their own local equivalents for those four.
 ### 2026-09-12 AI-05 Fair Information
 - Changed AI card play so a bot bidder knows only the bidder seat and publicly revealed partners, matching the information available to a human bidder.
 - Added regression coverage proving hidden partner identities are excluded from the bidder’s known offense set.
+
+### 2026-09-13 SPADE-02 / SPADE-08 Hardening
+- Shared the partner-reveal banner, award pills, offense chips, bidding layout, and trick-history presentation across Solo, Online, and Bluetooth gameplay.
+- Replaced deferred card-deal, splash, score-bar, and transient UI callbacks with cancellable Swift concurrency tasks that stop when their views leave the hierarchy.
+- Focused regression result: 59 passed, 0 failed, 0 skipped on iPhone 17 Simulator. `scripts/run_regression.sh` remains the full unit/integration plus UI harness; UI execution still requires a functioning CoreSimulator service.

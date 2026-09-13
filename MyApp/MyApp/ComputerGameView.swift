@@ -1390,7 +1390,7 @@ private struct PlayingPhaseView: View {
         .ignoresSafeArea(edges: .bottom)
         .overlay(alignment: .top) {
             if let msg = game.partnerRevealMessage {
-                PartnerRevealBanner(message: msg)
+                GamePartnerRevealBanner(message: msg)
                     .padding(.top, 136)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -2392,30 +2392,6 @@ private struct RoundCompleteView: View {
 }
 
 // MARK: - Award Pill (compact, for role-based score awards)
-
-// MARK: - Partner Reveal Banner
-
-private struct PartnerRevealBanner: View {
-    let message: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "person.2.fill")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(.masterGold)
-            Text(message)
-                .font(.system(size: 15, weight: .heavy, design: .rounded))
-                .foregroundStyle(.adaptivePrimary)
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background {
-            Capsule()
-                .fill(Color.masterGold.opacity(0.22))
-                .overlay { Capsule().strokeBorder(Color.masterGold.opacity(0.55), lineWidth: 1.5) }
-        }
-    }
-}
 
 // MARK: - Trick History
 

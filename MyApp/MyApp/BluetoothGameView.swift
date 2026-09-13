@@ -944,7 +944,7 @@ struct BTPlayingView: View {
         .ignoresSafeArea(edges: .bottom)
         .overlay(alignment: .top) {
             if let msg = game.partnerRevealMessage {
-                BTPartnerRevealBanner(message: msg)
+                GamePartnerRevealBanner(message: msg)
                     .padding(.top, 136)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -2175,25 +2175,6 @@ struct UITestBluetoothGameplayCatalogView: View {
         game.trickNumber = 2
         game.wonPointsPerPlayer = [80, 35, 15, 30, 20, 10]
         game.message = "Seeded Bluetooth regression screen"
-    }
-}
-
-// MARK: - Partner Reveal Banner
-
-private struct BTPartnerRevealBanner: View {
-    let message: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "person.2.fill").font(.subheadline).foregroundStyle(.masterGold)
-            Text(message).font(.subheadline.bold()).foregroundStyle(.adaptivePrimary)
-        }
-        .padding(.horizontal, 18).padding(.vertical, 12)
-        .background {
-            Capsule()
-                .fill(Color.masterGold.opacity(0.22))
-                .overlay { Capsule().strokeBorder(Color.masterGold.opacity(0.55), lineWidth: 1.5) }
-        }
     }
 }
 
