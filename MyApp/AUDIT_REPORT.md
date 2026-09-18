@@ -940,7 +940,7 @@ Read-only pass over 73 Swift files / 37,950 lines. Nothing changed; this is the 
 | ID | Severity | File | Issue | Status |
 |---|---|---|---|---|
 | SPADE-01 | **CRITICAL** | `ScorekeeperView.swift:428` | Force-unwrap crash reachable from a normal two-device action, **new in v2.0** | ✅ Fixed |
-| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | ⬜ Open |
+| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | 🟡 In progress — 7 of 14 families shared (2026-09-18) |
 | SPADE-03 | High | `BluetoothGameViewModel.swift:114-115` | `MCPeerID!` / `MCSession!` implicitly unwrapped, and `session` is set to `nil` on teardown | ✅ Fixed 2026-09-12 |
 | SPADE-04 | Medium | 6 files | 9 types declared and never referenced | ✅ Fixed |
 | SPADE-05 | Medium | repo root | 955 lines of stray test files, tracked in git, in no target | ✅ Fixed |
@@ -986,6 +986,27 @@ produced the *Card View Architecture* and *colour system* audits: a rendering ru
 copy and missed in the other two. **SPADE-04 is direct evidence it has already happened** — four of
 the nine dead types are one arm of a duplicated family (`ScorePill`, `OnlineScorePill`,
 `OffenseTeamStrip`→`OnlineOffenseTeamStrip`), i.e. a variant was abandoned rather than deleted.
+
+### SPADE-02 progress — 2026-09-18
+
+Shared so far: `GameAwardPill`, `GameOffenseChip`, `GameTrickHistoryRow`, `GameTrickHistoryView`,
+`GamePartnerRevealBanner`, and now **`GameRoundResultBanner`** — the round-result screen, which was
+166 / 161 / 129 lines in the three modes and is now one component plus three 29-line adapters.
+
+The three copies had already drifted, which is the finding's whole point: role labels were
+`semibold` in Solo and `heavy, rounded` in the other two, and the continue button was a
+`ComicButtonStyle` in Solo but a `BouncyButton` with its own background in Online. The house comic
+button and the heavier labels won (owner's call, 2026-09-18), so **Online and Bluetooth changed
+visibly** to match Solo.
+
+The team split behind it is now `GameFlowRules.offenseOrder`/`defenseOrder` rather than three inline
+implementations in two encodings (Solo carries partner seats as `Int?`, Online and Bluetooth as
+`-1`). Seven tests, and mutating the seat guard away fails exactly the two that encode the sentinel
+defect — the one that once normalised `-1` into seat 0 and put a defender on the bidding team.
+
+**Still duplicated:** `RoundCompleteView` (3 copies, 1,179 lines), `PlayingView` (2, 929),
+`CallingView` (2, 738), `GameOverView` (3, 592), `LookingAtCardsView` (2, 365), `BiddingView`
+(2, 88).
 
 ### SPADE-04 — dead types
 `DefenseChip`, `ScorePill` (`ComputerGameView`); `OnlineOffenseTeamStrip`, `OnlineScorePill`,

@@ -2861,6 +2861,173 @@ struct GameOffenseChip: View {
     }
 }
 
+/// Shared end-of-round result screen used by Solo, Online and Bluetooth.
+///
+/// One screen, written three times, had drifted: the role labels were set in
+/// two different weights and the continue button was a different control in
+/// each mode. The house `ComicButtonStyle` and the heavier rounded labels win,
+/// per the owner (2026-09-18).
+///
+/// Takes values rather than a view model, so all three modes can hand it what
+/// they have and it can be rendered without one.
+struct GameRoundResultBanner: View {
+    let highBid: Int
+    let offensePoints: Int
+    let bidderIndex: Int
+    let offenseTeam: [Int]
+    let defenseTeam: [Int]
+    let playerName: (Int) -> String
+    let playerAvatar: (Int) -> String
+    let onContinue: () -> Void
+    /// Start in the settled state instead of animating in. The screen's content
+    /// is hidden until `onAppear` fires, which never happens in an offscreen
+    /// render, so a snapshot of the default would be an empty dark rectangle.
+    var startsRevealed = false
+
+    @State private var appeared = false
+
+    /// Visible state: either the entrance has run, or the caller asked for the
+    /// screen as it finally appears.
+    private var shown: Bool { appeared || startsRevealed }
+
+    private var isSet: Bool { offensePoints < highBid }
+    private var offenseTint: Color { isSet ? .defenseRose : .masterGold }
+    private var defenseTint: Color { isSet ? .masterGold : .defenseRose }
+
+    var body: some View {
+        ZStack {
+            Color.darkBG.ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer().frame(height: 32)
+                    headline
+                    Spacer().frame(height: 28)
+                    teamBox(
+                        title: isSet ? "Bidding Team — SET" : "Winning Team",
+                        tint: offenseTint,
+                        seats: offenseTeam,
+                        role: { $0 == bidderIndex ? "Bidder" : "Partner" },
+                        footnote: isSet
+                            ? "Scored \(offensePoints) pts"
+                            : "Winning team scored \(offensePoints) pts",
+                        delay: 0.15
+                    )
+                    Spacer().frame(height: 12)
+                    teamBox(
+                        title: isSet ? "Defense Team — WON" : "Defense Team",
+                        tint: defenseTint,
+                        seats: defenseTeam,
+                        role: { _ in "Defense" },
+                        footnote: isSet ? "Defense team blocked the bid!" : "Defense team scored 0 pts",
+                        delay: 0.2
+                    )
+                    Spacer().frame(height: 32)
+                    continueButton
+                }
+            }
+        }
+        .onAppear { appeared = true }
+    }
+
+    private var headline: some View {
+        VStack(spacing: 12) {
+            Text(isSet ? "😵" : "🏆")
+                .font(.system(size: 80))
+                .scaleEffect(shown ? 1.0 : 0.3)
+                .animation(.spring(response: 0.5, dampingFraction: 0.6).delay(0.05), value: shown)
+
+            Text(isSet ? "SET!" : "BID MADE!")
+                .font(.system(size: 48, weight: .black))
+                .foregroundStyle(isSet ? .defenseRose : .masterGold)
+
+            Text(isSet
+                 ? "\(playerName(bidderIndex)) needed \(highBid), only got \(offensePoints)"
+                 : "\(playerName(bidderIndex)) made the bid of \(highBid)!")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+        }
+        .opacity(shown ? 1 : 0)
+        .offset(y: shown ? 0 : 24)
+    }
+
+    private func teamBox(
+        title: String,
+        tint: Color,
+        seats: [Int],
+        role: @escaping (Int) -> String,
+        footnote: String,
+        delay: Double
+    ) -> some View {
+        VStack(spacing: 14) {
+            Text(title)
+                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .foregroundStyle(tint)
+
+            HStack(spacing: 24) {
+                ForEach(seats, id: \.self) { seat in
+                    VStack(spacing: 6) {
+                        ZStack {
+                            Circle()
+                                .fill(tint.opacity(0.18))
+                                .frame(width: 60, height: 60)
+                                .overlay(Circle().strokeBorder(tint.opacity(0.5), lineWidth: 1.5))
+                            Text(playerAvatar(seat))
+                                .font(.system(size: 26))
+                        }
+                        Text(playerName(seat))
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.adaptivePrimary)
+                            .lineLimit(1)
+                        Text(role(seat))
+                            .font(.system(size: 9, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: 80)
+                }
+            }
+
+            Text(footnote)
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .foregroundStyle(tint.opacity(0.9))
+        }
+        .padding(22)
+        .glassmorphic(cornerRadius: 20)
+        .padding(.horizontal, 24)
+        .opacity(shown ? 1 : 0)
+        .offset(y: shown ? 0 : 16)
+        .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(delay), value: shown)
+    }
+
+    /// Kept out of the hierarchy until the screen has appeared: mounted early
+    /// it produced gesture-reporter spam.
+    @ViewBuilder private var continueButton: some View {
+        if shown {
+            Button(action: onContinue) {
+                HStack(spacing: 8) {
+                    Text("See Full Results").fontWeight(.black)
+                    Image(systemName: "arrow.right")
+                }
+                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .foregroundStyle(isSet ? Comic.white : Comic.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+            }
+            .buttonStyle(ComicButtonStyle(
+                bg: isSet ? Comic.red : Comic.yellow,
+                fg: isSet ? Comic.white : Comic.black,
+                borderColor: Comic.black,
+                animatesPress: false
+            ))
+            .padding(.horizontal, 32)
+            .padding(.bottom, 54)
+            .transition(.opacity)
+        }
+    }
+}
+
 /// Shared trick-history row used by all gameplay modes.
 struct GameTrickHistoryRow: View {
     let trickNumber: Int

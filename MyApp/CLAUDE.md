@@ -475,6 +475,24 @@ so a crash shows as the process terminating rather than as an impression.
 - SPADE-02 progress: Solo, Online, and Bluetooth now share `GameAwardPill`; Solo and Online also
   share `GameOffenseChip`; all three modes now share `GameTrickHistoryRow` and
   `GameTrickHistoryView`. Gameplay catalog tests cover all five phases in all three modes.
+- SPADE-02, 2026-09-18: the **round-result screen** is now one component,
+  `GameRoundResultBanner` (`Styles.swift`), and the three copies are 29-line adapters —
+  455 lines down to 87. The copies had drifted: role labels in two weights, and a different
+  continue button per mode. The house `ComicButtonStyle` and the heavier rounded labels won
+  (owner's call), so Online and Bluetooth changed visibly to match Solo.
+- SPADE-02, same day: the ordered team split is `GameFlowRules.offenseOrder`/`defenseOrder`
+  instead of three inline copies in two encodings (Solo `Int?`, Online/BT `-1`). Seven tests,
+  including the sentinel that once became seat 0 and put a defender on the bidding team.
+- **Snapshot tests for screens the simulator cannot reach.**
+  `MyAppTests/GameRoundResultBannerSnapshotTests.swift` renders the round-result screen in both
+  states and attaches the images to the result bundle, so an unreachable screen can still be
+  looked at. Two traps, both hit and both worth knowing:
+  **`ImageRenderer` does not lay out `ScrollView` content offscreen** — it produced a solid
+  background rectangle — so the harness hosts the view in a real `UIWindow` and uses
+  `drawHierarchy`; and the screen's content is hidden until its entrance animation runs, hence
+  `startsRevealed` on the component, which the test sets for a deterministic render.
+  Pull the images out with
+  `xcrun xcresulttool export attachments --path <bundle>.xcresult --output-path <dir>`.
 - SPADE-08 progress: bid submission, turn haptics, and card-float activation use cancellable Tasks;
   QR retry now uses a cancellable Task as well; timed animation sequences remain intentionally
   scheduled because their visual choreography is the behavior under test.

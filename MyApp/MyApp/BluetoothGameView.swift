@@ -1369,129 +1369,29 @@ private struct BTRoundResultBanner: View {
     var game: BluetoothGameViewModel
     let onContinue: () -> Void
 
-    @State private var appeared = false
-
-    private var isSet: Bool { game.offensePoints < game.highBid }
-    private var offenseTeam: [Int] {
-        GameFlowRules.offenseOrder(
-            bidderIndex: game.highBidderIndex,
-            partner1Index: game.partner1Index,
-            partner2Index: game.partner2Index
-        )
-    }
-    private var defenseTeam: [Int] { GameFlowRules.defenseOrder(offense: offenseTeam) }
-
+    /// The screen itself is `GameRoundResultBanner`, shared with the other two
+    /// modes; this only supplies what this mode has.
     var body: some View {
-        ZStack {
-            Color.darkBG.ignoresSafeArea()
-            ScrollView {
-                VStack(spacing: 0) {
-                    Spacer().frame(height: 32)
-                    VStack(spacing: 12) {
-                        Text(isSet ? "😵" : "🏆").font(.system(size: 80))
-                            .scaleEffect(appeared ? 1.0 : 0.3)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.6).delay(0.05), value: appeared)
-                        Text(isSet ? "SET!" : "BID MADE!")
-                            .font(.system(size: 48, weight: .black))
-                            .foregroundStyle(isSet ? .defenseRose : .masterGold)
-                        Text(isSet
-                             ? "\(game.playerName(game.highBidderIndex)) needed \(game.highBid), only got \(game.offensePoints)"
-                             : "\(game.playerName(game.highBidderIndex)) made the bid of \(game.highBid)!")
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                    }
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 24)
-                    Spacer().frame(height: 28)
-
-                    let offenseTint: Color = isSet ? .defenseRose : .masterGold
-                    VStack(spacing: 14) {
-                        Text(isSet ? "Bidding Team — SET" : "Winning Team")
-                            .font(.system(size: 11, weight: .heavy, design: .rounded))
-                            .foregroundStyle(offenseTint)
-                        HStack(spacing: 24) {
-                            ForEach(offenseTeam, id: \.self) { i in
-                                VStack(spacing: 6) {
-                                    ZStack {
-                                        Circle().fill(offenseTint.opacity(0.18)).frame(width: 60, height: 60)
-                                            .overlay(Circle().strokeBorder(offenseTint.opacity(0.5), lineWidth: 1.5))
-                                        Text(game.playerAvatar(i)).font(.system(size: 26))
-                                    }
-                                    Text(game.playerName(i))
-                                        .font(.system(size: 13, weight: .heavy, design: .rounded))
-                                        .foregroundStyle(.adaptivePrimary).lineLimit(1)
-                                    Text(i == game.highBidderIndex ? "Bidder" : "Partner")
-                                        .font(.system(size: 9, weight: .heavy, design: .rounded))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .frame(maxWidth: 80)
-                            }
-                        }
-                        Text(isSet ? "Scored \(game.offensePoints) pts" : "Winning team scored \(game.offensePoints) pts")
-                            .font(.system(size: 13, weight: .heavy, design: .rounded))
-                            .foregroundStyle(offenseTint.opacity(0.9))
-                    }
-                    .padding(22).glassmorphic(cornerRadius: 20).padding(.horizontal, 24)
-                    .opacity(appeared ? 1 : 0).offset(y: appeared ? 0 : 16)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.15), value: appeared)
-
-                    Spacer().frame(height: 12)
-
-                    let defenseTint: Color = isSet ? .masterGold : .defenseRose
-                    VStack(spacing: 14) {
-                        Text(isSet ? "Defense Team — WON" : "Defense Team")
-                            .font(.system(size: 11, weight: .heavy, design: .rounded))
-                            .foregroundStyle(defenseTint)
-                        HStack(spacing: 24) {
-                            ForEach(defenseTeam, id: \.self) { i in
-                                VStack(spacing: 6) {
-                                    ZStack {
-                                        Circle().fill(defenseTint.opacity(0.18)).frame(width: 60, height: 60)
-                                            .overlay(Circle().strokeBorder(defenseTint.opacity(0.5), lineWidth: 1.5))
-                                        Text(game.playerAvatar(i)).font(.system(size: 26))
-                                    }
-                                    Text(game.playerName(i))
-                                        .font(.system(size: 13, weight: .heavy, design: .rounded))
-                                        .foregroundStyle(.adaptivePrimary).lineLimit(1)
-                                    Text("Defense")
-                                        .font(.system(size: 9, weight: .heavy, design: .rounded))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .frame(maxWidth: 80)
-                            }
-                        }
-                        Text(isSet ? "Defense team blocked the bid!" : "Defense team scored 0 pts")
-                            .font(.system(size: 13, weight: .heavy, design: .rounded))
-                            .foregroundStyle(defenseTint.opacity(0.9))
-                    }
-                    .padding(22).glassmorphic(cornerRadius: 20).padding(.horizontal, 24)
-                    .opacity(appeared ? 1 : 0).offset(y: appeared ? 0 : 16)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.2), value: appeared)
-
-                    Spacer().frame(height: 32)
-                    Button(action: onContinue) {
-                        HStack(spacing: 8) {
-                            Text("See Full Results").fontWeight(.bold)
-                            Image(systemName: "arrow.right")
-                        }
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.black)
-                        .frame(maxWidth: .infinity).padding(.vertical, 18)
-                        .background(isSet ? Color.defenseRose : Color.masterGold)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-                    .buttonStyle(BouncyButton())
-                    .padding(.horizontal, 32).padding(.bottom, 54)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.25), value: appeared)
-                }
-            }
-        }
-        .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) { appeared = true }
-        }
+        GameRoundResultBanner(
+            highBid: game.highBid,
+            offensePoints: game.offensePoints,
+            bidderIndex: game.highBidderIndex,
+            offenseTeam: GameFlowRules.offenseOrder(
+                bidderIndex: game.highBidderIndex,
+                partner1Index: game.partner1Index,
+                partner2Index: game.partner2Index
+            ),
+            defenseTeam: GameFlowRules.defenseOrder(
+                offense: GameFlowRules.offenseOrder(
+                    bidderIndex: game.highBidderIndex,
+                    partner1Index: game.partner1Index,
+                    partner2Index: game.partner2Index
+                )
+            ),
+            playerName: game.playerName,
+            playerAvatar: game.playerAvatar,
+            onContinue: onContinue
+        )
     }
 }
 
