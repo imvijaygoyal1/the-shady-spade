@@ -940,7 +940,7 @@ Read-only pass over 73 Swift files / 37,950 lines. Nothing changed; this is the 
 | ID | Severity | File | Issue | Status |
 |---|---|---|---|---|
 | SPADE-01 | **CRITICAL** | `ScorekeeperView.swift:428` | Force-unwrap crash reachable from a normal two-device action, **new in v2.0** | ✅ Fixed |
-| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | 🟡 In progress — 7 of 14 families shared (2026-09-18) |
+| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | 🟡 In progress — 8 of 14 families shared (2026-09-18) |
 | SPADE-03 | High | `BluetoothGameViewModel.swift:114-115` | `MCPeerID!` / `MCSession!` implicitly unwrapped, and `session` is set to `nil` on teardown | ✅ Fixed 2026-09-12 |
 | SPADE-04 | Medium | 6 files | 9 types declared and never referenced | ✅ Fixed |
 | SPADE-05 | Medium | repo root | 955 lines of stray test files, tracked in git, in no target | ✅ Fixed |
@@ -1004,9 +1004,19 @@ implementations in two encodings (Solo carries partner seats as `Int?`, Online a
 `-1`). Seven tests, and mutating the seat guard away fails exactly the two that encode the sentinel
 defect — the one that once normalised `-1` into seat 0 and put a defender on the bidding team.
 
-**Still duplicated:** `RoundCompleteView` (3 copies, 1,179 lines), `PlayingView` (2, 929),
-`CallingView` (2, 738), `GameOverView` (3, 592), `LookingAtCardsView` (2, 365), `BiddingView`
-(2, 88).
+**`RoundCompleteView` — shared between the multiplayer modes, Solo left alone.** The Online and
+Bluetooth copies (404 and 377 lines) were **behaviourally identical**: ignoring comments and line
+wrapping, the diff is **zero lines**. They are now `GameMultiplayerRoundCompleteView` plus two
+17-line adapters, generic over a new `MultiplayerRoundSummary` protocol — a protocol rather than
+fifteen parameters, so `@Observable` tracking survives.
+
+**Solo's copy is not the same screen and was not merged.** It carries per-round history, a
+post-round review, a score-save status and configurable buttons; 318 of its 319 presentation lines
+differ. Merging it would mean inventing a screen neither mode has today. Left as its own view,
+deliberately.
+
+**Still duplicated:** `PlayingView` (2 copies, 929 lines), `CallingView` (2, 738), `GameOverView`
+(3, 592), `LookingAtCardsView` (2, 365), `BiddingView` (2, 88), and Solo's `RoundCompleteView`.
 
 ### SPADE-04 — dead types
 `DefenseChip`, `ScorePill` (`ComputerGameView`); `OnlineOffenseTeamStrip`, `OnlineScorePill`,

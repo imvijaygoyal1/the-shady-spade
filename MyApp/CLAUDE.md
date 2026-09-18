@@ -483,6 +483,12 @@ so a crash shows as the process terminating rather than as an impression.
 - SPADE-02, same day: the ordered team split is `GameFlowRules.offenseOrder`/`defenseOrder`
   instead of three inline copies in two encodings (Solo `Int?`, Online/BT `-1`). Seven tests,
   including the sentinel that once became seat 0 and put a defender on the bidding team.
+- SPADE-02, 2026-09-18: `RoundCompleteView` — the Online and Bluetooth copies were identical
+  ignoring comments and wrapping (a **zero-line** behavioural diff), and are now
+  `GameMultiplayerRoundCompleteView` + two 17-line adapters, generic over the new
+  `MultiplayerRoundSummary` protocol. **Solo keeps its own**: it is a different screen (round
+  history, post-round review, configurable buttons; 318 of 319 presentation lines differ).
+  Snapshot tests cover bid-made, set, and the guest variant that shows the host's save status.
 - **Snapshot tests for screens the simulator cannot reach.**
   `MyAppTests/GameRoundResultBannerSnapshotTests.swift` renders the round-result screen in both
   states and attaches the images to the result bundle, so an unreachable screen can still be

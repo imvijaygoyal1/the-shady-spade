@@ -15,6 +15,7 @@
 		B1000001 /* GameModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* GameModel.swift */; };
 		B1000002 /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* GameViewModel.swift */; };
 		B1000005 /* Styles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000005 /* Styles.swift */; };
+		TX100904 /* GameMultiplayerRoundCompleteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200904 /* GameMultiplayerRoundCompleteView.swift */; };
 		BT100001 /* BluetoothGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200001 /* BluetoothGameViewModel.swift */; };
 		BT100002 /* BluetoothSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200002 /* BluetoothSessionView.swift */; };
 		BT100003 /* BluetoothGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200003 /* BluetoothGameView.swift */; };
@@ -71,6 +72,8 @@
 		TV100002 /* TVGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TV200002 /* TVGameView.swift */; };
 		TX100001 /* AIEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200001 /* AIEngineTests.swift */; };
 		TX100902 /* AISelfPlayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200902 /* AISelfPlayTests.swift */; };
+		TX100906 /* GameMultiplayerRoundCompleteSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200906 /* GameMultiplayerRoundCompleteSnapshotTests.swift */; };
+		TX100905 /* SnapshotRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200905 /* SnapshotRendering.swift */; };
 		TX100903 /* GameRoundResultBannerSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200903 /* GameRoundResultBannerSnapshotTests.swift */; };
 		TX100901 /* AISelfPlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200901 /* AISelfPlay.swift */; };
 		TX100002 /* ScorekeeperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200002 /* ScorekeeperTests.swift */; };
@@ -144,6 +147,7 @@
 		B2000001 /* GameModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameModel.swift; sourceTree = "<group>"; };
 		B2000002 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
 		B2000005 /* Styles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Styles.swift; sourceTree = "<group>"; };
+		TX200904 /* GameMultiplayerRoundCompleteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameMultiplayerRoundCompleteView.swift; sourceTree = "<group>"; };
 		BT200001 /* BluetoothGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothGameViewModel.swift; sourceTree = "<group>"; };
 		BT200002 /* BluetoothSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothSessionView.swift; sourceTree = "<group>"; };
 		BT200003 /* BluetoothGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothGameView.swift; sourceTree = "<group>"; };
@@ -192,6 +196,8 @@
 		TX200000 /* MyAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		TX200001 /* AIEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEngineTests.swift; sourceTree = "<group>"; };
 		TX200902 /* AISelfPlayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISelfPlayTests.swift; sourceTree = "<group>"; };
+		TX200906 /* GameMultiplayerRoundCompleteSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameMultiplayerRoundCompleteSnapshotTests.swift; sourceTree = "<group>"; };
+		TX200905 /* SnapshotRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotRendering.swift; sourceTree = "<group>"; };
 		TX200903 /* GameRoundResultBannerSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRoundResultBannerSnapshotTests.swift; sourceTree = "<group>"; };
 		TX200901 /* AISelfPlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISelfPlay.swift; sourceTree = "<group>"; };
 		TX200002 /* ScorekeeperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperTests.swift; sourceTree = "<group>"; };
@@ -278,6 +284,7 @@
 				B2000001 /* GameModel.swift */,
 				B2000002 /* GameViewModel.swift */,
 				B2000005 /* Styles.swift */,
+				TX200904 /* GameMultiplayerRoundCompleteView.swift */,
 				CT00002 /* ComicTheme.swift */,
 				TE200001 /* ThemeEngine.swift */,
 				TE200002 /* Themes.swift */,
@@ -353,6 +360,8 @@
 			children = (
 				TX200001 /* AIEngineTests.swift */,
 				TX200902 /* AISelfPlayTests.swift */,
+				TX200906 /* GameMultiplayerRoundCompleteSnapshotTests.swift */,
+				TX200905 /* SnapshotRendering.swift */,
 				TX200903 /* GameRoundResultBannerSnapshotTests.swift */,
 				TX200901 /* AISelfPlay.swift */,
 				TX200002 /* ScorekeeperTests.swift */,
@@ -570,6 +579,7 @@
 				B1000001 /* GameModel.swift in Sources */,
 				B1000002 /* GameViewModel.swift in Sources */,
 				B1000005 /* Styles.swift in Sources */,
+				TX100904 /* GameMultiplayerRoundCompleteView.swift in Sources */,
 				CT00001 /* ComicTheme.swift in Sources */,
 				TE100001 /* ThemeEngine.swift in Sources */,
 				TE100002 /* Themes.swift in Sources */,
@@ -624,6 +634,8 @@
 			files = (
 				TX100001 /* AIEngineTests.swift in Sources */,
 				TX100902 /* AISelfPlayTests.swift in Sources */,
+				TX100906 /* GameMultiplayerRoundCompleteSnapshotTests.swift in Sources */,
+				TX100905 /* SnapshotRendering.swift in Sources */,
 				TX100903 /* GameRoundResultBannerSnapshotTests.swift in Sources */,
 				TX100901 /* AISelfPlay.swift in Sources */,
 				TX100002 /* ScorekeeperTests.swift in Sources */,
