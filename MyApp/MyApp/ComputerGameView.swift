@@ -1831,14 +1831,13 @@ private struct RoundResultBanner: View {
 
     private var isSet: Bool { game.offensePoints < game.highBid }
     private var offenseTeam: [Int] {
-        var seen = Set<Int>()
-        return [game.highBidderIndex, game.partner1Index, game.partner2Index]
-            .compactMap { $0 }
-            .filter { seen.insert($0).inserted }
+        GameFlowRules.offenseOrder(
+            bidderIndex: game.highBidderIndex,
+            partner1Index: game.partner1Index,
+            partner2Index: game.partner2Index
+        )
     }
-    private var defenseTeam: [Int] {
-        (0..<6).filter { !offenseTeam.contains($0) }
-    }
+    private var defenseTeam: [Int] { GameFlowRules.defenseOrder(offense: offenseTeam) }
 
     var body: some View {
         ZStack {

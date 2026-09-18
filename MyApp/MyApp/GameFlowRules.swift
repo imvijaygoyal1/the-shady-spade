@@ -46,6 +46,30 @@ enum GameFlowRules {
         Set([bidderIndex, partner1Index, partner2Index].filter(isValidSeat))
     }
 
+    /// Offense seats in the order they are shown: the bidder first, then the
+    /// partners as they were called.
+    ///
+    /// `offenseSet` answers membership and is what the view models use, but a
+    /// `Set` has no order, so every game view wrote its own ordered version --
+    /// three copies, in two encodings. Solo carries partner seats as `Int?`,
+    /// while Online and Bluetooth use `-1` for "not yet revealed", so this
+    /// takes optionals and rejects any seat that is not on the table. That
+    /// sentinel is what once normalised `-1` into seat 0 and put a defender on
+    /// the bidding team.
+    static func offenseOrder(bidderIndex: Int?, partner1Index: Int?, partner2Index: Int?) -> [Int] {
+        var seen = Set<Int>()
+        return [bidderIndex, partner1Index, partner2Index]
+            .compactMap { $0 }
+            .filter(isValidSeat)
+            .filter { seen.insert($0).inserted }
+    }
+
+    /// Everyone not on the bidding team, in seat order.
+    static func defenseOrder(offense: [Int]) -> [Int] {
+        let offenseSeats = Set(offense)
+        return (0..<playerCount).filter { !offenseSeats.contains($0) }
+    }
+
     static func pointTotal(for players: Set<Int>, wonPointsPerPlayer: [Int]) -> Int {
         guard wonPointsPerPlayer.count >= playerCount else { return 0 }
         return (0..<playerCount)

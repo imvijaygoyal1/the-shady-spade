@@ -75,4 +75,49 @@ final class GameFlowRulesTests: XCTestCase {
         XCTAssertEqual(GameFlowRules.pointTotal(for: offense, wonPointsPerPlayer: [10, 20, 30, 40, 50, 60]), 100)
         XCTAssertEqual(GameFlowRules.defensePointTotal(offenseSet: offense, wonPointsPerPlayer: [10, 20, 30, 40, 50, 60]), 110)
     }
+
+    // MARK: - Ordered teams (SPADE-02)
+
+    func testOffenseOrderKeepsBidderFirstThenPartnersAsCalled() {
+        XCTAssertEqual(GameFlowRules.offenseOrder(bidderIndex: 3, partner1Index: 0, partner2Index: 5), [3, 0, 5])
+    }
+
+    func testOffenseOrderTreatsNegativeSentinelAsUnrevealed() {
+        // Online and Bluetooth carry -1 until a partner is revealed. Seat 0 is
+        // a real seat, so a sentinel must never be normalised into one.
+        XCTAssertEqual(GameFlowRules.offenseOrder(bidderIndex: 2, partner1Index: -1, partner2Index: -1), [2])
+        XCTAssertFalse(GameFlowRules.offenseOrder(bidderIndex: 2, partner1Index: -1, partner2Index: -1).contains(0))
+    }
+
+    func testOffenseOrderTreatsNilAsUnrevealed() {
+        // Solo carries the same state as Int?.
+        XCTAssertEqual(GameFlowRules.offenseOrder(bidderIndex: 2, partner1Index: nil, partner2Index: 4), [2, 4])
+    }
+
+    func testOffenseOrderDropsSeatsOffTheTable() {
+        XCTAssertEqual(GameFlowRules.offenseOrder(bidderIndex: 6, partner1Index: 1, partner2Index: 99), [1])
+    }
+
+    func testOffenseOrderDeduplicatesASelfCall() {
+        // The bidder can call a card they hold themselves.
+        XCTAssertEqual(GameFlowRules.offenseOrder(bidderIndex: 1, partner1Index: 1, partner2Index: 4), [1, 4])
+    }
+
+    func testDefenseOrderIsEveryoneElseInSeatOrder() {
+        let offense = GameFlowRules.offenseOrder(bidderIndex: 3, partner1Index: 0, partner2Index: 5)
+        XCTAssertEqual(GameFlowRules.defenseOrder(offense: offense), [1, 2, 4])
+    }
+
+    func testTeamsAlwaysCoverEverySeatExactlyOnce() {
+        for bidder in 0..<6 {
+            for p1 in [-1, 0, 3, 5] {
+                for p2 in [-1, 1, 4] {
+                    let offense = GameFlowRules.offenseOrder(bidderIndex: bidder, partner1Index: p1, partner2Index: p2)
+                    let defense = GameFlowRules.defenseOrder(offense: offense)
+                    XCTAssertEqual(Set(offense).union(defense).count, 6, "b=\(bidder) p1=\(p1) p2=\(p2)")
+                    XCTAssertTrue(Set(offense).isDisjoint(with: Set(defense)))
+                }
+            }
+        }
+    }
 }
