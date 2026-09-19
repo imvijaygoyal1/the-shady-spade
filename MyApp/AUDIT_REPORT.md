@@ -940,7 +940,7 @@ Read-only pass over 73 Swift files / 37,950 lines. Nothing changed; this is the 
 | ID | Severity | File | Issue | Status |
 |---|---|---|---|---|
 | SPADE-01 | **CRITICAL** | `ScorekeeperView.swift:428` | Force-unwrap crash reachable from a normal two-device action, **new in v2.0** | ✅ Fixed |
-| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | 🟡 In progress — 11 of 14 families shared (2026-09-19) |
+| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | ✅ **Multiplayer duplication cleared 2026-09-19** — 12 of 14; the 2 remaining are Solo-only screens kept deliberately |
 | SPADE-03 | High | `BluetoothGameViewModel.swift:114-115` | `MCPeerID!` / `MCSession!` implicitly unwrapped, and `session` is set to `nil` on teardown | ✅ Fixed 2026-09-12 |
 | SPADE-04 | Medium | 6 files | 9 types declared and never referenced | ✅ Fixed |
 | SPADE-05 | Medium | repo root | 955 lines of stray test files, tracked in git, in no target | ✅ Fixed |
@@ -1070,8 +1070,18 @@ than `GameCardSizing`, so on a 393pt-wide phone the eight cards overlap and the 
 Visible in `dealt-hand-host-portrait`. Pre-existing and identical in both modes; changing it is a
 layout change neither mode has today, so it was carried across unchanged.
 
-**Still duplicated:** `GameOverView` (3 copies, 592 lines), and Solo's `RoundCompleteView`,
-`CallingCardsView` and `ViewingCardsView`. `BiddingView` (2, 88) is **not** real duplication — both
+**`GameOverView` — shared between the multiplayer modes.** Both copies were 163 lines with a
+**zero-line** behavioural diff — identical. Now `GameFinalStandingsView` plus two 9-line adapters
+over `MultiplayerFinalStandings` (read-only). Each copy had also repeated its whole standings row
+between its portrait and landscape branches, so that is now one `standingsList` shared by both
+orientations — four copies of that block collapsed to one.
+
+Solo's `GameOverView` was not merged: 250 of its 231 presentation lines differ. It has Play Again
+and Game History actions, a per-player score bar chart, and no host/guest split in its leaderboard
+status.
+
+**Still duplicated:** Solo's `RoundCompleteView`, `CallingCardsView`, `ViewingCardsView` and
+`GameOverView` — four screens that are genuinely Solo's own, each kept deliberately. `BiddingView` (2, 88) is **not** real duplication — both
 are thin wrappers over the shared `BiddingTwoColumnLayout` with a 6-line diff, though Online gates
 on `isMyTurn` where Bluetooth gates on `currentActionPlayer == myPlayerIndex && phase == .bidding`.
 

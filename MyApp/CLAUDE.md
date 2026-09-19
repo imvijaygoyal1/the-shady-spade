@@ -69,6 +69,26 @@
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
 
+- [2026-09-19] SPADE-02: one final-standings screen for both multiplayer modes — **the last
+  multiplayer duplicate.** Symptom/motivation: `OnlineGameOverView` and `BTGameOverView` were 163
+  lines each with a **zero-line** behavioural diff — identical. Fix: extracted
+  `GameFinalStandingsView` over a read-only `MultiplayerFinalStandings`; both are now 9-line
+  adapters. Each copy had *also* repeated its entire standings row between its own portrait and
+  landscape branches, so four copies of that block became one `standingsList`. Solo's
+  `GameOverView` was deliberately not merged: 250 of its 231 presentation lines differ — it has
+  Play Again and Game History actions, a per-player score bar chart, and no host/guest split in its
+  leaderboard status. Reusable pattern: **check for duplication *inside* a view, not only across
+  modes** — the portrait/landscape pair here was as duplicated as the two modes were. Privacy
+  impact: none; presentation only. Verification: full regression via `scripts/run_regression.sh` —
+  **243 unit + 23 UI, 0 failures, 0 skipped**, counts read from the result bundles rather than the
+  script's message. 7 new tests: 5 snapshots (winner portrait and landscape, a losing viewer, a
+  guest, and no-completed-rounds) plus ranking order and a six-way tie, since the list is keyed by
+  seat and a duplicate would be a SwiftUI identity collision. Snapshots exported and looked at.
+  **SPADE-02 status: multiplayer duplication is now cleared** — the remaining families are Solo's
+  own screens, each kept on purpose. (`GameFinalStandingsView.swift` (new),
+  `GameFinalStandingsSnapshotTests.swift` (new), `OnlineGameView.swift`, `BluetoothGameView.swift`,
+  `project.pbxproj`, `CLAUDE.md`, `AUDIT_REPORT.md`)
+
 - [2026-09-19] SPADE-02: one dealt-hand screen for both multiplayer modes — Symptom/motivation: the
   between-deal-and-bidding screen existed twice, `OnlineLookingAtCardsView` (185 lines) and
   `BTLookingAtCardsView` (180). Behavioural diff: **zero lines** — the only difference was where
