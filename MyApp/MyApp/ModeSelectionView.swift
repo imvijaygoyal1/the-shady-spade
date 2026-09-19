@@ -595,7 +595,7 @@ private struct NamePromptSheet: View {
         }
     }
 
-    var body: some View { content.screenBack(onBack) }
+    var body: some View { content.screenHeader(mode, onBack: onBack) }
 
     private var content: some View {
         AdaptiveLayout {
@@ -689,10 +689,8 @@ private struct NamePromptSheet: View {
 
     private func titleBlock(large: Bool) -> some View {
         VStack(spacing: large ? 8 : 6) {
-            Text(mode)
-                .font(.system(size: large ? 32 : 22, weight: .black, design: .rounded))
-                .foregroundStyle(.adaptivePrimary)
-                .multilineTextAlignment(.center)
+            // The mode is the header bar's title; repeating it here was
+            // redundant once the bar arrived.
             Text("Pick a name for your avatar")
                 .font(.system(size: large ? 18 : 15, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
@@ -806,7 +804,7 @@ private struct PlayerCountSheet: View {
 
     private var buttonLabel: String { selectedCount == 1 ? "Start Now" : "Create Room" }
 
-    var body: some View { content.screenBack(onBack) }
+    var body: some View { content.screenHeader("How many players?", onBack: onBack) }
 
     private var content: some View {
         GeometryReader { geo in
@@ -860,9 +858,7 @@ private struct PlayerCountSheet: View {
                 .shadow(color: Comic.black, radius: 0, x: 3, y: 3)
                 .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedCount)
                 .padding(.top, large ? 0 : 36)
-            Text("How many players?")
-                .font(.system(size: large ? 28 : 22, weight: .black, design: .rounded))
-                .foregroundStyle(Comic.textPrimary)
+            // "How many players?" is the header bar's title.
             Text("AI fills any empty seats")
                 .font(.system(size: large ? 16 : 14, weight: .bold, design: .rounded))
                 .foregroundStyle(Comic.textSecondary)

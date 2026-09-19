@@ -94,6 +94,28 @@
   (`ScorekeeperWatchMessages.swift`, `ScorekeeperModels.swift`, `ScorekeeperView.swift`,
   `WatchScorekeeperViewModel.swift`, `ScorekeeperTests.swift`, `ScorekeeperWatchBridgeTests.swift`)
 
+- [2026-09-19] Rework the back control into a header row — Symptom (owner): the back button "looks
+  weird as a separate thing on the screen and totally off". Rendering it confirmed three faults, not
+  one: it floated **level with the middle of the avatar card** rather than above the content; it was
+  a thin outlined capsule while every other element is a filled comic component with a heavy black
+  border; and nothing shared its row, so it sat on no baseline. Fix: `ScreenBackBar` became
+  `ScreenHeaderBar` — a gold-ringed circular chevron beside the screen's title, with a hairline
+  divider — and `.screenHeader(_:onBack:)` **stacks** it above the content instead of overlaying,
+  so nothing can collide with it. Owner chose the header-row option over a circular icon alone or a
+  restyled pill (2026-09-19). Each screen's now-duplicated title was removed: `Text(mode)` in
+  `NamePromptSheet`, "How many players?" in `PlayerCountSheet`, and the small wifi badge in
+  `BTModePickerView`; `CreateOrJoinView` gains the title "Online Game" it never had. One fault the
+  render caught after the rebuild: the bar drew on **black** because these covers paint no
+  background of their own, so it now fills `Comic.bg`. Reusable pattern: **a control with nothing
+  on its row has no baseline and will read as debris** — give it a title to sit with. Privacy
+  impact: none. Verification: 256 unit + 24 UI, 0 failures, plus a simulator screenshot at each
+  step. **Two existing UI tests were retargeted, not loosened:**
+  `testNewGameNamePromptAvatarClearsDynamicIslandArea` and `testNamePromptScreenCatalog` both
+  asserted the title sat ≥210pt down, a number calibrated to the old layout; they now check the
+  **topmost** element against 60pt, the real safe-area bound, and that title and control share a
+  row. (`Styles.swift`, `ModeSelectionView.swift`, `OnlineSessionView.swift`,
+  `BluetoothSessionView.swift`, `AppLaunchFlowUITests.swift`)
+
 - [2026-09-19] Add a way back from the mode-entry screens — Symptom (owner): tapping New Game, Join
   a Game or Local/Bluetooth led to a screen with no back button, so a player could not change their
   mind or switch mode. Root cause: these screens are presented with `NoAnimationCover`, a UIKit

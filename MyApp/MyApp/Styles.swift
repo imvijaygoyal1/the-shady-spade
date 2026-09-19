@@ -57,53 +57,73 @@ extension ShapeStyle where Self == Color {
     }
 }
 
-// MARK: - Back control for full-screen covers
+// MARK: - Header bar for full-screen covers
 
-/// A back control for screens presented with `NoAnimationCover`.
+/// A header row for screens presented with `NoAnimationCover`.
 ///
-/// Those are UIKit presentations with no navigation bar, so a screen shown
-/// that way has no way back unless it draws one (2026-09-19). Top padding is
-/// the app's usual 56pt: `safeAreaInsets.top` reports 0 inside these covers,
-/// so the inset cannot be relied on to clear the Dynamic Island.
-struct ScreenBackBar: View {
-    var title: String = "Back"
-    let action: () -> Void
+/// Those are UIKit presentations with no navigation bar, so a screen shown that
+/// way has no way back unless it draws one (2026-09-19). A lone floating button
+/// read as an orphan, so the control shares a row with the screen's title and
+/// sits on a real baseline (owner's call).
+///
+/// Top padding is the app's usual 56pt: `safeAreaInsets.top` reports 0 inside
+/// these covers, so the inset cannot be relied on to clear the Dynamic Island.
+struct ScreenHeaderBar: View {
+    let title: String
+    let onBack: () -> Void
 
     var body: some View {
-        HStack {
-            Button {
-                HapticManager.impact(.light)
-                action()
-            } label: {
-                HStack(spacing: 4) {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button {
+                    HapticManager.impact(.light)
+                    onBack()
+                } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .black, design: .rounded))
-                    Text(title)
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .font(.system(size: 15, weight: .black, design: .rounded))
+                        .foregroundStyle(Comic.textPrimary)
+                        .frame(width: 36, height: 36)
+                        .background(Comic.containerBG, in: Circle())
+                        .overlay(Circle().strokeBorder(Comic.containerBorder, lineWidth: 1.5))
                 }
-                .foregroundStyle(Comic.textSecondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Comic.containerBG.opacity(0.75), in: Capsule())
-                .overlay(Capsule().strokeBorder(Comic.containerBorder, lineWidth: 1.5))
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("screen.back")
-            .accessibilityLabel("Back")
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("screen.back")
+                .accessibilityLabel("Back")
 
-            Spacer()
+                Text(title)
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .foregroundStyle(.masterGold)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 56)
+            .padding(.bottom, 12)
+
+            Rectangle()
+                .fill(Comic.containerBorder.opacity(0.55))
+                .frame(height: 1)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 56)
+        // These covers paint no background of their own, so without this the
+        // bar sits on black while the screen below is the themed green.
+        .background(Comic.bg)
     }
 }
 
 extension View {
-    /// Overlays a back control, when the screen has somewhere to go back to.
+    /// Puts a header row above the screen, when it has somewhere to go back to.
+    ///
+    /// Stacked rather than overlaid, so content begins below the bar instead of
+    /// colliding with it.
     @ViewBuilder
-    func screenBack(_ action: (() -> Void)?) -> some View {
-        if let action {
-            overlay(alignment: .topLeading) { ScreenBackBar(action: action) }
+    func screenHeader(_ title: String, onBack: (() -> Void)?) -> some View {
+        if let onBack {
+            VStack(spacing: 0) {
+                ScreenHeaderBar(title: title, onBack: onBack)
+                self
+            }
         } else {
             self
         }

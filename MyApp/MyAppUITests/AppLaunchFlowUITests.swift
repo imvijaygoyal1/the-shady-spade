@@ -44,6 +44,14 @@ final class AppLaunchFlowUITests: XCTestCase {
         }
     }
 
+    /// The prompt must not run under the Dynamic Island. `safeAreaInsets.top`
+    /// reports 0 inside a `NoAnimationCover`, so the screen pads manually and
+    /// this guards that it still does.
+    ///
+    /// The threshold was 210 when the title sat below a padded avatar card.
+    /// The title moved into a header bar on 2026-09-19, so the check now names
+    /// the **topmost** element and uses the real bound — the safe-area top on
+    /// these devices is 59pt, and anything at or below it is clear.
     func testNewGameNamePromptAvatarClearsDynamicIslandArea() throws {
         app = launchShadySpade()
 
@@ -51,12 +59,24 @@ final class AppLaunchFlowUITests: XCTestCase {
         XCTAssertTrue(newGame.waitForExistence(timeout: 8))
         newGame.tap()
 
+        let back = app.buttons["screen.back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 3))
+        XCTAssertGreaterThanOrEqual(
+            back.frame.minY, 60,
+            "The header bar runs under the Dynamic Island."
+        )
+
         let promptTitle = app.staticTexts["New Game"].firstMatch
         XCTAssertTrue(promptTitle.waitForExistence(timeout: 3))
         XCTAssertGreaterThanOrEqual(
-            promptTitle.frame.minY,
-            210,
-            "Name prompt content should be pushed below the Dynamic Island/status-bar area."
+            promptTitle.frame.minY, 60,
+            "The header title runs under the Dynamic Island."
+        )
+
+        // Title and control share the row, which is the point of the header.
+        XCTAssertLessThan(
+            abs(promptTitle.frame.midY - back.frame.midY), 20,
+            "Header title and back control are not on the same row."
         )
     }
 
@@ -117,7 +137,9 @@ final class ScreenCatalogUITests: XCTestCase {
         assertVisible(app.staticTexts["Choose Your Avatar"], name: "Avatar picker title")
         assertVisible(app.textFields.firstMatch, name: "Avatar name field")
         assertVisible(app.buttons["Start Game"], name: "Start Game button")
-        assertElement(title, staysWithin: app, minimumTop: 210)
+        // The title lives in the header bar since 2026-09-19; 60pt is the
+        // safe-area bound, not the old layout-specific 210.
+        assertElement(title, staysWithin: app, minimumTop: 60)
         keepScreenshot(named: "screen-catalog-name-prompt", app: app)
     }
 

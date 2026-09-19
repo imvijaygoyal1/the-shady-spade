@@ -79,7 +79,7 @@ private struct CreateOrJoinView: View {
 
     @State private var showingJoin = false
 
-    var body: some View { content.screenBack(onBack) }
+    var body: some View { content.screenHeader("Online Game", onBack: onBack) }
 
     private var content: some View {
         VStack(spacing: 36) {

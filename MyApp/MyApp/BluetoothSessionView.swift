@@ -103,7 +103,7 @@ private struct BTModePickerView: View {
     let onHost: () -> Void
     let onJoin: () -> Void
 
-    var body: some View { content.screenBack(onBack) }
+    var body: some View { content.screenHeader("Local / Bluetooth", onBack: onBack) }
 
     private var content: some View {
         VStack(spacing: 36) {
@@ -128,15 +128,7 @@ private struct BTModePickerView: View {
             }
 
             VStack(spacing: 8) {
-                // Title
-                HStack(spacing: 8) {
-                    Image(systemName: "wifi")
-                        .font(.system(size: 13, weight: .heavy))
-                        .foregroundStyle(.masterGold)
-                    Text("Local / Bluetooth")
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.masterGold)
-                }
+                // "Local / Bluetooth" is the header bar's title.
                 Text("Find friends nearby — no internet needed")
                     .font(.system(size: 12, weight: .heavy, design: .rounded))
                     .foregroundStyle(.secondary)
