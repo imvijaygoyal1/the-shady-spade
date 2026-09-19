@@ -91,7 +91,7 @@ private struct SplashPage: View {
                     Text(p.suit)
                         .font(.system(size: p.size, weight: .black))
                         .foregroundStyle(
-                            (isRed ? Color.defenseRose : Color.white).opacity(p.op)
+                            (isRed ? CardInk.darkRed.color : CardInk.darkBlack.color).opacity(p.op)
                         )
                         .position(
                             x: geo.size.width  * p.nx,

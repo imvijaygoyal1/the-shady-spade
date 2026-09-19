@@ -879,7 +879,7 @@ struct BTCallingView: View {
                     let isRed = suit.wrappedValue == "♥" || suit.wrappedValue == "♦"
                     Text(combined)
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
-                        .foregroundStyle(isRed ? Color.defenseRose : .adaptivePrimary)
+                        .foregroundStyle(isRed ? CardInk.darkRed.color : CardInk.darkBlack.color)
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(Color.adaptiveDivider)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -897,7 +897,7 @@ struct BTCallingView: View {
                     } label: {
                         VStack(spacing: 3) {
                             Text(s).font(.system(size: 28))
-                                .foregroundStyle(isRed ? Color.defenseRose : Color.adaptivePrimary)
+                                .foregroundStyle(isRed ? CardInk.darkRed.color : CardInk.darkBlack.color)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -906,7 +906,7 @@ struct BTCallingView: View {
                         .opacity(blocked ? 0.25 : 1.0)
                         .overlay {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(selected ? (isRed ? Color.defenseRose : Color.adaptivePrimary).opacity(0.65) : Color.clear, lineWidth: 1.5)
+                                .strokeBorder(selected ? (isRed ? CardInk.darkRed.color : CardInk.darkBlack.color).opacity(0.65) : Color.clear, lineWidth: 1.5)
                         }
                         .scaleEffect(selected ? 1.04 : 1.0)
                     }

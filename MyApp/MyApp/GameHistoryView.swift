@@ -373,7 +373,7 @@ private struct HistoryRoundCard: View {
                             .foregroundStyle(.secondary)
                         Text(round.trumpSuit.rawValue)
                             .font(.subheadline.bold())
-                            .foregroundStyle(round.trumpSuit.isRed ? Color.defenseRose : Color.adaptivePrimary)
+                            .foregroundStyle(round.trumpSuit.isRed ? CardInk.darkRed.color : CardInk.darkBlack.color)
                     }
 
                     Text(bidderName + " bid \(round.bidAmount)")

@@ -2355,11 +2355,11 @@ private struct CalledCardInput: View {
                     } label: {
                         Text(suit)
                             .font(.system(size: 27, weight: .black, design: .rounded))
-                            .foregroundStyle(isRed ? Color.defenseRose : Comic.textPrimary)
+                            .foregroundStyle(isRed ? CardInk.darkRed.color : CardInk.darkBlack.color)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
                             .background(selected ? Comic.yellow.opacity(0.3) : Comic.containerBG.opacity(0.7), in: RoundedRectangle(cornerRadius: 9))
-                            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(selected ? (isRed ? Color.defenseRose : Comic.textPrimary) : Color.clear, lineWidth: 1.5))
+                            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(selected ? (isRed ? CardInk.darkRed.color : CardInk.darkBlack.color) : Color.clear, lineWidth: 1.5))
                     }
                     .buttonStyle(.plain)
                 }
@@ -2437,11 +2437,12 @@ private struct CalledCardBadge: View {
         return String(cardID.dropLast())
     }
 
-    private var suitColor: Color {
-        suit == "♥" || suit == "♦"
-            ? Color(red: 0.82, green: 0.03, blue: 0.08)
-            : Color(red: 0.04, green: 0.04, blue: 0.05)
-    }
+    /// Literal ink from the shared source, never a themed colour: the face
+    /// below is an explicit white, so `Comic.textPrimary`/`textSecondary`
+    /// (light in ClassicGreenTheme) render the card blank or near-blank.
+    /// Same values as before for the suits; the empty slot was the outlier at
+    /// 2.29:1. See `CardInk`.
+    private var ink: Color { CardInk.onFace(suit: suit).color }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -2452,13 +2453,13 @@ private struct CalledCardBadge: View {
                     .font(.system(size: 20, weight: .black, design: .rounded))
             }
         }
-        .foregroundStyle(suit == nil ? Comic.textSecondary : suitColor)
+        .foregroundStyle(ink)
         .frame(maxWidth: .infinity)
         .frame(height: 52)
         .background(Color.white.opacity(0.94), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(isSelected ? Comic.yellow : suitColor.opacity(0.28), lineWidth: isSelected ? 3 : 1.2)
+                .strokeBorder(isSelected ? Comic.yellow : ink.opacity(0.28), lineWidth: isSelected ? 3 : 1.2)
         )
         .shadow(color: Comic.black.opacity(0.18), radius: 0, x: 2, y: 2)
     }

@@ -1257,7 +1257,7 @@ private struct CallingCardsView: View {
                     let isRed = suit.wrappedValue == "♥" || suit.wrappedValue == "♦"
                     Text(combined)
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
-                        .foregroundStyle(isRed ? Color.defenseRose : .adaptivePrimary)
+                        .foregroundStyle(isRed ? CardInk.darkRed.color : CardInk.darkBlack.color)
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(Color.adaptiveDivider)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -1277,7 +1277,7 @@ private struct CallingCardsView: View {
                         VStack(spacing: 3) {
                             Text(s)
                                 .font(.system(size: 28))
-                                .foregroundStyle((isRed ? Color.defenseRose : Color.adaptivePrimary)
+                                .foregroundStyle((isRed ? CardInk.darkRed.color : CardInk.darkBlack.color)
                                     .opacity(blocked ? 0.25 : 1.0))
                         }
                         .frame(maxWidth: .infinity)
@@ -1286,7 +1286,7 @@ private struct CallingCardsView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(selected ? (isRed ? Color.defenseRose : Color.adaptivePrimary).opacity(0.65) : Color.clear, lineWidth: 1.5)
+                                .strokeBorder(selected ? (isRed ? CardInk.darkRed.color : CardInk.darkBlack.color).opacity(0.65) : Color.clear, lineWidth: 1.5)
                         }
                         .scaleEffect(selected ? 1.04 : 1.0)
                     }
@@ -1344,7 +1344,7 @@ private struct TrumpAndCalledCardsPanel: View {
                     let isRed = cardId.hasSuffix("♥") || cardId.hasSuffix("♦")
                     Text(cardId)
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(isRed ? Color.defenseRose : .adaptivePrimary)
+                        .foregroundStyle(isRed ? CardInk.darkRed.color : CardInk.darkBlack.color)
                         .padding(.horizontal, 7).padding(.vertical, 4)
                         .background(Color.adaptiveDivider)
                         .clipShape(RoundedRectangle(cornerRadius: 6))

@@ -251,9 +251,8 @@ private struct WatchCalledCardBadge: View {
 
     /// Literal ink, never `.primary`/`.secondary`: the face below is an
     /// explicit white and watchOS has no light mode, so a semantic colour
-    /// resolves to white and the card renders blank. See
-    /// `ScorekeeperCardAppearance`.
-    private var ink: Color { ScorekeeperCardAppearance.ink(forSuit: suit).color }
+    /// resolves to white and the card renders blank. See `CardInk`.
+    private var ink: Color { CardInk.onFace(suit: suit).color }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -263,7 +262,7 @@ private struct WatchCalledCardBadge: View {
         .foregroundStyle(ink)
         .frame(maxWidth: .infinity)
         .frame(height: 38)
-        .background(ScorekeeperCardAppearance.face.color, in: RoundedRectangle(cornerRadius: 7))
+        .background(CardInk.face.color, in: RoundedRectangle(cornerRadius: 7))
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(isSelected ? .yellow : ink.opacity(0.35), lineWidth: isSelected ? 2 : 1))
     }
 }

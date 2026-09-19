@@ -60,8 +60,15 @@ extension ShapeStyle where Self == Color {
 // MARK: - Trump Suit display color
 
 extension TrumpSuit {
+    /// Suit colour on a dark themed surface.
+    ///
+    /// Literal ink, not `.defenseRose`: that is `Color.white` in the shipping
+    /// dark palette (correct for defense-team text, wrong for a suit), which
+    /// made ♥/♦ and ♠/♣ render identically. `CardInk` cannot host this
+    /// extension — it is shared with the Watch target, which has no
+    /// `TrumpSuit`.
     var displayColor: Color {
-        isRed ? .defenseRose : .adaptivePrimary
+        isRed ? CardInk.darkRed.color : CardInk.darkBlack.color
     }
 }
 
@@ -1182,7 +1189,7 @@ struct TrumpBadge: View {
     var width: CGFloat = 160
 
     private var suitColor: Color {
-        suit.isRed ? .defenseRose : .adaptivePrimary
+        suit.isRed ? CardInk.darkRed.color : CardInk.darkBlack.color
     }
 
     var body: some View {
