@@ -945,8 +945,8 @@ Read-only pass over 73 Swift files / 37,950 lines. Nothing changed; this is the 
 | SPADE-04 | Medium | 6 files | 9 types declared and never referenced | ✅ Fixed |
 | SPADE-05 | Medium | repo root | 955 lines of stray test files, tracked in git, in no target | ✅ Fixed |
 | SPADE-06 | Medium | 5 files | 7 `print()` calls in production paths | ✅ Fixed |
-| SPADE-07 | Medium | — | 7,320 lines across 4 files with zero test references | ⬜ Open |
-| SPADE-08 | Low | 12 files | 27 `DispatchQueue.main.asyncAfter` timing dependencies | ⬜ Open |
+| SPADE-07 | Medium | — | 7,320 lines across 4 files with zero test references | 🟡 Partly — still 0 direct references, but the 4 files are now 7,951 lines with the shared components extracted out and snapshot-tested (re-measured 2026-09-19) |
+| SPADE-08 | Low | 12 files | 27 `DispatchQueue.main.asyncAfter` timing dependencies | ✅ Fixed — **0 remain** across all 55 app/Watch sources (re-measured 2026-09-19; status had been stale) |
 
 ### SPADE-01 — the Watch can crash the phone mid-edit
 ```swift
@@ -1352,7 +1352,14 @@ partner — 2 v 4. The code was right and the assertion was wrong.
 It matters beyond the test: `sameSideConfidence` assumes three offense seats. With only two it is
 *more* cautious than necessary — the safe direction, but worth knowing.
 
-### AI-05 answered with a number rather than an opinion ⬜ decision still open
+### AI-05 answered with a number rather than an opinion ✅ fixed 2026-09-12 (v
+
+**Verified in code 2026-09-19.** `AIEngine.knownOffenseSet` returns early for the bidder —
+`if seat == highBidderIndex { return known }` — where `known` is the bidder seat plus *revealed*
+partners only. `actualPartnerIndices` is still a parameter, but it is now only consulted so a
+**partner** can recognise its own role when holding a called card, which a human partner knows from
+their own hand. The asymmetry is gone; the index entry saying the decision is open is stale.
+erified 2026-09-19)
 
 Same 120 deals, run with and without handing the bot bidder its partners:
 
