@@ -69,6 +69,27 @@
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
 
+- [2026-09-19] Fix overlapping cards on the dealt-hand screen — Symptom: on the
+  look-at-your-hand screen the eight cards sat on top of one another and the point badges clipped
+  to `10p` / `30p` / `5p`. Root cause: the row hardcoded **74pt** per card and divided the leftover
+  width among the gaps. Eight cards need 592pt in a 361pt row, so the leftover was negative and the
+  "gap" became an overlap of **−33pt** at iPhone width — and it got *worse* as the hand grew
+  (−17pt at six cards, −26pt at seven), which is backwards, since a fuller hand is exactly when you
+  need to read it. Fix: use `GameCardSizing.cardWidth`, the helper the playing screen already used,
+  which shrinks the cards to fit instead; 44pt cards with a positive gap at iPhone width. Shrunk
+  cards are shorter than the fixed 106pt slot, so the row is centred in it and the surrounding
+  layout does not move. **Not claimed as zero overlap:** the helper's 44pt legibility floor means
+  the narrowest supported device (iPhone SE 2/3, 375pt) still overlaps by **1.3pt** — invisible,
+  but not nothing, so the test asserts "no meaningful overlap" at 2pt rather than pretending it is
+  zero. Reusable pattern: a **fit-to-width formula silently becomes an overlap formula** once the
+  content stops fitting; the sign of the computed gap is the thing to test. Privacy impact: none;
+  layout only. Verification: full regression — **246 unit + 23 UI, 0 failures, 0 skipped**, counts
+  read from the result bundles. 3 new tests covering five real device widths, hand sizes 2–8, and
+  an iPad column where cards must *keep* their ideal 74pt. Confirmed by re-rendering the same
+  snapshot and cropping the identical region: eight separate cards, every badge whole, and the
+  0-point 7♥ and 9♦ correctly showing none. (`GameDealtHandView.swift`,
+  `GameDealtHandSnapshotTests.swift`, `CLAUDE.md`, `AUDIT_REPORT.md`)
+
 - [2026-09-19] SPADE-02: one final-standings screen for both multiplayer modes — **the last
   multiplayer duplicate.** Symptom/motivation: `OnlineGameOverView` and `BTGameOverView` were 163
   lines each with a **zero-line** behavioural diff — identical. Fix: extracted

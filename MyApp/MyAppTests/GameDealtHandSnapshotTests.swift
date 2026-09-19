@@ -71,4 +71,50 @@ final class GameDealtHandSnapshotTests: XCTestCase {
         XCTAssertEqual(Card(rank: "3", suit: "♠").pointValue, 30)
         XCTAssertEqual(Card(rank: "3", suit: "♥").pointValue, 0)
     }
+
+    // MARK: - The hand row fits
+
+    /// Spacing as the view computes it.
+    private func spacing(width: CGFloat, count: Int) -> CGFloat {
+        let available = width - 32
+        let cardW = GameCardSizing.cardWidth(available: available, count: count)
+        return count > 1 ? (available - CGFloat(count) * cardW) / CGFloat(count - 1) : 0
+    }
+
+    /// The defect this replaced: a hardcoded 74pt card made the gap **−33pt**
+    /// on an iPhone, so each card sat a third of the way over the one before
+    /// and the point badges clipped to `10p`.
+    ///
+    /// Not asserted as "never negative": the 44pt legibility floor means the
+    /// narrowest supported device still overlaps by 1.3pt, which is invisible.
+    /// 2pt is the line between a hairline and a card eating its neighbour.
+    func testAFullHandDoesNotMeaningfullyOverlapAtAnySupportedWidth() {
+        // iPhone SE 2/3 is the narrowest device iOS 17 supports.
+        for width in [375.0, 390.0, 393.0, 402.0, 430.0] as [CGFloat] {
+            let sp = spacing(width: width, count: 8)
+            XCTAssertGreaterThan(
+                sp, -2.0,
+                "8 cards overlap by \(String(format: "%.1f", -sp))pt at \(Int(width))pt wide"
+            )
+        }
+    }
+
+    /// The old formula got *worse* as the hand grew, which is backwards — a
+    /// fuller hand is exactly when you most need to read it.
+    func testAFullerHandIsNotWorseThanAShorterOne() {
+        let width: CGFloat = 393
+        for count in 2...8 {
+            XCTAssertGreaterThan(
+                spacing(width: width, count: count), -2.0,
+                "\(count) cards overlap at iPhone width"
+            )
+        }
+    }
+
+    /// Where there is room, cards stay at their ideal size — an iPad column
+    /// must not shrink them.
+    func testCardsKeepTheirIdealSizeWhenThereIsRoom() {
+        XCTAssertEqual(GameCardSizing.cardWidth(available: 834 - 32, count: 8), 74)
+        XCTAssertGreaterThan(spacing(width: 834, count: 8), 0)
+    }
 }

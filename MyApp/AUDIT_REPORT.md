@@ -1065,10 +1065,13 @@ Solo's `ViewingCardsView` was not merged: 75 of its 158 presentation lines diffe
 concept (the human always starts bidding itself) and resumes an async continuation rather than
 calling a view-model method.
 
-**Observation, preserved not fixed:** both copies size the hand at a hardcoded 74pt per card rather
-than `GameCardSizing`, so on a 393pt-wide phone the eight cards overlap and the point badges clip.
-Visible in `dealt-hand-host-portrait`. Pre-existing and identical in both modes; changing it is a
-layout change neither mode has today, so it was carried across unchanged.
+**Overlapping cards — ✅ fixed 2026-09-19.** Both copies hardcoded 74pt per card and divided the
+leftover width among the gaps. Eight cards need 592pt in a 361pt row, so the gap computed to
+**−33pt** and the cards overlapped, clipping the point badges to `10p`. It worsened as the hand
+grew. Now uses `GameCardSizing.cardWidth` — 44pt cards with a positive gap. The 44pt legibility
+floor leaves **1.3pt** of overlap on the narrowest supported device (375pt), so the test asserts no
+*meaningful* overlap rather than none. **A fit-to-width formula becomes an overlap formula once the
+content stops fitting; test the sign of the gap.**
 
 **`GameOverView` — shared between the multiplayer modes.** Both copies were 163 lines with a
 **zero-line** behavioural diff — identical. Now `GameFinalStandingsView` plus two 9-line adapters

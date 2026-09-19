@@ -137,21 +137,32 @@ struct GameDealtHandView<Game: MultiplayerDealtHand>: View {
 
     // MARK: - Pieces
 
-    /// Fixed 74pt cards, as both copies had. Not `GameCardSizing`: that would
-    /// shrink the cards on a narrow screen rather than let them overlap, which
-    /// is a behaviour change neither mode has today.
+    /// Cards sized to fit, via the same helper the playing screen uses.
+    ///
+    /// Both copies previously hardcoded 74pt and divided the leftover space
+    /// among the gaps. Eight cards need 592pt in a 361pt row, so the "gap"
+    /// came out at **−33pt** and every card sat a third of the way over the
+    /// one before it, clipping the point badges to `10p`. It got worse as the
+    /// hand grew, which is backwards. `GameCardSizing` shrinks the cards
+    /// instead (44pt at iPhone width, with a positive gap), so the badges stay
+    /// whole — and this screen exists to show what the hand is worth.
     private var handRow: some View {
         GeometryReader { geo in
             let sorted = game.myHandSorted
+            let available = geo.size.width - 32
+            let cardW = GameCardSizing.cardWidth(available: available, count: sorted.count)
             let sp = sorted.count > 1
-                ? (geo.size.width - 32 - CGFloat(sorted.count) * 74) / CGFloat(sorted.count - 1)
+                ? (available - CGFloat(sorted.count) * cardW) / CGFloat(sorted.count - 1)
                 : 0
             HStack(spacing: sp) {
                 ForEach(sorted) { card in
-                    HandCardView(card: card)
+                    HandCardView(card: card, width: cardW)
                 }
             }
             .padding(.horizontal, 16)
+            // Shrunk cards are shorter than the 106pt slot; centre them so the
+            // surrounding layout does not move.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .frame(height: 106)
     }
