@@ -69,6 +69,36 @@
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
 
+- [2026-09-18] SPADE-02: one playing screen for both multiplayer modes — Symptom/motivation: the
+  trick-playing screen existed twice, `OnlinePlayingView` (487 lines) and `BTPlayingView` (442), and
+  the copies had diverged where nobody would see it — this screen is only reachable mid-trick in a
+  live session. Root cause: ordinary copy drift. Later work landed on the Online copy only, so
+  Bluetooth kept an older trick layout (width split six ways regardless of how many cards were
+  played), an older avatar row (fixed 5pt spacing, no partner-reveal animation) and a looser turn
+  nudge (`isMyTurn` without `&& phase == .playing`). Fix: extracted `GamePlayingView`, generic over
+  a new `MultiplayerPlayState` protocol so `@Observable` tracking survives; both views are now
+  adapters of 10 and 9 lines. The owner chose the Online treatment for both visible differences
+  (2026-09-18), so **Bluetooth changed visibly**: bigger trick cards early in a trick, equal-width
+  avatar chips that always fit, and a spring when a partner is revealed. Host remove-player is an
+  optional `onRemovePlayer` closure that Bluetooth leaves nil — not a style choice,
+  `BluetoothGameViewModel` has no `removePlayerMidGame`, so the compiler enforces it. The predicate
+  behind it is now pure `GameSeatRemoval.isRemovable(...)` because it is the one place the two
+  modes must not behave alike. Duplicated card sizing collapsed into `GameCardSizing`; the two
+  per-file helpers remain as one-line delegates since other still-duplicated families call them.
+  Reusable pattern: **diff behaviourally before assuming drift, and before assuming its absence** —
+  stripping comments and whitespace showed three "differences" that were not (`btAdaptiveCardWidth`
+  is byte-identical to `onlineAdaptiveCardWidth`; BT's hardcoded `74 * (106.0 / 74.0)` hand height
+  is exactly what `onlineAdaptiveHandHeight()` returns; both trick-history sheets wrap the same
+  `GameTrickHistoryView`). Privacy impact: none; presentation only, no change to data collection,
+  Firebase, permissions, analytics, or third-party services. Verification: 208 unit tests, 0
+  failures on iPhone 18 Pro / iOS 27 (+20: 6 sizing, 5 removal, 9 snapshot). Mutation-proven —
+  dropping the `modeSupportsRemoval` gate fails exactly `testAModeWithoutRemovalNeverOffersIt` and
+  nothing else. Nine snapshots of the rendered screen (portrait, landscape, two-card trick, full
+  trick, empty trick, waiting, partner reveal, and both Bluetooth variants) are attached to the
+  result bundle and were looked at, not just asserted non-blank. (`GamePlayingView.swift` (new),
+  `GamePlayingViewTests.swift` (new), `GamePlayingSnapshotTests.swift` (new), `OnlineGameView.swift`,
+  `BluetoothGameView.swift`, `project.pbxproj`, `CLAUDE.md`, `AUDIT_REPORT.md`)
+
 - [2026-09-12] Fix SPADE-09 — Real-Life Scorekeeper now records optional called cards end to end.
   Added two optional card IDs to `ScorekeeperRoundEntry` and `ScorekeeperRoundDraft`, with duplicate
   validation and backward-compatible decoding for old local rounds and old Firestore documents. Added
@@ -483,6 +513,16 @@ so a crash shows as the process terminating rather than as an impression.
 - SPADE-02, same day: the ordered team split is `GameFlowRules.offenseOrder`/`defenseOrder`
   instead of three inline copies in two encodings (Solo `Int?`, Online/BT `-1`). Seven tests,
   including the sentinel that once became seat 0 and put a defender on the bidding team.
+- SPADE-02, 2026-09-18: `PlayingView` is now `GamePlayingView` + a 10-line and a 9-line adapter,
+  generic over `MultiplayerPlayState`. **This pair had really drifted** — 129 behavioural lines,
+  where the round-complete pair had zero. Bluetooth was the older copy: its trick cards always
+  split the width six ways, its avatar row had no partner-reveal animation, and it lacked the
+  `phase == .playing` gate on the turn nudge. The owner chose the Online treatment on both visible
+  differences, so **Bluetooth changed visibly**. Host remove-player stays Online-only — not a
+  preference, `BluetoothGameViewModel` has no `removePlayerMidGame`, so the compiler enforces it.
+  Three apparent differences were nothing: the two sizing helpers were byte-identical (now
+  `GameCardSizing`), the hardcoded BT hand height equals what Online computed, and both
+  trick-history sheets wrapped the same view.
 - SPADE-02, 2026-09-18: `RoundCompleteView` — the Online and Bluetooth copies were identical
   ignoring comments and wrapping (a **zero-line** behavioural diff), and are now
   `GameMultiplayerRoundCompleteView` + two 17-line adapters, generic over the new

@@ -940,7 +940,7 @@ Read-only pass over 73 Swift files / 37,950 lines. Nothing changed; this is the 
 | ID | Severity | File | Issue | Status |
 |---|---|---|---|---|
 | SPADE-01 | **CRITICAL** | `ScorekeeperView.swift:428` | Force-unwrap crash reachable from a normal two-device action, **new in v2.0** | ✅ Fixed |
-| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | 🟡 In progress — 8 of 14 families shared (2026-09-18) |
+| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | 🟡 In progress — 9 of 14 families shared (2026-09-18) |
 | SPADE-03 | High | `BluetoothGameViewModel.swift:114-115` | `MCPeerID!` / `MCSession!` implicitly unwrapped, and `session` is set to `nil` on teardown | ✅ Fixed 2026-09-12 |
 | SPADE-04 | Medium | 6 files | 9 types declared and never referenced | ✅ Fixed |
 | SPADE-05 | Medium | repo root | 955 lines of stray test files, tracked in git, in no target | ✅ Fixed |
@@ -1015,8 +1015,31 @@ post-round review, a score-save status and configurable buttons; 318 of its 319 
 differ. Merging it would mean inventing a screen neither mode has today. Left as its own view,
 deliberately.
 
-**Still duplicated:** `PlayingView` (2 copies, 929 lines), `CallingView` (2, 738), `GameOverView`
-(3, 592), `LookingAtCardsView` (2, 365), `BiddingView` (2, 88), and Solo's `RoundCompleteView`.
+**`PlayingView` — shared between the multiplayer modes, and this pair had genuinely drifted.**
+The Online copy (487 lines) and the Bluetooth copy (442) differ by **129 behavioural lines**, unlike
+the round-complete pair. Bluetooth's was the older of the two and had missed later work:
+
+| | Bluetooth (before) | Online | Resolution |
+|---|---|---|---|
+| Trick cards | width split six ways always, left-packed | sized to the number actually played | Online's (owner's call) — BT's trick cards are now full width early in a trick |
+| Avatar row | `HStack(spacing: 5)`, no reveal animation | equal chips from available width, spring on partner reveal | Online's (owner's call) — BT gains the reveal animation |
+| Turn nudge | `isMyTurn` | `isMyTurn && phase == .playing` | Online's — the stricter gate is a fix BT never got |
+| Host removes a player | absent | long-press + confirmation | **Not a choice**: `BluetoothGameViewModel` has no `removePlayerMidGame` at all |
+
+Three differences that *looked* like drift were not: `btAdaptiveCardWidth` and
+`onlineAdaptiveCardWidth` were byte-identical, `onlineAdaptiveHandHeight()` returns exactly the
+`74 * (106.0 / 74.0)` BT hardcodes, and both trick-history sheets are one-line wrappers around the
+same `GameTrickHistoryView`. That sizing logic now lives once in `GameCardSizing`; the two per-file
+helpers remain as delegates because the still-duplicated families in those files call them.
+
+Now `GamePlayingView` plus a 10-line and a 9-line adapter, generic over `MultiplayerPlayState`.
+Host removal is an optional `onRemovePlayer` closure, and the predicate behind it is a pure
+`GameSeatRemoval.isRemovable(...)` — the one place the two modes must *not* behave alike, so it is
+tested rather than buried in the view. Bluetooth passing no handler is also enforced by the
+compiler: its view model has no such method to pass.
+
+**Still duplicated:** `CallingView` (2 copies, 738 lines), `GameOverView` (3, 592),
+`LookingAtCardsView` (2, 365), `BiddingView` (2, 88), and Solo's `RoundCompleteView`.
 
 ### SPADE-04 — dead types
 `DefenseChip`, `ScorePill` (`ComputerGameView`); `OnlineOffenseTeamStrip`, `OnlineScorePill`,
