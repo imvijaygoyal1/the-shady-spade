@@ -69,6 +69,32 @@
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
 
+- [2026-09-19] SPADE-02: one calling screen for both multiplayer modes — Symptom/motivation: the
+  trump-and-called-cards screen existed twice, `OnlineCallingView` (372 lines) and `BTCallingView`
+  (366). Behavioural diff: only **15 lines** — the `private` keyword, the confirm method's name
+  (`confirmCalling` vs `callTrumpAndCards`), and one blocked-suit treatment. Fix: extracted
+  `GameCallingView` over a new `MultiplayerCallingState`; both views are now adapters of 8 and 9
+  lines. **This protocol inherits `Observable`**, unlike `MultiplayerRoundSummary` and
+  `MultiplayerPlayState`, because the screen *writes back* — the bidder's trump and called-card
+  choices are edited through `@Bindable`, so the generic needs `Observable & AnyObject`. Bluetooth's
+  differently-named method is bridged by a protocol extension
+  (`func confirmCalling() async { await callTrumpAndCards() }`) rather than a closure, keeping the
+  screen value-free. A **blocked** suit is one the bidder already holds; Online faded the glyph to
+  25% and lightened the plate, Bluetooth faded the whole control. Owner chose Online's two-part dim
+  (2026-09-19), so **Bluetooth's blocked suits changed visibly**. Solo's `CallingCardsView` was
+  deliberately not merged: 121 of its 296 presentation lines differ, it drives an async continuation
+  rather than a view-model method, and it has no waiting branch because in Solo the human is always
+  the caller. Reusable pattern: **a screen that edits state needs `Observable` in its protocol** —
+  the read-only consolidations did not, and `@Bindable var game: Game` will not compile without it.
+  Privacy impact: none; presentation only. Verification: full regression via
+  `scripts/run_regression.sh` — **230 unit + 23 UI, 0 failures, 0 skipped**, counts read from the
+  result bundles rather than the script's own message. 8 new tests: 5 snapshots (bidder portrait and
+  landscape, a blocked suit, the duplicate-card warning, and the non-bidder waiting screen) plus 3
+  validation cases. Snapshots were exported and looked at — the blocked-suit render confirms ♠ dimmed
+  in Card 1 and ♣ in Card 2, matching the hand. (`GameCallingView.swift` (new),
+  `GameCallingSnapshotTests.swift` (new), `OnlineGameView.swift`, `BluetoothGameView.swift`,
+  `project.pbxproj`, `CLAUDE.md`, `AUDIT_REPORT.md`)
+
 - [2026-09-19] Fix red suits rendering white on every dark surface — Symptom: found while
   verifying the Watch fix by rendering the iPhone Add Round screen; the Called Card 1/2 suit
   pickers drew ♠ ♥ ♦ ♣ all in white. A pixel scan found **zero red pixels** in those rows, the only

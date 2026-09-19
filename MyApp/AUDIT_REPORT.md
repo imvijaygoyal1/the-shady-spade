@@ -940,7 +940,7 @@ Read-only pass over 73 Swift files / 37,950 lines. Nothing changed; this is the 
 | ID | Severity | File | Issue | Status |
 |---|---|---|---|---|
 | SPADE-01 | **CRITICAL** | `ScorekeeperView.swift:428` | Force-unwrap crash reachable from a normal two-device action, **new in v2.0** | ✅ Fixed |
-| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | 🟡 In progress — 9 of 14 families shared (2026-09-18) |
+| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | 🟡 In progress — 10 of 14 families shared (2026-09-19) |
 | SPADE-03 | High | `BluetoothGameViewModel.swift:114-115` | `MCPeerID!` / `MCSession!` implicitly unwrapped, and `session` is set to `nil` on teardown | ✅ Fixed 2026-09-12 |
 | SPADE-04 | Medium | 6 files | 9 types declared and never referenced | ✅ Fixed |
 | SPADE-05 | Medium | repo root | 955 lines of stray test files, tracked in git, in no target | ✅ Fixed |
@@ -1038,8 +1038,26 @@ Host removal is an optional `onRemovePlayer` closure, and the predicate behind i
 tested rather than buried in the view. Bluetooth passing no handler is also enforced by the
 compiler: its view model has no such method to pass.
 
-**Still duplicated:** `CallingView` (2 copies, 738 lines), `GameOverView` (3, 592),
-`LookingAtCardsView` (2, 365), `BiddingView` (2, 88), and Solo's `RoundCompleteView`.
+**`CallingView` — shared between the multiplayer modes.** 372 and 366 lines, differing by only
+**15 behavioural lines**: the `private` keyword, the confirm method's name (`confirmCalling` vs
+`callTrumpAndCards`), and one blocked-suit treatment. Now `GameCallingView` plus an 8- and a 9-line
+adapter over `MultiplayerCallingState`.
+
+Unlike the earlier protocols this one inherits `Observable`, because the screen **writes back** —
+the bidder's trump and called-card choices live on the view model and are edited through
+`@Bindable`. Bluetooth's differently-named method is bridged by a protocol extension rather than a
+closure, so the screen stays value-free.
+
+A blocked suit is one the bidder already holds, so calling it is pointless. Online faded the glyph
+to 25% and lightened the plate; Bluetooth faded the whole control. **Owner chose Online's
+two-part dim** (2026-09-19), so Bluetooth's blocked suits changed visibly.
+
+**Solo's `CallingCardsView` was not merged:** 121 of its 296 presentation lines differ. It drives an
+async continuation rather than a view-model method, and has no waiting branch — in Solo the human is
+always the caller when the screen appears.
+
+**Still duplicated:** `GameOverView` (3 copies, 592 lines), `LookingAtCardsView` (2, 365),
+`BiddingView` (2, 88), and Solo's `RoundCompleteView` and `CallingCardsView`.
 
 ### Red suits rendered white on every dark surface — ✅ fixed 2026-09-19
 
