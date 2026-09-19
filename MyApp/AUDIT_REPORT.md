@@ -1041,6 +1041,35 @@ compiler: its view model has no such method to pass.
 **Still duplicated:** `CallingView` (2 copies, 738 lines), `GameOverView` (3, 592),
 `LookingAtCardsView` (2, 365), `BiddingView` (2, 88), and Solo's `RoundCompleteView`.
 
+### Red suits rendered white on every dark surface — ✅ fixed 2026-09-19
+
+Found while *rendering* the iPhone Add Round screen to verify the Watch fix — not by reading code.
+The Called Card 1/2 suit pickers drew ♠ ♥ ♦ ♣ all white; a pixel scan found **zero red pixels** in
+those rows.
+
+`TrumpSuit.displayColor` is `isRed ? .defenseRose : .adaptivePrimary`. In the shipping
+ClassicGreenTheme **dark** palette `defenseText` is literally `Color.white` (`Themes.swift:127`),
+so both branches resolve to white — hearts came back `rgb 1.0,1.0,1.0`, byte-identical to spades.
+Affected every dark surface showing a suit: the scorekeeper pickers, trump and called-card
+selection in all three calling screens, game history, and the splash particles.
+
+**Third instance of one root cause**, after the 2026-04-25 iPhone pill and the 2026-09-18 Watch
+badge: a *semantic* colour drawn where the background does not follow the appearance.
+`.defenseRose` is correct for defense-team text on dark; it was doing a second job it was never
+defined for.
+
+Fixed by generalising the Watch fix: `ScorekeeperCardAppearance` → **`CardInk`**, one literal
+source of suit colours **split by surface** (`onFace` / `onDark`), in both targets. Dark-surface
+red is `#FB7185` at 6.12:1 on the container.
+
+**The invariant that catches this class:** contrast alone would not have — white-on-dark is
+perfectly legible. `CardInkTests` measures **channel distance** between the red and black inks, so
+"both legible but identical" fails.
+
+**Correction:** the iPhone empty-slot dash previously logged at 2.29:1 is **unreachable dead code**
+(`CalledCardBadge` is never passed a nil card on iPhone). It was a real value on a branch that
+never renders.
+
 ### Watch called cards rendered as blank white boxes — ✅ fixed 2026-09-18
 
 Reported by the owner from the device: the Watch scorekeeper showed "white boxes" instead of cards.

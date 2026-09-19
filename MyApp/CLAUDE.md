@@ -69,6 +69,37 @@
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
 
+- [2026-09-19] Fix red suits rendering white on every dark surface — Symptom: found while
+  verifying the Watch fix by rendering the iPhone Add Round screen; the Called Card 1/2 suit
+  pickers drew ♠ ♥ ♦ ♣ all in white. A pixel scan found **zero red pixels** in those rows, the only
+  red on screen being the trump buttons. Root cause: `TrumpSuit.displayColor` is
+  `isRed ? .defenseRose : .adaptivePrimary`, and `defenseText` is literally `Color.white` in the
+  shipping ClassicGreenTheme **dark** palette (`Themes.swift:127`); resolving the colour returns
+  rgb `1.0,1.0,1.0` for hearts, byte-identical to spades. Red and black suits were
+  indistinguishable by colour anywhere a dark surface was used — the scorekeeper pickers, trump and
+  called-card selection on all three calling screens, game history, and the splash particles.
+  `.defenseRose` is not wrong: white is correct for defense-team text on dark. It was doing a
+  second job it was never defined for — the **same root cause as the two preceding bugs**. Fix:
+  yesterday's `ScorekeeperCardAppearance` became `CardInk`, one literal source of suit colours
+  **split by the surface underneath** (`onFace` / `onDark`), compiled into both targets. Face inks
+  unchanged; dark-surface red is `#FB7185` at 6.12:1 on the container — the colour
+  `Styles.defenseRose` documents itself as and the palette does not supply. Owner chose to fix
+  everywhere suits are shown (2026-09-19) rather than the scorekeeper alone, so 15 call sites across
+  8 files changed. Note `CardInk` cannot host `extension TrumpSuit` — it is shared with the Watch
+  target, which has no `TrumpSuit`; that extension stays in `Styles.swift`. Reusable pattern:
+  **two colours can both be legible and still be the same colour** — contrast alone would not have
+  caught this, so the invariant measures *channel distance* between the red and black inks.
+  Privacy impact: none; presentation only. Verification: 222 unit tests, 0 failures (+11).
+  `SuitColourDistinctnessTests` was written against the defect and failed before the change.
+  Confirmed by rendering as well as by test: the same screen that measured 0 red pixels now
+  measures 2658, dominant colour `(251,113,133)`. **Correction to the prior entry:** the iPhone
+  empty-slot dash reported at 2.29:1 is **unreachable dead code** — `CalledCardBadge` is never
+  passed a nil card on iPhone — so that part had no visible effect. (`CardInk.swift` (new, replaces
+  `ScorekeeperCardAppearance.swift`), `Styles.swift`, `ScorekeeperView.swift`,
+  `ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`,
+  `GameHistoryView.swift`, `SplashView.swift`, `WatchScorekeeperView.swift`, `CardInkTests.swift`,
+  `SuitColourDistinctnessTests.swift` (new), `project.pbxproj`, `CLAUDE.md`, `AUDIT_REPORT.md`)
+
 - [2026-09-18] Fix Watch called cards rendering as blank white boxes — Symptom: the owner reported
   the Apple Watch scorekeeper showing "white boxes" instead of called cards. Root cause:
   `WatchCalledCardBadge` paints an explicit white card face, then inks the rank and suit with
