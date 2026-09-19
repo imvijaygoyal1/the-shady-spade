@@ -131,7 +131,10 @@ final class ScorekeeperWatchBridgeTests: XCTestCase {
     }
 
     @MainActor
-    func test_addRoundActionRejectsDealerAsBidder() {
+    /// Was `rejectsDealerAsBidder`, which encoded a rule the game does not
+    /// have: bidding starts at dealer+1 and goes round, so the dealer bids
+    /// last and can win it (corrected 2026-09-19).
+    func test_addRoundActionAcceptsDealerAsBidder() {
         let store = makeStore(name: "dealerBidder")
         store.start(playerNames: ["A", "B", "C", "D", "E", "F"])
 
@@ -140,9 +143,9 @@ final class ScorekeeperWatchBridgeTests: XCTestCase {
             to: store
         )
 
-        XCTAssertFalse(result.accepted)
-        XCTAssertEqual(result.message, "Dealer cannot be the bidder.")
-        XCTAssertEqual(store.activeGame?.rounds.count, 0)
+        XCTAssertTrue(result.accepted)
+        XCTAssertEqual(store.activeGame?.rounds.count, 1, "the round must actually be recorded")
+        XCTAssertEqual(store.activeGame?.rounds.first?.bidderIndex, 0)
     }
 
     @MainActor

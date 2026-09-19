@@ -57,6 +57,59 @@ extension ShapeStyle where Self == Color {
     }
 }
 
+// MARK: - Back control for full-screen covers
+
+/// A back control for screens presented with `NoAnimationCover`.
+///
+/// Those are UIKit presentations with no navigation bar, so a screen shown
+/// that way has no way back unless it draws one (2026-09-19). Top padding is
+/// the app's usual 56pt: `safeAreaInsets.top` reports 0 inside these covers,
+/// so the inset cannot be relied on to clear the Dynamic Island.
+struct ScreenBackBar: View {
+    var title: String = "Back"
+    let action: () -> Void
+
+    var body: some View {
+        HStack {
+            Button {
+                HapticManager.impact(.light)
+                action()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                    Text(title)
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                }
+                .foregroundStyle(Comic.textSecondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Comic.containerBG.opacity(0.75), in: Capsule())
+                .overlay(Capsule().strokeBorder(Comic.containerBorder, lineWidth: 1.5))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("screen.back")
+            .accessibilityLabel("Back")
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 56)
+    }
+}
+
+extension View {
+    /// Overlays a back control, when the screen has somewhere to go back to.
+    @ViewBuilder
+    func screenBack(_ action: (() -> Void)?) -> some View {
+        if let action {
+            overlay(alignment: .topLeading) { ScreenBackBar(action: action) }
+        } else {
+            self
+        }
+    }
+}
+
 // MARK: - Trump Suit display color
 
 extension TrumpSuit {

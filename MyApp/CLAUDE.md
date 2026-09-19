@@ -69,6 +69,51 @@
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
 
+- [2026-09-19] Fix three wrong rules in the scorekeeper Add Round form — Symptom (owner): the
+  Winning Bidder dropdown did not show all 6 players; Partner 1/2 showed only 4 instead of 5; and a
+  player could not be chosen as both partners even though both called cards can sit in one hand.
+  Root cause: **two fabricated rules**, each implemented three times over — in the iPhone candidate
+  lists, the Watch candidate lists, and `ScorekeeperRoundDraft.validationMessage`. (a) The bidder
+  list excluded the **dealer**, but `GameFlowRules.firstBidder` is dealer+1 and bidding goes round,
+  so the dealer bids last and can win; `repairPartnerSelections` actively *reset* the bidder if you
+  picked the dealer. (b) Each partner list excluded the **other partner**, but one player holding
+  both called cards makes the offense 2 v 4 — a case `AIEngine` already models. Fix: one shared
+  `ScorekeeperRoundEligibility` in `ScorekeeperWatchMessages.swift` (the file both targets compile),
+  used by the iPhone form and the Watch; removed both rules from the shared validation and the
+  Watch's own copy; `repairPartnerSelections` now only moves a partner who has become the bidder;
+  `applyDealer` no longer bounces the bidder. **Scoring needed no change** — `offenseIndices` is a
+  `Set`, so a repeated partner already collapses to one share. **Display did**: the round-history
+  row built offense as an *Array* feeding `ForEach(id: \.self)`, so a repeated seat would have been
+  a SwiftUI identity collision (the `LeaderboardView` bug of 2026-05-25); it now uses
+  `GameFlowRules.offenseOrder`/`defenseOrder`, which dedupe. Reusable pattern: **a rule implemented
+  in three places will be wrong in three places** — the Watch carried the identical defect because
+  it computed its own lists. Privacy impact: none. Verification: full regression — **256 unit + 24
+  UI, 0 failures**. 10 new tests. **Two existing tests failed and were inverted, not deleted**:
+  `rejectsDuplicatePartners` and `rejectsDealerAsBidder` were defending the defect; they now assert
+  the correct behaviour, the second checking the round is actually recorded.
+  (`ScorekeeperWatchMessages.swift`, `ScorekeeperModels.swift`, `ScorekeeperView.swift`,
+  `WatchScorekeeperViewModel.swift`, `ScorekeeperTests.swift`, `ScorekeeperWatchBridgeTests.swift`)
+
+- [2026-09-19] Add a way back from the mode-entry screens — Symptom (owner): tapping New Game, Join
+  a Game or Local/Bluetooth led to a screen with no back button, so a player could not change their
+  mind or switch mode. Root cause: these screens are presented with `NoAnimationCover`, a UIKit
+  presentation with no navigation bar, so each must draw its own way out and none did.
+  `CreateOrJoinView` *did* have a chevron, but it sat at `.padding(.top, 16)` — under the Dynamic
+  Island, because `safeAreaInsets.top` reports 0 inside these covers — and it called
+  `@Environment(\.dismiss)`, which is a **no-op** for a controller SwiftUI does not own. Fix: added
+  a shared `ScreenBackBar` and `.screenBack(_:)` in `Styles.swift` at the app's usual 56pt top
+  inset, applied to `NamePromptSheet`, `PlayerCountSheet`, `CreateOrJoinView` and
+  `BTModePickerView`; removed the broken chevron. Back is an explicit closure plumbed from
+  `ModeSelectionView`, which owns the presentation flags — the same mechanism the existing confirm
+  paths use. Back goes one step: the name prompt returns to the menu, the player-count screen
+  returns to the name prompt (via `returningToNamePrompt`, handled in that cover's `onDismiss`).
+  Reusable pattern: **`dismiss()` does nothing inside `NoAnimationCover`** — pass a closure that
+  clears the presenting flag. Privacy impact: none. Verification: 256 unit + 24 UI, 0 failures,
+  including a new UI test that asserts the control is visible, hittable, clear of the Dynamic
+  Island, and actually dismisses the prompt. Confirmed by simulator screenshot.
+  (`Styles.swift`, `ModeSelectionView.swift`, `OnlineSessionView.swift`, `BluetoothSessionView.swift`,
+  `AppLaunchFlowUITests.swift`)
+
 - [2026-09-19] Fix overlapping cards on the dealt-hand screen — Symptom: on the
   look-at-your-hand screen the eight cards sat on top of one another and the point badges clipped
   to `10p` / `30p` / `5p`. Root cause: the row hardcoded **74pt** per card and divided the leftover

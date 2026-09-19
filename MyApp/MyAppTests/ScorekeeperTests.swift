@@ -34,13 +34,16 @@ final class ScorekeeperTests: XCTestCase {
         XCTAssertEqual(draft.validationMessage, "Partners cannot be the bidder.")
     }
 
-    func test_roundDraftValidation_rejectsDuplicatePartners() {
+    /// Was `rejectsDuplicatePartners`, which encoded a rule the game does not
+    /// have: one player can hold both called cards, making the offense two
+    /// against four (corrected 2026-09-19).
+    func test_roundDraftValidation_allowsOnePlayerHoldingBothCalledCards() {
         var draft = ScorekeeperRoundDraft(nextDealerIndex: 0)
         draft.bidderIndex = 1
         draft.partner1Index = 2
         draft.partner2Index = 2
 
-        XCTAssertEqual(draft.validationMessage, "Partners must be two different players.")
+        XCTAssertNil(draft.validationMessage)
     }
 
     func test_roundDraft_defaultsBidStarterAndMinimumBid() {
@@ -293,5 +296,120 @@ final class ScorekeeperRoundEntryDraftTests: XCTestCase {
 
         XCTAssertNotNil(draft)
         XCTAssertEqual(draft?.dealerIndex, game.nextDealerIndex)
+    }
+}
+
+// MARK: - Who may be picked for each role (2026-09-19)
+
+/// Three rules the Add Round form got wrong, on both the iPhone and the Watch,
+/// because each computed its own candidate lists.
+final class ScorekeeperRoundEligibilityTests: XCTestCase {
+
+    /// The offense set exactly as the Add Round form builds it.
+    private func offense(_ d: ScorekeeperRoundDraft) -> Set<Int> {
+        [d.bidderIndex, d.partner1Index, d.partner2Index]
+    }
+
+    private func draft(bidder: Int, p1: Int, p2: Int, dealer: Int = 0) -> ScorekeeperRoundDraft {
+        var d = ScorekeeperRoundDraft(nextDealerIndex: dealer)
+        d.bidderIndex = bidder
+        d.partner1Index = p1
+        d.partner2Index = p2
+        d.bidAmount = 180
+        return d
+    }
+
+    // MARK: Candidate lists
+
+    /// Was five: the dealer was excluded, but bidding starts at dealer+1 and
+    /// goes round, so the dealer bids last and can win it.
+    func testEverySeatCanWinTheBid() {
+        XCTAssertEqual(ScorekeeperRoundEligibility.bidderCandidates, [0, 1, 2, 3, 4, 5])
+    }
+
+    /// Was four: the other partner was excluded too.
+    func testPartnersAreEverySeatButTheBidder() {
+        let candidates = ScorekeeperRoundEligibility.partnerCandidates(bidderIndex: 3)
+        XCTAssertEqual(candidates, [0, 1, 2, 4, 5])
+        XCTAssertEqual(candidates.count, 5)
+        XCTAssertFalse(candidates.contains(3))
+    }
+
+    func testPartnerCandidatesFollowTheBidder() {
+        for bidder in 0..<6 {
+            let c = ScorekeeperRoundEligibility.partnerCandidates(bidderIndex: bidder)
+            XCTAssertEqual(c.count, 5)
+            XCTAssertFalse(c.contains(bidder))
+        }
+    }
+
+    // MARK: Validation
+
+    func testTheDealerMayWinTheBid() {
+        XCTAssertNil(draft(bidder: 0, p1: 1, p2: 2, dealer: 0).validationMessage)
+    }
+
+    /// Both called cards can sit in one hand, making the offense 2 v 4.
+    func testOnePlayerMayHoldBothCalledCards() {
+        XCTAssertNil(draft(bidder: 3, p1: 1, p2: 1).validationMessage)
+    }
+
+    /// The rule that stays: the bidder cannot be their own partner.
+    func testAPartnerStillCannotBeTheBidder() {
+        XCTAssertNotNil(draft(bidder: 3, p1: 3, p2: 1).validationMessage)
+        XCTAssertNotNil(draft(bidder: 3, p1: 1, p2: 3).validationMessage)
+    }
+
+    // MARK: Scoring a two-against-four round
+
+    /// The single partner must get one share, not two.
+    func testADuplicatePartnerScoresOneShare() {
+        let d = draft(bidder: 3, p1: 1, p2: 1)
+        XCTAssertEqual(offense(d), Set([3, 1]), "offense is the bidder plus one partner")
+
+        let made = ScoringEngine.calculateRoundScores(
+            bidAmount: 180, bidderIndex: 3, offenseIndices: offense(d), bidMade: true
+        ).playerDeltas
+        XCTAssertEqual(made[3], 180, "bidder takes the full bid")
+        XCTAssertEqual(made[1], 90, "the one partner takes a single half-share")
+        for seat in [0, 2, 4, 5] {
+            XCTAssertEqual(made[seat], 0, "seat \(seat) is defense")
+        }
+    }
+
+    func testADuplicatePartnerIsPenalisedOnceWhenSet() {
+        let d = draft(bidder: 3, p1: 1, p2: 1)
+        let set = ScoringEngine.calculateRoundScores(
+            bidAmount: 180, bidderIndex: 3, offenseIndices: offense(d), bidMade: false
+        ).playerDeltas
+        XCTAssertEqual(set[3], -180)
+        XCTAssertEqual(set[1], -90)
+        for seat in [0, 2, 4, 5] { XCTAssertEqual(set[seat], 0) }
+    }
+
+    /// A normal 3 v 3 round must be unchanged by any of this.
+    func testAThreeAgainstThreeRoundIsUnchanged() {
+        let d = draft(bidder: 3, p1: 1, p2: 5)
+        XCTAssertEqual(offense(d), Set([3, 1, 5]))
+        let made = ScoringEngine.calculateRoundScores(
+            bidAmount: 180, bidderIndex: 3, offenseIndices: offense(d), bidMade: true
+        ).playerDeltas
+        XCTAssertEqual(made[3], 180)
+        XCTAssertEqual(made[1], 90)
+        XCTAssertEqual(made[5], 90)
+    }
+
+    /// The offense list feeds a `ForEach(id: \.self)`, so a repeated seat would
+    /// be a SwiftUI identity collision.
+    func testTheOffenseListNeverRepeatsASeat() {
+        for (p1, p2) in [(1, 1), (1, 5), (0, 0)] {
+            let offense = GameFlowRules.offenseOrder(
+                bidderIndex: 3, partner1Index: p1, partner2Index: p2
+            )
+            XCTAssertEqual(Set(offense).count, offense.count, "partners \(p1)/\(p2) repeated a seat")
+            let defense = GameFlowRules.defenseOrder(offense: offense)
+            XCTAssertTrue(Set(offense).isDisjoint(with: Set(defense)))
+            XCTAssertEqual(Set(offense).union(defense).count, 6, "every seat covered exactly once")
+        }
     }
 }

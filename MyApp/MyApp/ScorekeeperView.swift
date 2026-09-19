@@ -1764,14 +1764,23 @@ private struct ScorekeeperRoundRow: View {
     let runningTotals: [Int]
 
     private var bidderName: String { playerNames[safe: round.bidderIndex] ?? "Player" }
+    /// Deduplicated: when one player holds both called cards the offense is
+    /// two players, and this list feeds a `ForEach(id: \.self)` where a
+    /// repeated seat would be an identity collision.
     private var offenseIndices: [Int] {
-        [round.bidderIndex, round.partner1Index, round.partner2Index]
+        GameFlowRules.offenseOrder(
+            bidderIndex: round.bidderIndex,
+            partner1Index: round.partner1Index,
+            partner2Index: round.partner2Index
+        )
     }
     private var defenseIndices: [Int] {
-        (0..<6).filter { !round.offenseIndices.contains($0) }
+        GameFlowRules.defenseOrder(offense: offenseIndices)
     }
     private var partnerNames: String {
-        [round.partner1Index, round.partner2Index]
+        var seen = Set<Int>()
+        return [round.partner1Index, round.partner2Index]
+            .filter { seen.insert($0).inserted }
             .map { playerNames[safe: $0] ?? "Player \($0 + 1)" }
             .joined(separator: ", ")
     }
@@ -2010,8 +2019,8 @@ private struct ScorekeeperRoundEntryView: View {
             sectionHeader("Bid Details", icon: "doc.text.fill")
             playerPicker("Winning Bidder", selection: $draft.bidderIndex, candidates: bidderCandidateIndices)
             HStack(spacing: 10) {
-                partnerPicker("Partner 1", selection: $draft.partner1Index, excluding: draft.partner2Index)
-                partnerPicker("Partner 2", selection: $draft.partner2Index, excluding: draft.partner1Index)
+                partnerPicker("Partner 1", selection: $draft.partner1Index)
+                partnerPicker("Partner 2", selection: $draft.partner2Index)
             }
             HStack(spacing: 10) {
                 calledCardPicker("Called Card 1", selection: calledCardOptionalBinding(for: 1))
@@ -2046,14 +2055,14 @@ private struct ScorekeeperRoundEntryView: View {
         .comicContainer(cornerRadius: 14)
     }
 
-    private func partnerPicker(_ title: String, selection: Binding<Int>, excluding excludedPartnerIndex: Int) -> some View {
+    private func partnerPicker(_ title: String, selection: Binding<Int>) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.system(size: 13, weight: .black, design: .rounded))
                 .foregroundStyle(Comic.yellow)
 
             Picker(title, selection: selection) {
-                ForEach(partnerCandidateIndices(excluding: excludedPartnerIndex), id: \.self) { index in
+                ForEach(partnerCandidateIndices, id: \.self) { index in
                     Text(playerName(index)).tag(index)
                 }
             }
@@ -2061,7 +2070,7 @@ private struct ScorekeeperRoundEntryView: View {
             .tint(.masterGold)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityIdentifier("scorekeeper.round.\(identifierPart(title))")
-            .accessibilityValue(partnerCandidateIndices(excluding: excludedPartnerIndex)
+            .accessibilityValue(partnerCandidateIndices
                 .map { playerName($0) }
                 .joined(separator: ", "))
         }
@@ -2074,11 +2083,11 @@ private struct ScorekeeperRoundEntryView: View {
     }
 
     private var bidderCandidateIndices: [Int] {
-        (0..<6).filter { $0 != draft.dealerIndex }
+        ScorekeeperRoundEligibility.bidderCandidates
     }
 
-    private func partnerCandidateIndices(excluding excludedPartnerIndex: Int) -> [Int] {
-        (0..<6).filter { $0 != draft.bidderIndex && $0 != excludedPartnerIndex }
+    private var partnerCandidateIndices: [Int] {
+        ScorekeeperRoundEligibility.partnerCandidates(bidderIndex: draft.bidderIndex)
     }
 
     private func calledCardOptionalBinding(for number: Int) -> Binding<String?> {
@@ -2101,27 +2110,22 @@ private struct ScorekeeperRoundEntryView: View {
         title.replacingOccurrences(of: " ", with: "")
     }
 
+    /// Only one repair is legitimate: a partner who has just become the bidder
+    /// must move. The dealer may bid, and both partners may be the same player,
+    /// so neither is corrected any more.
     private func repairPartnerSelections() {
-        if draft.bidderIndex == draft.dealerIndex {
-            draft.bidderIndex = draft.bidStarterIndex
-        }
-
-        let partner1Candidates = partnerCandidateIndices(excluding: draft.partner2Index)
-        let partner2Candidates = partnerCandidateIndices(excluding: draft.partner1Index)
+        let candidates = partnerCandidateIndices
         if draft.partner1Index == draft.bidderIndex {
-            draft.partner1Index = partner1Candidates.first ?? 0
+            draft.partner1Index = candidates.first ?? 0
         }
-        if draft.partner2Index == draft.bidderIndex || draft.partner2Index == draft.partner1Index {
-            draft.partner2Index = partner2Candidates.first ?? 0
+        if draft.partner2Index == draft.bidderIndex {
+            draft.partner2Index = candidates.first ?? 0
         }
     }
 
     private func applyDealer(_ index: Int) {
         draft.dealerIndex = index
-        if draft.bidderIndex == index {
-            draft.bidderIndex = draft.bidStarterIndex
-        }
-        repairPartnerSelections()
+        // The dealer may also be the bidder, so nothing is reset here.
     }
 
     private var dealerAdjustmentSheet: some View {

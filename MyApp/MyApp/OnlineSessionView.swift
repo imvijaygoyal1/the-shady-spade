@@ -9,6 +9,10 @@ private let osvLog = Logger(subsystem: "com.vijaygoyal.theshadyspade", category:
 
 struct OnlineSessionView: View {
     @EnvironmentObject private var themeManager: ThemeManager
+    /// Returns to the mode menu. An explicit closure because these screens are
+    /// presented with `NoAnimationCover`, where `@Environment(\.dismiss)` is a
+    /// no-op — SwiftUI does not own that UIKit presentation.
+    var onBack: (() -> Void)? = nil
     @Bindable var vm: GameViewModel
     var playerName: String = "Player"
     var playerAvatar: String = "🦁"
@@ -34,28 +38,13 @@ struct OnlineSessionView: View {
 
             if sessionVM.sessionCode == nil {
                 CreateOrJoinView(
+                    onBack: onBack,
                     sessionVM: sessionVM,
                     playerName: playerName,
                     playerAvatar: playerAvatar,
                     playerUID: playerUID,
                     autoShowJoin: autoShowJoin
                 )
-                .overlay(alignment: .topLeading) {
-                    Button {
-                        HapticManager.impact(.light)
-                        dismiss()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 13, weight: .black))
-                            .foregroundStyle(Comic.white)
-                            .frame(width: 32, height: 32)
-                            .background(Comic.black)
-                            .clipShape(Circle())
-                            .overlay(Circle().strokeBorder(Comic.white, lineWidth: 2))
-                    }
-                    .padding(.top, 16)
-                    .padding(.leading, 16)
-                }
             } else {
                 SessionLobbyView(
                     sessionVM: sessionVM,
@@ -81,6 +70,7 @@ struct OnlineSessionView: View {
 // MARK: - Create or Join
 
 private struct CreateOrJoinView: View {
+    var onBack: (() -> Void)? = nil
     var sessionVM: OnlineSessionViewModel
     let playerName: String
     let playerAvatar: String
@@ -89,7 +79,9 @@ private struct CreateOrJoinView: View {
 
     @State private var showingJoin = false
 
-    var body: some View {
+    var body: some View { content.screenBack(onBack) }
+
+    private var content: some View {
         VStack(spacing: 36) {
             Spacer()
 

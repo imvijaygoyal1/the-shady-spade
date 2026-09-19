@@ -9,6 +9,9 @@ struct ModeSelectionView: View {
     @State private var showingOnline = false
     @State private var showingBluetooth = false
     @State private var showingJoinGame = false
+    /// Set when Back is tapped on the player-count screen, so its dismissal
+    /// re-opens the name prompt rather than landing on the menu.
+    @State private var returningToNamePrompt = false
     @State private var showingScorekeeper = false
     @State private var showingScorekeeperViewer = false
     @State private var showingPublishedScorecardViewer = false
@@ -280,7 +283,8 @@ struct ModeSelectionView: View {
                 NamePromptSheet(
                     pendingName: $pendingName,
                     pendingAvatar: $pendingAvatar,
-                    mode: pendingMode
+                    mode: pendingMode,
+                    onBack: { showingNamePrompt = false }
                 ) {
                     let trimmed = pendingName.trimmingCharacters(in: .whitespaces)
                     soloPlayerName = trimmed.isEmpty ? "Player" : trimmed
@@ -296,7 +300,10 @@ struct ModeSelectionView: View {
             NoAnimationCover(
                 isPresented: $showingPlayerCount,
                 onDismiss: {
-                    if playerCountConfirmed {
+                    if returningToNamePrompt {
+                        returningToNamePrompt = false
+                        showingNamePrompt = true
+                    } else if playerCountConfirmed {
                         playerCountConfirmed = false
                         if selectedPlayerCount == 1 {
                             if hasCompletedGuidedFirstGame {
@@ -312,7 +319,13 @@ struct ModeSelectionView: View {
                     }
                 }
             ) {
-                PlayerCountSheet(selectedCount: $selectedPlayerCount) {
+                PlayerCountSheet(
+                    onBack: {
+                        returningToNamePrompt = true
+                        showingPlayerCount = false
+                    },
+                    selectedCount: $selectedPlayerCount
+                ) {
                     playerCountConfirmed = true
                     showingPlayerCount = false
                 }
@@ -359,6 +372,7 @@ struct ModeSelectionView: View {
             }
             NoAnimationCover(isPresented: $showingOnline) {
                 OnlineEntryView(
+                    onBack: { showingOnline = false },
                     vm: vm,
                     playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
                     playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
@@ -367,6 +381,7 @@ struct ModeSelectionView: View {
             }
             NoAnimationCover(isPresented: $showingJoinGame) {
                 OnlineEntryView(
+                    onBack: { showingJoinGame = false },
                     vm: vm,
                     playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
                     playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar,
@@ -376,6 +391,7 @@ struct ModeSelectionView: View {
             }
             NoAnimationCover(isPresented: $showingBluetooth) {
                 BTEntryView(
+                    onBack: { showingBluetooth = false },
                     playerName: soloPlayerName.isEmpty ? "Player" : soloPlayerName,
                     playerAvatar: soloPlayerAvatar.isEmpty ? "🦁" : soloPlayerAvatar
                 )
@@ -465,6 +481,7 @@ private struct UITestCardDealCatalogView: View {
 // MARK: - Bluetooth Entry
 
 private struct BTEntryView: View {
+    var onBack: (() -> Void)? = nil
     let playerName: String
     let playerAvatar: String
     @State private var btGame: BluetoothGameViewModel? = nil
@@ -475,6 +492,7 @@ private struct BTEntryView: View {
             BluetoothGameView(game: game)
         } else {
             BluetoothSessionView(
+                onBack: onBack,
                 playerName: playerName,
                 playerAvatar: playerAvatar,
                 onGameReady: { vm in
@@ -492,6 +510,7 @@ private struct BTEntryView: View {
 // MARK: - Online Entry
 
 private struct OnlineEntryView: View {
+    var onBack: (() -> Void)? = nil
     @Bindable var vm: GameViewModel
     let playerName: String
     let playerAvatar: String
@@ -532,6 +551,7 @@ private struct OnlineEntryView: View {
             }
         } else {
             OnlineSessionView(
+                onBack: onBack,
                 vm: vm,
                 playerName: playerName,
                 playerAvatar: playerAvatar,
@@ -560,6 +580,7 @@ private struct NamePromptSheet: View {
     @Binding var pendingName: String
     @Binding var pendingAvatar: String
     var mode: String = "Solo Game"
+    var onBack: (() -> Void)? = nil
     let onStart: () -> Void
 
     private let avatarOptions = Comic.comicCharacters.map { $0.emoji }
@@ -574,7 +595,9 @@ private struct NamePromptSheet: View {
         }
     }
 
-    var body: some View {
+    var body: some View { content.screenBack(onBack) }
+
+    private var content: some View {
         AdaptiveLayout {
             portrait
         } landscapeLeft: {
@@ -766,6 +789,7 @@ private struct NamePromptSheet: View {
 }
 
 private struct PlayerCountSheet: View {
+    var onBack: (() -> Void)? = nil
     @Binding var selectedCount: Int
     let onConfirm: () -> Void
 
@@ -782,7 +806,9 @@ private struct PlayerCountSheet: View {
 
     private var buttonLabel: String { selectedCount == 1 ? "Start Now" : "Create Room" }
 
-    var body: some View {
+    var body: some View { content.screenBack(onBack) }
+
+    private var content: some View {
         GeometryReader { geo in
             let isPad = geo.size.width > 600
             ZStack {

@@ -1,5 +1,27 @@
 import Foundation
 
+/// Who may be picked for each role when recording a round.
+///
+/// Shared by the iPhone form and the Watch form, which previously computed
+/// this separately and so carried the same two wrong rules in both places
+/// (2026-09-19):
+///
+/// - the bidder list excluded the **dealer**, but bidding starts at dealer+1
+///   and goes round, so the dealer bids last and can win it;
+/// - each partner list excluded the **other partner**, but one player can hold
+///   both called cards, which makes the offense two against four.
+enum ScorekeeperRoundEligibility {
+    static let playerCount = 6
+
+    /// Every seat.
+    static var bidderCandidates: [Int] { Array(0..<playerCount) }
+
+    /// Every seat except the bidder — five of them, the other partner included.
+    static func partnerCandidates(bidderIndex: Int) -> [Int] {
+        (0..<playerCount).filter { $0 != bidderIndex }
+    }
+}
+
 enum ScorekeeperWatchActionType: String, Codable {
     case requestSnapshot
     case addRound

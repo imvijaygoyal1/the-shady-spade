@@ -38,27 +38,23 @@ import WatchConnectivity
     }
 
     var eligibleBidderIndices: [Int] {
-        (0..<6).filter { $0 != draft.dealerIndex }
+        ScorekeeperRoundEligibility.bidderCandidates
     }
 
     var eligiblePartner1Indices: [Int] {
-        (0..<6).filter { $0 != draft.bidderIndex && $0 != draft.partner2Index }
+        ScorekeeperRoundEligibility.partnerCandidates(bidderIndex: draft.bidderIndex)
     }
 
     var eligiblePartner2Indices: [Int] {
-        (0..<6).filter { $0 != draft.bidderIndex && $0 != draft.partner1Index }
+        eligiblePartner1Indices
     }
 
     var validationMessage: String? {
-        guard draft.bidderIndex != draft.dealerIndex else {
-            return "Dealer cannot bid."
-        }
+        // The dealer may win the bid, and both called cards can sit in one
+        // hand, so neither is rejected. See `ScorekeeperRoundDraft`.
         guard draft.partner1Index != draft.bidderIndex,
               draft.partner2Index != draft.bidderIndex else {
             return "Partners cannot be bidder."
-        }
-        guard draft.partner1Index != draft.partner2Index else {
-            return "Partners must differ."
         }
         guard (130...240).contains(draft.bidAmount) else {
             return "Bid must be 130-240."

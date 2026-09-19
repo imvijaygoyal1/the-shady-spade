@@ -222,18 +222,17 @@ struct ScorekeeperRoundDraft: Equatable {
             return "Bid must be between 130 and 240."
         }
 
-        guard bidderIndex != dealerIndex else {
-            return "Dealer cannot be the bidder."
-        }
-
         guard partner1Index != bidderIndex,
               partner2Index != bidderIndex else {
             return "Partners cannot be the bidder."
         }
 
-        guard partner1Index != partner2Index else {
-            return "Partners must be two different players."
-        }
+        // Deliberately NOT rejected:
+        //  - the dealer winning the bid. Bidding starts at dealer+1 and goes
+        //    round, so the dealer bids last and can absolutely win it.
+        //  - partner1 == partner2. One player can hold both called cards, which
+        //    makes offense the bidder plus one partner, 2 v 4. `offenseIndices`
+        //    is a Set, so scoring already gives that player a single share.
 
         if let calledCard1, let calledCard2, calledCard1 == calledCard2 {
             return "Called cards must be different."

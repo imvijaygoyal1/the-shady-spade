@@ -5,6 +5,9 @@ import MultipeerConnectivity
 
 struct BluetoothSessionView: View {
     @EnvironmentObject private var themeManager: ThemeManager
+    /// Returns to the mode menu. Explicit because `NoAnimationCover` is a UIKit
+    /// presentation SwiftUI does not own, so `dismiss()` does nothing here.
+    var onBack: (() -> Void)? = nil
     let playerName: String
     let playerAvatar: String
     var onGameReady: ((BluetoothGameViewModel) -> Void)? = nil
@@ -32,6 +35,7 @@ struct BluetoothSessionView: View {
                     ))
             } else {
                 BTModePickerView(
+                    onBack: onBack,
                     playerName: playerName,
                     playerAvatar: playerAvatar,
                     onHost: {
@@ -93,12 +97,15 @@ struct BluetoothSessionView: View {
 // MARK: - Mode Picker (Host or Join)
 
 private struct BTModePickerView: View {
+    var onBack: (() -> Void)? = nil
     let playerName: String
     let playerAvatar: String
     let onHost: () -> Void
     let onJoin: () -> Void
 
-    var body: some View {
+    var body: some View { content.screenBack(onBack) }
+
+    private var content: some View {
         VStack(spacing: 36) {
             Spacer()
 

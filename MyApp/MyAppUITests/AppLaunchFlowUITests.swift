@@ -121,6 +121,32 @@ final class ScreenCatalogUITests: XCTestCase {
         keepScreenshot(named: "screen-catalog-name-prompt", app: app)
     }
 
+    /// These screens are presented with `NoAnimationCover`, which has no
+    /// navigation bar, so each has to draw its own way out. Before 2026-09-19
+    /// there was none — tapping New Game, Join or Local/Bluetooth left the
+    /// player stuck on the name prompt with no way to change their mind.
+    func testNamePromptOffersAWayBackToTheMenu() throws {
+        app = launchShadySpade(arguments: ["-SHADYSPADE_OPEN_NAME_PROMPT_FOR_UI_TESTS"])
+
+        let back = app.buttons["screen.back"]
+        assertVisible(back, name: "Back button")
+        XCTAssertTrue(back.isHittable, "Back is present but cannot be tapped")
+
+        // It must clear the Dynamic Island: inside these covers
+        // `safeAreaInsets.top` reports 0, so the inset cannot be relied on.
+        assertElement(back, staysWithin: app, minimumTop: 44)
+
+        back.tap()
+
+        // The prompt is gone, so the menu underneath is reachable again and a
+        // different mode can be chosen. "Choose Your Avatar" belongs only to
+        // this prompt, unlike "New Game", which is also a card on the menu.
+        let avatarTitle = app.staticTexts["Choose Your Avatar"]
+        let disappeared = NSPredicate(format: "exists == false")
+        expectation(for: disappeared, evaluatedWith: avatarTitle)
+        waitForExpectations(timeout: 8)
+    }
+
     func testPlayerCountScreenCatalog() throws {
         app = launchShadySpade(arguments: ["-SHADYSPADE_OPEN_PLAYER_COUNT_FOR_UI_TESTS"])
 
