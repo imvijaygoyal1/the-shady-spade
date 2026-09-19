@@ -18,6 +18,7 @@
 		TX100904 /* GameMultiplayerRoundCompleteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200904 /* GameMultiplayerRoundCompleteView.swift */; };
 		TX100907 /* GamePlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200907 /* GamePlayingView.swift */; };
 		TX100910 /* GameCallingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200910 /* GameCallingView.swift */; };
+		TX100912 /* GameDealtHandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200912 /* GameDealtHandView.swift */; };
 		BT100001 /* BluetoothGameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200001 /* BluetoothGameViewModel.swift */; };
 		BT100002 /* BluetoothSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200002 /* BluetoothSessionView.swift */; };
 		BT100003 /* BluetoothGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BT200003 /* BluetoothGameView.swift */; };
@@ -79,6 +80,7 @@
 		TX100906 /* GameMultiplayerRoundCompleteSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200906 /* GameMultiplayerRoundCompleteSnapshotTests.swift */; };
 		TX100909 /* GamePlayingSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200909 /* GamePlayingSnapshotTests.swift */; };
 		TX100911 /* GameCallingSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200911 /* GameCallingSnapshotTests.swift */; };
+		TX100913 /* GameDealtHandSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200913 /* GameDealtHandSnapshotTests.swift */; };
 		TX100908 /* GamePlayingViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200908 /* GamePlayingViewTests.swift */; };
 		SKA100003 /* CardInkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SKA200002 /* CardInkTests.swift */; };
 		SKA100004 /* SuitColourDistinctnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SKA200003 /* SuitColourDistinctnessTests.swift */; };
@@ -159,6 +161,7 @@
 		TX200904 /* GameMultiplayerRoundCompleteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameMultiplayerRoundCompleteView.swift; sourceTree = "<group>"; };
 		TX200907 /* GamePlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamePlayingView.swift; sourceTree = "<group>"; };
 		TX200910 /* GameCallingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCallingView.swift; sourceTree = "<group>"; };
+		TX200912 /* GameDealtHandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDealtHandView.swift; sourceTree = "<group>"; };
 		BT200001 /* BluetoothGameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothGameViewModel.swift; sourceTree = "<group>"; };
 		BT200002 /* BluetoothSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothSessionView.swift; sourceTree = "<group>"; };
 		BT200003 /* BluetoothGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothGameView.swift; sourceTree = "<group>"; };
@@ -211,6 +214,7 @@
 		TX200906 /* GameMultiplayerRoundCompleteSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameMultiplayerRoundCompleteSnapshotTests.swift; sourceTree = "<group>"; };
 		TX200909 /* GamePlayingSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamePlayingSnapshotTests.swift; sourceTree = "<group>"; };
 		TX200911 /* GameCallingSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameCallingSnapshotTests.swift; sourceTree = "<group>"; };
+		TX200913 /* GameDealtHandSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDealtHandSnapshotTests.swift; sourceTree = "<group>"; };
 		TX200908 /* GamePlayingViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamePlayingViewTests.swift; sourceTree = "<group>"; };
 		SKA200002 /* CardInkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardInkTests.swift; sourceTree = "<group>"; };
 		SKA200003 /* SuitColourDistinctnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuitColourDistinctnessTests.swift; sourceTree = "<group>"; };
@@ -304,6 +308,7 @@
 				TX200904 /* GameMultiplayerRoundCompleteView.swift */,
 				TX200907 /* GamePlayingView.swift */,
 				TX200910 /* GameCallingView.swift */,
+				TX200912 /* GameDealtHandView.swift */,
 				CT00002 /* ComicTheme.swift */,
 				TE200001 /* ThemeEngine.swift */,
 				TE200002 /* Themes.swift */,
@@ -383,6 +388,7 @@
 				TX200906 /* GameMultiplayerRoundCompleteSnapshotTests.swift */,
 				TX200909 /* GamePlayingSnapshotTests.swift */,
 				TX200911 /* GameCallingSnapshotTests.swift */,
+				TX200913 /* GameDealtHandSnapshotTests.swift */,
 				TX200908 /* GamePlayingViewTests.swift */,
 				SKA200002 /* CardInkTests.swift */,
 				SKA200003 /* SuitColourDistinctnessTests.swift */,
@@ -607,6 +613,7 @@
 				TX100904 /* GameMultiplayerRoundCompleteView.swift in Sources */,
 				TX100907 /* GamePlayingView.swift in Sources */,
 				TX100910 /* GameCallingView.swift in Sources */,
+				TX100912 /* GameDealtHandView.swift in Sources */,
 				CT00001 /* ComicTheme.swift in Sources */,
 				TE100001 /* ThemeEngine.swift in Sources */,
 				TE100002 /* Themes.swift in Sources */,
@@ -665,6 +672,7 @@
 				TX100906 /* GameMultiplayerRoundCompleteSnapshotTests.swift in Sources */,
 				TX100909 /* GamePlayingSnapshotTests.swift in Sources */,
 				TX100911 /* GameCallingSnapshotTests.swift in Sources */,
+				TX100913 /* GameDealtHandSnapshotTests.swift in Sources */,
 				TX100908 /* GamePlayingViewTests.swift in Sources */,
 				SKA100003 /* CardInkTests.swift in Sources */,
 				SKA100004 /* SuitColourDistinctnessTests.swift in Sources */,

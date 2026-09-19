@@ -940,7 +940,7 @@ Read-only pass over 73 Swift files / 37,950 lines. Nothing changed; this is the 
 | ID | Severity | File | Issue | Status |
 |---|---|---|---|---|
 | SPADE-01 | **CRITICAL** | `ScorekeeperView.swift:428` | Force-unwrap crash reachable from a normal two-device action, **new in v2.0** | ✅ Fixed |
-| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | 🟡 In progress — 10 of 14 families shared (2026-09-19) |
+| SPADE-02 | High | 3 game views | 14 duplicated component families across 8,042 lines | 🟡 In progress — 11 of 14 families shared (2026-09-19) |
 | SPADE-03 | High | `BluetoothGameViewModel.swift:114-115` | `MCPeerID!` / `MCSession!` implicitly unwrapped, and `session` is set to `nil` on teardown | ✅ Fixed 2026-09-12 |
 | SPADE-04 | Medium | 6 files | 9 types declared and never referenced | ✅ Fixed |
 | SPADE-05 | Medium | repo root | 955 lines of stray test files, tracked in git, in no target | ✅ Fixed |
@@ -1056,8 +1056,24 @@ two-part dim** (2026-09-19), so Bluetooth's blocked suits changed visibly.
 async continuation rather than a view-model method, and has no waiting branch — in Solo the human is
 always the caller when the screen appears.
 
-**Still duplicated:** `GameOverView` (3 copies, 592 lines), `LookingAtCardsView` (2, 365),
-`BiddingView` (2, 88), and Solo's `RoundCompleteView` and `CallingCardsView`.
+**`LookingAtCardsView` — shared between the multiplayer modes.** 185 and 180 lines with a
+**zero-line** behavioural diff: the only difference was where `Text("Start Bidding")` wrapped. Now
+`GameDealtHandView` plus two 8-line adapters over `MultiplayerDealtHand`, which is read-only and so
+does **not** inherit `Observable` — unlike the calling protocol, this screen writes nothing back.
+
+Solo's `ViewingCardsView` was not merged: 75 of its 158 presentation lines differ. It has no host
+concept (the human always starts bidding itself) and resumes an async continuation rather than
+calling a view-model method.
+
+**Observation, preserved not fixed:** both copies size the hand at a hardcoded 74pt per card rather
+than `GameCardSizing`, so on a 393pt-wide phone the eight cards overlap and the point badges clip.
+Visible in `dealt-hand-host-portrait`. Pre-existing and identical in both modes; changing it is a
+layout change neither mode has today, so it was carried across unchanged.
+
+**Still duplicated:** `GameOverView` (3 copies, 592 lines), and Solo's `RoundCompleteView`,
+`CallingCardsView` and `ViewingCardsView`. `BiddingView` (2, 88) is **not** real duplication — both
+are thin wrappers over the shared `BiddingTwoColumnLayout` with a 6-line diff, though Online gates
+on `isMyTurn` where Bluetooth gates on `currentActionPlayer == myPlayerIndex && phase == .bidding`.
 
 ### Red suits rendered white on every dark surface — ✅ fixed 2026-09-19
 

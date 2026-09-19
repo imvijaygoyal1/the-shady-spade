@@ -69,6 +69,27 @@
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
 
+- [2026-09-19] SPADE-02: one dealt-hand screen for both multiplayer modes — Symptom/motivation: the
+  between-deal-and-bidding screen existed twice, `OnlineLookingAtCardsView` (185 lines) and
+  `BTLookingAtCardsView` (180). Behavioural diff: **zero lines** — the only difference was where
+  `Text("Start Bidding")` wrapped. Fix: extracted `GameDealtHandView` over a new
+  `MultiplayerDealtHand`; both are now 8-line adapters. The protocol is **read-only and does not
+  inherit `Observable`** — unlike `MultiplayerCallingState`, this screen writes nothing back, so the
+  game is taken by value rather than `@Bindable`. Solo's `ViewingCardsView` was deliberately not
+  merged: 75 of its 158 presentation lines differ, it has no host concept (the human always starts
+  bidding itself), and it resumes an async continuation rather than calling a view-model method.
+  **Observation, preserved rather than fixed:** both copies size the hand at a hardcoded 74pt per
+  card instead of `GameCardSizing`, so on a 393pt-wide phone the eight cards overlap and the point
+  badges clip — visible in the `dealt-hand-host-portrait` snapshot. Pre-existing and identical in
+  both modes, so it was carried across unchanged rather than altered without asking. Privacy
+  impact: none; presentation only. Verification: full regression via `scripts/run_regression.sh` —
+  **236 unit + 23 UI, 0 failures, 0 skipped**, counts read from the result bundles rather than the
+  script's own message. 6 new tests: 4 snapshots (host and guest, portrait and landscape) plus the
+  hand-points total and the 3♠ 30-point rule, since that pill is the only number on the screen and
+  is what a player bids on. Snapshots exported and looked at. (`GameDealtHandView.swift` (new),
+  `GameDealtHandSnapshotTests.swift` (new), `OnlineGameView.swift`, `BluetoothGameView.swift`,
+  `project.pbxproj`, `CLAUDE.md`, `AUDIT_REPORT.md`)
+
 - [2026-09-19] SPADE-02: one calling screen for both multiplayer modes — Symptom/motivation: the
   trump-and-called-cards screen existed twice, `OnlineCallingView` (372 lines) and `BTCallingView`
   (366). Behavioural diff: only **15 lines** — the `private` keyword, the confirm method's name
