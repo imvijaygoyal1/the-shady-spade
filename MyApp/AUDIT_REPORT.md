@@ -1041,6 +1041,33 @@ compiler: its view model has no such method to pass.
 **Still duplicated:** `CallingView` (2 copies, 738 lines), `GameOverView` (3, 592),
 `LookingAtCardsView` (2, 365), `BiddingView` (2, 88), and Solo's `RoundCompleteView`.
 
+### Watch called cards rendered as blank white boxes — ✅ fixed 2026-09-18
+
+Reported by the owner from the device: the Watch scorekeeper showed "white boxes" instead of cards.
+
+`WatchCalledCardBadge` paints an explicit white card face, then inks the rank and suit with
+`.primary` for ♠/♣ and `.secondary` for an unrecorded slot. **watchOS has no light mode**, so those
+resolve to white and near-white — a contrast of **1.00:1** against the face. The badge backs both
+the two Add Round summary buttons and all 48 cards in the picker, so both default slots and every
+black-suit card were blank; the border, drawn in the same colour, vanished with them.
+
+**Second instance of one defect.** The 2026-04-25 `GameInfoPillsRow` fix was the same mistake on
+iPhone (`Comic.textPrimary` is white in ClassicGreenTheme). The Watch badge was written on
+2026-09-12 and never received it.
+
+Fixed by `ScorekeeperCardAppearance` — literal card inks compiled into both the iOS and Watch
+targets, so there is one definition rather than two that can drift. iPhone values unchanged.
+`ScorekeeperCardAppearanceTests` holds the invariant: every suit and the empty slot must clear
+WCAG AA (4.5:1) against the face, with the contrast function itself pinned to known anchors so the
+invariant cannot pass vacuously. Mutation-proven in both directions.
+
+**Rule:** a semantic colour must never be drawn on a non-semantic background. `.primary`,
+`.secondary` and `Comic.textPrimary` follow the appearance; a card face is explicitly white and
+does not. On watchOS the collision is guaranteed rather than theme-dependent.
+
+**Related, open:** the iPhone badge's empty-slot dash uses `Comic.textSecondary` (`#C9A84C`) on the
+white face at **2.29:1**, below AA. Visible but poor; left as-is pending a decision.
+
 ### SPADE-04 — dead types
 `DefenseChip`, `ScorePill` (`ComputerGameView`); `OnlineOffenseTeamStrip`, `OnlineScorePill`,
 `WaitingOverlay` (`OnlineGameView`); `BidProgressBanner`, `TrumpAndCalledRow` (`Styles`);

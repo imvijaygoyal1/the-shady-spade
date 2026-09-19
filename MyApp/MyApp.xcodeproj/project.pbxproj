@@ -54,12 +54,14 @@
 		SK100002 /* ScorekeeperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SK200002 /* ScorekeeperView.swift */; };
 		SK100003 /* ScorekeeperSessionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SK200003 /* ScorekeeperSessionService.swift */; };
 		SKW100001 /* ScorekeeperWatchMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = SKW200001 /* ScorekeeperWatchMessages.swift */; };
+		SKA100001 /* ScorekeeperCardAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = SKA200001 /* ScorekeeperCardAppearance.swift */; };
 		SKW100002 /* ScorekeeperWatchBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = SKW200002 /* ScorekeeperWatchBridge.swift */; };
 		SGS100001 /* SyncedGameStateMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = SGS200001 /* SyncedGameStateMapper.swift */; };
 		WAT100001 /* MyAppWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = WAT200001 /* MyAppWatchApp.swift */; };
 		WAT100002 /* WatchScorekeeperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WAT200002 /* WatchScorekeeperView.swift */; };
 		WAT100003 /* WatchScorekeeperViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = WAT200003 /* WatchScorekeeperViewModel.swift */; };
 		WAT100004 /* ScorekeeperWatchMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = SKW200001 /* ScorekeeperWatchMessages.swift */; };
+		SKA100002 /* ScorekeeperCardAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = SKA200001 /* ScorekeeperCardAppearance.swift */; };
 		WAT100005 /* MyApp Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = WAT200000 /* MyApp Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		WAT100006 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = WAT200004 /* Assets.xcassets */; };
 		MAV100001 /* MultiplayerActionValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = MAV200001 /* MultiplayerActionValidator.swift */; };
@@ -76,6 +78,7 @@
 		TX100906 /* GameMultiplayerRoundCompleteSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200906 /* GameMultiplayerRoundCompleteSnapshotTests.swift */; };
 		TX100909 /* GamePlayingSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200909 /* GamePlayingSnapshotTests.swift */; };
 		TX100908 /* GamePlayingViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200908 /* GamePlayingViewTests.swift */; };
+		SKA100003 /* ScorekeeperCardAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SKA200002 /* ScorekeeperCardAppearanceTests.swift */; };
 		TX100905 /* SnapshotRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200905 /* SnapshotRendering.swift */; };
 		TX100903 /* GameRoundResultBannerSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200903 /* GameRoundResultBannerSnapshotTests.swift */; };
 		TX100901 /* AISelfPlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = TX200901 /* AISelfPlay.swift */; };
@@ -186,6 +189,7 @@
 		SK200002 /* ScorekeeperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperView.swift; sourceTree = "<group>"; };
 		SK200003 /* ScorekeeperSessionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperSessionService.swift; sourceTree = "<group>"; };
 		SKW200001 /* ScorekeeperWatchMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperWatchMessages.swift; sourceTree = "<group>"; };
+		SKA200001 /* ScorekeeperCardAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperCardAppearance.swift; sourceTree = "<group>"; };
 		SKW200002 /* ScorekeeperWatchBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperWatchBridge.swift; sourceTree = "<group>"; };
 		SGS200001 /* SyncedGameStateMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedGameStateMapper.swift; sourceTree = "<group>"; };
 		MAV200001 /* MultiplayerActionValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiplayerActionValidator.swift; sourceTree = "<group>"; };
@@ -203,6 +207,7 @@
 		TX200906 /* GameMultiplayerRoundCompleteSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameMultiplayerRoundCompleteSnapshotTests.swift; sourceTree = "<group>"; };
 		TX200909 /* GamePlayingSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamePlayingSnapshotTests.swift; sourceTree = "<group>"; };
 		TX200908 /* GamePlayingViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamePlayingViewTests.swift; sourceTree = "<group>"; };
+		SKA200002 /* ScorekeeperCardAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorekeeperCardAppearanceTests.swift; sourceTree = "<group>"; };
 		TX200905 /* SnapshotRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotRendering.swift; sourceTree = "<group>"; };
 		TX200903 /* GameRoundResultBannerSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRoundResultBannerSnapshotTests.swift; sourceTree = "<group>"; };
 		TX200901 /* AISelfPlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISelfPlay.swift; sourceTree = "<group>"; };
@@ -304,6 +309,7 @@
 				SK200002 /* ScorekeeperView.swift */,
 				SK200003 /* ScorekeeperSessionService.swift */,
 				SKW200001 /* ScorekeeperWatchMessages.swift */,
+				SKA200001 /* ScorekeeperCardAppearance.swift */,
 				SKW200002 /* ScorekeeperWatchBridge.swift */,
 				SGS200001 /* SyncedGameStateMapper.swift */,
 				GF200001 /* GameFlowRules.swift */,
@@ -370,6 +376,7 @@
 				TX200906 /* GameMultiplayerRoundCompleteSnapshotTests.swift */,
 				TX200909 /* GamePlayingSnapshotTests.swift */,
 				TX200908 /* GamePlayingViewTests.swift */,
+				SKA200002 /* ScorekeeperCardAppearanceTests.swift */,
 				TX200905 /* SnapshotRendering.swift */,
 				TX200903 /* GameRoundResultBannerSnapshotTests.swift */,
 				TX200901 /* AISelfPlay.swift */,
@@ -623,6 +630,7 @@
 				SK100002 /* ScorekeeperView.swift in Sources */,
 				SK100003 /* ScorekeeperSessionService.swift in Sources */,
 				SKW100001 /* ScorekeeperWatchMessages.swift in Sources */,
+				SKA100001 /* ScorekeeperCardAppearance.swift in Sources */,
 				SKW100002 /* ScorekeeperWatchBridge.swift in Sources */,
 				SGS100001 /* SyncedGameStateMapper.swift in Sources */,
 				LC100001 /* LeaderboardConsentManager.swift in Sources */,
@@ -647,6 +655,7 @@
 				TX100906 /* GameMultiplayerRoundCompleteSnapshotTests.swift in Sources */,
 				TX100909 /* GamePlayingSnapshotTests.swift in Sources */,
 				TX100908 /* GamePlayingViewTests.swift in Sources */,
+				SKA100003 /* ScorekeeperCardAppearanceTests.swift in Sources */,
 				TX100905 /* SnapshotRendering.swift in Sources */,
 				TX100903 /* GameRoundResultBannerSnapshotTests.swift in Sources */,
 				TX100901 /* AISelfPlay.swift in Sources */,
@@ -686,6 +695,7 @@
 				WAT100002 /* WatchScorekeeperView.swift in Sources */,
 				WAT100003 /* WatchScorekeeperViewModel.swift in Sources */,
 				WAT100004 /* ScorekeeperWatchMessages.swift in Sources */,
+				SKA100002 /* ScorekeeperCardAppearance.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -837,7 +847,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = MyApp/MyAppDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_ASSET_PATHS = "\"MyApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
@@ -874,7 +884,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = MyApp/MyApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_ASSET_PATHS = "\"MyApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
@@ -976,7 +986,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1005,7 +1015,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = 7B5U5LACV3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

@@ -69,6 +69,36 @@
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
 
+- [2026-09-18] Fix Watch called cards rendering as blank white boxes — Symptom: the owner reported
+  the Apple Watch scorekeeper showing "white boxes" instead of called cards. Root cause:
+  `WatchCalledCardBadge` paints an explicit white card face, then inks the rank and suit with
+  `.primary` for ♠/♣ and `.secondary` for an unrecorded slot. **watchOS has no light mode**, so
+  `.primary` resolves to white and `.secondary` to near-white — black suits and every empty slot
+  were drawn white-on-white, contrast 1.00:1. The badge is used both for the two Add Round summary
+  buttons and for all 48 cards in the picker, so half the grid and both default slots were blank.
+  The border used the same colour at 0.35 opacity, so it vanished too. **This is the second
+  instance of one defect**: the 2026-04-25 `GameInfoPillsRow` fix was the same mistake on iPhone
+  (`Comic.textPrimary` is white in ClassicGreenTheme), and the Watch badge was written later
+  (2026-09-12) without it. Fix: added `ScorekeeperCardAppearance`, a shared, dependency-free source
+  of literal card inks (red `0.82/0.03/0.08`, black `0.04/0.04/0.05`, placeholder
+  `0.42/0.42/0.46`, face white) compiled into **both** the iOS and Watch targets; the Watch badge
+  now uses it. iPhone values are unchanged — the same literals it already used. Reusable pattern:
+  **a semantic colour must never be drawn on a non-semantic background.** `.primary`,
+  `.secondary` and `Comic.textPrimary` follow the appearance; a card face is explicitly white and
+  does not, so the two can collide. On watchOS this is guaranteed rather than theme-dependent.
+  Privacy impact: none; presentation only. Verification: 7 new tests holding a WCAG contrast
+  invariant (every suit and the empty slot ≥ 4.5:1 on the face), plus a test of the contrast
+  function itself against known anchors so the invariant cannot pass vacuously. Mutation-proven —
+  inking black suits white (the shipped bug) fails exactly `testNoSuitIsInkedTheSameAsTheCardFace`,
+  `testEverySuitIsLegibleOnTheCardFace` and `testAnUnknownSuitFallsBackToLegibleInk`; a near-white
+  placeholder fails exactly `testTheEmptySlotIsLegibleOnTheCardFace`. Watch target builds against
+  watchsimulator. **Not yet confirmed on the Watch itself** — the Add Round screen needs a snapshot
+  pushed from a paired phone, so it is unreachable in a simulator; owner verification pending.
+  **Related, not fixed:** the iPhone badge's empty-slot dash uses `Comic.textSecondary` (`#C9A84C`)
+  on the white face at **2.29:1**, below AA — visible but poor, and left alone rather than changed
+  without asking. (`ScorekeeperCardAppearance.swift` (new), `WatchScorekeeperView.swift`,
+  `ScorekeeperCardAppearanceTests.swift` (new), `project.pbxproj`, `CLAUDE.md`, `AUDIT_REPORT.md`)
+
 - [2026-09-18] SPADE-02: one playing screen for both multiplayer modes — Symptom/motivation: the
   trick-playing screen existed twice, `OnlinePlayingView` (487 lines) and `BTPlayingView` (442), and
   the copies had diverged where nobody would see it — this screen is only reachable mid-trick in a

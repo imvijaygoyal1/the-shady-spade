@@ -248,20 +248,23 @@ private struct WatchCalledCardBadge: View {
 
     private var suit: String? { cardID.map { String($0.suffix(1)) } }
     private var rank: String { cardID.map { String($0.dropLast()) } ?? "—" }
-    private var color: Color {
-        suit == "♥" || suit == "♦" ? .red : .primary
-    }
+
+    /// Literal ink, never `.primary`/`.secondary`: the face below is an
+    /// explicit white and watchOS has no light mode, so a semantic colour
+    /// resolves to white and the card renders blank. See
+    /// `ScorekeeperCardAppearance`.
+    private var ink: Color { ScorekeeperCardAppearance.ink(forSuit: suit).color }
 
     var body: some View {
         VStack(spacing: 0) {
             Text(rank).font(.caption.bold())
             if let suit { Text(suit).font(.body.bold()) }
         }
-        .foregroundStyle(suit == nil ? .secondary : color)
+        .foregroundStyle(ink)
         .frame(maxWidth: .infinity)
         .frame(height: 38)
-        .background(.white, in: RoundedRectangle(cornerRadius: 7))
-        .overlay(RoundedRectangle(cornerRadius: 7).stroke(isSelected ? .yellow : color.opacity(0.35), lineWidth: isSelected ? 2 : 1))
+        .background(ScorekeeperCardAppearance.face.color, in: RoundedRectangle(cornerRadius: 7))
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(isSelected ? .yellow : ink.opacity(0.35), lineWidth: isSelected ? 2 : 1))
     }
 }
 
