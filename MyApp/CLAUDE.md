@@ -94,6 +94,29 @@
   (`ScorekeeperWatchMessages.swift`, `ScorekeeperModels.swift`, `ScorekeeperView.swift`,
   `WatchScorekeeperViewModel.swift`, `ScorekeeperTests.swift`, `ScorekeeperWatchBridgeTests.swift`)
 
+- [2026-09-19] Put the entry screens on the menu's top-bar line — Symptom (owner): "the back button
+  should be at the same height where there is leaderboard icon". **Measured** from screenshots
+  before changing anything: the menu's leaderboard button sat at top **52pt**, 40pt tall; the back
+  control at top **118pt**, 36pt tall — 66pt lower and 4pt smaller. Root cause, and the reason a
+  shared constant had not helped: **the two bars measured from different origins.** The menu's
+  `portraitBody` is a `ZStack` whose children call `.ignoresSafeArea()`, which expands the stack to
+  the full screen, so its `.padding(.top, 52)` is from the *physical* top. A screen inside a
+  `NoAnimationCover` is hosted in a `UIHostingController` whose root **is** safe-area inset, so an
+  identical number landed on top of the device's ~62pt inset. Fix: extracted the menu's geometry
+  into `TopBarMetrics` + `TopBarCircleButton` + `ScreenTopBar` (40pt control, 52pt top, 20pt side)
+  and had **both** the menu and the four entry screens use it; `.screenHeader` applies
+  `.ignoresSafeArea(edges: .top)` so it measures from the same origin. Verified by re-measuring
+  both screenshots: **52.0pt / 71.8pt / 39.7pt on both, zero difference**, and the menu did not
+  move. The hairline divider was dropped — the menu has none, and without it the bar reads as the
+  same surface. Reusable pattern: **a shared constant is not a shared origin.** Two views can pad by
+  the same number and land 66pt apart if one is safe-area inset and the other is not; measure the
+  rendered result rather than trusting the constant. Privacy impact: none. Verification: 256 unit +
+  24 UI, 0 failures. `testNewGameNamePromptAvatarClearsDynamicIslandArea` was **replaced** by
+  `testEntryScreenTopBarMatchesTheMenuTopBar`, which measures the menu's control, navigates, and
+  requires the back control to match its y, height and x within 1pt — asserting the design rule
+  itself instead of a threshold that silently goes stale. (`Styles.swift`, `ModeSelectionView.swift`,
+  `AppLaunchFlowUITests.swift`)
+
 - [2026-09-19] Rework the back control into a header row — Symptom (owner): the back button "looks
   weird as a separate thing on the screen and totally off". Rendering it confirmed three faults, not
   one: it floated **level with the middle of the avatar card** rather than above the content; it was

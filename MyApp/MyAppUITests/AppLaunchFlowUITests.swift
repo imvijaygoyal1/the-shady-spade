@@ -44,36 +44,51 @@ final class AppLaunchFlowUITests: XCTestCase {
         }
     }
 
-    /// The prompt must not run under the Dynamic Island. `safeAreaInsets.top`
-    /// reports 0 inside a `NoAnimationCover`, so the screen pads manually and
-    /// this guards that it still does.
+    /// The entry screens must wear the *same* top bar as the mode menu.
     ///
-    /// The threshold was 210 when the title sat below a padded avatar card.
-    /// The title moved into a header bar on 2026-09-19, so the check now names
-    /// the **topmost** element and uses the real bound — the safe-area top on
-    /// these devices is 59pt, and anything at or below it is clear.
-    func testNewGameNamePromptAvatarClearsDynamicIslandArea() throws {
+    /// This asserts the design rule directly rather than against a threshold.
+    /// The back control drifted to 66pt lower and 4pt smaller than the menu's
+    /// leaderboard button (measured 2026-09-19) because the two bars were
+    /// written separately and measured from different origins — the menu from
+    /// the physical top, the cover from its hosting controller's safe-area
+    /// inset. They share `ScreenTopBar` now, and this fails if they diverge.
+    func testEntryScreenTopBarMatchesTheMenuTopBar() throws {
         app = launchShadySpade()
+
+        let trophy = app.buttons["mode.top.leaderboard"]
+        XCTAssertTrue(trophy.waitForExistence(timeout: 8))
+        let menuBar = trophy.frame
+
+        // It has to clear the Dynamic Island, which ends around 48pt.
+        XCTAssertGreaterThanOrEqual(
+            menuBar.minY, 50,
+            "The menu's own top bar runs under the Dynamic Island."
+        )
 
         let newGame = app.buttons["mode.card.New Game"]
         XCTAssertTrue(newGame.waitForExistence(timeout: 8))
         newGame.tap()
 
         let back = app.buttons["screen.back"]
-        XCTAssertTrue(back.waitForExistence(timeout: 3))
-        XCTAssertGreaterThanOrEqual(
-            back.frame.minY, 60,
-            "The header bar runs under the Dynamic Island."
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+
+        XCTAssertEqual(
+            back.frame.minY, menuBar.minY, accuracy: 1.0,
+            "Back sits \(back.frame.minY - menuBar.minY)pt off the menu's line."
+        )
+        XCTAssertEqual(
+            back.frame.height, menuBar.height, accuracy: 1.0,
+            "Back is a different size from the menu's control."
+        )
+        XCTAssertEqual(
+            back.frame.minX, menuBar.minX, accuracy: 1.0,
+            "Back is inset differently from the menu's control."
         )
 
+        // The title shares the control's row — that is what stopped it
+        // reading as a stray button.
         let promptTitle = app.staticTexts["New Game"].firstMatch
         XCTAssertTrue(promptTitle.waitForExistence(timeout: 3))
-        XCTAssertGreaterThanOrEqual(
-            promptTitle.frame.minY, 60,
-            "The header title runs under the Dynamic Island."
-        )
-
-        // Title and control share the row, which is the point of the header.
         XCTAssertLessThan(
             abs(promptTitle.frame.midY - back.frame.midY), 20,
             "Header title and back control are not on the same row."
@@ -137,9 +152,11 @@ final class ScreenCatalogUITests: XCTestCase {
         assertVisible(app.staticTexts["Choose Your Avatar"], name: "Avatar picker title")
         assertVisible(app.textFields.firstMatch, name: "Avatar name field")
         assertVisible(app.buttons["Start Game"], name: "Start Game button")
-        // The title lives in the header bar since 2026-09-19; 60pt is the
-        // safe-area bound, not the old layout-specific 210.
-        assertElement(title, staysWithin: app, minimumTop: 60)
+        // The title lives in the top bar since 2026-09-19, on the same 52pt
+        // line as the menu's controls. 50pt is the Dynamic Island's lower
+        // edge; `testEntryScreenTopBarMatchesTheMenuTopBar` pins the exact
+        // alignment.
+        assertElement(title, staysWithin: app, minimumTop: 50)
         keepScreenshot(named: "screen-catalog-name-prompt", app: app)
     }
 

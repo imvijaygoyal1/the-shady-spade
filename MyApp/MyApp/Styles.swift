@@ -57,73 +57,112 @@ extension ShapeStyle where Self == Color {
     }
 }
 
-// MARK: - Header bar for full-screen covers
+// MARK: - Top bar
 
-/// A header row for screens presented with `NoAnimationCover`.
+/// The app's top-level navigation geometry, in one place.
 ///
-/// Those are UIKit presentations with no navigation bar, so a screen shown that
-/// way has no way back unless it draws one (2026-09-19). A lone floating button
-/// read as an orphan, so the control shares a row with the screen's title and
-/// sits on a real baseline (owner's call).
+/// The mode menu drew this inline — a 40pt circle, 52pt from the top, 20pt
+/// from the side — and the entry screens grew a second, different bar, which
+/// landed **66pt lower and 4pt smaller** (measured 2026-09-19). The two were
+/// measuring from different origins: the menu's `ZStack` has children that
+/// ignore the safe area, so it expands to the full screen and its 52pt is from
+/// the physical top; a screen inside a `NoAnimationCover` is hosted in a
+/// `UIHostingController` whose root *is* safe-area inset, so the same number
+/// landed on top of the device inset.
 ///
-/// Top padding is the app's usual 56pt: `safeAreaInsets.top` reports 0 inside
-/// these covers, so the inset cannot be relied on to clear the Dynamic Island.
-struct ScreenHeaderBar: View {
-    let title: String
-    let onBack: () -> Void
+/// One definition now, so they cannot drift again. `topInset` is applied by the
+/// bar itself and callers place it against the physical top.
+enum TopBarMetrics {
+    static let control: CGFloat = 40
+    static let topInset: CGFloat = 52
+    static let sideInset: CGFloat = 20
+    static let ringWidth: CGFloat = 2
+}
+
+/// One circular control in a `ScreenTopBar`.
+struct TopBarCircleButton: View {
+    let systemImage: String
+    var tint: Color = Color.masterGold
+    var ring: Color = Comic.yellow
+    let action: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Button {
-                    HapticManager.impact(.light)
-                    onBack()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 15, weight: .black, design: .rounded))
-                        .foregroundStyle(Comic.textPrimary)
-                        .frame(width: 36, height: 36)
-                        .background(Comic.containerBG, in: Circle())
-                        .overlay(Circle().strokeBorder(Comic.containerBorder, lineWidth: 1.5))
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("screen.back")
-                .accessibilityLabel("Back")
+        Button {
+            HapticManager.impact(.light)
+            action()
+        } label: {
+            Image(systemName: systemImage)
+                .font(.system(size: 18))
+                .foregroundStyle(tint)
+                .frame(width: TopBarMetrics.control, height: TopBarMetrics.control)
+                .background(Comic.black)
+                .clipShape(Circle())
+                .overlay(Circle().strokeBorder(ring, lineWidth: TopBarMetrics.ringWidth))
+        }
+    }
+}
 
+/// A top bar: a leading control, an optional title, an optional trailing
+/// control. Used by the mode menu and by every screen presented over it.
+struct ScreenTopBar<Leading: View, Trailing: View>: View {
+    var title: String? = nil
+    @ViewBuilder var leading: () -> Leading
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: 12) {
+            leading()
+
+            if let title {
                 Text(title)
                     .font(.system(size: 20, weight: .black, design: .rounded))
                     .foregroundStyle(.masterGold)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
-
-                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 56)
-            .padding(.bottom, 12)
 
-            Rectangle()
-                .fill(Comic.containerBorder.opacity(0.55))
-                .frame(height: 1)
+            Spacer(minLength: 0)
+
+            trailing()
         }
-        // These covers paint no background of their own, so without this the
-        // bar sits on black while the screen below is the themed green.
-        .background(Comic.bg)
+        .padding(.horizontal, TopBarMetrics.sideInset)
+        .padding(.top, TopBarMetrics.topInset)
+    }
+}
+
+extension ScreenTopBar where Trailing == EmptyView {
+    init(title: String? = nil, @ViewBuilder leading: @escaping () -> Leading) {
+        self.init(title: title, leading: leading, trailing: { EmptyView() })
     }
 }
 
 extension View {
-    /// Puts a header row above the screen, when it has somewhere to go back to.
+    /// Puts a back control and title above the screen, when it has somewhere to
+    /// go back to.
     ///
-    /// Stacked rather than overlaid, so content begins below the bar instead of
-    /// colliding with it.
+    /// `ignoresSafeArea(edges: .top)` is what makes this land on the menu's
+    /// line: without it the bar is measured from the hosting controller's
+    /// inset rather than the physical top.
     @ViewBuilder
     func screenHeader(_ title: String, onBack: (() -> Void)?) -> some View {
         if let onBack {
             VStack(spacing: 0) {
-                ScreenHeaderBar(title: title, onBack: onBack)
+                ScreenTopBar(title: title) {
+                    TopBarCircleButton(
+                        systemImage: "chevron.left",
+                        tint: Color.masterGold,
+                        ring: Comic.yellow,
+                        action: onBack
+                    )
+                    .accessibilityIdentifier("screen.back")
+                    .accessibilityLabel("Back")
+                }
+                .padding(.bottom, 12)
+                .background(Comic.bg)
+
                 self
             }
+            .ignoresSafeArea(edges: .top)
         } else {
             self
         }

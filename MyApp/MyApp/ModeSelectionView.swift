@@ -83,43 +83,25 @@ struct ModeSelectionView: View {
             Comic.bg.ignoresSafeArea()
             ThemedBackground().ignoresSafeArea()
 
-            // Top bar — history (left) + settings (right)
+            // Top bar — leaderboard (left) + settings (right).
+            // Same `ScreenTopBar` the entry screens use, so a back control
+            // lands on exactly this line.
             VStack {
-                HStack {
-                    Button {
-                        HapticManager.impact(.light)
+                ScreenTopBar {
+                    TopBarCircleButton(systemImage: "trophy.fill") {
                         showingLeaderboard = true
-                    } label: {
-                        Image(systemName: "trophy.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(Color.masterGold)
-                            .frame(width: 40, height: 40)
-                            .background(Comic.black)
-                            .clipShape(Circle())
-                            .overlay(Circle().strokeBorder(
-                                Comic.yellow, lineWidth: 2))
                     }
-                    .padding(.leading, 20)
                     .accessibilityIdentifier("mode.top.leaderboard")
-
-                    Spacer()
-
-                    Button {
-                        HapticManager.impact(.light)
+                } trailing: {
+                    TopBarCircleButton(
+                        systemImage: "gearshape.fill",
+                        tint: Color.white,
+                        ring: Comic.black
+                    ) {
                         showingSettings = true
-                    } label: {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(Color.white)
-                            .frame(width: 40, height: 40)
-                            .background(Comic.black)
-                            .clipShape(Circle())
-                            .overlay(Circle().strokeBorder(Comic.black, lineWidth: 2))
                     }
-                    .padding(.trailing, 20)
                     .accessibilityIdentifier("mode.top.settings")
                 }
-                .padding(.top, 52)
                 Spacer()
             }
             .zIndex(2)
