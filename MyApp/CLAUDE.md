@@ -64,7 +64,16 @@
 
 ## v2.0 Changelog
 > Changes made after the live v1.10 build. Add entries here as changes are implemented.
-> **Submission status:** v2.0 (**build 12**) in release prep, not yet submitted.
+> **Submission status:** v2.0 (**build 17**) release-prepped 2026-09-19, **not yet submitted**.
+> Tagged `v2.0-build17-prep` at `2963227`. Archived to Organizer and verified: bundle ids, 2.0 (17)
+> on both the app and the embedded Watch app, Watch `Assets.car` present, Associated Domains only
+> (no `aps-environment`), `MinimumOSVersion` 17.0. **Export/upload not done** — this machine has
+> only an Apple Development certificate and `xcodebuild` reports *No Accounts*, so the distribution
+> re-sign must happen from Xcode Organizer. Verified live: privacy policy (dated 2026-09-12, covers
+> consent, called cards and scorekeeper), AASA with the right Team ID and all six path patterns,
+> and `/join`, `/scorekeeper`, `/scorecard` fallbacks all 200. `firestore.rules` and
+> `functions/index.js` unchanged since their July deploys. Regression 256 unit + 24 UI, 0 failures.
+> **Group B — the paired iPhone↔Watch pass — is still unrun and is the only blocker.**
 
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
