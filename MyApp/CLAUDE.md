@@ -67,9 +67,23 @@
 > **Submission status:** v2.0 (**build 17**) release-prepped 2026-09-19, **not yet submitted**.
 > Tagged `v2.0-build17-prep` at `2963227`. Archived to Organizer and verified: bundle ids, 2.0 (17)
 > on both the app and the embedded Watch app, Watch `Assets.car` present, Associated Domains only
-> (no `aps-environment`), `MinimumOSVersion` 17.0. **Export/upload not done** — this machine has
-> only an Apple Development certificate and `xcodebuild` reports *No Accounts*, so the distribution
-> re-sign must happen from Xcode Organizer. Verified live: privacy policy (dated 2026-09-12, covers
+> (no `aps-environment`), `MinimumOSVersion` 17.0. **IPA exported and verified 2026-09-20**
+> at `/tmp/ss_export/MyApp.ipa` (12.5 MB), read from the **exported artifact** rather than build
+> settings: `get-task-allow` **false**, `beta-reports-active` true, Associated Domains only, app
+> *and* embedded Watch app both signed **Apple Distribution: Vijay Goyal (7B5U5LACV3)**, both at
+> 2.0 (17), Watch `Assets.car` + `embedded.mobileprovision` present. The Watch App Store profile
+> was created automatically — the xBill first-export failure did not recur. **Upload still to do.**
+>
+> ⚠️ An earlier note here said this machine had *no distribution certificate*. That was true only
+> until 2026-09-20 and is now **wrong** — one was created during that export. The real cause was
+> that **no Apple ID was signed into Xcode**: `IDEProvisioningTeams` was empty, so Xcode showed
+> *"Inherit Development team from Project settings"* and `xcodebuild -exportArchive` failed with
+> *No Accounts*. **The project was never misconfigured** — all four targets resolve
+> `DEVELOPMENT_TEAM = 7B5U5LACV3` with `CODE_SIGN_STYLE = Automatic` in both configurations, and
+> device installs kept working throughout because a development certificate and profiles were
+> already cached, which need no account. Do not "fix" this by setting a team by hand.
+>
+> Verified live: privacy policy (dated 2026-09-12, covers
 > consent, called cards and scorekeeper), AASA with the right Team ID and all six path patterns,
 > and `/join`, `/scorekeeper`, `/scorecard` fallbacks all 200. `firestore.rules` and
 > `functions/index.js` unchanged since their July deploys. Regression 256 unit + 24 UI, 0 failures.
