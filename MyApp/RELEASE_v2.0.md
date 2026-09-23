@@ -124,8 +124,9 @@ screen showing the called-card pickers.
 
 ## 5. Submission steps
 
-1. **Upload** — Xcode → Window → Organizer → the 2.0 (17) archive → Distribute App → App
-   Store Connect. Or Transporter with `~/MyiOSApp/exports/TheShadySpade-2.0-17.ipa`.
+1. **Upload** — Xcode → Window → Organizer → **look under "MyApp", not "The Shady Spade"**.
+   Organizer groups archives by `PRODUCT_NAME` (`MyApp`); "The Shady Spade" is only the display
+   name. Pick the **2026-09-22** archive → Distribute App → App Store Connect. Or Transporter with `~/MyiOSApp/exports/TheShadySpade-2.0-17.ipa`.
 2. In ASC, select build **17** for version **2.0**.
 3. Paste sections 1 and 2; confirm section 3; complete section 4.
 4. Confirm the Privacy Policy URL is `https://shadyspade.vijaygoyal.org/privacy` (live,
