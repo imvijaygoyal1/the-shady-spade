@@ -87,7 +87,11 @@
 > consent, called cards and scorekeeper), AASA with the right Team ID and all six path patterns,
 > and `/join`, `/scorekeeper`, `/scorecard` fallbacks all 200. `firestore.rules` and
 > `functions/index.js` unchanged since their July deploys. Regression 256 unit + 24 UI, 0 failures.
-> **Group B — the paired iPhone↔Watch pass — is still unrun and is the only blocker.**
+> **Group B, 2026-09-22 — B1 ✅ B2 ✅ B3 ✅ B4 ✅, B5 outstanding.** B4 passes by
+> prevention: with no rounds the Watch's Undo is `.disabled`, so the action cannot be sent at all;
+> the refusal underneath is covered by `test_undoLastRoundRejectsWhenNoRoundsExist`. B2 also
+> confirmed the two fixes that had never been seen on hardware — the called-card white boxes are
+> gone, and the same player is accepted as both partners (the 2 v 4 hand).
 
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
@@ -324,8 +328,10 @@
   inking black suits white (the shipped bug) fails exactly `testNoSuitIsInkedTheSameAsTheCardFace`,
   `testEverySuitIsLegibleOnTheCardFace` and `testAnUnknownSuitFallsBackToLegibleInk`; a near-white
   placeholder fails exactly `testTheEmptySlotIsLegibleOnTheCardFace`. Watch target builds against
-  watchsimulator. **Not yet confirmed on the Watch itself** — the Add Round screen needs a snapshot
-  pushed from a paired phone, so it is unreachable in a simulator; owner verification pending.
+  watchsimulator. **✅ Confirmed on the Watch 2026-09-22** by the owner during the Group B pass: the
+  called-card grid renders every card readably, ♠/♣ dark and ♥/♦ red, and both slots show the dash
+  rather than a blank box. The screen is unreachable in a simulator (it needs a snapshot pushed
+  from a paired phone), so hardware was the only way to see it.
   **Related, not fixed:** the iPhone badge's empty-slot dash uses `Comic.textSecondary` (`#C9A84C`)
   on the white face at **2.29:1**, below AA — visible but poor, and left alone rather than changed
   without asking. (`ScorekeeperCardAppearance.swift` (new), `WatchScorekeeperView.swift`,
