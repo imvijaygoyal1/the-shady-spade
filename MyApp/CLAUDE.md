@@ -87,11 +87,18 @@
 > consent, called cards and scorekeeper), AASA with the right Team ID and all six path patterns,
 > and `/join`, `/scorekeeper`, `/scorecard` fallbacks all 200. `firestore.rules` and
 > `functions/index.js` unchanged since their July deploys. Regression 256 unit + 24 UI, 0 failures.
-> **Group B, 2026-09-22 — B1 ✅ B2 ✅ B3 ✅ B4 ✅, B5 outstanding.** B4 passes by
-> prevention: with no rounds the Watch's Undo is `.disabled`, so the action cannot be sent at all;
-> the refusal underneath is covered by `test_undoLastRoundRejectsWhenNoRoundsExist`. B2 also
-> confirmed the two fixes that had never been seen on hardware — the called-card white boxes are
-> gone, and the same player is accepted as both partners (the 2 v 4 hand).
+> **✅ GROUP B PASSED IN FULL, 2026-09-22 — B1 · B2 · B3 · B4 · B5.** The blocker that
+> held v2.0 since August is cleared. **B5, the SPADE-01 path, passed on hardware**: with one round
+> recorded and *Edit Last Round* open on the iPhone, an *Undo Last Round* from the Watch closed the
+> sheet itself without crashing. That is the crash v2.0 would have shipped, and it is the one check
+> in the pass no test can stand in for — it needs SwiftUI to re-evaluate an open sheet against a
+> store that changed underneath it. B4 passes by prevention: with no rounds the Watch's Undo is
+> `.disabled`, so the action cannot be sent; the refusal underneath stays covered by
+> `test_undoLastRoundRejectsWhenNoRoundsExist`. B2 also confirmed the two fixes that had only ever
+> been proven by test — the called-card white boxes are gone, and one player is accepted as both
+> partners (the 2 v 4 hand).
+>
+> **Remaining to ship: upload the build, complete App Store Connect metadata, then retag.**
 
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
