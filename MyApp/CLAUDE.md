@@ -64,41 +64,33 @@
 
 ## v2.0 Changelog
 > Changes made after the live v1.10 build. Add entries here as changes are implemented.
-> **Submission status:** v2.0 (**build 17**) release-prepped 2026-09-19, **not yet submitted**.
-> Tagged `v2.0-build17-prep` at `2963227`. Archived to Organizer and verified: bundle ids, 2.0 (17)
-> on both the app and the embedded Watch app, Watch `Assets.car` present, Associated Domains only
-> (no `aps-environment`), `MinimumOSVersion` 17.0. **IPA exported and verified 2026-09-20**
-> at `/tmp/ss_export/MyApp.ipa` (12.5 MB), read from the **exported artifact** rather than build
-> settings: `get-task-allow` **false**, `beta-reports-active` true, Associated Domains only, app
-> *and* embedded Watch app both signed **Apple Distribution: Vijay Goyal (7B5U5LACV3)**, both at
-> 2.0 (17), Watch `Assets.car` + `embedded.mobileprovision` present. The Watch App Store profile
-> was created automatically — the xBill first-export failure did not recur. **Upload still to do.**
+> **Submission status:** v2.0 (**build 17**) ✅ **SUBMITTED 2026-09-23**, tagged `v2.0-build17`.
+> Awaiting Apple's response — amend that tag with APPROVED or REJECTED plus the guideline when it
+> lands. This is the first release containing the Apple Watch companion, Real-Life Scorekeeper and
+> published scorecards; it supersedes v1.10 (8), live since June.
 >
-> ⚠️ An earlier note here said this machine had *no distribution certificate*. That was true only
-> until 2026-09-20 and is now **wrong** — one was created during that export. The real cause was
-> that **no Apple ID was signed into Xcode**: `IDEProvisioningTeams` was empty, so Xcode showed
-> *"Inherit Development team from Project settings"* and `xcodebuild -exportArchive` failed with
-> *No Accounts*. **The project was never misconfigured** — all four targets resolve
-> `DEVELOPMENT_TEAM = 7B5U5LACV3` with `CODE_SIGN_STYLE = Automatic` in both configurations, and
-> device installs kept working throughout because a development certificate and profiles were
-> already cached, which need no account. Do not "fix" this by setting a team by hand.
+> Verified before submitting, from the **artifact** rather than build settings: `get-task-allow`
+> false, `beta-reports-active` true, Associated Domains only (no `aps-environment`), app *and*
+> embedded Watch app both signed Apple Distribution and both at 2.0 (17), Watch `Assets.car` and
+> `embedded.mobileprovision` present. 256 unit + 24 UI tests, 0 failures. Live: privacy policy
+> (2026-09-12), AASA with the right Team ID and all six path patterns, `/join`, `/scorekeeper` and
+> `/scorecard` fallbacks. `firestore.rules` and `functions/index.js` unchanged since their July
+> deploys.
 >
-> Verified live: privacy policy (dated 2026-09-12, covers
-> consent, called cards and scorekeeper), AASA with the right Team ID and all six path patterns,
-> and `/join`, `/scorekeeper`, `/scorecard` fallbacks all 200. `firestore.rules` and
-> `functions/index.js` unchanged since their July deploys. Regression 256 unit + 24 UI, 0 failures.
-> **✅ GROUP B PASSED IN FULL, 2026-09-22 — B1 · B2 · B3 · B4 · B5.** The blocker that
-> held v2.0 since August is cleared. **B5, the SPADE-01 path, passed on hardware**: with one round
-> recorded and *Edit Last Round* open on the iPhone, an *Undo Last Round* from the Watch closed the
-> sheet itself without crashing. That is the crash v2.0 would have shipped, and it is the one check
-> in the pass no test can stand in for — it needs SwiftUI to re-evaluate an open sheet against a
-> store that changed underneath it. B4 passes by prevention: with no rounds the Watch's Undo is
-> `.disabled`, so the action cannot be sent; the refusal underneath stays covered by
-> `test_undoLastRoundRejectsWhenNoRoundsExist`. B2 also confirmed the two fixes that had only ever
-> been proven by test — the called-card white boxes are gone, and one player is accepted as both
-> partners (the 2 v 4 hand).
+> **Group B passed in full on hardware 2026-09-22** — B1 · B2 · B3 · B4 · B5. B5 is the SPADE-01
+> path this release fixes: with a round recorded and *Edit Last Round* open on the iPhone, an
+> *Undo Last Round* from the Watch closed the sheet itself without crashing. B2 also confirmed two
+> fixes that had only ever been proven by test, both unreachable in a simulator — the Watch's
+> called-card white boxes, and one player accepted as both partners.
 >
-> **Remaining to ship: upload the build, complete App Store Connect metadata, then retag.**
+> Upload emitted **"Upload Symbols Failed"** for five Firebase binaries
+> (`FirebaseFirestoreInternal`, `absl`, `grpc`, `grpcpp`, `openssl_grpc`). **Expected and
+> harmless**: Firebase ships those as stripped binary frameworks with no dSYMs — the only dSYMs in
+> the SPM checkout are Crashlytics test fixtures. `MyApp.app.dSYM` and `MyApp Watch App.app.dSYM`
+> *are* in the archive, so your own code symbolicates. Do not "fix" it by disabling symbol upload.
+>
+> Submission pack — What's New, review notes, privacy labels, screenshot sizes — is in
+> `RELEASE_v2.0.md`.
 
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
