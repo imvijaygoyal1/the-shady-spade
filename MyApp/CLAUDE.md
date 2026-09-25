@@ -3,7 +3,10 @@
 > **IMPORTANT FOR CLAUDE:** After every code change to this project, update this file to reflect the change. New file → add to File Map. New component → add to Styles section. Changed pattern → update Key Patterns. Version bump → update App Identity. This file must always stay current.
 > **RELEASE TRACKING:** v1.10 is **approved and live** on the App Store. v2.0 (build 11) is in release prep — the first release containing the Apple Watch companion, Real-Life Scorekeeper, and published scorecards. Log all post-v1.10 changes under the v2.0 section below.
 > **ISSUE/FIX LOGGING PATTERN:** For every bug fix or behavior change, add a v1.9 changelog entry with Symptom, Root Cause, Fix, reusable Pattern, Verification, and changed files. Also add or update a plan note under `docs/superpowers/plans/YYYY-MM-DD-short-slug.md` so future Claude sessions can reconstruct the analysis and implementation.
-> **RELEASE TAGGING RULE (added 2026-09-04):** **Tag every submission, at submission time.**
+> **RELEASE TAGGING RULE (added 2026-09-04; proved itself 2026-09-24):** **Tag every submission, at
+> submission time.** v2.0 (17) is the first release where the tag carried the full story — binary
+> provenance, what was verified from the artifact, and now the approval — with no reconstruction
+> needed. Contrast v1.10, whose boundary had to be inferred.
 > `git tag -a v<version>-build<n> <commit> -m "<version> (build <n>) — SUBMITTED <date>"`, then
 > `git push origin <tag>`. Amend the message with the outcome (APPROVED / REJECTED + guideline)
 > when Apple responds. This exists because the v1.10 boundary turned out to be **underivable** —
@@ -64,10 +67,17 @@
 
 ## v2.0 Changelog
 > Changes made after the live v1.10 build. Add entries here as changes are implemented.
-> **Submission status:** v2.0 (**build 17**) ✅ **SUBMITTED 2026-09-23**, tagged `v2.0-build17`.
-> Awaiting Apple's response — amend that tag with APPROVED or REJECTED plus the guideline when it
-> lands. This is the first release containing the Apple Watch companion, Real-Life Scorekeeper and
-> published scorecards; it supersedes v1.10 (8), live since June.
+> **Submission status:** v2.0 (**build 17**) ✅ **APPROVED 2026-09-24 and live** — submitted
+> 2026-09-23, approved on the **first pass** in one day, no guideline cited. Tag `v2.0-build17`
+> amended with the outcome and force-pushed (same commit, `0742f7a`). This is the first release
+> containing the Apple Watch companion, Real-Life Scorekeeper and published scorecards; it
+> supersedes v1.10 (8), live since June.
+>
+> **The 5.1.2 rejection is now answered.** v1.9 (7) was rejected for uploading leaderboard data
+> without explicit consent; this is the first build to face review with the consent gate in it, and
+> it cleared. The review notes in `RELEASE_v2.0.md` §2 walked the reviewer through verifying that
+> exact path step by step — **reuse that structure verbatim the next time a rejection is being
+> answered.** Running total: 9 submissions, 8 first-pass approvals.
 >
 > Verified before submitting, from the **artifact** rather than build settings: `get-task-allow`
 > false, `beta-reports-active` true, Associated Domains only (no `aps-environment`), app *and*
@@ -1113,8 +1123,8 @@ needs that split before it means anything.
 - **Name:** The Shady Spade
 - **Bundle ID:** `com.vijaygoyal.theshadyspade`
 - **Platform:** iOS (SwiftUI, supports portrait + landscape)
-- **Current version:** 2.0 (build 11) — in release prep, not yet submitted
-- **Previous version:** 1.10 (build 8, inferred) — approved and live on the App Store
+- **Current version:** 2.0 (build 17) — ✅ approved 2026-09-24, live on the App Store
+- **Previous version:** 1.10 (build 8, inferred) — superseded; was live June–September 2026
 - **Swift:** SwiftUI + SwiftData + Firebase + MultipeerConnectivity
 - **Project path:** `/Users/vijaygoyal/MyiOSApp/MyApp`
 

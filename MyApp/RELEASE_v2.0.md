@@ -141,7 +141,9 @@ screen showing the called-card pickers.
    git tag -d v2.0-build17-prep && git push origin :v2.0-build17-prep
    ```
 
-7. Amend that tag with APPROVED or REJECTED (plus the guideline) when Apple responds.
+7. ✅ **Done 2026-09-24** — amended to `SUBMITTED 2026-09-23, APPROVED 2026-09-24` and
+   force-pushed to the same commit (`0742f7a`). Approved on the **first pass**, one-day turnaround,
+   no guideline cited.
 
 ---
 
