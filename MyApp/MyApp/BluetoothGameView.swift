@@ -468,8 +468,15 @@ struct BTGameOverView: View {
 // MARK: - UI Test Gameplay Catalog
 
 struct UITestBluetoothGameplayCatalogView: View {
-    @State private var selectedPhase = 0
-    @State private var game = UITestBluetoothGameplayCatalogView.seededGame()
+    /// The phase the catalog opens on. **One source of truth**: `selectedPhase` and the seeded
+    /// game must describe the same phase, and before this they were two independent literals that
+    /// happened to agree. Defaulting the view to a different phase left it rendering that phase's
+    /// UI over a game seeded for bidding — an empty trick and no active player, which reads as a
+    /// broken screen rather than a mis-seed.
+    static let initialPhase = 0
+
+    @State private var selectedPhase = UITestBluetoothGameplayCatalogView.initialPhase
+    @State private var game = UITestBluetoothGameplayCatalogView.seededGame(for: UITestBluetoothGameplayCatalogView.initialPhase)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -506,7 +513,7 @@ struct UITestBluetoothGameplayCatalogView: View {
         ["bidding", "calling", "playing", "round", "final"][safe: phaseIndex] ?? "unknown"
     }
 
-    private static func seededGame(for phaseIndex: Int = 0) -> BluetoothGameViewModel {
+    static func seededGame(for phaseIndex: Int) -> BluetoothGameViewModel {
         let game = BluetoothGameViewModel()
         seedSharedState(game)
         switch phaseIndex {

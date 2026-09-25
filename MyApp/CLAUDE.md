@@ -105,6 +105,26 @@
 > Local development install note: build 13 carries the refreshed Watch companion UI so watchOS
 > replaces the previously installed build-12 companion.
 
+- [2026-09-25] Make the UI-test gameplay catalogs seed the phase they actually display — Symptom:
+  opening the solo catalog on the Playing phase rendered a screen reading `Waiting for ……` with an
+  empty player name and no cards on the table. It looked like a broken app. Root cause: the phase
+  shown and the game seeded were **two independent literals that happened to agree** —
+  `@State selectedPhase = 0` alongside `@State game = seededGame()`, whose parameter defaulted to
+  `0`. Re-seeding happened only in `.onChange(of: selectedPhase)`, which never fires when the view
+  simply *opens* on a different phase, so the Playing UI drew a bidding-seeded game: empty
+  `currentTrick`, `currentActionPlayer` still `-1`. All three catalogs (solo, online, Bluetooth)
+  had the identical shape. Fix: one `static let initialPhase` per catalog feeding **both** the
+  `selectedPhase` state and the seed, and the `= 0` default argument removed from
+  `seededGame(for:)` so a caller must name the phase it wants. Reusable pattern: **two literals
+  that must agree will eventually disagree** — derive one from the other, and delete the default
+  that lets a caller skip the question. Privacy impact: none; UI-test-only catalog code.
+  Verification: 260 unit tests, 0 failures (+4). Proven end to end by re-running the change that
+  exposed it — setting `initialPhase = 2` now renders a real mid-trick with the 9♥ on the table and
+  the bidder's active-turn border, where before it showed the waiting banner. The 4 new tests
+  assert each phase index seeds the screen it draws, in all three modes.
+  (`ComputerGameView.swift`, `OnlineGameView.swift`, `BluetoothGameView.swift`,
+  `GameplayCatalogSeedTests.swift` (new), `project.pbxproj`, `CLAUDE.md`)
+
 - [2026-09-19] Fix three wrong rules in the scorekeeper Add Round form — Symptom (owner): the
   Winning Bidder dropdown did not show all 6 players; Partner 1/2 showed only 4 instead of 5; and a
   player could not be chosen as both partners even though both called cards can sit in one hand.

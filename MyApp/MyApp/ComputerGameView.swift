@@ -2538,8 +2538,15 @@ private struct GameOverView: View {
 // MARK: - UI Test Gameplay Catalog
 
 struct UITestSoloGameplayCatalogView: View {
-    @State private var selectedPhase = 0
-    @State private var game = UITestSoloGameplayCatalogView.seededGame()
+    /// The phase the catalog opens on. **One source of truth**: `selectedPhase` and the seeded
+    /// game must describe the same phase, and before this they were two independent literals that
+    /// happened to agree. Defaulting the view to a different phase left it rendering that phase's
+    /// UI over a game seeded for bidding — an empty trick and no active player, which reads as a
+    /// broken screen rather than a mis-seed.
+    static let initialPhase = 0
+
+    @State private var selectedPhase = UITestSoloGameplayCatalogView.initialPhase
+    @State private var game = UITestSoloGameplayCatalogView.seededGame(for: UITestSoloGameplayCatalogView.initialPhase)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -2589,7 +2596,7 @@ struct UITestSoloGameplayCatalogView: View {
         ["bidding", "calling", "playing", "round", "final"][safe: phaseIndex] ?? "unknown"
     }
 
-    private static func seededGame(for phaseIndex: Int = 0) -> ComputerGameViewModel {
+    static func seededGame(for phaseIndex: Int) -> ComputerGameViewModel {
         let names = ["Vijay", "Shikha", "Manish", "Anya", "Rohan", "Maya"]
         let avatars = ["🦁", "🦊", "🐯", "🐼", "🐸", "🐵"]
         let game = ComputerGameViewModel(
